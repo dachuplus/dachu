@@ -107,12 +107,18 @@ def calc_scores_v5(funds):
     """
     v5 靠谱指数计算（全市场统一排名百分位×100）
     权重：收益排位×60% + 回撤排位×30% + 夏普排位×10%
+    
+    所有基金均参与评分（不再要求收益率>0）
     """
     periods = [
-        {'k': 'k1', 'r': 'r1y', 'dd': 'dd1y', 'sr': 'sr1y'},
-        {'k': 'k2', 'r': 'r2y', 'dd': 'dd2y', 'sr': 'sr2y'},
-        {'k': 'k3', 'r': 'r3y', 'dd': 'dd3y', 'sr': 'sr3y'},
-        {'k': 'k5', 'r': 'r5y', 'dd': 'dd5y', 'sr': 'sr5y'},
+        {'k': 'k0w', 'r': 'r0w', 'dd': None, 'sr': None},
+        {'k': 'k1m', 'r': 'r1m', 'dd': None, 'sr': None},
+        {'k': 'k3m', 'r': 'r3m', 'dd': None, 'sr': None},
+        {'k': 'k6m', 'r': 'r6m', 'dd': None, 'sr': None},
+        {'k': 'k1',  'r': 'r1y', 'dd': 'dd1y', 'sr': 'sr1y'},
+        {'k': 'k2',  'r': 'r2y', 'dd': 'dd2y', 'sr': 'sr2y'},
+        {'k': 'k3',  'r': 'r3y', 'dd': 'dd3y', 'sr': 'sr3y'},
+        {'k': 'k5',  'r': 'r5y', 'dd': 'dd5y', 'sr': 'sr5y'},
     ]
     W_RET = 0.60
     W_DD = 0.30
@@ -120,7 +126,8 @@ def calc_scores_v5(funds):
 
     for period in periods:
         pk, rk, dk, sk = period['k'], period['r'], period['dd'], period['sr']
-        valid = [(i, funds[i]) for i in range(len(funds)) if (funds[i].get(rk, 0) or 0) > 0]
+        # 所有基金参与排名
+        valid = [(i, funds[i]) for i in range(len(funds))]
         if not valid:
             continue
 
@@ -131,24 +138,26 @@ def calc_scores_v5(funds):
         for rank, (idx, fund) in enumerate(ret_ranked):
             ret_pct[idx] = (1 - rank / (valid_n - 1)) * 100 if valid_n > 1 else 50.0
 
-        # 回撤排位（降序，越大越好，即回撤越小越好）
-        dd_ranked = sorted(valid, key=lambda x: x[1].get(dk, -999) or -999, reverse=True)
+        # 回撤排位（仅长周期有）
         dd_pct = {}
-        for rank, (idx, fund) in enumerate(dd_ranked):
-            val = fund.get(dk)
-            dd_pct[idx] = (1 - rank / (valid_n - 1)) * 100 if valid_n > 1 else (50.0 if val is not None else None)
+        if dk:
+            dd_ranked = sorted(valid, key=lambda x: x[1].get(dk, -999) or -999, reverse=True)
+            for rank, (idx, fund) in enumerate(dd_ranked):
+                val = fund.get(dk)
+                dd_pct[idx] = (1 - rank / (valid_n - 1)) * 100 if valid_n > 1 else (50.0 if val is not None else None)
 
-        # 夏普排位（降序）
-        sr_ranked = sorted(valid, key=lambda x: x[1].get(sk, -999) or -999, reverse=True)
+        # 夏普排位（仅长周期有）
         sr_pct = {}
-        for rank, (idx, fund) in enumerate(sr_ranked):
-            val = fund.get(sk)
-            sr_pct[idx] = (1 - rank / (valid_n - 1)) * 100 if valid_n > 1 else (50.0 if val is not None else None)
+        if sk:
+            sr_ranked = sorted(valid, key=lambda x: x[1].get(sk, -999) or -999, reverse=True)
+            for rank, (idx, fund) in enumerate(sr_ranked):
+                val = fund.get(sk)
+                sr_pct[idx] = (1 - rank / (valid_n - 1)) * 100 if valid_n > 1 else (50.0 if val is not None else None)
 
         for idx, fund in valid:
             rp = ret_pct.get(idx)
-            dp = dd_pct.get(idx)
-            sp = sr_pct.get(idx)
+            dp = dd_pct.get(idx) if dk else None
+            sp = sr_pct.get(idx) if sk else None
 
             if dp is not None and sp is not None:
                 score = round(W_RET * rp + W_DD * dp + W_SR * sp, 4)
@@ -190,6 +199,10 @@ def import_to_supabase(funds):
                 _esc_null(r.get('r5y')),
                 _esc_null(r.get('nav')),
                 _esc(r.get('date', '')),
+                _esc_null(r.get('k0w')),
+                _esc_null(r.get('k1m')),
+                _esc_null(r.get('k3m')),
+                _esc_null(r.get('k6m')),
                 _esc_null(r.get('k1')),
                 _esc_null(r.get('k2')),
                 _esc_null(r.get('k3')),
@@ -207,7 +220,7 @@ def import_to_supabase(funds):
             ]
             values.append(f"({','.join(str(v) for v in vals)})")
 
-        cols = 'c,n,t0,t1,t2,t6,a,hp,ytd,r0w,r1m,r3m,r6m,r1y,r2y,r3y,r5y,nav,date,k1,k2,k3,k5,k7,k10,dd1y,dd2y,dd3y,dd5y,sr1y,sr2y,sr3y,sr5y'
+        cols = 'c,n,t0,t1,t2,t6,a,hp,ytd,r0w,r1m,r3m,r6m,r1y,r2y,r3y,r5y,nav,date,k0w,k1m,k3m,k6m,k1,k2,k3,k5,k7,k10,dd1y,dd2y,dd3y,dd5y,sr1y,sr2y,sr3y,sr5y'
         sql = f"INSERT INTO fund_scores ({cols}) VALUES\n" + ',\n'.join(values)
 
         try:
@@ -253,7 +266,7 @@ def main():
         funds = merge_risk_indicators(funds, risk_data)
 
     # 3. 重新计算靠谱分
-    print('\n[3] 重新计算靠谱指数 v5...')
+    print('\n[3] 重新计算靠谱指数 v5（全基金参与）...')
     calc_scores_v5(funds)
     scored_funds = [r for r in funds if r.get('k3', 0) > 0]
     print(f'  有靠谱分的基金: {len(scored_funds)}只')
