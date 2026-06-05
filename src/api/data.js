@@ -36,7 +36,7 @@ export async function fetchTouguProducts(filters = {}) {
 
 // ========== 基金靠谱指数 ==========
 export async function fetchFundScores(params = {}) {
-  const { t0, t1, search, kKey = 'k1', page = 1, pageSize = 30 } = params
+  const { t0, t1, search, kKey = 'k1', page = 1, pageSize = 100 } = params
   if (supabase) {
     let query = supabase.from('fund_scores').select('*')
     if (t0) query = query.eq('t0', t0)
