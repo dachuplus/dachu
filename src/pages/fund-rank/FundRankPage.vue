@@ -380,13 +380,13 @@
             <div class="help-section">
               <span class="help-section-label">参与条件</span>
               <span class="help-desc">
-                阶段收益率 &gt; 0，且至少有回撤或夏普数据之一。不满足条件的基金显示"--"。
+                所有基金均参与评分排名（不再限制收益率>0）。评分基于全市场统一百分位排名，满分100分。
               </span>
             </div>
             <div class="help-section">
               <span class="help-section-label">数据更新</span>
               <span class="help-desc">
-                基金数据每日 17:30 后更新（源自天天基金 FundGuideapi），靠谱分在数据更新后同步重算。净值日期见页面顶部。
+                基金数据每个交易日 21:30 后更新（源自天天基金 FundGuideapi），靠谱分在数据更新后同步重算。净值日期见页面顶部。
               </span>
             </div>
           </div>
@@ -402,6 +402,10 @@ import { fetchFundScores, fetchFundMeta } from '../../api/data.js'
 
 // ========== 常量 ==========
 const periods = [
+  { key: 'k0w', label: '1周' },
+  { key: 'k1m', label: '1月' },
+  { key: 'k3m', label: '3月' },
+  { key: 'k6m', label: '6月' },
   { key: 'k1',  label: '1年' },
   { key: 'k2',  label: '2年' },
   { key: 'k3',  label: '3年' },
@@ -471,7 +475,7 @@ const filterDailyLimit = ref('')
 const searchText = ref('')
 const currentPeriod = ref('k1')
 const page = ref(1)
-const pageSize = 30
+const pageSize = 100
 const hasMore = ref(false)
 const loading = ref(false)
 const dataLoaded = ref(false)
