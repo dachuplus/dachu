@@ -1,0 +1,118 @@
+name: 每日更新基金数据
+
+on:
+  # 定时触发：北京时间每个交易日 17:30（UTC 09:30）
+  schedule:
+    - cron: '30 9 * * 1-5'
+  # 手动触发
+  workflow_dispatch:
+    inputs:
+      skip_risk:
+        description: '跳过风险指标计算（仅更新收益排位靠谱分）'
+        required: false
+        type: boolean
+        default: false
+
+env:
+  PYTHONUNBUFFERED: '1'
+
+jobs:
+  update-fund-data:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 安装 Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: 验证环境变量
+        env:
+          SUPABASE_MGMT_TOKEN: ${{ secrets.SUPABASE_MGMT_TOKEN }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+        run: |
+          if [ -z "$SUPABASE_MGMT_TOKEN" ]; then
+            echo "ERROR: SUPABASE_MGMT_TOKEN 未设置！请在 GitHub Secrets 中配置。"
+            exit 1
+          fi
+          echo "Supabase URL: $SUPABASE_URL"
+          echo "Project Ref: $SUPABASE_PROJECT_REF"
+          echo "MGMT_TOKEN 已配置: ${#SUPABASE_MGMT_TOKEN} 字符"
+
+      - name: 步骤1 — 拉取天天基金全量数据（输出 NDJSON）
+        run: |
+          echo "============================================"
+          echo "  步骤1: 拉取天天基金 + 计算收益靠谱分"
+          echo "  开始时间: $(date '+%Y-%m-%d %H:%M:%S')"
+          echo "============================================"
+          python scripts/fetch_and_import_funds.py --output-only
+
+      - name: 步骤2 — 抓取风险指标（回撤+夏普）
+        if: ${{ !inputs.skip_risk }}
+        run: |
+          echo "============================================"
+          echo "  步骤2: 抓取风险指标 (回撤+夏普比率)"
+          echo "  开始时间: $(date '+%Y-%m-%d %H:%M:%S')"
+          echo "============================================"
+          # 先检查是否有第一步输出的 NDJSON
+          if [ ! -f scripts/funds_output.ndjson ]; then
+            echo "未找到 funds_output.ndjson，跳过风险指标计算"
+            exit 0
+          fi
+          python scripts/fetch_risk_indicators.py \
+            --input scripts/funds_output.ndjson \
+            --output scripts/risk_indicators.ndjson \
+            --workers 5 \
+            --delay 0.25 \
+            --resume
+          echo "风险指标计算完成: $(date '+%Y-%m-%d %H:%M:%S')"
+
+      - name: 步骤3 — 合并风险指标并重新计算靠谱分 + 导入 Supabase
+        if: ${{ !inputs.skip_risk }}
+        run: |
+          echo "============================================"
+          echo "  步骤3: 合并风险指标 + 重新计算靠谱分 (v5) + 导入"
+          echo "  开始时间: $(date '+%Y-%m-%d %H:%M:%S')"
+          echo "============================================"
+          python scripts/merge_risk_and_import.py
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+          SUPABASE_MGMT_TOKEN: ${{ secrets.SUPABASE_MGMT_TOKEN }}
+          SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+
+      - name: 步骤3-alt — 仅收益靠谱分直接导入（跳过风险指标）
+        if: ${{ inputs.skip_risk }}
+        run: |
+          echo "============================================"
+          echo "  步骤3-alt: 仅收益靠谱分 + 导入 Supabase"
+          echo "  开始时间: $(date '+%Y-%m-%d %H:%M:%S')"
+          echo "============================================"
+          python scripts/merge_risk_and_import.py --risk /dev/null
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+          SUPABASE_MGMT_TOKEN: ${{ secrets.SUPABASE_MGMT_TOKEN }}
+          SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+
+      - name: 步骤4 — 验证数据
+        run: |
+          echo "============================================"
+          echo "  步骤4: 验证数据完整性"
+          echo "  完成时间: $(date '+%Y-%m-%d %H:%M:%S')"
+          echo "============================================"
+          python scripts/verify_update.py
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+
+      - name: 失败通知
+        if: failure()
+        run: |
+          echo "数据更新失败！请检查 GitHub Actions 日志。"
+          echo "时间: $(date '+%Y-%m-%d %H:%M:%S')"
