@@ -19,7 +19,7 @@ env:
 jobs:
   update-fund-data:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 60
 
     steps:
       - name: 检出代码
@@ -72,33 +72,23 @@ jobs:
             --resume
           echo "风险指标计算完成: $(date '+%Y-%m-%d %H:%M:%S')"
 
-      - name: 步骤3 — 合并风险指标并重新计算靠谱分 + 导入 Supabase
+      - name: 步骤3 — 合并风险指标 + 重新计算靠谱分 + REST API 导入 Supabase
         if: ${{ !inputs.skip_risk }}
         run: |
           echo "============================================"
-          echo "  步骤3: 合并风险指标 + 重新计算靠谱分 (v5) + 导入"
+          echo "  步骤3: 合并风险指标 + 重算靠谱分 + REST API 导入"
           echo "  开始时间: $(date '+%Y-%m-%d %H:%M:%S')"
           echo "============================================"
-          python scripts/merge_risk_and_import.py
-        env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
-          SUPABASE_MGMT_TOKEN: ${{ secrets.SUPABASE_MGMT_TOKEN }}
-          SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+          python scripts/import_via_rest.py
 
-      - name: 步骤3-alt — 仅收益靠谱分直接导入（跳过风险指标）
+      - name: 步骤3-alt — 仅收益靠谱分 REST API 导入（跳过风险指标）
         if: ${{ inputs.skip_risk }}
         run: |
           echo "============================================"
-          echo "  步骤3-alt: 仅收益靠谱分 + 导入 Supabase"
+          echo "  步骤3-alt: 仅收益靠谱分 + REST API 导入"
           echo "  开始时间: $(date '+%Y-%m-%d %H:%M:%S')"
           echo "============================================"
-          python scripts/merge_risk_and_import.py --risk /dev/null
-        env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
-          SUPABASE_MGMT_TOKEN: ${{ secrets.SUPABASE_MGMT_TOKEN }}
-          SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+          python scripts/import_via_rest.py
 
       - name: 步骤4 — 验证数据
         run: |

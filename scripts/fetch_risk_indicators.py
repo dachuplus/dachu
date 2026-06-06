@@ -92,7 +92,10 @@ def fetch_and_calculate(fund_code, delay=0.3):
             return None
 
         end_date = records[-1]['date']
-        result = {'c': fund_code}
+        start_nav = records[0]['nav']
+        end_nav = records[-1]['nav']
+        return_all = round((end_nav - start_nav) / start_nav * 100, 2) if start_nav > 0 else None
+        result = {'c': fund_code, 'return_all': return_all}
 
         for period in PERIODS:
             label = period['key']

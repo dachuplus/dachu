@@ -97,6 +97,7 @@ def merge_risk_indicators(funds, risk_data):
             fund['sr2y'] = r.get('sr2y')
             fund['sr3y'] = r.get('sr3y')
             fund['sr5y'] = r.get('sr5y')
+            fund['return_all'] = r.get('return_all')
             merged += 1
 
     print(f'  合并风险指标: {merged}/{len(funds)} 只基金')
@@ -217,10 +218,11 @@ def import_to_supabase(funds):
                 _esc_null(r.get('sr2y')),
                 _esc_null(r.get('sr3y')),
                 _esc_null(r.get('sr5y')),
+                _esc_null(r.get('return_all')),
             ]
             values.append(f"({','.join(str(v) for v in vals)})")
 
-        cols = 'c,n,t0,t1,t2,t6,a,hp,ytd,r0w,r1m,r3m,r6m,r1y,r2y,r3y,r5y,nav,date,k0w,k1m,k3m,k6m,k1,k2,k3,k5,k7,k10,dd1y,dd2y,dd3y,dd5y,sr1y,sr2y,sr3y,sr5y'
+        cols = 'c,n,t0,t1,t2,t6,a,hp,ytd,r0w,r1m,r3m,r6m,r1y,r2y,r3y,r5y,nav,date,k0w,k1m,k3m,k6m,k1,k2,k3,k5,k7,k10,dd1y,dd2y,dd3y,dd5y,sr1y,sr2y,sr3y,sr5y,return_all'
         sql = f"INSERT INTO fund_scores ({cols}) VALUES\n" + ',\n'.join(values)
 
         try:

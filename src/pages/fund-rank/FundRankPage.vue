@@ -21,6 +21,9 @@
     <div class="data-info-bar">
       <span class="data-info-row">
         数据：FundGuideapi · {{ meta.total_count || '--' }}只基金
+        <template v-if="funds.length > 0">
+          · {{ hasMore ? `已加载${funds.length}只` : `共${funds.length}只` }}
+        </template>
       </span>
       <span class="data-info-row">
         <span v-if="meta.nav_date">时间：{{ meta.nav_date }}</span>
@@ -150,9 +153,6 @@
           @click="switchPeriod(p.key)"
         >{{ p.label }}</div>
       </div>
-      <span class="result-count" v-if="funds.length > 0">
-        {{ hasMore ? `已加载${funds.length}只` : `共${funds.length}只` }}
-      </span>
     </div>
 
     <!-- 基金列表 -->
@@ -265,10 +265,6 @@
                 <span class="section-source">天天基金{{ detailFund.date ? ' · 截至' + detailFund.date : '' }}</span>
               </div>
               <div class="returns-grid">
-                <div class="return-col" v-if="detailFund.ytd != null">
-                  <span class="ret-label">今年来</span>
-                  <span class="ret-value" :class="retCls(detailFund.ytd)">{{ fmtRet(detailFund.ytd) }}</span>
-                </div>
                 <div class="return-col" v-if="detailFund.r0w != null">
                   <span class="ret-label">近1周</span>
                   <span class="ret-value" :class="retCls(detailFund.r0w)">{{ fmtRet(detailFund.r0w) }}</span>
@@ -300,6 +296,14 @@
                 <div class="return-col" v-if="detailFund.r5y != null">
                   <span class="ret-label">近5年</span>
                   <span class="ret-value" :class="retCls(detailFund.r5y)">{{ fmtRet(detailFund.r5y) }}</span>
+                </div>
+                <div class="return-col" v-if="detailFund.ytd != null">
+                  <span class="ret-label">今年来</span>
+                  <span class="ret-value" :class="retCls(detailFund.ytd)">{{ fmtRet(detailFund.ytd) }}</span>
+                </div>
+                <div class="return-col" v-if="detailFund.return_all != null">
+                  <span class="ret-label">成立以来</span>
+                  <span class="ret-value" :class="retCls(detailFund.return_all)">{{ fmtRet(detailFund.return_all) }}</span>
                 </div>
               </div>
             </div>
@@ -418,7 +422,7 @@ const riskPeriods = [
   { label: '近5年', dd: 'dd5y', sr: 'sr5y' },
 ]
 
-// 三级分类树（基于天天基金 FundGuideapi 实际 t0/t1 值）
+// 三级分类树（基于天天基金 FundGuideapi 实际 t0/t1 值，与数据库保持一致）
 const CAT_TREE = {
   'FOF': {
     'FOF-进取型': ['FOF-进取型'],
@@ -429,6 +433,12 @@ const CAT_TREE = {
     'QDII-普通股票': ['QDII-普通股票'],
     'QDII-混合偏股': ['QDII-混合偏股'],
     'QDII-纯债': ['QDII-纯债'],
+    'QDII-混合灵活': ['QDII-混合灵活'],
+    'QDII-混合债': ['QDII-混合债'],
+    'QDII-商品': ['QDII-商品'],
+    'QDII-FOF': ['QDII-FOF'],
+    'QDII-REITs': ['QDII-REITs'],
+    'QDII-混合平衡': ['QDII-混合平衡'],
     '指数型-股票': ['指数型-股票'],
     '指数型-海外股票': ['指数型-海外股票'],
   },
@@ -444,6 +454,7 @@ const CAT_TREE = {
     '混合型-灵活': ['混合型-灵活'],
     '混合型-平衡': ['混合型-平衡'],
     '混合型-偏债': ['混合型-偏债'],
+    '混合型-绝对收益': ['混合型-绝对收益'],
     '指数型-其他': ['指数型-其他'],
     '指数型-固收': ['指数型-固收'],
   },
