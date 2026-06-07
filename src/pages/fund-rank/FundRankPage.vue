@@ -110,6 +110,16 @@
           </div>
         </div>
 
+        <!-- 申购状态 -->
+        <div class="filter-row">
+          <span class="filter-label">申购状态</span>
+          <div class="filter-chips">
+            <div class="filter-chip" :class="{ active: filterSG === '' }" @click="setSG('')">全部</div>
+            <div class="filter-chip" :class="{ active: filterSG === '1' }" @click="setSG('1')">可申购</div>
+            <div class="filter-chip" :class="{ active: filterSG === '0' }" @click="setSG('0')">暂停申购</div>
+          </div>
+        </div>
+
         <!-- 单日涨跌≥20%（涨停/跌停基金，如T+2） -->
         <div class="filter-row">
           <span class="filter-label">单日±20%</span>
@@ -140,9 +150,16 @@
           基金规模、机构占比、股票占比数据暂未收录，后续版本更新。
         </div>
       </div>
+
+      <!-- 筛选结果数量（始终显示在筛选区底部） -->
+      <div class="filter-result-row" v-if="dataLoaded">
+        <span class="filter-result-count">
+          筛选结果：<strong>{{ totalCount != null ? totalCount : funds.length }}</strong> 只
+        </span>
+      </div>
     </div>
 
-    <!-- 周期Tab + 结果数 -->
+    <!-- 周期Tab + 排序箭头 -->
     <div class="toolbar">
       <div class="period-tabs">
         <div
@@ -151,7 +168,12 @@
           class="period-tab"
           :class="{ active: currentPeriod === p.key }"
           @click="switchPeriod(p.key)"
-        >{{ p.label }}</div>
+        >
+          {{ p.label }}
+          <span class="sort-arrow" v-if="currentPeriod === p.key">
+            {{ sortAsc ? '▲' : '▼' }}
+          </span>
+        </div>
       </div>
     </div>
 
@@ -481,16 +503,19 @@ const filterFOF = ref('')
 const filterDK = ref('')
 const filterHP = ref('')
 const filterDailyLimit = ref('')
+const filterSG = ref('')       // 申购状态：''全部 '1'可申购 '0'暂停申购
 
-// 搜索/周期/分页
+// 搜索/周期/分页/排序
 const searchText = ref('')
 const currentPeriod = ref('k1')
+const sortAsc = ref(false)        // 靠谱指数排序方向（false=降序，true=升序）
 const page = ref(1)
 const pageSize = 100
 const hasMore = ref(false)
 const loading = ref(false)
 const dataLoaded = ref(false)
 const refreshing = ref(false)
+const totalCount = ref(null)      // 当前筛选条件下后端总数（来自 Supabase count）
 
 // 弹窗
 const detailFund = ref(null)
@@ -614,11 +639,13 @@ async function loadData(reset = true) {
       t1: filterT1.value || undefined,
       search: buildSearchText(),
       kKey: currentPeriod.value,
+      sortAsc: sortAsc.value,
       page: page.value,
       pageSize,
       // 客户端附加筛选参数（后端不支持的由前端过滤）
       hp: filterHP.value || undefined,
       dailyLimit: filterDailyLimit.value || undefined,
+      sg: filterSG.value || undefined,   // 申购状态
       etf: filterETF.value || undefined,
       lof: filterLOF.value || undefined,
       dk: filterDK.value || undefined,
@@ -626,6 +653,8 @@ async function loadData(reset = true) {
     })
 
     if (result.data) {
+      // 存储后端总数（t0/t1/search 过滤后，ETF/LOF等前端过滤前的真实数）
+      if (result.count != null) totalCount.value = result.count
       // 前端补充筛选（基于名称智能识别）
       let filtered = result.data
       if (filterSC.value) filtered = filtered.filter(f => extractShareClass(f.n) === filterSC.value)
@@ -708,8 +737,20 @@ function setDailyLimit(val) {
   loadData(true)
 }
 
+function setSG(val) {
+  filterSG.value = val
+  loadData(true)
+}
+
 function switchPeriod(key) {
-  currentPeriod.value = key
+  if (currentPeriod.value === key) {
+    // 已选中：切换升降序
+    sortAsc.value = !sortAsc.value
+  } else {
+    // 新选中：默认降序（高分在前）
+    currentPeriod.value = key
+    sortAsc.value = false
+  }
   loadData(true)
 }
 
@@ -957,6 +998,28 @@ onMounted(() => {
 .period-tab.active {
   background: var(--accent-red);
   color: #fff;
+}
+
+/* 周期Tab箭头 */
+.sort-arrow {
+  font-size: 10px;
+  margin-left: 3px;
+}
+
+.filter-result-count {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.filter-result-count strong {
+  color: var(--accent-red);
+  font-weight: 600;
+}
+
+.filter-result-row {
+  padding: 6px 16px 8px;
+  border-top: 1px solid var(--border);
+  background: var(--bg-card);
 }
 
 .result-count {

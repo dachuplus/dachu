@@ -36,21 +36,24 @@ export async function fetchTouguProducts(filters = {}) {
 
 // ========== 基金靠谱指数 ==========
 export async function fetchFundScores(params = {}) {
-  const { t0, t1, search, kKey = 'k1', page = 1, pageSize = 100 } = params
+  const { t0, t1, search, kKey = 'k1', page = 1, pageSize = 100, sortAsc, sg } = params
   if (supabase) {
-    let query = supabase.from('fund_scores').select('*')
+    let query = supabase.from('fund_scores').select('*', { count: 'exact' })
     if (t0) query = query.eq('t0', t0)
     if (t1) query = query.eq('t1', t1)
     if (search) query = query.or(`n.ilike.%${search}%,c.ilike.%${search}%`)
+    // 申购状态筛选（sg: '1'可申购, '0'暂停申购）
+    if (sg === '1') query = query.eq('sg', 1)
+    if (sg === '0') query = query.eq('sg', 0)
     const from = (page - 1) * pageSize
-    const { data, error } = await query
-      .order(kKey, { ascending: false, nullsFirst: false })
+    const { data, count, error } = await query
+      .order(kKey, { ascending: !!sortAsc, nullsFirst: false })
       .range(from, from + pageSize - 1)
     if (error) throw error
-    return { data: data || [] }
+    return { data: data || [], count }
   }
   // Mock fallback
-  return { data: MOCK_FUNDS }
+  return { data: MOCK_FUNDS, count: MOCK_FUNDS.length }
 }
 
 // ========== 基金元信息 ==========

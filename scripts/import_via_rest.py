@@ -137,6 +137,27 @@ if os.path.exists(risk_path):
 else:
     print('  ⚠ 无风险指标文件，跳过', flush=True)
 
+# 2b. 合并成立以来收益（从 rankhandler API 批量抓取，比逐基金爬取快）
+return_all_path = os.path.join(SCRIPT_DIR, 'return_all.ndjson')
+if os.path.exists(return_all_path):
+    t0 = time.time()
+    ra_map = {}
+    with open(return_all_path, 'r') as f:
+        for line in f:
+            line = line.strip()
+            if line:
+                r = json.loads(line)
+                c = r.get('c', '')
+                if c:
+                    ra_map[c] = r.get('return_all')
+    merged = 0
+    for fund in funds:
+        c = fund.get('c', '')
+        if c in ra_map and ra_map[c] is not None:
+            fund['return_all'] = ra_map[c]
+            merged += 1
+    print(f'  ✓ 合并成立以来收益 {merged}/{len(funds)} ({time.time()-t0:.1f}s)', flush=True)
+
 # 3. 重新计算靠谱分 v5
 t0 = time.time()
 W_RET, W_DD, W_SR = 0.60, 0.30, 0.10
@@ -186,10 +207,14 @@ for pk, rk, dk, sk in periods:
 scored = sum(1 for r in funds if r.get('k3',0) > 0)
 print(f'  ✓ 靠谱分计算完成 scored={scored}/{len(funds)} ({time.time()-t0:.1f}s)', flush=True)
 
-# 4. 通过 REST API 批量导入（先清空由前面的 pg(TRUNCATE) 完成）
-# 注意：表已在前面被 import_all.py 或本脚本外部 TRUNCATE，这里不再重复 TRUNCATE
-# 转换为 REST 格式并分批 POST
+# 4. 通过 REST API 批量导入
+# 先清空旧数据
 t0 = time.time()
+print('  清空旧数据...', flush=True)
+pg('TRUNCATE TABLE fund_scores')
+print(f'  ✓ 已清空', flush=True)
+
+# 转换为 REST 格式并分批 POST
 imported = 0
 
 for i in range(0, len(funds), BATCH):

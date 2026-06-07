@@ -72,6 +72,16 @@ jobs:
             --resume
           echo "风险指标计算完成: $(date '+%Y-%m-%d %H:%M:%S')"
 
+      - name: 步骤2b — 抓取成立以来收益率（rankhandler API）
+        if: ${{ !inputs.skip_risk }}
+        run: |
+          echo "============================================"
+          echo "  步骤2b: 抓取成立以来收益率 (rankhandler API)"
+          echo "  开始时间: $(date '+%Y-%m-%d %H:%M:%S')"
+          echo "============================================"
+          python scripts/fetch_return_all.py scripts/return_all.ndjson 0.3
+          echo "成立以来收益率抓取完成: $(date '+%Y-%m-%d %H:%M:%S')"
+
       - name: 步骤3 — 合并风险指标 + 重新计算靠谱分 + REST API 导入 Supabase
         if: ${{ !inputs.skip_risk }}
         run: |

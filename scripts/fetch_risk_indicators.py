@@ -92,9 +92,42 @@ def fetch_and_calculate(fund_code, delay=0.3):
             return None
 
         end_date = records[-1]['date']
-        start_nav = records[0]['nav']
-        end_nav = records[-1]['nav']
-        return_all = round((end_nav - start_nav) / start_nav * 100, 2) if start_nav > 0 else None
+
+        # 计算成立以来收益：优先从天天基金页面抓取精确数值，其次累计净值，最后单位净值
+        return_all = None
+
+        # 方法1：从基金详情页 HTML 抓取"成立来：2095.19%"（最准确，含红利再投资复利）
+        try:
+            page_url = f'https://fund.eastmoney.com/{code}.html'
+            page_req = urllib.request.Request(page_url, headers={
+                'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
+                'Referer': 'https://fund.eastmoney.com/',
+            })
+            page_resp = urllib.request.urlopen(page_req, timeout=10)
+            page_html = page_resp.read().decode('utf-8', errors='replace')
+            m_page = re.search(r'成立来：</span><span[^>]*>([\d.\-]+)%</span>', page_html)
+            if m_page:
+                return_all = float(m_page.group(1))
+        except Exception:
+            pass
+
+        # 方法2：用累计净值（含分红）
+        if return_all is None:
+            m_ac = re.search(r'var Data_ACWorthTrend\s*=\s*(\[\[.*?\]\])\s*;', js)
+            if m_ac:
+                ac_data = json.loads(m_ac.group(1))
+                if ac_data and len(ac_data) >= 2:
+                    ac_first_nav = ac_data[0][1]
+                    ac_last_nav = ac_data[-1][1]
+                    if ac_first_nav and ac_first_nav > 0:
+                        return_all = round((ac_last_nav - ac_first_nav) / ac_first_nav * 100, 2)
+
+        # 方法3：降级用单位净值
+        if return_all is None:
+            start_nav = records[0]['nav']
+            end_nav = records[-1]['nav']
+            return_all = round((end_nav - start_nav) / start_nav * 100, 2) if start_nav > 0 else None
+
         result = {'c': fund_code, 'return_all': return_all}
 
         for period in PERIODS:
