@@ -5,9 +5,12 @@
 import sys
 import json
 import time
+import os
 import requests
 
-MGMT_TOKEN = 'TOKEN_REMOVED'
+MGMT_TOKEN = os.environ.get('SUPABASE_MGMT_TOKEN')
+if not MGMT_TOKEN:
+    sys.exit('请设置环境变量 SUPABASE_MGMT_TOKEN（Supabase Personal Access Token）')
 SUPABASE_PROJECT_REF = 'tqhtegazxykkqfcpejky'
 MGMT_API = f'https://api.supabase.com/v1/projects/{SUPABASE_PROJECT_REF}/database/query'
 

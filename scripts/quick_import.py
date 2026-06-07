@@ -6,7 +6,9 @@ import json, time, os, sys
 import urllib.request
 import urllib.error
 
-MGMT_TOKEN = 'TOKEN_REMOVED'
+MGMT_TOKEN = os.environ.get('SUPABASE_MGMT_TOKEN')
+if not MGMT_TOKEN:
+    sys.exit('请设置环境变量 SUPABASE_MGMT_TOKEN（Supabase Personal Access Token）')
 MGMT_API = 'https://api.supabase.com/v1/projects/tqhtegazxykkqfcpejky/database/query'
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))

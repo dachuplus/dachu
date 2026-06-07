@@ -3,7 +3,9 @@
 import json, time, subprocess, os, sys
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-MGMT_TOKEN = 'TOKEN_REMOVED'
+MGMT_TOKEN = os.environ.get('SUPABASE_MGMT_TOKEN')
+if not MGMT_TOKEN:
+    sys.exit('请设置环境变量 SUPABASE_MGMT_TOKEN（Supabase Personal Access Token）')
 PROJECT_REF = 'tqhtegazxykkqfcpejky'
 MGMT_API = f'https://api.supabase.com/v1/projects/{PROJECT_REF}/database/query'
 

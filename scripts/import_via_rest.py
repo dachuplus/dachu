@@ -7,7 +7,9 @@ import json, time, sys, os, subprocess
 
 SUPABASE_URL = 'https://tqhtegazxykkqfcpejky.supabase.co'
 ANON_KEY    = 'sb_publishable_iFtMcvav774gqF28gGYQVw_QMmuS-z3'
-MGMT_TOKEN  = os.environ.get('SUPABASE_MGMT_TOKEN', 'TOKEN_REMOVED')
+MGMT_TOKEN  = os.environ.get('SUPABASE_MGMT_TOKEN')
+if not MGMT_TOKEN:
+    sys.exit('请设置环境变量 SUPABASE_MGMT_TOKEN（Supabase Personal Access Token）')
 MGMT_API    = 'https://api.supabase.com/v1/projects/tqhtegazxykkqfcpejky/database/query'
 
 BATCH = 1000   # REST API 单次最多 1000 条
