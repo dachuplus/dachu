@@ -43,7 +43,7 @@
           <div class="sbv-item"><span>深交所PE</span><span>{{ sbvLatest.sz_pe }}倍</span></div>
           <div class="sbv-item">
             <span>深交所利差</span>
-            <span :style="{ color: sbvLatest.sz_spread >= 3 ? 'var(--accent-red)' : 'var(--accent-green)' }">
+            <span :style="{ color: sbvLatest.sz_spread >= 3 ? 'var(--color-up)' : 'var(--color-down)' }">
               {{ sbvLatest.sz_spread }}%
             </span>
           </div>
@@ -172,7 +172,7 @@
             <span class="wd-name">{{ w.name }}</span>
             <span class="wd-base">基础{{ w.baseWeight }}%</span>
             <span class="wd-arrow">→</span>
-            <span class="wd-final" :style="{ color: w.weight > w.baseWeight ? 'var(--accent-red)' : 'var(--accent-green)' }">
+            <span class="wd-final" :style="{ color: w.weight > w.baseWeight ? 'var(--color-up)' : 'var(--color-down)' }">
               {{ w.weight }}%
             </span>
           </div>
@@ -432,7 +432,7 @@ onMounted(loadData)
   color: var(--text-dim, #8B949E);
 }
 .refresh-btn {
-  color: var(--accent-blue, #2196F3);
+  color: var(--blue);
   cursor: pointer;
 }
 .refresh-btn:active { opacity: 0.6; }
@@ -470,8 +470,8 @@ onMounted(loadData)
 .error-card p { margin: 0; }
 
 /* 文字颜色 */
-.text-up { color: var(--accent-red, #FF4757) !important; }
-.text-down { color: var(--accent-green, #2ED573) !important; }
+.text-up { color: var(--color-up) !important; }
+.text-down { color: var(--color-down) !important; }
 
 /* 全市场夏普 */
 .market-sharpe-box { text-align: center; padding: 12px 0; }
@@ -603,7 +603,7 @@ onMounted(loadData)
 }
 .help-close {
   margin-top: 14px; text-align: center;
-  color: var(--accent-blue, #2196F3);
+  color: var(--blue);
   cursor: pointer; font-size: 14px;
 }
 </style>

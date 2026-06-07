@@ -418,7 +418,7 @@ onMounted(() => {
 }
 
 .weight-source {
-  color: var(--accent-red);
+  color: var(--color-up);
 }
 
 /* 卡片通用 */
@@ -478,14 +478,14 @@ onMounted(() => {
 .po-fill {
   height: 100%;
   border-radius: 4px;
-  background: linear-gradient(90deg, var(--accent-red), #FF5252);
+  background: linear-gradient(90deg, var(--color-up), #FF5252);
   transition: width 0.6s ease;
 }
 
 .po-weight {
   font-size: 14px;
   font-weight: 700;
-  color: var(--accent-red);
+  color: var(--color-up);
   min-width: 48px;
   text-align: right;
 }
@@ -542,7 +542,7 @@ onMounted(() => {
 .etf-weight {
   font-size: 14px;
   font-weight: 700;
-  color: var(--accent-red);
+  color: var(--color-up);
   display: block;
 }
 
@@ -660,7 +660,7 @@ onMounted(() => {
   height: 24px;
   line-height: 24px;
   text-align: center;
-  background: var(--accent-red);
+  background: var(--color-up);
   color: #fff;
   border-radius: 50%;
   font-size: 11px;
@@ -700,8 +700,8 @@ onMounted(() => {
   color: var(--text-primary);
 }
 
-.text-up { color: var(--accent-red); }
-.text-down { color: var(--accent-green); }
+.text-up { color: var(--color-up); }
+.text-down { color: var(--color-down); }
 
 .score-gold { color: #FFD700; }
 .score-orange { color: #FF8C00; }

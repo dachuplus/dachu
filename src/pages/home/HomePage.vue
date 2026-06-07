@@ -23,10 +23,10 @@
             class="quote-item"
           >
             <div class="quote-label">{{ q.label }}</div>
-            <div class="quote-price" :style="{ color: q.changePct >= 0 ? 'var(--accent-red)' : 'var(--accent-green)' }">
+            <div class="quote-price" :style="{ color: q.changePct >= 0 ? 'var(--color-up)' : 'var(--color-down)' }">
               {{ q.price || '--' }}
             </div>
-            <div class="quote-change" :style="{ color: q.changePct >= 0 ? 'var(--accent-red)' : 'var(--accent-green)' }">
+            <div class="quote-change" :style="{ color: q.changePct >= 0 ? 'var(--color-up)' : 'var(--color-down)' }">
               {{ q.changePct >= 0 ? '+' : '' }}{{ q.changePct != null ? q.changePct.toFixed(2) : '--' }}%
             </div>
           </div>
@@ -73,13 +73,13 @@
           </div>
           <div class="sbv-detail-item">
             <span class="sbv-dl">深交所利差</span>
-            <span class="sbv-dv" :style="{ color: sbvLatest.sz_spread >= 3 ? 'var(--accent-red)' : 'var(--accent-green)' }">
+            <span class="sbv-dv" :style="{ color: sbvLatest.sz_spread >= 3 ? 'var(--color-up)' : 'var(--color-down)' }">
               {{ sbvLatest.sz_spread }}%
             </span>
           </div>
           <div class="sbv-detail-item">
             <span class="sbv-dl">历史百分位</span>
-            <span class="sbv-dv" :style="{ color: sbvLatest.percentile != null ? (sbvLatest.percentile >= 50 ? 'var(--accent-red)' : 'var(--accent-green)') : 'var(--text-muted)' }">
+            <span class="sbv-dv" :style="{ color: sbvLatest.percentile != null ? (sbvLatest.percentile >= 50 ? 'var(--color-up)' : 'var(--color-down)') : 'var(--text-muted)' }">
               {{ sbvLatest.percentile != null ? sbvLatest.percentile + '%' : '--' }}
             </span>
           </div>
@@ -139,7 +139,7 @@
         </div>
         <div class="ref-cell">
           <span class="ref-cell-label">10Y国债</span>
-          <span class="ref-cell-value" style="color:var(--accent-red);font-weight:700">{{ refData.bondY10 }}</span>
+          <span class="ref-cell-value" style="color:var(--color-up);font-weight:700">{{ refData.bondY10 }}</span>
         </div>
       </div>
       <div class="ref-row" v-if="refData.bondDate">
@@ -160,11 +160,11 @@
         </div>
         <div class="ref-cell" v-if="refData.m2Growth !== '--'">
           <span class="ref-cell-label">M2增速</span>
-          <span class="ref-cell-value" style="color:var(--accent-red)">{{ refData.m2Growth }}</span>
+          <span class="ref-cell-value" style="color:var(--color-up)">{{ refData.m2Growth }}</span>
         </div>
         <div class="ref-cell" v-if="refData.m1m2diff !== '--'">
           <span class="ref-cell-label">M1-M2差</span>
-          <span class="ref-cell-value" :style="{ color: refData.m1m2diff[0] === '-' ? 'var(--accent-green)' : 'var(--accent-red)' }">
+          <span class="ref-cell-value" :style="{ color: refData.m1m2diff[0] === '-' ? 'var(--color-down)' : 'var(--color-up)' }">
             {{ refData.m1m2diff }}
           </span>
         </div>
@@ -178,13 +178,13 @@
       <div class="ref-grid ref-grid-3">
         <div class="ref-cell" v-if="refData.epShRatio">
           <span class="ref-cell-label">上交所股债比</span>
-          <span class="ref-cell-value" :style="{ color: refData.epShRatio >= 2 ? 'var(--accent-red)' : 'var(--accent-green)' }">
+          <span class="ref-cell-value" :style="{ color: refData.epShRatio >= 2 ? 'var(--color-up)' : 'var(--color-down)' }">
             {{ refData.epShRatio }}
           </span>
         </div>
         <div class="ref-cell" v-if="refData.epSzRatio">
           <span class="ref-cell-label">深交所股债比</span>
-          <span class="ref-cell-value" :style="{ color: refData.epSzRatio >= 2 ? 'var(--accent-red)' : 'var(--accent-green)' }">
+          <span class="ref-cell-value" :style="{ color: refData.epSzRatio >= 2 ? 'var(--color-up)' : 'var(--color-down)' }">
             {{ refData.epSzRatio }}
           </span>
         </div>
@@ -492,7 +492,7 @@ onMounted(() => {
 }
 
 .kingkong-item:hover {
-  background: var(--bg-card-hover);
+  background: var(--bg-hover);
 }
 
 .kingkong-icon {
@@ -776,8 +776,8 @@ onMounted(() => {
   display: block;
 }
 
-.low-label { color: var(--accent-red); }
-.high-label { color: var(--accent-green); }
+.low-label { color: var(--color-up); }
+.high-label { color: var(--color-down); }
 
 .eva-item {
   display: flex;

@@ -1,16 +1,33 @@
 <template>
   <div class="app-layout">
-    <!-- 顶部导航栏 -->
-    <header class="app-header">
+    <!-- PC 端顶部导航 -->
+    <header class="app-header" v-if="!isMobile">
       <div class="header-inner">
-        <span class="header-back" v-if="showBack" @click="router.back()">←</span>
+        <span class="header-title">{{ pageTitle }}</span>
+        <nav class="header-nav">
+          <router-link
+            v-for="tab in tabs"
+            :key="tab.path"
+            :to="tab.path"
+            class="nav-link"
+            :class="{ active: currentTab === tab.key }"
+          >{{ tab.label }}</router-link>
+        </nav>
+        <span class="header-right"></span>
+      </div>
+    </header>
+
+    <!-- 移动端返回/标题（非 Tab 页显示） -->
+    <header class="app-header mobile-header" v-if="isMobile && showBack">
+      <div class="header-inner">
+        <span class="header-back" @click="router.back()">←</span>
         <span class="header-title">{{ pageTitle }}</span>
         <span class="header-right"></span>
       </div>
     </header>
 
     <!-- 主内容区 -->
-    <main class="app-main">
+    <main class="app-main" :class="{ 'pc-main': !isMobile }">
       <router-view v-slot="{ Component }">
         <keep-alive :include="['HomePage']">
           <component :is="Component" />
@@ -18,39 +35,38 @@
       </router-view>
     </main>
 
-    <!-- 底部 TabBar -->
-    <nav class="tab-bar">
-      <router-link
-        v-for="tab in tabs"
-        :key="tab.path"
-        :to="tab.path"
-        class="tab-item"
-        :class="{ active: currentTab === tab.key }"
-      >
-        <span class="tab-icon">{{ tab.icon }}</span>
-        <span class="tab-label">{{ tab.label }}</span>
-      </router-link>
-    </nav>
+    <!-- 移动端底部 TabBar -->
+    <MobileTabBar v-if="isMobile" />
   </div>
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { computed, ref, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import MobileTabBar from './components/MobileTabBar.vue'
 
-const route = useRoute()
-const router = useRouter()
+const route   = useRoute()
+const router  = useRouter()
 
+/* ---- 响应式断点 ---- */
+const isMobile = ref(window.innerWidth < 1024)
+function onResize() {
+  isMobile.value = window.innerWidth < 1024
+}
+onMounted(() => window.addEventListener('resize', onResize))
+onUnmounted(() => window.removeEventListener('resize', onResize))
+
+/* ---- Tab 数据 ---- */
 const tabs = [
-  { key: 'home',    path: '/',        icon: '📊', label: '首页'  },
-  { key: 'config',  path: '/config',  icon: '⚖️', label: '配置'  },
-  { key: 'tools',   path: '/tools',   icon: '🔧', label: '工具'  },
-  { key: 'lab',     path: '/lab',     icon: '🧪', label: '实验室'},
-  { key: 'profile', path: '/profile', icon: '👤', label: '我的'  },
+  { key: 'home',    path: '/',       label: '总览'   },
+  { key: 'config',  path: '/config', label: '配置'   },
+  { key: 'tools',   path: '/tools',  label: '工具'   },
+  { key: 'lab',     path: '/lab',    label: '实验室' },
+  { key: 'profile', path: '/profile', label: '我的'   },
 ]
 
 const currentTab = computed(() => route.meta?.tab || 'home')
-const pageTitle  = computed(() => route.meta?.title || '大厨仪表盘')
+const pageTitle  = computed(() => route.meta?.title || '投资助手')
 const showBack   = computed(() => {
   const tabPaths = tabs.map(t => t.path)
   return !tabPaths.includes(route.path)
@@ -58,94 +74,96 @@ const showBack   = computed(() => {
 </script>
 
 <style scoped>
+/* ---- 布局容器 ---- */
 .app-layout {
-  display: flex;
-  flex-direction: column;
   min-height: 100vh;
-  max-width: 480px;
+  background: var(--bg-body);
+  max-width: var(--max-width);
   margin: 0 auto;
-  background: var(--bg-primary);
 }
 
+/* ---- PC 顶部导航 ---- */
 .app-header {
   position: sticky;
   top: 0;
   z-index: 50;
   background: var(--bg-card);
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1px solid var(--border-light);
   height: var(--header-height);
+  box-shadow: var(--shadow-sm);
 }
-
 .header-inner {
   display: flex;
   align-items: center;
   justify-content: space-between;
   height: 100%;
-  padding: 0 16px;
+  padding: 0 20px;
+  max-width: var(--pc-max-width);
+  margin: 0 auto;
 }
-
 .header-title {
-  font-size: 16px;
-  font-weight: 600;
+  font-size: 17px;
+  font-weight: 700;
   color: var(--text-primary);
 }
-
 .header-back {
   color: var(--text-secondary);
   cursor: pointer;
   font-size: 20px;
   padding: 4px 8px 4px 0;
 }
+.header-right { width: 32px; }
 
-.header-right {
-  width: 32px;
+/* PC 导航链接 */
+.header-nav {
+  display: flex;
+  gap: 4px;
+}
+.nav-link {
+  padding: 6px 16px;
+  border-radius: var(--radius-md);
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  text-decoration: none;
+  transition: all 0.15s;
+}
+.nav-link:hover {
+  background: var(--bg-brand-light);
+  color: var(--brand);
+}
+.nav-link.active {
+  background: var(--bg-brand-light);
+  color: var(--brand);
 }
 
+/* 移动端标题栏（子页面返回用） */
+.mobile-header {
+  display: none;
+}
+@media (max-width: 1023px) {
+  .mobile-header { display: block; }
+}
+
+/* ---- 主内容区 ---- */
 .app-main {
   flex: 1;
   overflow-y: auto;
-  padding: 12px;
-  padding-bottom: calc(var(--tab-height) + 12px);
+  padding: var(--space-md);
+  padding-bottom: calc(var(--tab-height) + var(--space-md));
 }
-
-/* TabBar */
-.tab-bar {
-  position: fixed;
-  bottom: 0;
-  left: 50%;
-  transform: translateX(-50%);
+.pc-main {
+  padding: 20px;
+  padding-bottom: 20px;
+  max-width: var(--pc-max-width);
+  margin: 0 auto;
   width: 100%;
-  max-width: 480px;
-  height: var(--tab-height);
-  background: var(--bg-card);
-  border-top: 1px solid var(--border);
-  display: flex;
-  z-index: 50;
 }
 
-.tab-item {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 2px;
-  text-decoration: none;
-  color: var(--text-muted);
-  transition: color 0.15s;
-}
-
-.tab-item.active {
-  color: var(--accent-red);
-}
-
-.tab-icon {
-  font-size: 20px;
-  line-height: 1;
-}
-
-.tab-label {
-  font-size: 10px;
-  font-weight: 500;
+/* ---- PC 端隐藏移动端标题栏 ---- */
+@media (min-width: 1024px) {
+  .app-main {
+    padding-bottom: 20px;
+  }
 }
 </style>

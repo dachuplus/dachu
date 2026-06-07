@@ -496,7 +496,7 @@ onMounted(loadStockData)
 .page-style-factor { padding: 12px; padding-bottom: 80px; }
 
 .header-bar { display: flex; justify-content: space-between; padding: 8px 4px; font-size: 12px; color: var(--text-dim, #8B949E); }
-.refresh-btn { color: var(--accent-blue, #2196F3); cursor: pointer; }
+.refresh-btn { color: var(--blue); cursor: pointer; }
 .refresh-btn:active { opacity: 0.6; }
 
 /* Tab */
@@ -548,7 +548,7 @@ onMounted(loadStockData)
 .bs-label { color: var(--text-dim, #8B949E); min-width: 60px; }
 .bs-value { font-weight: 600; font-variant-numeric: tabular-nums; }
 .bs-desc { color: var(--text-dim, #8B949E); font-size: 11px; }
-.trend-note { font-size: 12px; color: var(--accent-blue, #2196F3); margin-top: 8px; line-height: 1.5; }
+.trend-note { font-size: 12px; color: var(--blue); margin-top: 8px; line-height: 1.5; }
 
 /* 商品 */
 .cmd-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
@@ -569,8 +569,8 @@ onMounted(loadStockData)
 .help-heading { font-size: 13px; font-weight: 500; color: var(--text-primary, #e6edf3); margin-bottom: 4px; }
 .help-desc { font-size: 12px; color: var(--text-dim, #8B949E); line-height: 1.6; margin: 0; }
 .help-item-row { display: flex; gap: 8px; font-size: 12px; padding: 2px 0; }
-.hir-label { color: var(--accent-blue, #2196F3); white-space: nowrap; }
+.hir-label { color: var(--blue); white-space: nowrap; }
 .hir-desc { color: var(--text-dim, #8B949E); }
 .help-footer { font-size: 10px; color: var(--text-dim, #8B949E); margin-top: 8px; border-top: 1px solid rgba(255,255,255,0.06); padding-top: 8px; }
-.help-close { margin-top: 14px; text-align: center; color: var(--accent-blue, #2196F3); cursor: pointer; font-size: 14px; }
+.help-close { margin-top: 14px; text-align: center; color: var(--blue); cursor: pointer; font-size: 14px; }
 </style>

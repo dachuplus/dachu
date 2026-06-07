@@ -831,7 +831,7 @@ onMounted(() => {
 .search-input {
   width: 100%;
   padding: 7px 32px 7px 12px;
-  background: var(--bg-primary);
+  background: var(--bg-body);
   border: 1px solid var(--border);
   border-radius: 16px;
   font-size: 13px;
@@ -841,7 +841,7 @@ onMounted(() => {
 }
 
 .search-input::placeholder { color: var(--text-muted); }
-.search-input:focus { border-color: var(--accent-red); }
+.search-input:focus { border-color: var(--color-up); }
 
 .search-clear {
   position: absolute;
@@ -877,7 +877,7 @@ onMounted(() => {
   margin-left: 8px;
   padding: 2px 10px;
   font-size: 11px;
-  color: var(--accent-red);
+  color: var(--color-up);
   background: rgba(255, 71, 87, 0.1);
   border-radius: 12px;
   cursor: pointer;
@@ -918,7 +918,7 @@ onMounted(() => {
 
 .filter-chip {
   padding: 5px 12px;
-  background: var(--bg-card-hover);
+  background: var(--bg-hover);
   border-radius: 14px;
   font-size: 12px;
   color: var(--text-secondary);
@@ -928,7 +928,7 @@ onMounted(() => {
 }
 
 .filter-chip.active {
-  background: var(--accent-red);
+  background: var(--color-up);
   color: #fff;
 }
 
@@ -989,14 +989,14 @@ onMounted(() => {
   padding: 5px 14px;
   font-size: 12px;
   color: var(--text-muted);
-  background: var(--bg-card-hover);
+  background: var(--bg-hover);
   border-radius: 6px;
   cursor: pointer;
   transition: all 0.15s;
 }
 
 .period-tab.active {
-  background: var(--accent-red);
+  background: var(--color-up);
   color: #fff;
 }
 
@@ -1012,7 +1012,7 @@ onMounted(() => {
 }
 
 .filter-result-count strong {
-  color: var(--accent-red);
+  color: var(--color-up);
   font-weight: 600;
 }
 
@@ -1045,7 +1045,7 @@ onMounted(() => {
   transition: background 0.15s;
 }
 
-.fund-card:hover { background: var(--bg-card-hover); }
+.fund-card:hover { background: var(--bg-hover); }
 
 .fund-rank-area {
   display: flex;
@@ -1113,7 +1113,7 @@ onMounted(() => {
   color: var(--text-secondary);
 }
 
-.fund-code { color: var(--accent-red); font-weight: 500; }
+.fund-code { color: var(--color-up); font-weight: 500; }
 .fund-sep { color: var(--border); }
 
 .fund-scores-row {
@@ -1144,7 +1144,7 @@ onMounted(() => {
   text-align: center;
   padding: 16px;
   font-size: 13px;
-  color: var(--accent-red);
+  color: var(--color-up);
   cursor: pointer;
 }
 
@@ -1167,8 +1167,8 @@ onMounted(() => {
 .bottom-info span { font-size: 10px; color: var(--text-muted); }
 
 /* 颜色 */
-.ret-up { color: var(--accent-red); }
-.ret-down { color: var(--accent-green); }
+.ret-up { color: var(--color-up); }
+.ret-down { color: var(--color-down); }
 
 /* ===== 弹窗通用 ===== */
 .mask {
@@ -1273,7 +1273,7 @@ onMounted(() => {
 .detail-scores-grid {
   display: flex;
   justify-content: space-around;
-  background: var(--bg-primary);
+  background: var(--bg-body);
   border-radius: 10px;
   padding: 12px;
 }
@@ -1325,9 +1325,9 @@ onMounted(() => {
   color: var(--text-primary);
 }
 
-.risk-val.risk-high { color: var(--accent-red); }
-.risk-val.risk-mid { color: var(--accent-orange, #FF8C00); }
-.risk-val.risk-low { color: var(--accent-green); }
+.risk-val.risk-high { color: var(--color-up); }
+.risk-val.risk-mid { color: var(--orange); }
+.risk-val.risk-low { color: var(--color-down); }
 
 /* 天天基金跳转按钮 */
 .detail-goto {
@@ -1337,7 +1337,7 @@ onMounted(() => {
   margin-top: 16px;
   border-top: 1px solid var(--border);
   font-size: 14px;
-  color: var(--accent-red);
+  color: var(--color-up);
   font-weight: 500;
   text-decoration: none;
 }

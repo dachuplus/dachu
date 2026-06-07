@@ -17,7 +17,7 @@
 <script setup></script>
 <style scoped>
 .tool-grid { display: flex; flex-direction: column; gap: 8px; }
-.tool-item { display: block; padding: 12px; background: var(--bg-card-hover); border-radius: 8px; text-decoration: none; color: var(--text-primary); font-size: 14px; border: 1px solid var(--border); }
-.tool-item:hover { border-color: var(--accent-red); }
+.tool-item { display: block; padding: 12px; background: var(--bg-hover); border-radius: 8px; text-decoration: none; color: var(--text-primary); font-size: 14px; border: 1px solid var(--border); }
+.tool-item:hover { border-color: var(--color-up); }
 .coming-soon { color: var(--text-muted); font-size: 13px; padding: 12px 0; }
 </style>

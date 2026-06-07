@@ -298,7 +298,7 @@ onMounted(loadData)
 
 .refresh-text {
   font-size: 12px;
-  color: var(--accent-red);
+  color: var(--color-up);
   font-weight: 500;
 }
 
@@ -324,7 +324,7 @@ onMounted(loadData)
 }
 
 .type-tab.active {
-  color: var(--accent-red);
+  color: var(--color-up);
   font-weight: 600;
 }
 
@@ -336,7 +336,7 @@ onMounted(loadData)
   transform: translateX(-50%);
   width: 24px;
   height: 2px;
-  background: var(--accent-red);
+  background: var(--color-up);
   border-radius: 1px;
 }
 
@@ -357,7 +357,7 @@ onMounted(loadData)
 }
 
 .tougu-card:hover {
-  background: var(--bg-card-hover);
+  background: var(--bg-hover);
 }
 
 .card-top {
@@ -413,7 +413,7 @@ onMounted(loadData)
   background: rgba(255, 82, 82, 0.12);
   border-radius: 6px;
   font-size: 11px;
-  color: var(--accent-red);
+  color: var(--color-up);
   font-weight: 500;
 }
 
@@ -444,8 +444,8 @@ onMounted(loadData)
   color: var(--text-secondary);
 }
 
-.return-value.up   { color: var(--accent-red);   }
-.return-value.down { color: var(--accent-green); }
+.return-value.up   { color: var(--color-up);   }
+.return-value.down { color: var(--color-down); }
 
 /* 加载/空状态 */
 .loading-wrap {
@@ -569,7 +569,7 @@ onMounted(loadData)
 .help-tag {
   font-size: 11px;
   color: var(--text-secondary);
-  background: var(--bg-card-hover);
+  background: var(--bg-hover);
   border: 1px solid var(--border);
   padding: 3px 8px;
   border-radius: 6px;

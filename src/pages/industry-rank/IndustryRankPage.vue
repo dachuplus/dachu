@@ -421,7 +421,7 @@ function pctClass(v) {
   margin-left: auto;
   padding: 2px 10px;
   font-size: 11px;
-  color: var(--accent-red);
+  color: var(--color-up);
   background: rgba(255, 71, 87, 0.1);
   border-radius: 12px;
   cursor: pointer;
@@ -443,7 +443,7 @@ function pctClass(v) {
 .filter-chip {
   flex-shrink: 0;
   padding: 5px 14px;
-  background: var(--bg-card-hover);
+  background: var(--bg-hover);
   border-radius: 14px;
   font-size: 12px;
   color: var(--text-secondary);
@@ -452,7 +452,7 @@ function pctClass(v) {
 }
 
 .filter-chip.active {
-  background: var(--accent-red);
+  background: var(--color-up);
   color: #fff;
 }
 
@@ -514,11 +514,11 @@ function pctClass(v) {
 }
 
 .sortable:hover {
-  color: var(--accent-red);
+  color: var(--color-up);
 }
 
 .sorted {
-  color: var(--accent-red);
+  color: var(--color-up);
 }
 
 /* 数据行 */
@@ -532,7 +532,7 @@ function pctClass(v) {
 }
 
 .eva-row:hover {
-  background: var(--bg-card-hover);
+  background: var(--bg-hover);
 }
 
 .row-even {
@@ -557,7 +557,7 @@ function pctClass(v) {
 
 /* 百分位颜色 */
 .pct-low {
-  color: var(--accent-red);
+  color: var(--color-up);
   font-weight: 600;
 }
 
@@ -566,7 +566,7 @@ function pctClass(v) {
 }
 
 .pct-high {
-  color: var(--accent-green);
+  color: var(--color-down);
   font-weight: 600;
 }
 
@@ -604,7 +604,7 @@ function pctClass(v) {
 
 .empty-hint {
   font-size: 12px;
-  color: var(--accent-red);
+  color: var(--color-up);
   cursor: pointer;
 }
 
