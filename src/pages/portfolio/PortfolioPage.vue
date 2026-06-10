@@ -385,343 +385,89 @@ onMounted(() => {
 </script>
 
 <style scoped>
-.page-portfolio {
-  padding-bottom: 16px;
-}
+/* ========== gov.uk 风格基金组合 ========== */
+.page-portfolio { padding-bottom: var(--space-2xl); }
 
-.section-header {
-  padding: 0 0 8px;
-}
+.section-header { padding-bottom: var(--space-md); border-bottom: 1px solid var(--border); margin-bottom: var(--space-xl); }
+.section-title { font-size: 24px; font-weight: 700; color: var(--text-primary); display: block; }
+@media (min-width: 641px) { .section-title { font-size: 36px; } }
+.section-subtitle { font-size: 16px; color: var(--text-secondary); display: block; margin-top: var(--space-xs); }
 
-.section-title {
-  font-size: 18px;
-  font-weight: 700;
-  color: var(--text-primary);
-  display: block;
-}
+.data-status { display: flex; align-items: center; gap: var(--space-sm); padding: var(--space-sm) 0; font-size: 14px; color: var(--text-secondary); }
+.weight-source { font-weight: 700; }
 
-.section-subtitle {
-  font-size: 12px;
-  color: var(--text-muted);
-  display: block;
-  margin-top: 4px;
-}
+.card { background: #ffffff; border: 1px solid var(--border); padding: var(--space-lg); margin-bottom: var(--space-xl); }
+.card-title { font-size: 24px; font-weight: 700; color: var(--text-primary); margin-bottom: var(--space-md); }
 
-/* 数据状态 */
-.data-status {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 0;
-  font-size: 12px;
-  color: var(--text-muted);
-}
-
-.weight-source {
-  color: var(--color-up);
-}
-
-/* 卡片通用 */
-.card {
-  background: var(--card-bg);
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  padding: 16px;
-  margin-bottom: 12px;
-}
-
-.card-title {
-  font-size: 15px;
-  font-weight: 600;
-  color: var(--text-primary);
-  margin-bottom: 12px;
-}
-
-/* 组合总览 */
-.portfolio-overview {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.po-item {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.po-left {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  min-width: 80px;
-}
-
+.portfolio-overview { display: flex; flex-direction: column; gap: var(--space-sm); }
+.po-item { display: flex; align-items: center; gap: var(--space-sm); }
+.po-left { display: flex; align-items: center; gap: 6px; min-width: 90px; }
 .po-icon { font-size: 16px; }
-.po-name { font-size: 14px; font-weight: 500; color: var(--text-primary); }
+.po-name { font-size: 16px; font-weight: 700; color: var(--text-primary); }
+.po-right { flex: 1; display: flex; align-items: center; gap: var(--space-sm); }
+.po-bar { flex: 1; height: 24px; background: #f3f2f1; overflow: hidden; }
+.po-fill { height: 100%; background: #1d70b8; transition: width 0.6s ease; }
+.po-weight { font-size: 16px; font-weight: 700; min-width: 48px; text-align: right; }
 
-.po-right {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.po-bar {
-  flex: 1;
-  height: 8px;
-  background: var(--bg);
-  border-radius: 4px;
-  overflow: hidden;
-}
-
-.po-fill {
-  height: 100%;
-  border-radius: 4px;
-  background: linear-gradient(90deg, var(--color-up), #FF5252);
-  transition: width 0.6s ease;
-}
-
-.po-weight {
-  font-size: 14px;
-  font-weight: 700;
-  color: var(--color-up);
-  min-width: 48px;
-  text-align: right;
-}
-
-/* ETF列表 */
-.etf-list {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.etf-loading,
-.etf-empty {
-  padding: 16px 0;
-  text-align: center;
-  font-size: 13px;
-  color: var(--text-muted);
-}
+.etf-list { display: flex; flex-direction: column; gap: var(--space-sm); }
+.etf-loading, .etf-empty { padding: var(--space-md); text-align: center; font-size: 16px; color: var(--text-secondary); }
 
 .etf-item {
-  padding: 12px;
-  background: var(--bg);
-  border-radius: 8px;
+  padding: var(--space-md); border: 1px solid var(--border);
+  border-left: 5px solid #1d70b8;
 }
-
-.etf-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 6px;
-}
-
-.etf-name-wrap {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.etf-name {
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--text-primary);
-}
-
-.etf-code {
-  font-size: 11px;
-  color: var(--text-muted);
-}
-
-.etf-weight-wrap {
-  text-align: right;
-}
-
-.etf-weight {
-  font-size: 14px;
-  font-weight: 700;
-  color: var(--color-up);
-  display: block;
-}
-
-.etf-score {
-  font-size: 11px;
-  color: var(--text-muted);
-}
-
+.etf-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-sm); }
+.etf-name-wrap { display: flex; flex-direction: column; }
+.etf-name { font-size: 16px; font-weight: 700; color: var(--text-primary); }
+.etf-code { font-size: 14px; color: var(--text-secondary); }
+.etf-weight-wrap { text-align: right; }
+.etf-weight { font-size: 19px; font-weight: 700; display: block; }
+.etf-score { font-size: 14px; color: var(--text-secondary); }
 .etf-reason {
-  font-size: 12px;
-  color: var(--text-secondary);
-  padding-top: 6px;
-  border-top: 1px solid var(--border);
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
+  font-size: 14px; color: var(--text-secondary); padding-top: var(--space-sm);
+  border-top: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center;
 }
+.etf-return { font-weight: 700; white-space: nowrap; margin-left: var(--space-md); }
 
-.etf-return {
-  font-weight: 500;
-  white-space: nowrap;
-  margin-left: 12px;
-}
+.divider { display: flex; align-items: center; gap: var(--space-md); padding: var(--space-xl) 0; }
+.divider-line { flex: 1; height: 1px; background: var(--border); }
+.divider-text { font-size: 14px; color: var(--text-secondary); white-space: nowrap; }
 
-/* 分割线 */
-.divider {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 16px 0;
-}
-
-.divider-line {
-  flex: 1;
-  height: 1px;
-  background: var(--border);
-}
-
-.divider-text {
-  font-size: 12px;
-  color: var(--text-muted);
-  white-space: nowrap;
-}
-
-/* 随机抽取 */
-.roll-card {
-  text-align: center;
-}
-
+.roll-card { text-align: center; }
 .roll-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 12px 48px;
-  background: linear-gradient(135deg, #E53935, #FF5252);
-  color: #fff;
-  font-size: 15px;
-  font-weight: 600;
-  border-radius: 24px;
-  margin-bottom: 16px;
-  cursor: pointer;
-  box-shadow: 0 4px 12px rgba(229, 57, 53, 0.3);
-  transition: transform 0.15s, opacity 0.15s;
-  user-select: none;
+  display: inline-flex; align-items: center; justify-content: center;
+  padding: var(--space-sm) var(--space-xl);
+  background: #00703c; color: #ffffff; font-size: 19px; font-weight: 400;
+  margin-bottom: var(--space-lg); cursor: pointer;
+  box-shadow: 0 2px 0 #002d18; transition: all 0.15s; user-select: none;
 }
+.roll-btn:hover { background: #005a30; }
+.roll-btn:active { top: 2px; box-shadow: none; }
+.roll-btn.rolling { opacity: 0.7; }
 
-.roll-btn:active {
-  transform: scale(0.96);
-}
-
-.roll-btn.rolling {
-  opacity: 0.7;
-  animation: pulse 0.5s ease infinite;
-}
-
-@keyframes pulse {
-  0%, 100% { transform: scale(1); }
-  50% { transform: scale(1.03); }
-}
-
-@keyframes fadeInUp {
-  from {
-    opacity: 0;
-    transform: translateY(12px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-.roll-result {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.roll-etf {
-  padding: 12px;
-  background: var(--bg);
-  border-radius: 10px;
-  border: 1px solid var(--border);
-  text-align: left;
-}
-
-.roll-etf-top {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-bottom: 10px;
-}
-
+.roll-result { display: flex; flex-direction: column; gap: var(--space-sm); }
+.roll-etf { padding: var(--space-md); border: 1px solid var(--border); text-align: left; }
+.roll-etf-top { display: flex; align-items: center; gap: var(--space-sm); margin-bottom: var(--space-sm); }
 .roll-rank {
-  width: 24px;
-  height: 24px;
-  line-height: 24px;
-  text-align: center;
-  background: var(--color-up);
-  color: #fff;
-  border-radius: 50%;
-  font-size: 11px;
-  font-weight: 700;
-  flex-shrink: 0;
+  width: 28px; height: 28px; line-height: 28px; text-align: center;
+  background: #0b0c0c; color: #ffffff; font-size: 14px; font-weight: 700; flex-shrink: 0;
 }
-
-.roll-etf-name {
-  font-size: 15px;
-  font-weight: 700;
-  color: var(--text-primary);
-}
-
-.roll-etf-info {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 6px;
-}
-
-.roll-info-item {
-  text-align: center;
-  padding: 6px 0;
-  background: rgba(255, 255, 255, 0.04);
-  border-radius: 6px;
-}
-
-.ri-label {
-  font-size: 10px;
-  color: var(--text-muted);
-  display: block;
-  margin-bottom: 2px;
-}
-
-.ri-value {
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--text-primary);
-}
+.roll-etf-name { font-size: 19px; font-weight: 700; color: var(--text-primary); }
+.roll-etf-info { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--space-sm); }
+.roll-info-item { text-align: center; padding: var(--space-sm); border: 1px solid var(--border); }
+.ri-label { font-size: 12px; color: var(--text-secondary); display: block; margin-bottom: 2px; }
+.ri-value { font-size: 14px; font-weight: 700; color: var(--text-primary); }
 
 .text-up { color: var(--color-up); }
 .text-down { color: var(--color-down); }
+.score-gold { color: #0b0c0c; }
+.score-orange { color: #0b0c0c; }
+.score-cyan { color: #505a5f; }
+.score-gray { color: #b1b4b6; }
+.roll-empty { padding: var(--space-xl) 0; color: var(--text-secondary); font-size: 16px; }
 
-.score-gold { color: #FFD700; }
-.score-orange { color: #FF8C00; }
-.score-cyan { color: #00CED1; }
-.score-gray { color: #8B949E; }
-
-.roll-empty {
-  padding: 30px 0;
-  color: var(--text-muted);
-  font-size: 13px;
-}
-
-/* 底部声明 */
 .footer-note {
-  text-align: center;
-  padding: 16px 0;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  font-size: 11px;
-  color: var(--text-muted);
+  text-align: left; padding: var(--space-xl) 0; font-size: 14px;
+  color: var(--text-secondary); border-top: 1px solid var(--border);
 }
 </style>

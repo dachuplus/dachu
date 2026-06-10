@@ -1,88 +1,79 @@
 /* ============================================
-   allfund V2.0 — 天天基金风格 + 响应式框架
+   allfund V3.0 — gov.uk 极简政府风
    ============================================ */
 
-/* ---------- CSS 变量（天天基金亮色主题） ---------- */
+/* ---------- CSS 变量 ---------- */
 :root {
-  /* 品牌色 */
-  --brand:        #E53935;   /* 天天基金红 */
-  --brand-light:  #FF5252;   /* 活跃态 / hover */
-  --brand-dark:   #B71C1C;   /*  pressed */
+  /* 品牌色 — gov.uk 风格：克制、无装饰 */
+  --brand:        #0b0c0c;   /* 主色 = 黑色 */
+  --brand-light:  #505a5f;   /* 次要 */
+  --brand-dark:   #0b0c0c;
 
-  /* 语义色 */
-  --color-up:     #E53935;   /* 涨 = 红（中国 convention） */
-  --color-down:   #2E7D32;   /* 跌 = 绿 */
-  --color-flat:   #999999;   /* 平 */
+  /* 语义色 — 仅数据变化时使用 */
+  --color-up:     #d4351c;   /* 涨 = 红（中国 convention） */
+  --color-down:   #00703c;   /* 跌 = 绿 */
+  --color-flat:   #505a5f;   /* 平 = 灰 */
 
-  /* 背景层 */
-  --bg-body:     #F5F5F5;   /* 页面底色（浅灰） */
-  --bg-card:     #FFFFFF;     /* 卡片底色 */
-  --bg-hover:    #FFF0F0;   /* 行 hover（淡红） */
-  --bg-brand-light: #FFF0F0; /* 品牌浅底 */
+  /* 背景层 — 无渐变、无装饰 */
+  --bg-body:      #f3f2f1;   /* 页面底色（gov.uk 浅灰） */
+  --bg-card:      #ffffff;   /* 内容区底 = 纯白 */
+  --bg-hover:     #f3f2f1;   /* hover = 与背景一致 */
+  --bg-brand-light: #f3f2f1;
 
   /* 文字 */
-  --text-primary:   #212121;
-  --text-secondary: #666666;
-  --text-muted:     #999999;
-  --text-inverse:    #FFFFFF;
+  --text-primary:   #0b0c0c;
+  --text-secondary: #505a5f;
+  --text-muted:     #b1b4b6;
+  --text-inverse:   #ffffff;
 
-  /* 边框 / 分割线 */
-  --border:       #E0E0E0;
-  --border-light: #EEEEEE;
+  /* 边框 — 1px 实线 */
+  --border:       #b1b4b6;
+  --border-light: #b1b4b6;
 
-  /* 功能色 */
-  --gold:   #FF8F00;
-  --blue:   #1565C0;
-  --orange: #EF6C00;
+  /* 链接色 */
+  --link:         #1d70b8;
+  --link-hover:   #003078;
 
   /* 布局尺寸 */
-  --header-height: 48px;
+  --header-height: 60px;
   --tab-height:    56px;
-  --max-width:     480px;      /* 手机端最大宽 */
-  --pc-max-width:  1200px;    /* PC 端最大宽 */
+  --max-width:     480px;
+  --pc-max-width:  960px;    /* gov.uk 标准内容宽 960px */
 
-  /* 圆角 */
-  --radius-sm: 4px;
-  --radius-md: 8px;
-  --radius-lg: 12px;
+  /* 圆角 — gov.uk = 无圆角 */
+  --radius-sm: 0;
+  --radius-md: 0;
+  --radius-lg: 0;
 
-  /* 阴影 */
-  --shadow-sm: 0 1px 3px rgba(0,0,0,0.06);
-  --shadow-md: 0 2px 8px rgba(0,0,0,0.1);
-  --shadow-lg: 0 4px 16px rgba(0,0,0,0.12);
+  /* 阴影 — gov.uk = 无阴影 */
+  --shadow-sm: none;
+  --shadow-md: none;
+  --shadow-lg: none;
 
-  /* 间距 */
-  --space-xs: 4px;
-  --space-sm: 8px;
-  --space-md: 12px;
-  --space-lg: 16px;
-  --space-xl: 24px;
+  /* 间距 — gov.uk 标准间距 */
+  --space-xs: 5px;
+  --space-sm: 10px;
+  --space-md: 15px;
+  --space-lg: 20px;
+  --space-xl: 30px;
+  --space-2xl: 45px;
+
+  /* 字体 */
+  --font-body: 'PingFang SC', 'Helvetica Neue', 'Microsoft YaHei', Arial, sans-serif;
+  --font-heading: 'PingFang SC', 'Helvetica Neue', 'Microsoft YaHei', Arial, sans-serif;
 }
 
-/* ---------- 断点：手机优先（<768px） ----------
-   默认样式即手机端
-   -------------------------------------------- */
-
-/* 平板 ≥768px */
-@media (min-width: 768px) {
+/* ---------- gov.uk 断点 ---------- */
+@media (min-width: 641px) {  /* tablet */
   :root {
     --max-width: 720px;
   }
 }
-
-/* PC ≥1024px */
-@media (min-width: 1024px) {
+@media (min-width: 769px) {  /* desktop */
   :root {
-    --max-width:    980px;
-    --header-height: 56px;
-    --tab-height:    0px;     /* PC 端隐藏底部 TabBar */
-  }
-}
-
-/* 大屏 PC ≥1280px */
-@media (min-width: 1280px) {
-  :root {
-    --max-width: 1200px;
+    --max-width: 960px;
+    --header-height: 60px;
+    --tab-height: 0px;
   }
 }
 
@@ -95,155 +86,204 @@
 html, body {
   background: var(--bg-body);
   color: var(--text-primary);
-  font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC',
-               'Helvetica Neue', 'Microsoft YaHei', sans-serif;
-  font-size: 14px;
+  font-family: var(--font-body);
+  font-size: 16px;
   line-height: 1.5;
   min-height: 100vh;
   overflow-x: hidden;
   -webkit-tap-highlight-color: transparent;
+  -webkit-font-smoothing: antialiased;
 }
-a { color: inherit; text-decoration: none; }
-button { font: inherit; cursor: pointer; }
-input, select, textarea { font: inherit; }
-
-/* ---------- 滚动条 ---------- */
-::-webkit-scrollbar { width: 4px; height: 4px; }
-::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
-
-/* ---------- 通用布局容器 ---------- */
-.container {
-  width: 100%;
-  max-width: var(--max-width);
-  margin: 0 auto;
-  padding: 0 var(--space-md);
+@media (min-width: 641px) {
+  html, body { font-size: 19px; }
 }
-.pc-grid {
-  display: grid;
-  gap: var(--space-lg);
+a {
+  color: var(--link);
+  text-decoration: underline;
 }
-@media (min-width: 1024px) {
-  .pc-grid { grid-template-columns: 1fr 1fr; }
+a:hover { color: var(--link-hover); }
+button {
+  font: inherit;
+  cursor: pointer;
+  border: none;
+  background: none;
+}
+input, select, textarea {
+  font: inherit;
 }
 
-/* ---------- 卡片 ---------- */
+/* ---------- 标题层级（gov.uk） ---------- */
+h1, .govuk-heading-xl { font-size: 32px; line-height: 1.15; font-weight: 700; margin-bottom: var(--space-xl); }
+h2, .govuk-heading-l  { font-size: 24px; line-height: 1.25; font-weight: 700; margin-bottom: var(--space-lg); }
+h3, .govuk-heading-m  { font-size: 19px; line-height: 1.25; font-weight: 700; margin-bottom: var(--space-md); }
+@media (min-width: 641px) {
+  h1, .govuk-heading-xl { font-size: 48px; }
+  h2, .govuk-heading-l  { font-size: 36px; }
+  h3, .govuk-heading-m  { font-size: 24px; }
+}
+
+/* ---------- 段落 ---------- */
+p, .govuk-body { margin-bottom: var(--space-lg); }
+.govuk-body-s { font-size: 16px; }
+.govuk-body-xs { font-size: 14px; }
+
+/* ---------- 分割线（gov.uk section break） ---------- */
+.govuk-section-break {
+  border: 0;
+  height: 0;
+  margin: var(--space-xl) 0;
+  border-top: 1px solid var(--border);
+}
+.govuk-section-break--l { margin: var(--space-2xl) 0; }
+.govuk-section-break--m { margin: var(--space-lg) 0; }
+
+/* ---------- 卡片 → gov.uk 信息面板 ---------- */
 .card {
   background: var(--bg-card);
-  border: 1px solid var(--border-light);
-  border-radius: var(--radius-lg);
+  border: 1px solid var(--border);
   padding: var(--space-lg);
-  margin-bottom: var(--space-md);
-  box-shadow: var(--shadow-sm);
+  margin-bottom: var(--space-xl);
 }
 .card-title {
-  font-size: 15px;
-  font-weight: 600;
+  font-size: 19px;
+  font-weight: 700;
   color: var(--text-primary);
   margin-bottom: var(--space-md);
   display: flex;
   align-items: center;
   gap: 6px;
 }
+@media (min-width: 641px) {
+  .card-title { font-size: 24px; }
+}
 .card-subtitle {
-  font-size: 11px;
-  color: var(--text-muted);
+  font-size: 14px;
+  color: var(--text-secondary);
   font-weight: 400;
 }
 
-/* ---------- 按钮 ---------- */
-.btn {
+/* ---------- 按钮 — gov.uk button ---------- */
+.btn, .govuk-button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 4px;
-  padding: 8px 20px;
-  border-radius: var(--radius-md);
-  border: 1px solid var(--border);
-  background: var(--bg-card);
-  color: var(--text-primary);
-  font-size: 14px;
-  font-weight: 500;
-  transition: all 0.15s;
+  gap: 5px;
+  padding: 8px 15px 7px;
+  background: #00703c;
+  color: #ffffff;
+  font-size: 16px;
+  font-weight: 400;
+  line-height: 1.25;
+  text-decoration: none;
+  border: 2px solid transparent;
   cursor: pointer;
+  box-shadow: 0 2px 0 #002d18;
 }
+@media (min-width: 641px) {
+  .btn, .govuk-button { font-size: 19px; padding: 10px 18px 8px; }
+}
+.btn:hover, .govuk-button:hover { background: #005a30; }
+.btn:active, .govuk-button:active { top: 2px; box-shadow: none; }
+
 .btn-primary {
-  background: var(--brand);
-  color: var(--text-inverse);
-  border-color: var(--brand);
-}
-.btn-primary:hover { background: var(--brand-light); }
-.btn-ghost {
-  background: transparent;
-  color: var(--text-secondary);
+  background: #00703c;
+  color: #ffffff;
+  box-shadow: 0 2px 0 #002d18;
 }
 
-/* ---------- 标签 ---------- */
-.tag {
-  display: inline-block;
-  padding: 2px 8px;
-  border-radius: var(--radius-sm);
-  font-size: 11px;
-  font-weight: 500;
+.btn-secondary, .govuk-button--secondary {
+  background: #f3f2f1;
+  color: #0b0c0c;
+  box-shadow: 0 2px 0 #b1b4b6;
 }
-.tag-red   { background: var(--bg-brand-light); color: var(--brand); }
-.tag-green { background: #E8F5E9; color: var(--color-down); }
-.tag-gold  { background: #FFF8E1; color: var(--gold); }
-.tag-blue  { background: #E3F2FD; color: var(--blue); }
+.btn-secondary:hover, .govuk-button--secondary:hover { background: #dbdad9; }
+
+.btn-ghost {
+  background: transparent;
+  color: var(--link);
+  box-shadow: none;
+  text-decoration: underline;
+  padding: 0;
+}
+.btn-ghost:hover { color: var(--link-hover); background: transparent; }
+
+.btn--start {
+  background: #00703c;
+  color: #ffffff;
+  padding: 12px 20px 10px;
+  box-shadow: 0 2px 0 #002d18;
+}
+.btn--start::after {
+  content: ' →';
+}
+
+/* ---------- 标签 — gov.uk tag ---------- */
+.tag, .govuk-tag {
+  display: inline-block;
+  padding: 2px 8px 1px;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.25;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: #ffffff;
+  background: #505a5f;
+}
+.tag-red   { background: #d4351c; color: #ffffff; }
+.tag-green { background: #00703c; color: #ffffff; }
+.tag-gold  { background: #f47738; color: #0b0c0c; }
+.tag-blue  { background: #1d70b8; color: #ffffff; }
+.tag--grey { background: #b1b4b6; color: #0b0c0c; }
 
 /* ---------- 字体颜色工具类 ---------- */
 .text-up     { color: var(--color-up) !important; }
 .text-down   { color: var(--color-down) !important; }
 .text-flat   { color: var(--color-flat) !important; }
-.text-muted  { color: var(--text-muted); }
+.text-muted  { color: var(--text-secondary); }
 .text-secondary { color: var(--text-secondary); }
-.text-gold   { color: var(--gold); }
-.text-blue   { color: var(--blue); }
 .text-brand  { color: var(--brand); }
+.text-link   { color: var(--link); }
 
 /* ---------- 分割线 ---------- */
 .divider {
   height: 1px;
-  background: var(--border-light);
+  background: var(--border);
   margin: var(--space-md) 0;
 }
 
 /* ---------- 帮助图标 ---------- */
 .help-icon {
-  font-size: 12px;
-  color: var(--text-muted);
+  font-size: 14px;
+  color: var(--text-secondary);
   cursor: pointer;
   padding: 2px 4px;
+  text-decoration: underline dotted;
 }
 
 /* ---------- 骨架屏 ---------- */
 .skeleton {
-  background: linear-gradient(90deg,
-    var(--border-light) 25%,
-    var(--bg-body) 50%,
-    var(--border-light) 75%);
-  background-size: 200% 100%;
+  background: var(--bg-body);
   animation: shimmer 1.2s infinite;
-  border-radius: var(--radius-sm);
 }
 @keyframes shimmer {
-  0%   { background-position: -200% 0; }
-  100% { background-position: 200% 0; }
+  0%   { opacity: 0.3; }
+  50%  { opacity: 0.6; }
+  100% { opacity: 0.3; }
 }
 
 /* ---------- 空状态 ---------- */
 .empty-state {
   text-align: center;
-  padding: 48px 24px;
-  color: var(--text-muted);
-  font-size: 13px;
+  padding: var(--space-2xl) var(--space-lg);
+  color: var(--text-secondary);
+  font-size: 16px;
 }
 
-/* ---------- 弹窗 ---------- */
+/* ---------- 弹窗 — gov.uk 风格 ---------- */
 .popup-mask {
   position: fixed;
   inset: 0;
-  background: rgba(0,0,0,0.5);
+  background: rgba(11, 12, 12, 0.6);
   z-index: 100;
 }
 .popup {
@@ -251,49 +291,186 @@ input, select, textarea { font: inherit; }
   left: 50%; top: 50%;
   transform: translate(-50%, -50%);
   background: var(--bg-card);
-  border: 1px solid var(--border-light);
-  border-radius: var(--radius-lg);
-  width: min(90vw, 400px);
+  border: 1px solid var(--border);
+  width: min(90vw, 600px);
   max-height: 80vh;
   overflow: hidden;
   display: flex;
   flex-direction: column;
   z-index: 101;
-  box-shadow: var(--shadow-lg);
 }
 .popup-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: var(--space-lg) 20px calc(var(--space-lg) - 4px);
-  border-bottom: 1px solid var(--border-light);
+  padding: var(--space-md) var(--space-lg);
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-body);
 }
-.popup-title { font-size: 15px; font-weight: 600; }
+.popup-title { font-size: 19px; font-weight: 700; }
 .popup-close {
-  color: var(--text-muted);
+  color: var(--text-primary);
   cursor: pointer;
-  font-size: 18px;
+  font-size: 24px;
   padding: 4px;
+  line-height: 1;
 }
 .popup-body {
-  padding: var(--space-lg) 20px;
+  padding: var(--space-lg);
   overflow-y: auto;
   flex: 1;
+  font-size: 16px;
 }
 .popup-footer {
-  padding: 12px 20px;
-  border-top: 1px solid var(--border-light);
+  padding: var(--space-md) var(--space-lg);
+  border-top: 1px solid var(--border);
   display: flex;
   justify-content: flex-end;
-  gap: 8px;
+  gap: var(--space-sm);
 }
 
-/* ---------- Loading 文字 ---------- */
+/* ---------- Loading ---------- */
 .loading-wrap {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 48px 0;
-  color: var(--text-muted);
-  font-size: 13px;
+  padding: var(--space-2xl) 0;
+  color: var(--text-secondary);
+  font-size: 16px;
+}
+
+/* ---------- gov.uk 详情列表（summary list）---------- */
+.govuk-summary-list {
+  border-top: 1px solid var(--border);
+}
+.govuk-summary-list__row {
+  display: flex;
+  border-bottom: 1px solid var(--border);
+  padding: var(--space-sm) 0;
+}
+.govuk-summary-list__key {
+  width: 40%;
+  font-weight: 700;
+  color: var(--text-primary);
+  padding-right: var(--space-md);
+}
+.govuk-summary-list__value {
+  flex: 1;
+  color: var(--text-primary);
+}
+
+/* ---------- gov.uk 宽度容器 ---------- */
+.govuk-width-container {
+  max-width: var(--pc-max-width);
+  margin: 0 auto;
+  padding: 0 var(--space-md);
+}
+@media (min-width: 769px) {
+  .govuk-width-container { padding: 0 var(--space-xl); }
+}
+
+/* ---------- gov.uk 表格 ---------- */
+.govuk-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 16px;
+}
+.govuk-table th {
+  text-align: left;
+  font-weight: 700;
+  padding: var(--space-sm) var(--space-lg) var(--space-sm) 0;
+  border-bottom: 1px solid var(--border);
+}
+.govuk-table td {
+  padding: var(--space-sm) var(--space-lg) var(--space-sm) 0;
+  border-bottom: 1px solid var(--border);
+}
+.govuk-table tr:last-child td { border-bottom: 1px solid var(--border); }
+
+/* ---------- 通知横幅 ---------- */
+.govuk-notification-banner {
+  border: 5px solid #1d70b8;
+  background: #ffffff;
+  padding: var(--space-md);
+  margin-bottom: var(--space-xl);
+}
+.govuk-notification-banner__title {
+  font-size: 19px;
+  font-weight: 700;
+  margin-bottom: var(--space-sm);
+}
+
+/* ---------- 输入框 ---------- */
+.govuk-input {
+  display: block;
+  width: 100%;
+  padding: 8px;
+  border: 2px solid #0b0c0c;
+  font-size: 16px;
+  line-height: 1.25;
+}
+.govuk-input:focus {
+  outline: 3px solid #ffdd00;
+  outline-offset: 0;
+}
+@media (min-width: 641px) {
+  .govuk-input { font-size: 19px; }
+}
+
+/* ---------- 选择框 ---------- */
+.govuk-select {
+  display: block;
+  width: auto;
+  min-width: 120px;
+  padding: 5px;
+  border: 2px solid #0b0c0c;
+  font-size: 16px;
+  line-height: 1.25;
+  background: #ffffff;
+}
+.govuk-select:focus {
+  outline: 3px solid #ffdd00;
+  outline-offset: 0;
+}
+
+/* ---------- 警告文本 ---------- */
+.govuk-warning-text {
+  position: relative;
+  padding: var(--space-sm) 0 var(--space-sm) 50px;
+  font-weight: 700;
+}
+.govuk-warning-text__icon {
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 35px;
+  height: 35px;
+  border: 3px solid #0b0c0c;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24px;
+  font-weight: 700;
+}
+
+/* ---------- 滚动条 — gov.uk 极简 ---------- */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: var(--bg-body); }
+::-webkit-scrollbar-thumb { background: var(--border); }
+
+/* ---------- 遗留兼容（旧页面使用的类）---------- */
+.container {
+  width: 100%;
+  max-width: var(--pc-max-width);
+  margin: 0 auto;
+  padding: 0 var(--space-md);
+}
+.pc-grid {
+  display: grid;
+  gap: var(--space-xl);
+}
+@media (min-width: 769px) {
+  .pc-grid { grid-template-columns: 1fr 1fr; }
 }

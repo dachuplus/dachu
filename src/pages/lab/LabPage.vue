@@ -4,4 +4,4 @@
   </div>
 </template>
 <script setup></script>
-<style scoped>.coming-soon { color: var(--text-muted); font-size: 13px; padding: 16px 0; }</style>
+<style scoped>.coming-soon { color: var(--text-secondary); font-size: 16px; padding: var(--space-xl) 0; border-top: 1px solid var(--border); margin-top: var(--space-xl); }</style>

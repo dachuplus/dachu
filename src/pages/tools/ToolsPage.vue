@@ -16,8 +16,14 @@
 </template>
 <script setup></script>
 <style scoped>
-.tool-grid { display: flex; flex-direction: column; gap: 8px; }
-.tool-item { display: block; padding: 12px; background: var(--bg-hover); border-radius: 8px; text-decoration: none; color: var(--text-primary); font-size: 14px; border: 1px solid var(--border); }
-.tool-item:hover { border-color: var(--color-up); }
-.coming-soon { color: var(--text-muted); font-size: 13px; padding: 12px 0; }
+/* ========== gov.uk 风格工具集合页 ========== */
+.tool-grid { display: flex; flex-direction: column; gap: 0; border-top: 1px solid var(--border); }
+.tool-item {
+  display: block; padding: var(--space-md) 0;
+  border-bottom: 1px solid var(--border);
+  text-decoration: none; color: var(--text-primary);
+  font-size: 19px; font-weight: 700;
+}
+.tool-item:hover { background: #f8f8f8; color: var(--text-primary); }
+.coming-soon { color: var(--text-secondary); font-size: 16px; padding: var(--space-xl) 0; border-top: 1px solid var(--border); margin-top: var(--space-xl); }
 </style>

@@ -234,344 +234,110 @@ onMounted(loadData)
 </script>
 
 <style scoped>
-.page-tougu {
-  min-height: 100vh;
-}
+/* ========== gov.uk 风格投顾产品 ========== */
+.page-tougu { min-height: 100vh; }
 
 /* 头部 */
 .tougu-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 12px 16px;
-  background: var(--bg-card);
-  border-bottom: 1px solid var(--border);
-  margin-bottom: 0;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: var(--space-md); border-bottom: 1px solid var(--border);
+  background: #ffffff;
 }
-
-.header-left {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.header-title-row {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.header-title {
-  font-size: 17px;
-  font-weight: 700;
-  color: var(--text-primary);
-}
-
+.header-left { display: flex; flex-direction: column; }
+.header-title-row { display: flex; align-items: center; gap: 6px; }
+.header-title { font-size: 24px; font-weight: 700; color: var(--text-primary); }
+@media (min-width: 641px) { .header-title { font-size: 36px; } }
 .help-icon-btn {
-  width: 17px;
-  height: 17px;
-  line-height: 17px;
-  text-align: center;
-  font-size: 11px;
-  color: var(--text-muted);
-  border: 1px solid #484F58;
-  border-radius: 50%;
-  cursor: pointer;
-  flex-shrink: 0;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
+  width: 24px; height: 24px; line-height: 24px; text-align: center;
+  font-size: 14px; color: var(--text-secondary);
+  border: 2px solid var(--text-secondary); cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center;
 }
-
-.header-desc {
-  font-size: 11px;
-  color: var(--text-muted);
-}
-
-.header-refresh {
-  padding: 6px 14px;
-  background: rgba(255, 82, 82, 0.12);
-  border-radius: 14px;
-  cursor: pointer;
-  flex-shrink: 0;
-}
-
-.refresh-text {
-  font-size: 12px;
-  color: var(--color-up);
-  font-weight: 500;
-}
+.header-desc { font-size: 14px; color: var(--text-secondary); }
+.header-refresh { cursor: pointer; }
+.refresh-text { font-size: 16px; color: var(--link); text-decoration: underline; }
 
 /* 类型筛选 */
 .type-tabs {
-  display: flex;
-  background: var(--bg-card);
-  border-bottom: 1px solid var(--border);
-  position: sticky;
-  top: var(--header-height);
-  z-index: 20;
+  display: flex; border-bottom: 2px solid var(--border);
+  position: sticky; top: var(--header-height); z-index: 20;
+  background: #ffffff;
 }
-
 .type-tab {
-  flex: 1;
-  text-align: center;
-  padding: 10px 0;
-  font-size: 13px;
-  color: var(--text-secondary);
-  cursor: pointer;
-  position: relative;
-  transition: color 0.2s;
+  flex: 1; text-align: center; padding: var(--space-sm) 0;
+  font-size: 16px; color: var(--link); cursor: pointer;
+  border-bottom: 4px solid transparent;
 }
-
 .type-tab.active {
-  color: var(--color-up);
-  font-weight: 600;
-}
-
-.type-tab.active::after {
-  content: '';
-  position: absolute;
-  bottom: 0;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 24px;
-  height: 2px;
-  background: var(--color-up);
-  border-radius: 1px;
+  color: #0b0c0c; font-weight: 700; border-bottom-color: #0b0c0c;
 }
 
 /* 列表 */
-.tougu-list {
-  padding: 8px;
-}
-
-/* 卡片 */
+.tougu-list { padding: 0; }
 .tougu-card {
-  padding: 14px;
-  margin-bottom: 8px;
-  background: var(--bg-card);
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  cursor: pointer;
-  transition: background 0.15s;
+  padding: var(--space-md); border-bottom: 1px solid var(--border);
+  background: #ffffff; cursor: pointer; transition: background 0.1s;
 }
-
-.tougu-card:hover {
-  background: var(--bg-hover);
-}
-
-.card-top {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  margin-bottom: 10px;
-}
-
-.card-top-left {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-}
-
-.card-name-row {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-
-.card-name {
-  font-size: 15px;
-  font-weight: 600;
-  color: var(--text-primary);
-}
-
+.tougu-card:hover { background: #f8f8f8; }
+.card-top { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: var(--space-sm); }
+.card-top-left { flex: 1; }
+.card-name-row { display: flex; align-items: center; gap: 4px; }
+.card-name { font-size: 19px; font-weight: 700; color: var(--text-primary); }
 .card-help-icon {
-  width: 14px;
-  height: 14px;
-  line-height: 14px;
-  text-align: center;
-  font-size: 9px;
-  color: var(--text-muted);
-  border: 1px solid #484F58;
-  border-radius: 50%;
-  cursor: pointer;
-  flex-shrink: 0;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
+  width: 18px; height: 18px; line-height: 18px; text-align: center;
+  font-size: 11px; color: var(--text-secondary);
+  border: 2px solid var(--text-secondary); cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center;
 }
-
-.card-company {
-  font-size: 12px;
-  color: var(--text-secondary);
-}
-
+.card-company { font-size: 14px; color: var(--text-secondary); }
 .card-type-tag {
-  flex-shrink: 0;
-  padding: 3px 8px;
-  background: rgba(255, 82, 82, 0.12);
-  border-radius: 6px;
-  font-size: 11px;
-  color: var(--color-up);
-  font-weight: 500;
+  flex-shrink: 0; padding: 2px 8px; font-size: 14px;
+  color: #0b0c0c; font-weight: 700; background: #f3f2f1;
 }
 
-/* 收益数据行 */
 .card-returns {
-  display: flex;
-  justify-content: space-between;
-  padding-top: 8px;
+  display: flex; justify-content: space-between;
+  padding-top: var(--space-sm); border-top: 1px solid var(--border);
+}
+.return-item { display: flex; flex-direction: column; align-items: center; flex: 1; }
+.return-label { font-size: 14px; color: var(--text-secondary); }
+.return-value { font-size: 19px; font-weight: 700; color: var(--text-primary); }
+.return-value.up   { color: var(--color-up); }
+.return-value.down { color: var(--color-down); }
+
+.loading-wrap { display: flex; justify-content: center; padding: var(--space-2xl) 0; }
+.loading-text { font-size: 16px; color: var(--text-secondary); }
+.empty-state { text-align: center; padding: var(--space-2xl); }
+.empty-text { font-size: 19px; font-weight: 700; color: var(--text-primary); margin-bottom: var(--space-sm); }
+.empty-hint { font-size: 16px; color: var(--text-secondary); }
+.footer-note {
+  text-align: left; padding: var(--space-xl); font-size: 14px; color: var(--text-secondary);
   border-top: 1px solid var(--border);
 }
 
-.return-item {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 3px;
-  flex: 1;
-}
-
-.return-label {
-  font-size: 11px;
-  color: var(--text-muted);
-}
-
-.return-value {
-  font-size: 14px;
-  font-weight: 700;
-  color: var(--text-secondary);
-}
-
-.return-value.up   { color: var(--color-up);   }
-.return-value.down { color: var(--color-down); }
-
-/* 加载/空状态 */
-.loading-wrap {
-  display: flex;
-  justify-content: center;
-  padding: 60px 0;
-}
-
-.loading-text {
-  font-size: 13px;
-  color: var(--text-muted);
-}
-
-.empty-state {
-  text-align: center;
-  padding: 60px 24px;
-}
-
-.empty-text {
-  font-size: 15px;
-  color: var(--text-secondary);
-  margin-bottom: 6px;
-}
-
-.empty-hint {
-  font-size: 12px;
-  color: var(--text-muted);
-}
-
-/* 底部说明 */
-.footer-note {
-  text-align: center;
-  padding: 16px;
-  font-size: 11px;
-  color: var(--text-muted);
-}
-
-/* ===== 弹窗 ===== */
-.help-mask {
-  position: fixed;
-  inset: 0;
-  background: rgba(0,0,0,0.6);
-  z-index: 100;
-}
-
+/* 弹窗 */
+.help-mask { position: fixed; inset: 0; background: rgba(11,12,12,0.6); z-index: 100; }
 .help-panel {
-  position: fixed;
-  bottom: 0;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 100%;
-  max-width: 480px;
-  max-height: 70vh;
-  background: var(--bg-card);
-  border-radius: 16px 16px 0 0;
-  border: 1px solid var(--border);
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-  z-index: 101;
+  position: fixed; bottom: 0; left: 50%; transform: translateX(-50%);
+  width: 100%; max-width: 600px; max-height: 70vh;
+  background: #ffffff; border: 1px solid var(--border);
+  overflow: hidden; display: flex; flex-direction: column; z-index: 101;
 }
-
-.item-help-panel {
-  max-height: 60vh;
-}
-
+.item-help-panel { max-height: 60vh; }
 .help-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 16px 20px 12px;
-  border-bottom: 1px solid var(--border);
-  flex-shrink: 0;
+  display: flex; justify-content: space-between; align-items: center;
+  padding: var(--space-md) var(--space-lg); border-bottom: 1px solid var(--border);
+  background: #f3f2f1; flex-shrink: 0;
 }
-
-.help-title {
-  font-size: 15px;
-  font-weight: 600;
-  color: var(--text-primary);
-}
-
-.help-close {
-  font-size: 18px;
-  color: var(--text-muted);
-  cursor: pointer;
-  padding: 4px;
-}
-
-.help-body {
-  flex: 1;
-  overflow-y: auto;
-  padding: 16px 20px 32px;
-}
-
-.help-section {
-  margin-bottom: 14px;
-}
-
-.help-section-label {
-  display: block;
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--text-primary);
-  margin-bottom: 4px;
-}
-
-.help-desc {
-  display: block;
-  font-size: 12px;
-  color: var(--text-secondary);
-  line-height: 1.7;
-}
-
-.help-tags {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin-top: 4px;
-}
-
+.help-title { font-size: 19px; font-weight: 700; color: var(--text-primary); }
+.help-close { font-size: 24px; color: var(--text-primary); cursor: pointer; line-height: 1; }
+.help-body { flex: 1; overflow-y: auto; padding: var(--space-lg); }
+.help-section { margin-bottom: var(--space-lg); }
+.help-section-label { display: block; font-size: 19px; font-weight: 700; margin-bottom: var(--space-sm); border-bottom: 2px solid var(--border); padding-bottom: 4px; }
+.help-desc { display: block; font-size: 16px; color: var(--text-primary); line-height: 1.7; }
+.help-tags { display: flex; flex-wrap: wrap; gap: var(--space-sm); margin-top: var(--space-sm); }
 .help-tag {
-  font-size: 11px;
-  color: var(--text-secondary);
-  background: var(--bg-hover);
-  border: 1px solid var(--border);
-  padding: 3px 8px;
-  border-radius: 6px;
+  font-size: 14px; color: var(--text-secondary);
+  border: 1px solid var(--border); padding: 2px 8px;
 }
 </style>

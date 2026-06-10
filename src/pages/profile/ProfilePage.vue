@@ -21,10 +21,19 @@
 </template>
 <script setup></script>
 <style scoped>
-.profile-items { display: flex; flex-direction: column; }
-.profile-item { display: flex; justify-content: space-between; padding: 14px 0; border-bottom: 1px solid var(--border); cursor: pointer; }
-.profile-item:last-child { border-bottom: none; }
-.pi-label { font-size: 14px; color: var(--text-primary); }
-.pi-arrow { color: var(--text-muted); }
-.disclaimer { font-size: 12px; color: var(--text-muted); line-height: 1.8; padding: 0 4px; }
+/* ========== gov.uk 风格"我的"页面 ========== */
+.page-placeholder { padding-bottom: var(--space-2xl); }
+.profile-items { display: flex; flex-direction: column; border-top: 1px solid var(--border); }
+.profile-item {
+  display: flex; justify-content: space-between;
+  padding: var(--space-md) 0; border-bottom: 1px solid var(--border);
+  cursor: pointer; font-size: 16px;
+}
+.profile-item:hover { background: #f8f8f8; }
+.pi-label { font-size: 16px; color: var(--text-primary); font-weight: 700; }
+.pi-arrow { color: var(--text-secondary); font-size: 19px; }
+.disclaimer {
+  font-size: 16px; color: var(--text-secondary); line-height: 1.8;
+  padding: var(--space-xl) 0; border-top: 1px solid var(--border); margin-top: var(--space-xl);
+}
 </style>
