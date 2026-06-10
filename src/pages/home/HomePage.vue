@@ -462,7 +462,7 @@ onMounted(() => {
 
 /* 帮助弹窗 */
 .home-help-overlay {
-  position: fixed; inset: 0; background: rgba(11,12,12,0.6);
+  position: fixed; inset: 0; background: rgba(29,112,184,0.6);
   display: flex; align-items: center; justify-content: center;
   z-index: 100; padding: var(--space-lg);
 }

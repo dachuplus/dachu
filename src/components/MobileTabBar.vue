@@ -19,11 +19,11 @@ import { useRoute } from 'vue-router'
 const route = useRoute()
 
 const tabs = [
-  { key: 'home',    path: '/',       label: '总览' },
-  { key: 'config',  path: '/config', label: '配置' },
-  { key: 'tools',   path: '/tools',  label: '工具' },
-  { key: 'lab',     path: '/lab',    label: '实验室' },
-  { key: 'profile', path: '/profile', label: '我的' },
+  { key: 'home',    path: '/',        label: '总览'     },
+  { key: 'signal',  path: '/signal',  label: '指标信号' },
+  { key: 'tools',   path: '/tools',   label: '工具'     },
+  { key: 'lab',     path: '/lab',     label: '实验室'   },
+  { key: 'profile', path: '/profile', label: '我的'     },
 ]
 
 const currentTab = computed(() => route.meta?.tab || 'home')
@@ -36,8 +36,8 @@ const currentTab = computed(() => route.meta?.tab || 'home')
   left: 0;
   right: 0;
   height: var(--tab-height);
-  background: #0b0c0c;
-  border-top: 2px solid #1d70b8;
+  background: #1d70b8;
+  border-top: 2px solid #003078;
   display: flex;
   z-index: 50;
 }

@@ -206,8 +206,8 @@ function fmtScore(val) {
 
 function scoreColorCls(val) {
   if (val == null) return ''
-  if (val >= 85) return 'score-gold'
-  if (val >= 75) return 'score-orange'
+  if (val >= 85) return 'score-hot'
+  if (val >= 70) return 'score-warm'
   if (val >= 65) return 'score-cyan'
   return 'score-gray'
 }
@@ -450,7 +450,7 @@ onMounted(() => {
 .roll-etf-top { display: flex; align-items: center; gap: var(--space-sm); margin-bottom: var(--space-sm); }
 .roll-rank {
   width: 28px; height: 28px; line-height: 28px; text-align: center;
-  background: #0b0c0c; color: #ffffff; font-size: 14px; font-weight: 700; flex-shrink: 0;
+  background: #1d70b8; color: #ffffff; font-size: 14px; font-weight: 700; flex-shrink: 0;
 }
 .roll-etf-name { font-size: 19px; font-weight: 700; color: var(--text-primary); }
 .roll-etf-info { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--space-sm); }
@@ -460,8 +460,8 @@ onMounted(() => {
 
 .text-up { color: var(--color-up); }
 .text-down { color: var(--color-down); }
-.score-gold { color: #0b0c0c; }
-.score-orange { color: #0b0c0c; }
+.score-hot  { color: #d4351c; }
+.score-warm { color: #f47738; }
 .score-cyan { color: #505a5f; }
 .score-gray { color: #b1b4b6; }
 .roll-empty { padding: var(--space-xl) 0; color: var(--text-secondary); font-size: 16px; }

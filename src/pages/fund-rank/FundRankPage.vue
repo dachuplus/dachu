@@ -144,10 +144,25 @@
           </div>
         </div>
 
+        <!-- 分类数据源 -->
+        <div class="filter-row">
+          <span class="filter-label">分类数据源</span>
+          <div class="filter-chips">
+            <div
+              v-for="src in classSources"
+              :key="src.key"
+              class="filter-chip"
+              :class="{ active: classSource === src.key, disabled: !src.available }"
+              @click="setClassSource(src.key)"
+            >{{ src.label }}{{ src.available ? '' : ' (规划中)' }}</div>
+          </div>
+        </div>
+
         <!-- 规模筛选说明 -->
         <div class="filter-tip">
           注：ETF/LOF/FOF/定开/持有期/±20%等属性基于基金名称智能识别，可能存在误判。<br>
-          基金规模、机构占比、股票占比数据暂未收录，后续版本更新。
+          基金规模、机构占比、股票占比数据暂未收录，后续版本更新。<br>
+          除恒生聚源和天天分类外，其他分类数据源正在规划中。
         </div>
       </div>
 
@@ -159,7 +174,7 @@
       </div>
     </div>
 
-    <!-- 周期Tab + 排序箭头 -->
+    <!-- 周期Tab + 排序箭头 + 自定义权重 -->
     <div class="toolbar">
       <div class="period-tabs">
         <div
@@ -174,6 +189,39 @@
             {{ sortAsc ? '▲' : '▼' }}
           </span>
         </div>
+        <div class="weight-toggle" @click="showWeightPanel = !showWeightPanel">
+          ⚙ 自定义权重
+        </div>
+      </div>
+    </div>
+
+    <!-- 自定义权重面板 -->
+    <div class="weight-panel" v-if="showWeightPanel">
+      <div class="weight-panel-header">
+        <span>自定义靠谱指数权重</span>
+        <span class="weight-panel-close" @click="showWeightPanel = false">✕</span>
+      </div>
+      <div class="weight-sliders">
+        <div class="weight-slider-item">
+          <label>收益权重 <span class="ws-val">{{ customWeights.ret }}%</span></label>
+          <input type="range" min="0" max="100" step="5" v-model.number="customWeights.ret" @input="checkWeights" />
+        </div>
+        <div class="weight-slider-item">
+          <label>回撤权重 <span class="ws-val">{{ customWeights.dd }}%</span></label>
+          <input type="range" min="0" max="100" step="5" v-model.number="customWeights.dd" @input="checkWeights" />
+        </div>
+        <div class="weight-slider-item">
+          <label>夏普权重 <span class="ws-val">{{ customWeights.sr }}%</span></label>
+          <input type="range" min="0" max="100" step="5" v-model.number="customWeights.sr" @input="checkWeights" />
+        </div>
+      </div>
+      <div class="weight-total" :class="{ 'weight-valid': weightSum === 100, 'weight-invalid': weightSum !== 100 }">
+        合计：{{ weightSum }}%
+        <span v-if="weightSum !== 100" class="weight-warn">（必须等于 100%）</span>
+        <span v-else class="weight-ok">✓ 已应用自定义权重</span>
+      </div>
+      <div class="weight-actions">
+        <button class="btn-reset" @click="resetWeights">恢复默认 50/25/25</button>
       </div>
     </div>
 
@@ -423,7 +471,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, reactive, onMounted } from 'vue'
 import { fetchFundScores, fetchFundMeta } from '../../api/data.js'
 
 // ========== 常量 ==========
@@ -504,6 +552,39 @@ const filterDK = ref('')
 const filterHP = ref('')
 const filterDailyLimit = ref('')
 const filterSG = ref('')       // 申购状态：''全部 '1'可申购 '0'暂停申购
+const classSource = ref('hspj')    // 分类数据源：hspj=恒生聚源，tt=天天分类，choice/ifind/wind/mstar/jajx/yhfl
+const classSources = [
+  { key: 'hspj',   label: '恒生聚源', available: true },
+  { key: 'tt',     label: '天天分类', available: true },
+  { key: 'choice', label: 'Choice',   available: false },
+  { key: 'ifind',  label: 'iFinD',    available: false },
+  { key: 'wind',   label: 'Wind',     available: false },
+  { key: 'mstar',  label: 'Morningstar', available: false },
+  { key: 'jajx',   label: '济安金信', available: false },
+  { key: 'yhfl',   label: '银河分类', available: false },
+]
+
+// 自定义权重
+const showWeightPanel = ref(false)
+const customWeights = reactive({ ret: 50, dd: 25, sr: 25 })
+const weightSum = computed(() => customWeights.ret + customWeights.dd + customWeights.sr)
+const weightsValid = computed(() => weightSum.value === 100)
+
+function checkWeights() {
+  // Auto-trigger recalculation handled by computed
+}
+
+function resetWeights() {
+  customWeights.ret = 50
+  customWeights.dd = 25
+  customWeights.sr = 25
+}
+
+function setClassSource(key) {
+  const src = classSources.find(s => s.key === key)
+  if (!src || !src.available) return
+  classSource.value = key
+}
 
 // 搜索/周期/分页/排序
 const searchText = ref('')
@@ -555,10 +636,10 @@ function fmtSR(v) {
 
 function scoreCls(v) {
   const n = parseFloat(v) || 0
-  if (n >= 85) return 'score-gold'
-  if (n >= 75) return 'score-orange'
-  if (n >= 65) return 'score-cyan'
-  return 'score-default'
+  if (n >= 85) return 'score-hot'
+  if (n >= 70) return 'score-warm'
+  if (n >= 50) return 'score-mid'
+  return 'score-cool'
 }
 
 function retCls(v) {
@@ -802,7 +883,7 @@ onMounted(() => {
 .search-box { flex: 1; position: relative; max-width: 300px; }
 .search-input {
   width: 100%; padding: 8px 36px 8px 8px;
-  border: 2px solid #0b0c0c; font-size: 16px;
+  border: 2px solid #1d70b8; font-size: 16px;
   color: var(--text-primary); outline: none; box-sizing: border-box;
 }
 .search-input:focus { outline: 3px solid #ffdd00; outline-offset: 0; }
@@ -840,8 +921,8 @@ onMounted(() => {
 }
 .filter-chip:hover { text-decoration-color: var(--link); }
 .filter-chip.active {
-  color: #0b0c0c; font-weight: 700; text-decoration: none;
-  border-bottom: 4px solid #0b0c0c; padding-bottom: 0;
+  color: #1d70b8; font-weight: 700; text-decoration: none;
+  border-bottom: 4px solid #1d70b8; padding-bottom: 0;
 }
 
 .more-filter-toggle {
@@ -868,7 +949,7 @@ onMounted(() => {
 }
 .period-tab:hover { border-bottom-color: var(--border); }
 .period-tab.active {
-  color: #0b0c0c; font-weight: 700; border-bottom-color: #0b0c0c;
+  color: #1d70b8; font-weight: 700; border-bottom-color: #1d70b8;
 }
 .sort-arrow { font-size: 12px; margin-left: 4px; }
 
@@ -895,10 +976,10 @@ onMounted(() => {
 .fund-rank-num { font-size: 16px; color: var(--text-secondary); font-weight: 700; }
 .fund-score-wrap { display: flex; flex-direction: column; align-items: center; margin-top: 4px; }
 .fund-score { font-size: 24px; font-weight: 700; line-height: 1; }
-.score-gold { color: #0b0c0c; }
-.score-orange { color: #0b0c0c; }
-.score-cyan { color: #505a5f; }
-.score-default { color: #b1b4b6; }
+.score-hot  { color: #d4351c; }  /* >=85 红色 */
+.score-warm { color: #f47738; }  /* >=70 橙色 */
+.score-mid  { color: #505a5f; }  /* >=50 灰色 */
+.score-cool { color: #00703c; }  /* <50  绿色 */
 .fund-score-label { font-size: 12px; color: var(--text-secondary); margin-top: 2px; }
 
 .fund-info { flex: 1; margin-left: var(--space-md); overflow: hidden; }
@@ -941,7 +1022,7 @@ onMounted(() => {
 .ret-down { color: var(--color-down); }
 
 /* ===== 弹窗 ===== */
-.mask { position: fixed; inset: 0; background: rgba(11,12,12,0.6); z-index: 100; }
+.mask { position: fixed; inset: 0; background: rgba(29,112,184,0.6); z-index: 100; }
 
 .detail-panel {
   position: fixed; bottom: 0; left: 50%; transform: translateX(-50%);
@@ -1021,9 +1102,60 @@ onMounted(() => {
 .help-color-row { display: flex; align-items: center; gap: var(--space-md); padding: 4px 0; }
 .help-dot { width: 16px; height: 4px; flex-shrink: 0; }
 .help-color-text { font-size: 16px; font-weight: 700; flex-shrink: 0; min-width: 100px; }
-.score-gold-text { color: #0b0c0c; }
-.score-orange-text { color: #0b0c0c; }
-.score-cyan-text { color: #505a5f; }
-.score-default-text { color: #b1b4b6; }
+.score-hot-text { color: #d4351c; }
+.score-warm-text { color: #f47738; }
+.score-mid-text { color: #505a5f; }
+.score-cool-text { color: #00703c; }
 .help-color-desc { font-size: 16px; color: var(--text-secondary); }
+
+/* 自定义权重面板 */
+.weight-toggle {
+  padding: var(--space-xs) var(--space-sm); font-size: 14px;
+  color: var(--link); cursor: pointer; border: 1px solid var(--border);
+  white-space: nowrap;
+}
+.weight-toggle:hover { background: #f3f2f1; }
+
+.weight-panel {
+  border: 1px solid var(--border); background: #ffffff;
+  padding: var(--space-lg); margin-top: var(--space-sm);
+}
+.weight-panel-header {
+  display: flex; justify-content: space-between; align-items: center;
+  font-size: 19px; font-weight: 700; color: var(--text-primary); margin-bottom: var(--space-md);
+}
+.weight-panel-close { font-size: 20px; color: var(--text-secondary); cursor: pointer; }
+
+.weight-sliders { display: flex; flex-direction: column; gap: var(--space-md); }
+.weight-slider-item label {
+  display: flex; justify-content: space-between;
+  font-size: 16px; color: var(--text-primary); margin-bottom: var(--space-xs);
+}
+.ws-val { font-weight: 700; color: #1d70b8; }
+
+.weight-slider-item input[type="range"] {
+  width: 100%; height: 8px; -webkit-appearance: none; background: #f3f2f1; outline: none;
+}
+.weight-slider-item input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none; width: 24px; height: 24px; background: #1d70b8; cursor: pointer;
+}
+
+.weight-total {
+  margin-top: var(--space-md); padding: var(--space-sm);
+  font-size: 16px; font-weight: 700; text-align: center;
+}
+.weight-valid { background: #e6f7ee; color: #00703c; }
+.weight-invalid { background: #fef0ef; color: #d4351c; }
+.weight-warn { font-weight: 400; }
+.weight-ok { color: #00703c; }
+
+.weight-actions { text-align: center; margin-top: var(--space-sm); }
+.btn-reset {
+  background: none; border: 1px solid var(--border); color: var(--text-secondary);
+  padding: var(--space-xs) var(--space-md); font-size: 14px; cursor: pointer;
+}
+.btn-reset:hover { background: #f3f2f1; }
+
+/* 分类源禁用 */
+.filter-chip.disabled { color: var(--text-secondary); opacity: 0.5; cursor: not-allowed; }
 </style>

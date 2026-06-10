@@ -393,7 +393,7 @@ function pctClass(v) {
   flex-shrink: 0; padding: var(--space-sm) var(--space-md); font-size: 16px;
   color: var(--link); cursor: pointer; border-bottom: 4px solid transparent;
 }
-.filter-chip.active { color: #0b0c0c; font-weight: 700; border-bottom-color: #0b0c0c; }
+.filter-chip.active { color: #1d70b8; font-weight: 700; border-bottom-color: #1d70b8; }
 
 .eva-table-wrap { padding: 0; }
 .eva-table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
@@ -409,8 +409,8 @@ function pctClass(v) {
 .col-pct { width: 90px; }
 .col-status { width: 80px; }
 .sortable { cursor: pointer; user-select: none; }
-.sortable:hover { color: #0b0c0c; }
-.sorted { color: #0b0c0c; }
+.sortable:hover { color: #1d70b8; }
+.sorted { color: #1d70b8; }
 
 .eva-row {
   display: flex; align-items: center; padding: var(--space-sm) var(--space-md);
@@ -440,7 +440,7 @@ function pctClass(v) {
   border-top: 1px solid var(--border); margin-top: var(--space-xl);
 }
 
-.mask { position: fixed; inset: 0; background: rgba(11,12,12,0.6); z-index: 100; }
+.mask { position: fixed; inset: 0; background: rgba(29,112,184,0.6); z-index: 100; }
 .help-panel {
   position: fixed; bottom: 0; left: 50%; transform: translateX(-50%);
   width: 100%; max-width: 600px; max-height: 70vh;

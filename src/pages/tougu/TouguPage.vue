@@ -269,7 +269,7 @@ onMounted(loadData)
   border-bottom: 4px solid transparent;
 }
 .type-tab.active {
-  color: #0b0c0c; font-weight: 700; border-bottom-color: #0b0c0c;
+  color: #1d70b8; font-weight: 700; border-bottom-color: #1d70b8;
 }
 
 /* 列表 */
@@ -316,7 +316,7 @@ onMounted(loadData)
 }
 
 /* 弹窗 */
-.help-mask { position: fixed; inset: 0; background: rgba(11,12,12,0.6); z-index: 100; }
+.help-mask { position: fixed; inset: 0; background: rgba(29,112,184,0.6); z-index: 100; }
 .help-panel {
   position: fixed; bottom: 0; left: 50%; transform: translateX(-50%);
   width: 100%; max-width: 600px; max-height: 70vh;

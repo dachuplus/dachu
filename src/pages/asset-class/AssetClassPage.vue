@@ -492,7 +492,7 @@ onMounted(loadData)
 .wd-arrow { margin: 0 8px; color: var(--text-secondary); }
 .wd-final { font-weight: 700; }
 
-.help-overlay { position: fixed; inset: 0; background: rgba(11,12,12,0.6); display: flex; align-items: center; justify-content: center; z-index: 100; padding: var(--space-lg); }
+.help-overlay { position: fixed; inset: 0; background: rgba(29,112,184,0.6); display: flex; align-items: center; justify-content: center; z-index: 100; padding: var(--space-lg); }
 .help-popup { background: #ffffff; border: 1px solid var(--border); padding: var(--space-xl); max-width: 400px; width: 100%; }
 .help-title { font-size: 24px; font-weight: 700; margin-bottom: var(--space-md); }
 .help-content { font-size: 16px; color: var(--text-primary); line-height: 1.7; white-space: pre-line; }

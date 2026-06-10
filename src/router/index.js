@@ -7,14 +7,9 @@ const routes = [
     meta: { tab: 'home', title: '首页' }
   },
   {
-    path: '/config',
-    component: () => import('../pages/asset-class/AssetClassPage.vue'),
-    meta: { tab: 'config', title: '大类资产配置' }
-  },
-  {
-    path: '/style-factor',
-    component: () => import('../pages/style-factor/StyleFactorPage.vue'),
-    meta: { tab: 'config', title: '风格因子' }
+    path: '/signal',
+    component: () => import('../pages/signal/SignalPage.vue'),
+    meta: { tab: 'signal', title: '指标信号' }
   },
   {
     path: '/tools',
@@ -32,11 +27,6 @@ const routes = [
     meta: { tab: 'tools', title: '靠谱基金指数' }
   },
   {
-    path: '/tools/industry-rank',
-    component: () => import('../pages/industry-rank/IndustryRankPage.vue'),
-    meta: { tab: 'tools', title: '指数估值' }
-  },
-  {
     path: '/portfolio',
     component: () => import('../pages/portfolio/PortfolioPage.vue'),
     meta: { tab: 'tools', title: '基金组合' }
@@ -50,6 +40,19 @@ const routes = [
     path: '/profile',
     component: () => import('../pages/profile/ProfilePage.vue'),
     meta: { tab: 'profile', title: '我的' }
+  },
+  // 旧路径重定向
+  {
+    path: '/config',
+    redirect: '/signal'
+  },
+  {
+    path: '/style-factor',
+    redirect: '/signal'
+  },
+  {
+    path: '/tools/industry-rank',
+    redirect: '/signal'
   },
 ]
 

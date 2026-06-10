@@ -76,11 +76,11 @@ onUnmounted(() => window.removeEventListener('resize', onResize))
 
 /* ---- Tab 数据 ---- */
 const tabs = [
-  { key: 'home',    path: '/',       label: '总览'   },
-  { key: 'config',  path: '/config', label: '配置'   },
-  { key: 'tools',   path: '/tools',  label: '工具'   },
-  { key: 'lab',     path: '/lab',    label: '实验室' },
-  { key: 'profile', path: '/profile', label: '我的'   },
+  { key: 'home',    path: '/',        label: '总览'     },
+  { key: 'signal',  path: '/signal',  label: '指标信号' },
+  { key: 'tools',   path: '/tools',   label: '工具'     },
+  { key: 'lab',     path: '/lab',     label: '实验室'   },
+  { key: 'profile', path: '/profile', label: '我的'     },
 ]
 
 const currentTab = computed(() => route.meta?.tab || 'home')
@@ -94,8 +94,8 @@ const showBack   = computed(() => {
 <style scoped>
 /* ========== gov.uk 顶部导航 ========== */
 .govuk-header {
-  background: #0b0c0c;
-  border-bottom: 10px solid #1d70b8;
+  background: #1d70b8;
+  border-bottom: 4px solid #003078;
   color: #ffffff;
   font-size: 16px;
   line-height: 1.25;

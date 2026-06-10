@@ -17,8 +17,9 @@ const COLORS = [
   '#5694ca',  // light blue
   '#d53880',  // gov.uk pink
   '#28a197',  // gov.uk turquoise
-  '#0b0c0c',  // black
-  '#505a5f',  // dark grey
+  '#1d70b8',  // gov.uk blue
+  '#5694ca',  // light blue
+  '#003078',  // dark blue
 ]
 
 const AXIS_STYLE = {
@@ -51,7 +52,7 @@ export function createGovukChart(dom, option) {
       itemGap: 20,
     },
     tooltip: {
-      backgroundColor: '#0b0c0c',
+      backgroundColor: '#1d70b8',
       borderWidth: 0,
       textStyle: { color: '#ffffff', fontSize: 14 },
       extraCssText: 'border-radius: 0; padding: 8px 12px;',

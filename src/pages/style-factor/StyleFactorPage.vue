@@ -503,7 +503,7 @@ onMounted(loadStockData)
 
 .tab-bar { display: flex; border-bottom: 2px solid var(--border); background: #ffffff; margin-bottom: var(--space-xl); }
 .tab-item { flex: 1; text-align: center; padding: var(--space-sm); font-size: 16px; color: var(--link); cursor: pointer; border-bottom: 4px solid transparent; }
-.tab-item.active { color: #0b0c0c; font-weight: 700; border-bottom-color: #0b0c0c; }
+.tab-item.active { color: #1d70b8; font-weight: 700; border-bottom-color: #1d70b8; }
 
 .card { background: #ffffff; border: 1px solid var(--border); padding: var(--space-lg); margin-bottom: var(--space-xl); }
 .card-title { font-size: 24px; font-weight: 700; color: var(--text-primary); margin-bottom: var(--space-md); }
@@ -556,7 +556,7 @@ onMounted(loadStockData)
 .macro-value { font-weight: 700; }
 .macro-desc { color: var(--text-secondary); font-size: 14px; }
 
-.help-overlay { position: fixed; inset: 0; background: rgba(11,12,12,0.6); display: flex; align-items: center; justify-content: center; z-index: 100; padding: var(--space-lg); }
+.help-overlay { position: fixed; inset: 0; background: rgba(29,112,184,0.6); display: flex; align-items: center; justify-content: center; z-index: 100; padding: var(--space-lg); }
 .help-popup { background: #ffffff; border: 1px solid var(--border); padding: var(--space-xl); max-width: 400px; width: 100%; max-height: 80vh; overflow-y: auto; }
 .help-title { font-size: 24px; font-weight: 700; margin-bottom: var(--space-md); }
 .help-section { margin-bottom: var(--space-md); }

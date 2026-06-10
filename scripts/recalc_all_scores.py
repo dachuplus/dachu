@@ -47,9 +47,9 @@ def calc_scores_v5(funds):
         {'k': 'k3',  'r': 'r3y', 'dd': 'dd3y', 'sr': 'sr3y'},
         {'k': 'k5',  'r': 'r5y', 'dd': 'dd5y', 'sr': 'sr5y'},
     ]
-    W_RET = 0.60
-    W_DD = 0.30
-    W_SR = 0.10
+    W_RET = 0.50
+    W_DD = 0.25
+    W_SR = 0.25
 
     for period in periods:
         pk, rk, dk, sk = period['k'], period['r'], period['dd'], period['sr']
