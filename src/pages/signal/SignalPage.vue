@@ -30,7 +30,7 @@
         <div class="gauge-wrap" ref="gaugeRef"></div>
       </div>
 
-      <!-- 宏观指标 5 个 + 10年历史 -->
+      <!-- 宏观指标 6 个 + 10年历史 -->
       <div class="card">
         <div class="card-title">宏观指标（近10年）</div>
         <div class="macro-indicators">
@@ -38,7 +38,12 @@
             <div class="macro-label">{{ m.label }}</div>
             <div class="macro-value">{{ m.value }}</div>
             <div class="macro-date">{{ m.date }}</div>
-            <div class="macro-chart" :ref="el => setChartRef(m.key, el)"></div>
+            <div class="macro-chart-wrap" :class="{ 'macro-chart-expanded': macroExpand[m.key] }">
+              <div class="macro-chart" :ref="el => setChartRef(m.key, el)"></div>
+            </div>
+            <div class="macro-more" v-if="macroHistory[m.key] && macroHistory[m.key].length > MACRO_INITIAL_LIMIT && !macroExpand[m.key]">
+              <span class="more-btn" @click="expandMacroChart(m.key)">更多</span>
+            </div>
           </div>
         </div>
       </div>
@@ -291,12 +296,18 @@ const weightList = ref([])
 
 // ===== Macro indicators =====
 const macroList = ref([
-  { key: 'cn10y', label: '中国10Y国债', value: '--', date: '', series: [] },
-  { key: 'us10y', label: '美国10Y国债', value: '--', date: '', series: [] },
+  { key: 'cn10y',  label: '中国10Y国债', value: '--', date: '', series: [] },
+  { key: 'us10y',  label: '美国10Y国债', value: '--', date: '', series: [] },
   { key: 'shibor', label: 'Shibor隔夜', value: '--', date: '', series: [] },
-  { key: 'cpi', label: 'CPI同比', value: '--', date: '', series: [] },
-  { key: 'm2', label: 'M2同比', value: '--', date: '', series: [] }
+  { key: 'cpi',    label: 'CPI同比', value: '--', date: '', series: [] },
+  { key: 'm2',     label: 'M2同比', value: '--', date: '', series: [] },
+  { key: 'ppi',    label: 'PPI同比', value: '--', date: '', series: [] }
 ])
+// "更多"展开状态（默认显示最近60个数据点）
+const macroExpand = reactive({})
+const macroHistory = reactive({}) // 完整历史数据缓存
+const MACRO_INITIAL_LIMIT = 60 // 初始显示60个数据点
+
 const chartRefs = {}
 function setChartRef(key, el) {
   if (el) chartRefs[key] = el
@@ -437,14 +448,25 @@ async function loadAll() {
       ? `${updateTime.slice(0,4)}-${updateTime.slice(4,6)}-${updateTime.slice(6,8)} ${updateTime.slice(8,10)}:${updateTime.slice(10,12)}`
       : new Date().toLocaleString('zh-CN')
 
-    // 更新宏观指标列表
-    macroList.value = [
-      { key: 'cn10y', label: '中国10Y国债', value: bondData.yield10y != null ? (bondData.yield10y * 100).toFixed(2) + '%' : '--', date: bondData.date || '', series: [] },
-      { key: 'shibor', label: 'Shibor隔夜', value: shiborData.on != null ? (shiborData.on * 100).toFixed(3) + '%' : '--', date: shiborData.date || '', series: [] },
-      { key: 'cpi', label: 'CPI同比', value: cpiData.cpi != null ? (cpiData.cpi * 100).toFixed(1) + '%' : '--', date: cpiData.date || '', series: [] },
-      { key: 'm2', label: 'M2同比', value: m2Data.m2yoy != null ? m2Data.m2yoy + '%' : '--', date: m2Data.date || '', series: [] },
-      { key: 'us10y', label: '美国10Y国债', value: '--', date: '', series: [] },
-    ]
+    // ===== 从 Supabase macro_history 表获取历史数据 =====
+    // 先用 v500 数据构建 macroList，再异步填充 series（不阻塞主流程）
+    const v500Values = {
+      cn10y:  { value: bondData.yield10y != null ? (bondData.yield10y * 100).toFixed(2) + '%' : '--', date: bondData.date || '' },
+      shibor: { value: shiborData.on != null ? (shiborData.on * 100).toFixed(3) + '%' : '--', date: shiborData.date || '' },
+      cpi:    { value: cpiData.cpi != null ? (cpiData.cpi * 100).toFixed(1) + '%' : '--', date: cpiData.date || '' },
+      m2:     { value: m2Data.m2yoy != null ? m2Data.m2yoy + '%' : '--', date: m2Data.date || '' },
+      us10y:  { value: '--', date: '' },
+      ppi:    { value: '--', date: '' }
+    }
+    macroList.value = ['cn10y', 'us10y', 'shibor', 'cpi', 'm2', 'ppi'].map(k => {
+      const labels = { cn10y: '中国10Y国债', us10y: '美国10Y国债', shibor: 'Shibor隔夜', cpi: 'CPI同比', m2: 'M2同比', ppi: 'PPI同比' }
+      return { key: k, label: labels[k], value: v500Values[k]?.value || '--', date: v500Values[k]?.date || '', series: [] }
+    })
+
+    // 异步加载历史数据（不阻塞主流程）
+    loadMacroHistoryAsync()
+
+    // 市场数据
 
     // 市场数据
     const v300Pct = pe300Data.pePercentile != null ? Math.round(pe300Data.pePercentile) : null
@@ -657,6 +679,74 @@ function pieRef() { return document.querySelector('[ref=pieRef]') }
 function radarRef() { return document.querySelector('[ref=radarRef]') }
 function bondCurveRef() { return document.querySelector('[ref=bondCurveRef]') }
 
+// ===== 宏观历史数据加载 =====
+const macroMetricMap = {
+  cn10y: 'cn10y', us10y: 'us10y', shibor: 'shibor_on',
+  cpi: 'cpi', m2: 'm2_growth', ppi: 'ppi'
+}
+
+async function loadMacroHistoryAsync() {
+  if (!supabase) return
+  try {
+    const results = await Promise.allSettled(
+      macroList.value.map(async (m) => {
+        const metric = macroMetricMap[m.key]
+        if (!metric) return
+        const { data, error } = await supabase
+          .from('macro_history')
+          .select('date, value')
+          .eq('metric', metric)
+          .order('date', { ascending: false })
+          .limit(2500)
+        if (error) { console.warn('macro_history query error:', m.key, error); return }
+        if (data && data.length > 0) {
+          // 倒序：最新的在前面（Supabase 值已为百分比显示形式，不乘100）
+          macroHistory[m.key] = data.map(d => ({ date: d.date, value: d.value }))
+          // 更新最新值（us10y / ppi 没有 v500 数据源）
+          if ((m.key === 'us10y' || m.key === 'ppi') && data[0]) {
+            const item = macroList.value.find(x => x.key === m.key)
+            if (item && item.value === '--') {
+              item.value = data[0].value.toFixed(2) + '%'
+              item.date = data[0].date
+            }
+          }
+          // 初始显示：取前 MACRO_INITIAL_LIMIT 条（最新的在前面）
+          const display = data.slice(0, MACRO_INITIAL_LIMIT)
+          const item = macroList.value.find(x => x.key === m.key)
+          if (item) {
+            item.series = { dates: display.map(d => d.date), values: display.map(d => d.value) }
+          }
+        }
+      })
+    )
+    // 重新绘制图表
+    await nextTick()
+    drawMacroCharts()
+  } catch (e) {
+    console.warn('loadMacroHistoryAsync error:', e)
+  }
+}
+
+function expandMacroChart(key) {
+  macroExpand[key] = true
+  const history = macroHistory[key]
+  const item = macroList.value.find(m => m.key === key)
+  if (!item || !history) return
+  // 展开全部历史数据
+  item.series = { dates: history.map(d => d.date), values: history.map(d => d.value) }
+  nextTick(() => {
+    // 根据数据点数量动态设置图表高度（每100条数据约300px）
+    const el = chartRefs[key]
+    if (el) {
+      const chartDom = el.querySelector('.macro-chart') || el
+      const h = Math.max(500, Math.ceil(history.length / 100) * 300)
+      chartDom.style.height = h + 'px'
+      el.style.height = (h + 20) + 'px'
+    }
+    drawMacroCharts()
+  })
+}
+
 // ===== 宏观图表 =====
 function drawMacroCharts() {
   macroList.value.forEach(m => {
@@ -665,11 +755,32 @@ function drawMacroCharts() {
     const dom = el.querySelector('.macro-chart') || el
     if (!dom) return
     const chart = echarts.init(dom)
+    const seriesData = m.series || {}
+    const dates = seriesData.dates || []
+    const values = seriesData.values || []
+    // 只显示部分日期标签避免重叠
+    const labelStep = Math.max(1, Math.floor(dates.length / 10))
     chart.setOption({
-      grid: { left: 40, right: 10, top: 5, bottom: 15 },
-      xAxis: { type: 'category', data: [], show: true, axisLine: { lineStyle: { color: '#b1b4b6' } }, axisTick: { show: false }, axisLabel: { show: true, fontSize: 9, color: '#b1b4b6' } },
-      yAxis: { type: 'value', splitLine: { lineStyle: { color: '#f3f2f1' } }, axisLine: { show: false }, axisLabel: { fontSize: 9, color: '#b1b4b6' } },
-      series: [{ type: 'line', data: [], lineStyle: { width: 1.5, color: COLORS[0] }, symbol: 'none', areaStyle: { color: 'rgba(29,112,184,0.08)' } }]
+      grid: { left: 45, right: 10, top: 5, bottom: 15 },
+      xAxis: {
+        type: 'category', data: dates, show: true,
+        axisLine: { lineStyle: { color: '#b1b4b6' } },
+        axisTick: { show: false },
+        axisLabel: { show: true, fontSize: 9, color: '#b1b4b6', interval: labelStep - 1 }
+      },
+      yAxis: {
+        type: 'value', splitLine: { lineStyle: { color: '#f3f2f1' } },
+        axisLine: { show: false },
+        axisLabel: { fontSize: 9, color: '#b1b4b6', formatter: v => v + '%' }
+      },
+      series: [{
+        type: 'line', data: values,
+        lineStyle: { width: 1.5, color: COLORS[0] },
+        symbol: 'none',
+        areaStyle: { color: 'rgba(29,112,184,0.08)' },
+        smooth: false
+      }],
+      tooltip: { trigger: 'axis', formatter: params => `${params[0].axisValue}<br/>${params[0].value}%` }
     })
     chart.resize()
   })
@@ -803,7 +914,20 @@ onMounted(() => {
 .macro-label { font-size: 14px; color: var(--text-secondary); }
 .macro-value { font-size: 24px; font-weight: 700; color: var(--text-primary); margin: var(--space-xs) 0; }
 .macro-date { font-size: 12px; color: var(--text-secondary); margin-bottom: var(--space-sm); }
+.macro-chart-wrap { width: 100%; height: 200px; overflow: hidden; }
+.macro-chart-wrap.macro-chart-expanded {
+  height: auto; max-height: 500px; overflow-y: auto;
+  border: 1px solid var(--border); margin-bottom: var(--space-sm);
+}
 .macro-chart { width: 100%; height: 200px; }
+.macro-chart-expanded .macro-chart { width: 100%; min-height: 500px; height: auto; }
+.macro-more { text-align: center; margin-top: var(--space-sm); }
+.more-btn {
+  display: inline-block; padding: var(--space-xs) var(--space-lg); font-size: 13px;
+  color: var(--brand); border: 1px solid var(--brand); background: var(--bg-card);
+  cursor: pointer; text-decoration: none; user-select: none;
+}
+.more-btn:hover { background: var(--brand); color: #fff; }
 
 /* FED */
 .fed-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--space-md); margin-bottom: var(--space-md); }
