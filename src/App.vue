@@ -44,8 +44,8 @@
       </p>
     </div>
 
-    <!-- 全局金刚区导航（PC端横排，所有页面可见） -->
-    <nav class="quick-nav" v-if="!isMobile">
+    <!-- 全局金刚区导航（所有页面可见） -->
+    <nav class="quick-nav">
       <div class="quick-nav__inner">
         <router-link
           v-for="item in quickLinks"

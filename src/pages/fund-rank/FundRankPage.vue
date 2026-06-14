@@ -13,24 +13,32 @@
       </div>
     </div>
 
-    <!-- 筛选区（可展开/收起） -->
+    <!-- 筛选区 -->
     <div class="filter-section">
-      <!-- 一级分类 -->
+      <!-- 分类数据源（下拉） -->
       <div class="filter-row">
-        <span class="filter-label">一级分类</span>
-        <div class="filter-chips">
-          <div class="filter-chip" :class="{ active: filterT0 === '' }" @click="setT0('')">全部</div>
-          <div v-for="t0 in t0List" :key="t0" class="filter-chip" :class="{ active: filterT0 === t0 }" @click="setT0(t0)">{{ t0 }}</div>
-        </div>
+        <span class="filter-label">分类：</span>
+        <select class="filter-select" :value="classSource" @change="e => setClassSource(e.target.value)">
+          <option v-for="src in classSources" :key="src.key" :value="src.key" :disabled="!src.available">
+            {{ src.label }}{{ src.available ? '' : '（接入中）' }}
+          </option>
+        </select>
       </div>
 
-      <!-- 二级分类（依赖一级） -->
+      <!-- 一级分类（下拉） -->
+      <div class="filter-row">
+        <select class="filter-select" :value="filterT0" @change="e => setT0(e.target.value)">
+          <option value="">全部分类</option>
+          <option v-for="t0 in t0List" :key="t0" :value="t0">{{ t0 }}</option>
+        </select>
+      </div>
+
+      <!-- 二级分类（依赖一级，下拉） -->
       <div class="filter-row" v-if="t1List.length > 0">
-        <span class="filter-label">二级分类</span>
-        <div class="filter-chips">
-          <div class="filter-chip" :class="{ active: filterT1 === '' }" @click="setT1('')">全部</div>
-          <div v-for="t1 in t1List" :key="t1" class="filter-chip" :class="{ active: filterT1 === t1 }" @click="setT1(t1)">{{ t1 }}</div>
-        </div>
+        <select class="filter-select" :value="filterT1" @change="e => setT1(e.target.value)">
+          <option value="">全部二级</option>
+          <option v-for="t1 in t1List" :key="t1" :value="t1">{{ t1 }}</option>
+        </select>
       </div>
 
       <!-- 更多筛选（展开/收起） -->
@@ -123,25 +131,10 @@
           </div>
         </div>
 
-        <!-- 分类数据源 -->
-        <div class="filter-row">
-          <span class="filter-label">分类数据源</span>
-          <div class="filter-chips">
-            <div
-              v-for="src in classSources"
-              :key="src.key"
-              class="filter-chip"
-              :class="{ active: classSource === src.key, disabled: !src.available }"
-              @click="setClassSource(src.key)"
-            >{{ src.label }}{{ src.available ? '' : ' (规划中)' }}</div>
-          </div>
-        </div>
-
         <!-- 规模筛选说明 -->
         <div class="filter-tip">
           注：ETF/LOF/FOF/定开/持有期/±20%等属性基于基金名称智能识别，可能存在误判。<br>
-          基金规模、机构占比、股票占比数据暂未收录，后续版本更新。<br>
-          除恒生聚源和天天分类外，其他分类数据源正在规划中。
+          基金规模、机构占比、股票占比数据暂未收录，后续版本更新。
         </div>
       </div>
 
@@ -955,8 +948,17 @@ onUnmounted(() => {
 .filter-row { display: flex; align-items: flex-start; padding: var(--space-sm) var(--space-md); gap: var(--space-sm); }
 .filter-label {
   font-size: 14px; color: var(--text-secondary); font-weight: 700;
-  flex-shrink: 0; width: 60px; padding-top: 4px;
+  flex-shrink: 0; padding-top: 4px;
 }
+.filter-select {
+  padding: 6px 12px; font-size: 16px; border: 1px solid var(--border);
+  background: #fff; color: var(--text-primary); flex: 1; max-width: 100%;
+  -webkit-appearance: none; appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23505a5f' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right 10px center;
+  padding-right: 30px; cursor: pointer;
+}
+.filter-select:focus { outline: 3px solid #ffdd00; outline-offset: 0; }
 .filter-chips { display: flex; flex-wrap: wrap; gap: 0; flex: 1; }
 .filter-chip {
   padding: 4px 12px; font-size: 16px; color: var(--link);

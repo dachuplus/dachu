@@ -19,11 +19,11 @@ import { useRoute } from 'vue-router'
 const route = useRoute()
 
 const tabs = [
-  { key: 'home',    path: '/',        label: '总览'     },
-  { key: 'signal',  path: '/signal',  label: '指标信号' },
-  { key: 'tools',   path: '/tools',   label: '工具'     },
-  { key: 'lab',     path: '/lab',     label: '实验室'   },
-  { key: 'profile', path: '/profile', label: '我的'     },
+  { key: 'home',    path: '/',                 label: '首页' },
+  { key: 'signal',  path: '/signal',           label: '信号' },
+  { key: 'fundrank',path: '/tools/fund-rank',  label: '评分' },
+  { key: 'portfolio',path:'/portfolio',        label: '组合' },
+  { key: 'profile', path: '/profile',          label: '我的' },
 ]
 
 const currentTab = computed(() => route.meta?.tab || 'home')
