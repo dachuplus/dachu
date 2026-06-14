@@ -700,8 +700,7 @@ async function loadMacroHistoryAsync() {
           .limit(2500)
         if (error) { console.warn('macro_history query error:', m.key, error); return }
         if (data && data.length > 0) {
-          // 倒序：最新的在前面（Supabase 值已为百分比显示形式，不乘100）
-          macroHistory[m.key] = data.map(d => ({ date: d.date, value: d.value }))
+          // data 已按 date DESC 返回（最新在前）
           // 更新最新值（us10y / ppi 没有 v500 数据源）
           if ((m.key === 'us10y' || m.key === 'ppi') && data[0]) {
             const item = macroList.value.find(x => x.key === m.key)
@@ -710,11 +709,13 @@ async function loadMacroHistoryAsync() {
               item.date = data[0].date
             }
           }
-          // 初始显示：取前 MACRO_INITIAL_LIMIT 条（最新的在前面）
-          const display = data.slice(0, MACRO_INITIAL_LIMIT)
+          // 存储完整历史（保持 DESC 顺序，方便后续切片）
+          macroHistory[m.key] = data.map(d => ({ date: d.date, value: d.value }))
+          // 初始显示：取最新 MACRO_INITIAL_LIMIT 条，图表需从旧到新（ASC）
+          const display = data.slice(0, MACRO_INITIAL_LIMIT).reverse()
           const item = macroList.value.find(x => x.key === m.key)
           if (item) {
-            item.series = { dates: display.map(d => d.date), values: display.map(d => d.value) }
+            item.series = { dates: display.map(d => d.date), values: display.map(d => d.value), total: data.length }
           }
         }
       })
@@ -732,19 +733,10 @@ function expandMacroChart(key) {
   const history = macroHistory[key]
   const item = macroList.value.find(m => m.key === key)
   if (!item || !history) return
-  // 展开全部历史数据
-  item.series = { dates: history.map(d => d.date), values: history.map(d => d.value) }
-  nextTick(() => {
-    // 根据数据点数量动态设置图表高度（每100条数据约300px）
-    const el = chartRefs[key]
-    if (el) {
-      const chartDom = el.querySelector('.macro-chart') || el
-      const h = Math.max(500, Math.ceil(history.length / 100) * 300)
-      chartDom.style.height = h + 'px'
-      el.style.height = (h + 20) + 'px'
-    }
-    drawMacroCharts()
-  })
+  // 展开全部历史数据：history 是 DESC，图表需 ASC（旧→新）
+  const asc = [...history].reverse()
+  item.series = { dates: asc.map(d => d.date), values: asc.map(d => d.value), total: asc.length, expanded: true }
+  nextTick(() => drawMacroCharts())
 }
 
 // ===== 宏观图表 =====
@@ -752,16 +744,39 @@ function drawMacroCharts() {
   macroList.value.forEach(m => {
     const el = chartRefs[m.key]
     if (!el) return
-    const dom = el.querySelector('.macro-chart') || el
+    const dom = el.querySelector ? el.querySelector('.macro-chart') || el : el
     if (!dom) return
-    const chart = echarts.init(dom)
+    const chart = echarts.getInstanceByDom(dom) || echarts.init(dom)
     const seriesData = m.series || {}
     const dates = seriesData.dates || []
     const values = seriesData.values || []
-    // 只显示部分日期标签避免重叠
-    const labelStep = Math.max(1, Math.floor(dates.length / 10))
+    const expanded = seriesData.expanded || false
+
+    // 初始窗口：默认只展示最近 60 条（即 dates 尾部）
+    const visibleCount = MACRO_INITIAL_LIMIT
+    const startPct = expanded ? Math.max(0, Math.round((1 - visibleCount / dates.length) * 100)) : 0
+    const dataZoom = expanded ? [
+      {
+        type: 'slider',
+        show: true,
+        xAxisIndex: 0,
+        start: startPct,
+        end: 100,
+        height: 18,
+        bottom: 0,
+        handleSize: '80%',
+        borderColor: '#b1b4b6',
+        fillerColor: 'rgba(29,112,184,0.12)',
+        handleStyle: { color: '#1d70b8' },
+        textStyle: { fontSize: 9, color: '#b1b4b6' }
+      }
+    ] : []
+
+    const bottomPad = expanded ? 30 : 15
+    const labelStep = Math.max(1, Math.floor(dates.length / 8))
+
     chart.setOption({
-      grid: { left: 45, right: 10, top: 5, bottom: 15 },
+      grid: { left: 45, right: 10, top: 5, bottom: bottomPad },
       xAxis: {
         type: 'category', data: dates, show: true,
         axisLine: { lineStyle: { color: '#b1b4b6' } },
@@ -773,6 +788,7 @@ function drawMacroCharts() {
         axisLine: { show: false },
         axisLabel: { fontSize: 9, color: '#b1b4b6', formatter: v => v + '%' }
       },
+      dataZoom,
       series: [{
         type: 'line', data: values,
         lineStyle: { width: 1.5, color: COLORS[0] },
@@ -781,7 +797,7 @@ function drawMacroCharts() {
         smooth: false
       }],
       tooltip: { trigger: 'axis', formatter: params => `${params[0].axisValue}<br/>${params[0].value}%` }
-    })
+    }, true)
     chart.resize()
   })
 }
@@ -915,12 +931,8 @@ onMounted(() => {
 .macro-value { font-size: 24px; font-weight: 700; color: var(--text-primary); margin: var(--space-xs) 0; }
 .macro-date { font-size: 12px; color: var(--text-secondary); margin-bottom: var(--space-sm); }
 .macro-chart-wrap { width: 100%; height: 200px; overflow: hidden; }
-.macro-chart-wrap.macro-chart-expanded {
-  height: auto; max-height: 500px; overflow-y: auto;
-  border: 1px solid var(--border); margin-bottom: var(--space-sm);
-}
+.macro-chart-wrap.macro-chart-expanded { height: 200px; overflow: visible; }
 .macro-chart { width: 100%; height: 200px; }
-.macro-chart-expanded .macro-chart { width: 100%; min-height: 500px; height: auto; }
 .macro-more { text-align: center; margin-top: var(--space-sm); }
 .more-btn {
   display: inline-block; padding: var(--space-xs) var(--space-lg); font-size: 13px;
