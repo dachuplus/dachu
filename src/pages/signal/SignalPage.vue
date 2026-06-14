@@ -41,7 +41,7 @@
             <div class="macro-chart-wrap" :class="{ 'macro-chart-expanded': macroExpand[m.key] }">
               <div class="macro-chart" :ref="el => setChartRef(m.key, el)"></div>
             </div>
-            <div class="macro-more" v-if="macroHistory[m.key] && macroHistory[m.key].length > MACRO_INITIAL_LIMIT && !macroExpand[m.key]">
+            <div class="macro-more" v-if="macroHistory[m.key] && macroHistory[m.key].length > MACRO_DEFAULT_WINDOW && !macroExpand[m.key]">
               <span class="more-btn" @click="expandMacroChart(m.key)">更多</span>
             </div>
           </div>
@@ -71,6 +71,9 @@
           </div>
         </div>
         <p class="data-source">数据参考：funddb.cn | 中国10年期国债收益率 {{ bondY10y }}%</p>
+        <!-- 10Y国债历史走势（FED分母端） -->
+        <div class="card-title" style="margin-top:20px">10Y国债收益率历史走势</div>
+        <div ref="fedHistRef" style="height:200px"></div>
       </div>
     </div>
 
@@ -109,6 +112,9 @@
             </tbody>
           </table>
         </div>
+        <!-- 上证指数历史走势 -->
+        <div class="card-title" style="margin-top:20px">上证指数历史走势</div>
+        <div ref="compareIdxRef" style="height:200px"></div>
       </div>
     </div>
 
@@ -184,6 +190,8 @@
       <div v-if="factorSub === 'bond'" class="card">
         <div class="card-title">国债收益率曲线</div>
         <div class="chart-wrap" ref="bondCurveRef"></div>
+        <div class="card-title" style="margin-top:20px">10Y国债历史走势</div>
+        <div class="macro-chart" ref="bondHistRef" style="height:200px"></div>
         <div class="card-title" style="margin-top:20px">期限利差</div>
         <div class="spread-item" v-for="s in bondSpreads" :key="s.label">
           <span>{{ s.label }}</span>
@@ -303,10 +311,11 @@ const macroList = ref([
   { key: 'm2',     label: 'M2同比', value: '--', date: '', series: [] },
   { key: 'ppi',    label: 'PPI同比', value: '--', date: '', series: [] }
 ])
-// "更多"展开状态（默认显示最近60个数据点）
+// "更多"展开状态
 const macroExpand = reactive({})
 const macroHistory = reactive({}) // 完整历史数据缓存
-const MACRO_INITIAL_LIMIT = 60 // 初始显示60个数据点
+const macroIndexHistory = ref(null) // 上证指数对齐后的历史数据 (keyed by date string)
+const MACRO_DEFAULT_WINDOW = 250 // dataZoom 默认窗口：250个数据点（约1年日线）
 
 const chartRefs = {}
 function setChartRef(key, el) {
@@ -336,6 +345,8 @@ let gaugeChart = null
 let pieChart = null
 let radarChart = null
 let bondCurveChart = null
+let fedHistChart = null
+let compareIdxChart = null
 
 // ===== 行业估值 =====
 const industryFilters = [
@@ -635,6 +646,78 @@ function drawBondCurve() {
     yAxis: { type: 'value', name: '%', splitLine: { lineStyle: { color: '#f3f2f1' } }, axisLine: { show: false } },
     series: [{ type: 'line', data: [1.5, 1.6, 1.7, 1.9, 2.1, bondY10y.value ? (bondY10y.value * 100).toFixed(1) : 2.3, 2.7], lineStyle: { width: 2, color: COLORS[0] }, symbol: 'circle', symbolSize: 6, itemStyle: { color: COLORS[0] } }]
   })
+
+  // 10Y 国债历史走势（复用 macroHistory 中的 cn10y 数据）
+  const histEl = document.querySelector('[ref=bindHistRef]') || document.querySelector('#bond-hist')
+  if (histEl && macroHistory['cn10y']) {
+    const hdom = histEl.querySelector ? (histEl.querySelector('.macro-chart') || histEl) : histEl
+    const hchart = echarts.getInstanceByDom(hdom) || echarts.init(hdom)
+    const hist = [...macroHistory['cn10y']].reverse() // ASC
+    const dates = hist.map(d => d.date)
+    const values = hist.map(d => d.value)
+    const total = dates.length
+    const defWin = MACRO_DEFAULT_WINDOW
+    const useDataZoom = total > defWin
+    const startPct = useDataZoom ? Math.max(0, Math.round((1 - defWin / total) * 100)) : 0
+    const labelStep = Math.max(1, Math.floor(total / 8))
+    hchart.setOption({
+      grid: { left: 45, right: 10, top: 10, bottom: useDataZoom ? 30 : 15 },
+      xAxis: { type: 'category', data: dates, axisLine: { lineStyle: { color: '#b1b4b6' } }, axisTick: { show: false }, axisLabel: { fontSize: 9, color: '#b1b4b6', interval: labelStep - 1 } },
+      yAxis: { type: 'value', splitLine: { lineStyle: { color: '#f3f2f1' } }, axisLine: { show: false }, axisLabel: { fontSize: 9, color: '#b1b4b6', formatter: v => v + '%' } },
+      dataZoom: useDataZoom ? [{ type: 'slider', show: true, xAxisIndex: 0, start: startPct, end: 100, height: 18, bottom: 0, borderColor: '#b1b4b6', fillerColor: 'rgba(29,112,184,0.12)', handleStyle: { color: '#1d70b8' }, textStyle: { fontSize: 9, color: '#b1b4b6' } }] : [],
+      series: [{ type: 'line', data: values, lineStyle: { width: 1.5, color: COLORS[0] }, symbol: 'none', areaStyle: { color: 'rgba(29,112,184,0.08)' }, smooth: false }],
+      tooltip: { trigger: 'axis', formatter: p => `${p[0].axisValue}<br/>${p[0].value}%` }
+    }, true)
+    hchart.resize()
+  }
+}
+
+// ===== FED 10Y历史图 =====
+function drawFedHistChart() {
+  const el = document.querySelector('[ref=fedHistRef]')
+  if (!el || !macroHistory['cn10y']) return
+  drawMiniHistoryChart(el, macroHistory['cn10y'], '10Y国债收益率')
+}
+
+// ===== 资产对比 上证指数历史图 =====
+function drawCompareIdxChart() {
+  const el = document.querySelector('[ref=compareIdxRef]')
+  if (!el) return
+  // 从 macroHistory 中查 上证指数
+  supabase.from('macro_history')
+    .select('date, value')
+    .eq('metric', 'sh000001')
+    .order('date', { ascending: false })
+    .limit(7000)
+    .then(({ data }) => {
+      if (!data || data.length === 0) return
+      drawMiniHistoryChart(el, data.map(d => ({ date: d.date, value: d.value })), '上证指数', false)
+    })
+}
+
+// ===== 通用迷你历史图表 =====
+function drawMiniHistoryChart(el, rawData, label, isPercent = true) {
+  const dom = el.querySelector ? (el.querySelector('.macro-chart') || el) : el
+  const chart = echarts.getInstanceByDom(dom) || echarts.init(dom)
+  const hist = [...rawData].reverse() // ASC
+  const dates = hist.map(d => d.date)
+  const values = hist.map(d => d.value)
+  const total = dates.length
+  const defWin = MACRO_DEFAULT_WINDOW
+  const useDataZoom = total > defWin
+  const startPct = useDataZoom ? Math.max(0, Math.round((1 - defWin / total) * 100)) : 0
+  const labelStep = Math.max(1, Math.floor(total / 8))
+  const yFormatter = isPercent ? (v => v + '%') : (v => v >= 1000 ? (v / 1000).toFixed(1) + 'k' : v.toFixed(0))
+
+  chart.setOption({
+    grid: { left: 55, right: 10, top: 10, bottom: useDataZoom ? 30 : 15 },
+    xAxis: { type: 'category', data: dates, axisLine: { lineStyle: { color: '#b1b4b6' } }, axisTick: { show: false }, axisLabel: { fontSize: 9, color: '#b1b4b6', interval: labelStep - 1 } },
+    yAxis: { type: 'value', splitLine: { lineStyle: { color: '#f3f2f1' } }, axisLine: { show: false }, axisLabel: { fontSize: 9, color: '#b1b4b6', formatter: yFormatter } },
+    dataZoom: useDataZoom ? [{ type: 'slider', show: true, xAxisIndex: 0, start: startPct, end: 100, height: 18, bottom: 0, borderColor: '#b1b4b6', fillerColor: 'rgba(29,112,184,0.12)', handleStyle: { color: '#1d70b8' }, textStyle: { fontSize: 9, color: '#b1b4b6' } }] : [],
+    series: [{ type: 'line', data: values, lineStyle: { width: 1.5, color: COLORS[0] }, symbol: 'none', areaStyle: { color: 'rgba(29,112,184,0.08)' }, smooth: false }],
+    tooltip: { trigger: 'axis', formatter: p => `${p[0].axisValue}<br/>${label}: ${isPercent ? p[0].value + '%' : p[0].value}` }
+  }, true)
+  chart.resize()
 }
 
 // ===== 仪表盘 =====
@@ -688,39 +771,72 @@ const macroMetricMap = {
 async function loadMacroHistoryAsync() {
   if (!supabase) return
   try {
-    const results = await Promise.allSettled(
-      macroList.value.map(async (m) => {
-        const metric = macroMetricMap[m.key]
-        if (!metric) return
-        const { data, error } = await supabase
-          .from('macro_history')
-          .select('date, value')
-          .eq('metric', metric)
-          .order('date', { ascending: false })
-          .limit(2500)
-        if (error) { console.warn('macro_history query error:', m.key, error); return }
-        if (data && data.length > 0) {
-          // data 已按 date DESC 返回（最新在前）
-          // 更新最新值（us10y / ppi 没有 v500 数据源）
-          if ((m.key === 'us10y' || m.key === 'ppi') && data[0]) {
-            const item = macroList.value.find(x => x.key === m.key)
-            if (item && item.value === '--') {
-              item.value = data[0].value.toFixed(2) + '%'
-              item.date = data[0].date
-            }
-          }
-          // 存储完整历史（保持 DESC 顺序，方便后续切片）
-          macroHistory[m.key] = data.map(d => ({ date: d.date, value: d.value }))
-          // 初始显示：取最新 MACRO_INITIAL_LIMIT 条，图表需从旧到新（ASC）
-          const display = data.slice(0, MACRO_INITIAL_LIMIT).reverse()
-          const item = macroList.value.find(x => x.key === m.key)
-          if (item) {
-            item.series = { dates: display.map(d => d.date), values: display.map(d => d.value), total: data.length }
-          }
+    // 1. 拉取上证指数历史（用于所有图表叠加）
+    const indexPromise = supabase
+      .from('macro_history')
+      .select('date, value')
+      .eq('metric', 'sh000001')
+      .order('date', { ascending: false })
+      .limit(10000)
+
+    // 2. 拉取六个宏观指标历史
+    const macroPromises = macroList.value.map(async (m) => {
+      const metric = macroMetricMap[m.key]
+      if (!metric) return { key: m.key, data: null }
+      const { data, error } = await supabase
+        .from('macro_history')
+        .select('date, value')
+        .eq('metric', metric)
+        .order('date', { ascending: false })
+        .limit(10000)
+      if (error) { console.warn('macro_history query error:', m.key, error); return { key: m.key, data: null } }
+      return { key: m.key, data }
+    })
+
+    // 3. 同时等待所有请求
+    const [indexResult, ...macroResults] = await Promise.all([
+      indexPromise,
+      ...macroPromises
+    ])
+
+    // 4. 构建上证指数日期索引（date → value）
+    const indexMap = {}
+    if (!indexResult.error && indexResult.data) {
+      indexResult.data.forEach(d => { indexMap[d.date] = d.value })
+    }
+
+    // 5. 处理每个宏观指标
+    macroResults.forEach(r => {
+      const { key, data } = r
+      if (!data || data.length === 0) return
+      // 更新最新值（us10y / ppi 没有 v500 数据源）
+      if ((key === 'us10y' || key === 'ppi') && data[0]) {
+        const item = macroList.value.find(x => x.key === key)
+        if (item && item.value === '--') {
+          item.value = data[0].value.toFixed(2) + '%'
+          item.date = data[0].date
         }
-      })
-    )
-    // 重新绘制图表
+      }
+      // 存储完整历史（保持 DESC 顺序）
+      macroHistory[key] = data.map(d => ({
+        date: d.date, value: d.value,
+        index: indexMap[d.date] ?? null  // 对齐上证指数
+      }))
+      // 初始显示：所有数据 ASC 排序，默认窗口展示最近 MACRO_DEFAULT_WINDOW 条
+      const asc = [...data].reverse()
+      const item = macroList.value.find(x => x.key === key)
+      if (item) {
+        item.series = {
+          dates: asc.map(d => d.date),
+          values: asc.map(d => d.value),
+          indices: asc.map(d => indexMap[d.date] ?? null),
+          total: data.length,
+          expanded: false,
+          defaultWindow: MACRO_DEFAULT_WINDOW
+        }
+      }
+    })
+
     await nextTick()
     drawMacroCharts()
   } catch (e) {
@@ -735,7 +851,14 @@ function expandMacroChart(key) {
   if (!item || !history) return
   // 展开全部历史数据：history 是 DESC，图表需 ASC（旧→新）
   const asc = [...history].reverse()
-  item.series = { dates: asc.map(d => d.date), values: asc.map(d => d.value), total: asc.length, expanded: true }
+  item.series = {
+    dates: asc.map(d => d.date),
+    values: asc.map(d => d.value),
+    indices: asc.map(d => d.index),
+    total: asc.length,
+    expanded: true,
+    defaultWindow: MACRO_DEFAULT_WINDOW
+  }
   nextTick(() => drawMacroCharts())
 }
 
@@ -747,56 +870,84 @@ function drawMacroCharts() {
     const dom = el.querySelector ? el.querySelector('.macro-chart') || el : el
     if (!dom) return
     const chart = echarts.getInstanceByDom(dom) || echarts.init(dom)
-    const seriesData = m.series || {}
-    const dates = seriesData.dates || []
-    const values = seriesData.values || []
-    const expanded = seriesData.expanded || false
+    const sd = m.series || {}
+    const dates = sd.dates || []
+    const values = sd.values || []
+    const indices = sd.indices || []
+    const total = sd.total || dates.length
+    const defWin = sd.defaultWindow || MACRO_DEFAULT_WINDOW
 
-    // 初始窗口：默认只展示最近 60 条（即 dates 尾部）
-    const visibleCount = MACRO_INITIAL_LIMIT
-    const startPct = expanded ? Math.max(0, Math.round((1 - visibleCount / dates.length) * 100)) : 0
-    const dataZoom = expanded ? [
-      {
-        type: 'slider',
-        show: true,
-        xAxisIndex: 0,
-        start: startPct,
-        end: 100,
-        height: 18,
-        bottom: 0,
-        handleSize: '80%',
-        borderColor: '#b1b4b6',
-        fillerColor: 'rgba(29,112,184,0.12)',
-        handleStyle: { color: '#1d70b8' },
-        textStyle: { fontSize: 9, color: '#b1b4b6' }
-      }
-    ] : []
+    // dataZoom：始终显示，默认窗口展示最近 defWin 个数据点
+    const useDataZoom = total > defWin
+    const startPct = useDataZoom ? Math.max(0, Math.round((1 - defWin / total) * 100)) : 0
+    const dataZoomConfig = useDataZoom ? [{
+      type: 'slider',
+      show: true,
+      xAxisIndex: 0,
+      start: startPct,
+      end: 100,
+      height: 18,
+      bottom: 0,
+      handleSize: '80%',
+      borderColor: '#b1b4b6',
+      fillerColor: 'rgba(29,112,184,0.12)',
+      handleStyle: { color: '#1d70b8' },
+      textStyle: { fontSize: 9, color: '#b1b4b6' }
+    }] : []
 
-    const bottomPad = expanded ? 30 : 15
+    // 上证指数叠加：仅当有有效 index 数据时
+    const hasIndex = indices && indices.some(v => v != null)
+    const indexValid = hasIndex ? indices.map(v => (v != null) ? v : '-') : []
+
+    const bottomPad = useDataZoom ? 30 : 15
     const labelStep = Math.max(1, Math.floor(dates.length / 8))
 
+    const tooltipFormatter = hasIndex
+      ? (params) => `${params[0].axisValue}<br/>${m.label}: ${params[0].value}%<br/>上证指数: ${params[1]?.value ?? '--'}`
+      : (params) => `${params[0].axisValue}<br/>${params[0].value}%`
+
     chart.setOption({
-      grid: { left: 45, right: 10, top: 5, bottom: bottomPad },
+      grid: { left: 45, right: hasIndex ? 50 : 10, top: 10, bottom: bottomPad },
       xAxis: {
         type: 'category', data: dates, show: true,
         axisLine: { lineStyle: { color: '#b1b4b6' } },
         axisTick: { show: false },
         axisLabel: { show: true, fontSize: 9, color: '#b1b4b6', interval: labelStep - 1 }
       },
-      yAxis: {
-        type: 'value', splitLine: { lineStyle: { color: '#f3f2f1' } },
-        axisLine: { show: false },
-        axisLabel: { fontSize: 9, color: '#b1b4b6', formatter: v => v + '%' }
-      },
-      dataZoom,
-      series: [{
-        type: 'line', data: values,
-        lineStyle: { width: 1.5, color: COLORS[0] },
-        symbol: 'none',
-        areaStyle: { color: 'rgba(29,112,184,0.08)' },
-        smooth: false
-      }],
-      tooltip: { trigger: 'axis', formatter: params => `${params[0].axisValue}<br/>${params[0].value}%` }
+      yAxis: [
+        {
+          type: 'value', splitLine: { lineStyle: { color: '#f3f2f1' } },
+          axisLine: { show: false },
+          axisLabel: { fontSize: 9, color: '#b1b4b6', formatter: v => v + '%' }
+        },
+        ...(hasIndex ? [{
+          type: 'value',
+          axisLine: { show: false },
+          axisLabel: { fontSize: 9, color: '#d4351c' },
+          splitLine: { show: false }
+        }] : [])
+      ],
+      dataZoom: dataZoomConfig,
+      series: [
+        {
+          name: m.label,
+          type: 'line', data: values,
+          lineStyle: { width: 1.5, color: COLORS[0] },
+          symbol: 'none',
+          areaStyle: { color: 'rgba(29,112,184,0.08)' },
+          smooth: false
+        },
+        ...(hasIndex ? [{
+          name: '上证指数',
+          type: 'line', data: indexValid,
+          yAxisIndex: 1,
+          lineStyle: { width: 1, color: '#d4351c', type: 'dashed' },
+          symbol: 'none',
+          smooth: false
+        }] : [])
+      ],
+      tooltip: { trigger: 'axis', formatter: tooltipFormatter },
+      legend: hasIndex ? { show: true, bottom: 0, data: [m.label, '上证指数'], textStyle: { fontSize: 10 } } : undefined
     }, true)
     chart.resize()
   })
@@ -863,6 +1014,8 @@ function drawPie() {
 watch(activeTab, (tab) => {
   nextTick(() => {
     if (tab === 'macro') { drawGauge(); drawMacroCharts() }
+    else if (tab === 'fed') drawFedHistChart()
+    else if (tab === 'compare') drawCompareIdxChart()
     else if (tab === 'allocate') drawPie()
     else if (tab === 'factor') {
       if (factorSub.value === 'stock') drawRadar()
