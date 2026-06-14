@@ -105,6 +105,10 @@
             {{ st.label }}
             <span class="ai-st-desc">{{ st.desc }}</span>
           </button>
+          <button class="ai-st-btn ai-custom-st-btn" @click="showCustomDialog = true" :disabled="aiGenerating">
+            自定义
+            <span class="ai-st-desc">输入你的要求</span>
+          </button>
         </div>
 
         <div class="ai-action">
@@ -113,6 +117,18 @@
             <span v-else>生成 AI 组合</span>
           </button>
           <span class="ai-status" v-if="aiStatusText">{{ aiStatusText }}</span>
+        </div>
+
+        <!-- 自定义弹窗 -->
+        <div class="modal-overlay" v-if="showCustomDialog" @click.self="showCustomDialog = false">
+          <div class="modal-box">
+            <div class="modal-title">自定义 AI 组合要求</div>
+            <textarea v-model="customRequirement" class="modal-textarea" placeholder="例如：我想配置一个防守型的养老组合，重点配置债券和红利基金，不要科技类..." rows="4"></textarea>
+            <div class="modal-btns">
+              <button class="btn-secondary" @click="showCustomDialog = false">取消</button>
+              <button class="btn-primary" @click="generateAiPortfolio()" :disabled="aiGenerating">提交生成</button>
+            </div>
+          </div>
         </div>
 
         <div class="ai-result" v-if="aiPortfolio && aiPortfolio.funds">
@@ -157,6 +173,9 @@
                 <span class="ai-bt-val">{{ aiPortfolio.backtest.winRate }}%</span>
               </div>
             </div>
+          </div>
+          <div class="ai-add-row">
+            <button class="btn-primary" @click="addAiToCustom">+ 添加到自建组合</button>
           </div>
         </div>
 
@@ -377,24 +396,48 @@ function saveAiToHistory(pf) {
 }
 function loadAiFromHistory(pf) { aiPortfolio.value = pf }
 
+// ==== 自定义弹窗 ====
+const showCustomDialog = ref(false)
+const customRequirement = ref('')
+
 async function generateAiPortfolio() {
   if (aiGenerating.value) return
   aiGenerating.value = true
-  aiStatusText.value = '正在调用 DeepSeek 分析市场...'
+  aiStatusText.value = '正在查询高分靠谱基金...'
   try {
+    // 1. 从 Supabase 获取高分靠谱基金（k_all >= 70）
+    let fundPool = []
+    if (supabase) {
+      const { data } = await supabase.from('fund_scores')
+        .select('c,n,t0,k_all,score_grade')
+        .not('k_all','is',null).gte('k_all', 70)
+        .order('k_all', { ascending: false }).limit(30)
+      fundPool = (data || []).map(f => `${f.c} ${f.n} (靠谱${f.k_all?.toFixed(0)})`)
+    }
+    if (fundPool.length === 0) {
+      fundPool = ['510300 沪深300ETF', '159915 创业板ETF', '511260 10年国债ETF', '518880 黄金ETF', '512100 中证1000ETF', '510500 中证500ETF', '512880 证券ETF', '512010 医药ETF', '159928 消费ETF', '512480 半导体ETF', '512660 军工ETF', '512800 银行ETF', '515030 新能源ETF', '512980 传媒ETF', '159985 豆粕ETF']
+    }
+
     const strategy = AI_STRATEGIES.find(s => s.key === aiStrategy.value)
     const strategyName = strategy?.label || '均衡配置'
-    const prompt = `你是一位专业的基金投顾。请根据当前市场数据，为"${strategyName}"策略推荐一个基金组合。
-请返回纯JSON：
+    const customReq = customRequirement.value.trim()
+    const reqHint = customReq ? `\n用户额外要求：${customReq}` : ''
+
+    const prompt = `你是一位专业基金投顾。从以下高分靠谱基金池中，为"${strategyName}"策略选出10只基金构建组合。
+基金池（代码 名称 靠谱分）：
+${fundPool.join('\n')}
+${reqHint}
+请返回纯JSON（不要markdown）：
 { "strategyName": "${strategyName}", "summary": "一句话概述（50字内）",
-  "funds": [{"code":"6位代码","name":"基金名称","weight":数字,"reason":"推荐理由"}],
-  "backtest": {"annualReturn":数字,"maxDrawdown":数字,"sharpe":数字,"winRate":数字} }
-要求：5-8只基金，权重和为100，使用真实A股ETF代码（51xxxx/15xxxx）`
+  "funds": [{"code":"基金代码","name":"基金名称","weight":10,"reason":"推荐理由（15字内）"}],
+  "backtest": {"annualReturn":预估年化收益率,"maxDrawdown":预估最大回撤,"sharpe":预估夏普比率,"winRate":预估月度胜率} }
+要求：必须从基金池中选择，选出10只，每只权重10%，权重和=100%。`
+
     aiStatusText.value = 'AI 正在生成组合...'
     const response = await fetch('https://api.deepseek.com/v1/chat/completions', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${import.meta.env.VITE_DEEPSEEK_API_KEY || ''}` },
-      body: JSON.stringify({ model: 'deepseek-chat', messages: [{ role: 'system', content: '你是专业基金投顾，只返回JSON。' }, { role: 'user', content: prompt }], temperature: 0.7, max_tokens: 2000 })
+      body: JSON.stringify({ model: 'deepseek-chat', messages: [{ role: 'system', content: '你是专业基金投顾，只从给定基金池选择，只返回JSON。' }, { role: 'user', content: prompt }], temperature: 0.7, max_tokens: 2000 })
     })
     if (!response.ok) throw new Error(`API调用失败: ${response.status}`)
     const result = await response.json()
@@ -407,14 +450,33 @@ async function generateAiPortfolio() {
       id: Date.now().toString(),
       strategyName: parsed.strategyName || strategyName,
       summary: parsed.summary || '',
-      funds: (parsed.funds || []).map(f => ({ code: f.code, name: f.name, weight: Number(f.weight)||0, reason: f.reason||'' })),
+      funds: (parsed.funds || []).map(f => ({ code: f.code, name: f.name, weight: Number(f.weight)||10, reason: f.reason||'' })),
       backtest: parsed.backtest ? { annualReturn: Number(parsed.backtest.annualReturn)||0, maxDrawdown: Number(parsed.backtest.maxDrawdown)||0, sharpe: Number(parsed.backtest.sharpe)||0, winRate: Number(parsed.backtest.winRate)||0 } : null,
       createdAt: `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`
     }
     saveAiToHistory(aiPortfolio.value)
     aiStatusText.value = 'AI 组合生成完成'
+    customRequirement.value = ''
+    showCustomDialog.value = false
   } catch (err) { console.error(err); aiStatusText.value = '生成失败: ' + err.message; aiPortfolio.value = null }
   finally { aiGenerating.value = false }
+}
+
+// 添加到自建组合
+function addAiToCustom() {
+  if (!aiPortfolio.value?.funds) return
+  if (!isLoggedIn.value) { loginError.value = '请先登录'; return }
+  const pfName = aiPortfolio.value.strategyName || 'AI组合'
+  const pf = {
+    id: Date.now().toString(),
+    name: pfName,
+    portfolio_data: aiPortfolio.value.funds.map(f => ({ code: f.code, name: f.name, weight: f.weight || 10, reason: f.reason || '' })),
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString()
+  }
+  customPortfolios.value.unshift(pf)
+  saveCustomToLocal()
+  aiStatusText.value = '已添加到自建组合'
 }
 
 // ===== 模型组合（Kan & Zhou 风险平价） =====
@@ -568,12 +630,19 @@ onMounted(() => {
 .ai-st-btn.active { border-color: #6c5ce7; background: #6c5ce7; color: #fff; }
 .ai-st-btn.active .ai-st-desc { color: rgba(255,255,255,0.7); }
 .ai-st-btn:disabled { opacity: 0.5; }
+.ai-custom-st-btn { border-style: dashed; border-color: #6c5ce7; color: #6c5ce7; }
+.ai-custom-st-btn:hover { background: #f0edff; border-style: solid; }
 .ai-st-desc { font-size: 11px; color: var(--text-secondary); margin-top: 2px; }
 .ai-action { display: flex; align-items: center; gap: var(--space-md); margin-bottom: var(--space-lg); }
 .ai-generate-btn { padding: var(--space-sm) var(--space-xl); font-size: 19px; background: #6c5ce7; color: #fff; border: none; cursor: pointer; box-shadow: 0 2px 0 #4a3db5; }
 .ai-generate-btn:hover:not(:disabled) { background: #5a4bd1; }
 .ai-generate-btn:disabled { opacity: 0.6; }
 .ai-status { font-size: 14px; color: var(--text-secondary); }
+.ai-custom-btn { padding: var(--space-sm) var(--space-lg); font-size: 16px; background: #fff; color: #6c5ce7; border: 1px solid #6c5ce7; cursor: pointer; }
+.ai-custom-btn:hover { background: #f0edff; }
+.ai-custom-btn:disabled { opacity: 0.5; }
+.ai-add-row { margin-top: var(--space-md); padding-top: var(--space-md); border-top: 1px solid var(--border); }
+.modal-textarea { width: 100%; padding: var(--space-sm); border: 1px solid var(--border); font-size: 14px; resize: vertical; box-sizing: border-box; }
 .ai-result { margin-top: var(--space-lg); padding: var(--space-lg); border: 1px solid var(--border); background: #fff; }
 .ai-result-hd { display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-sm); }
 .ai-result-title { font-size: 19px; font-weight: 700; }

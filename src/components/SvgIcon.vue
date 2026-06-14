@@ -1,63 +1,133 @@
 <template>
   <svg
+    class="svg-icon"
     :width="size"
     :height="size"
-    viewBox="0 0 24 24"
+    :viewBox="viewBox"
+    xmlns="http://www.w3.org/2000/svg"
     fill="none"
-    stroke="currentColor"
-    stroke-width="2"
-    stroke-linecap="round"
-    stroke-linejoin="round"
-    class="svg-icon"
   >
-    <!-- close -->
-    <template v-if="name === 'close'">
-      <line x1="18" y1="6" x2="6" y2="18" />
-      <line x1="6" y1="6" x2="18" y2="18" />
+    <!-- 指标信号 — 波形图 -->
+    <template v-if="name === 'signal'">
+      <rect x="4" y="14" width="4" height="8" rx="1" stroke="currentColor" stroke-width="2"/>
+      <rect x="12" y="8" width="4" height="14" rx="1" stroke="currentColor" stroke-width="2"/>
+      <rect x="20" y="2" width="4" height="20" rx="1" stroke="currentColor" stroke-width="2"/>
+      <rect x="28" y="10" width="4" height="12" rx="1" stroke="currentColor" stroke-width="2"/>
     </template>
-    <!-- gear / settings -->
+
+    <!-- 牛人组合 — 五角星 -->
+    <template v-else-if="name === 'star'">
+      <path d="M16 2L19.09 10.86L28 11.27L21 17.14L22.18 26L16 21.77L9.82 26L11 17.14L4 11.27L12.91 10.86L16 2Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
+    </template>
+
+    <!-- AI组合 — 芯片/大脑 -->
+    <template v-else-if="name === 'ai'">
+      <rect x="6" y="6" width="20" height="20" rx="4" stroke="currentColor" stroke-width="2"/>
+      <rect x="10" y="10" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.5"/>
+      <rect x="17" y="10" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.5"/>
+      <rect x="10" y="17" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.5"/>
+      <rect x="17" y="17" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.5"/>
+    </template>
+
+    <!-- 靠谱指数 — 奖牌 -->
+    <template v-else-if="name === 'medal'">
+      <circle cx="16" cy="11" r="7" stroke="currentColor" stroke-width="2"/>
+      <path d="M11 16L8 28L16 23L24 28L21 16" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
+    </template>
+
+    <!-- 基金组合 — 文件夹/组合 -->
+    <template v-else-if="name === 'portfolio'">
+      <rect x="3" y="6" width="11" height="10" rx="2" stroke="currentColor" stroke-width="2"/>
+      <rect x="18" y="6" width="11" height="10" rx="2" stroke="currentColor" stroke-width="2"/>
+      <rect x="3" y="21" width="11" height="10" rx="2" stroke="currentColor" stroke-width="2"/>
+      <rect x="18" y="21" width="11" height="10" rx="2" stroke="currentColor" stroke-width="2"/>
+    </template>
+
+    <!-- 投顾产品 — 盾牌 -->
+    <template v-else-if="name === 'shield'">
+      <path d="M5 10L16 3L27 10V18C27 24 16 30 16 30C16 30 5 24 5 18V10Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
+      <path d="M12 16L15 19L20 13" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+    </template>
+
+    <!-- 实验室 — 烧杯 -->
+    <template v-else-if="name === 'lab'">
+      <path d="M10 2H22" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+      <path d="M12 2V12L4 28H28L20 12V2" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
+      <path d="M10 18H22" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+    </template>
+
+    <!-- 用户/我的 — 人物 -->
+    <template v-else-if="name === 'user'">
+      <circle cx="16" cy="10" r="5" stroke="currentColor" stroke-width="2"/>
+      <path d="M4 28C4 22 8 18 16 18C24 18 28 22 28 28" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+    </template>
+
+    <!-- 工具 — 齿轮 -->
     <template v-else-if="name === 'gear'">
-      <circle cx="12" cy="12" r="3" />
-      <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" />
+      <circle cx="16" cy="16" r="4" stroke="currentColor" stroke-width="2"/>
+      <path d="M16 2V6M16 26V30M5.64 5.64L8.47 8.47M23.53 23.53L26.36 26.36M2 16H6M26 16H30M5.64 26.36L8.47 23.53M23.53 8.47L26.36 5.64" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
     </template>
-    <!-- check -->
-    <template v-else-if="name === 'check'">
-      <polyline points="20 6 9 17 4 12" />
+
+    <!-- 首页/总览 — 仪表盘 -->
+    <template v-else-if="name === 'dashboard'">
+      <path d="M4 20C4 13.37 9.37 8 16 8C22.63 8 28 13.37 28 20" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
+      <path d="M4 20H8L11 14L15 22L18 10L22 18L25 13L28 20" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
     </template>
-    <!-- thumbs-up -->
+
+    <!-- 点赞 — 大拇指向上 -->
     <template v-else-if="name === 'thumbs-up'">
-      <path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3H14z" />
-      <path d="M7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3" />
+      <path d="M6 14H10V26H6V14Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
+      <path d="M10 14L14 6C14 5 15 4 17 4C17.5 4 18 4.5 18 5V10H25C26 10 27 11 27 12L24 23C24 24 23 25 22 25H10V14Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
     </template>
-    <!-- thumbs-down -->
+
+    <!-- 吐槽 — 大拇指向下 -->
     <template v-else-if="name === 'thumbs-down'">
-      <path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3H10z" />
-      <path d="M17 2h3a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2h-3" />
+      <path d="M6 18H10V6H6V18Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
+      <path d="M10 18L14 26C14 27 15 28 17 28C17.5 28 18 27.5 18 27V22H25C26 22 27 21 27 20L24 9C24 8 23 7 22 7H10V18Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
     </template>
-    <!-- plus-circle -->
+
+    <!-- 添加/加号 — 圆形加号 -->
     <template v-else-if="name === 'plus-circle'">
-      <circle cx="12" cy="12" r="10" />
-      <line x1="12" y1="8" x2="12" y2="16" />
-      <line x1="8" y1="12" x2="16" y2="12" />
+      <circle cx="16" cy="16" r="14" stroke="currentColor" stroke-width="2"/>
+      <path d="M16 8V24M8 16H24" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
     </template>
-    <!-- help -->
+
+    <!-- 搜索 — 放大镜 -->
+    <template v-else-if="name === 'search'">
+      <circle cx="14" cy="14" r="8" stroke="currentColor" stroke-width="2"/>
+      <path d="M20 20L28 28" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+    </template>
+
+    <!-- 帮助 — 问号圆 -->
     <template v-else-if="name === 'help'">
-      <circle cx="12" cy="12" r="10" />
-      <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" />
-      <line x1="12" y1="17" x2="12.01" y2="17" />
+      <circle cx="16" cy="16" r="14" stroke="currentColor" stroke-width="2"/>
+      <path d="M14 14C14 12 16 10 16 10C18 10 19 11.5 19 13C19 15 16 16 16 16V18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+      <circle cx="16" cy="23" r="1.5" fill="currentColor"/>
     </template>
-    <!-- default circle -->
+
+    <!-- 对勾 -->
+    <template v-else-if="name === 'check'">
+      <path d="M6 16L13 23L26 8" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+    </template>
+
+    <!-- 关闭 — X -->
+    <template v-else-if="name === 'close'">
+      <path d="M8 8L24 24M24 8L8 24" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+    </template>
+
+    <!-- 默认 — 点 -->
     <template v-else>
-      <circle cx="12" cy="12" r="10" />
+      <circle cx="16" cy="16" r="6" stroke="currentColor" stroke-width="2"/>
     </template>
   </svg>
 </template>
 
 <script setup>
 defineProps({
-  name: { type: String, default: 'help' },
-  size: { type: [String, Number], default: 16 }
+  name: { type: String, required: true },
+  size: { type: [String, Number], default: 18 },
 })
+const viewBox = '0 0 32 32'
 </script>
 
 <style scoped>

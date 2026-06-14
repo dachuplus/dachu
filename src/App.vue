@@ -4,7 +4,7 @@
     <header class="govuk-header" v-if="!isMobile">
       <div class="govuk-header__container">
         <div class="govuk-header__logo">
-          <router-link to="/" class="govuk-header__logotype-text" style="text-decoration:none;color:#fff">allfund.cn</router-link>
+          <router-link to="/" class="govuk-header__logotype-text" style="text-decoration:none;color:#fff">ALLFUND.CN</router-link>
         </div>
         <div class="govuk-header__content">
           <nav class="govuk-header__navigation">
@@ -39,7 +39,7 @@
       <p class="govuk-phase-banner__content">
         <strong class="govuk-tag govuk-phase-banner__tag">BETA</strong>
         <span class="govuk-phase-banner__text">
-          这是 allfund.cn 的测试版本 — 数据每日更新，如有问题请反馈。
+          这是 ALLFUND.CN 的测试版本 — 数据每日更新，如有问题请反馈。
         </span>
       </p>
     </div>
@@ -215,7 +215,7 @@ const showBack   = computed(() => {
   max-width: 960px; margin: 0 auto; padding: 0 30px;
   background: #fff; border-bottom: 1px solid var(--border);
 }
-.quick-nav__inner { display: flex; gap: 0; }
+.quick-nav__inner { display: flex; gap: 0; justify-content: center; }
 .quick-nav__item {
   display: block; padding: 12px 24px; font-size: 16px; font-weight: 700;
   color: var(--text-secondary); text-decoration: none;

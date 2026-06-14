@@ -1,6 +1,6 @@
 <template>
   <div class="page-fund-rank">
-    <!-- 顶部：标题 + 搜索 -->
+    <!-- 顶部：搜索 -->
     <div class="top-bar">
       <div class="search-box">
         <input
@@ -9,59 +9,27 @@
           v-model="searchText"
           @keyup.enter="doSearch"
         />
-        <span class="search-clear" v-if="searchText" @click="clearSearch"><SvgIcon name="close" size="14" /></span>
+        <span class="search-clear" v-if="searchText" @click="clearSearch">✕</span>
       </div>
     </div>
 
     <!-- 筛选区（可展开/收起） -->
     <div class="filter-section">
-      <!-- 分类数据源（标签式） -->
-      <div class="filter-row filter-row-source">
-        <span class="filter-label">分类数据源</span>
-        <div class="source-tags">
-          <button
-            v-for="src in visibleClassSources"
-            :key="src.key"
-            class="source-tag"
-            :class="{ active: classSource === src.key }"
-            @click="setClassSource(src.key)"
-            :disabled="!src.available"
-          >
-            {{ src.label }}
-            <span v-if="!src.available" class="source-tag-badge">接入中</span>
-          </button>
-          <button
-            v-if="!showAllSources && hiddenClassSources.length > 0"
-            class="source-tag source-tag--more"
-            @click="showAllSources = true"
-          >更多</button>
-          <button
-            v-if="showAllSources"
-            class="source-tag source-tag--collapse"
-            @click="showAllSources = false"
-          >收起</button>
-        </div>
-      </div>
-
-      <!-- 一级分类（下拉选择） -->
+      <!-- 一级分类 -->
       <div class="filter-row">
         <span class="filter-label">一级分类</span>
-        <div class="filter-select-wrap">
-          <select class="filter-select" v-model="filterT0" @change="onT0Change">
-            <option value="">全部</option>
-            <option v-for="t0 in t0List" :key="t0" :value="t0">{{ t0 }}</option>
-          </select>
+        <div class="filter-chips">
+          <div class="filter-chip" :class="{ active: filterT0 === '' }" @click="setT0('')">全部</div>
+          <div v-for="t0 in t0List" :key="t0" class="filter-chip" :class="{ active: filterT0 === t0 }" @click="setT0(t0)">{{ t0 }}</div>
         </div>
       </div>
 
-      <!-- 二级分类（下拉选择，依赖一级） -->
+      <!-- 二级分类（依赖一级） -->
       <div class="filter-row" v-if="t1List.length > 0">
         <span class="filter-label">二级分类</span>
-        <div class="filter-select-wrap">
-          <select class="filter-select" v-model="filterT1" @change="onT1Change">
-            <option value="">全部</option>
-            <option v-for="t1 in t1List" :key="t1" :value="t1">{{ t1Short(t1) }}</option>
-          </select>
+        <div class="filter-chips">
+          <div class="filter-chip" :class="{ active: filterT1 === '' }" @click="setT1('')">全部</div>
+          <div v-for="t1 in t1List" :key="t1" class="filter-chip" :class="{ active: filterT1 === t1 }" @click="setT1(t1)">{{ t1 }}</div>
         </div>
       </div>
 
@@ -75,7 +43,7 @@
         <!-- 份额类别 -->
         <div class="filter-row">
           <span class="filter-label">份额类别</span>
-          <div class="filter-chips scroll-x">
+          <div class="filter-chips">
             <div class="filter-chip" :class="{ active: filterSC === '' }" @click="setSC('')">全部</div>
             <div v-for="sc in shareClassOptions" :key="sc" class="filter-chip" :class="{ active: filterSC === sc }" @click="setSC(sc)">{{ sc }}类</div>
           </div>
@@ -84,7 +52,7 @@
         <!-- 是否ETF -->
         <div class="filter-row">
           <span class="filter-label">ETF</span>
-          <div class="filter-chips scroll-x">
+          <div class="filter-chips">
             <div class="filter-chip" :class="{ active: filterETF === '' }" @click="setFlag('ETF', '')">全部</div>
             <div class="filter-chip" :class="{ active: filterETF === '1' }" @click="setFlag('ETF', '1')">是</div>
             <div class="filter-chip" :class="{ active: filterETF === '0' }" @click="setFlag('ETF', '0')">否</div>
@@ -94,7 +62,7 @@
         <!-- 是否LOF -->
         <div class="filter-row">
           <span class="filter-label">LOF</span>
-          <div class="filter-chips scroll-x">
+          <div class="filter-chips">
             <div class="filter-chip" :class="{ active: filterLOF === '' }" @click="setFlag('LOF', '')">全部</div>
             <div class="filter-chip" :class="{ active: filterLOF === '1' }" @click="setFlag('LOF', '1')">是</div>
             <div class="filter-chip" :class="{ active: filterLOF === '0' }" @click="setFlag('LOF', '0')">否</div>
@@ -104,7 +72,7 @@
         <!-- 是否FOF -->
         <div class="filter-row">
           <span class="filter-label">FOF</span>
-          <div class="filter-chips scroll-x">
+          <div class="filter-chips">
             <div class="filter-chip" :class="{ active: filterFOF === '' }" @click="setFlag('FOF', '')">全部</div>
             <div class="filter-chip" :class="{ active: filterFOF === '1' }" @click="setFlag('FOF', '1')">是</div>
             <div class="filter-chip" :class="{ active: filterFOF === '0' }" @click="setFlag('FOF', '0')">否</div>
@@ -114,7 +82,7 @@
         <!-- 是否定开 -->
         <div class="filter-row">
           <span class="filter-label">定开</span>
-          <div class="filter-chips scroll-x">
+          <div class="filter-chips">
             <div class="filter-chip" :class="{ active: filterDK === '' }" @click="setFlag('DK', '')">全部</div>
             <div class="filter-chip" :class="{ active: filterDK === '1' }" @click="setFlag('DK', '1')">是</div>
             <div class="filter-chip" :class="{ active: filterDK === '0' }" @click="setFlag('DK', '0')">否</div>
@@ -124,7 +92,7 @@
         <!-- 申购状态 -->
         <div class="filter-row">
           <span class="filter-label">申购状态</span>
-          <div class="filter-chips scroll-x">
+          <div class="filter-chips">
             <div class="filter-chip" :class="{ active: filterSG === '' }" @click="setSG('')">全部</div>
             <div class="filter-chip" :class="{ active: filterSG === '1' }" @click="setSG('1')">可申购</div>
             <div class="filter-chip" :class="{ active: filterSG === '0' }" @click="setSG('0')">暂停申购</div>
@@ -134,7 +102,7 @@
         <!-- 单日涨跌≥20%（涨停/跌停基金，如T+2） -->
         <div class="filter-row">
           <span class="filter-label">单日±20%</span>
-          <div class="filter-chips scroll-x">
+          <div class="filter-chips">
             <div class="filter-chip" :class="{ active: filterDailyLimit === '' }" @click="setDailyLimit('')">全部</div>
             <div class="filter-chip" :class="{ active: filterDailyLimit === '0' }" @click="setDailyLimit('0')">否</div>
             <div class="filter-chip" :class="{ active: filterDailyLimit === '1' }" @click="setDailyLimit('1')">是</div>
@@ -144,7 +112,7 @@
         <!-- 持有期 -->
         <div class="filter-row">
           <span class="filter-label">持有期</span>
-          <div class="filter-chips scroll-x">
+          <div class="filter-chips">
             <div class="filter-chip" :class="{ active: filterHP === '' }" @click="setHP('')">全部</div>
             <div class="filter-chip" :class="{ active: filterHP === 'no' }" @click="setHP('no')">无限制</div>
             <div class="filter-chip" :class="{ active: filterHP === '7' }" @click="setHP('7')">7天</div>
@@ -155,29 +123,42 @@
           </div>
         </div>
 
+        <!-- 分类数据源 -->
+        <div class="filter-row">
+          <span class="filter-label">分类数据源</span>
+          <div class="filter-chips">
+            <div
+              v-for="src in classSources"
+              :key="src.key"
+              class="filter-chip"
+              :class="{ active: classSource === src.key, disabled: !src.available }"
+              @click="setClassSource(src.key)"
+            >{{ src.label }}{{ src.available ? '' : ' (规划中)' }}</div>
+          </div>
+        </div>
+
         <!-- 规模筛选说明 -->
         <div class="filter-tip">
-          注：ETF/LOF/FOF/定开/持有期/±20%等属性基于基金名称智能识别，可能存在误判。
+          注：ETF/LOF/FOF/定开/持有期/±20%等属性基于基金名称智能识别，可能存在误判。<br>
+          基金规模、机构占比、股票占比数据暂未收录，后续版本更新。<br>
+          除恒生聚源和天天分类外，其他分类数据源正在规划中。
         </div>
       </div>
 
-      <!-- 筛选结果数量（始终显示在筛选区底部） -->
+      <!-- 筛选结果数量 -->
       <div class="filter-result-row" v-if="dataLoaded">
         <span class="filter-result-count">
-          筛选结果：<strong>{{ totalCount != null ? totalCount : funds.length }}</strong> 只
-          <template v-if="funds.length > 0">
-            · 已加载 <strong>{{ funds.length }}</strong> 只
-          </template>
+          筛选结果：<strong>{{ totalCount != null ? totalCount : funds.length }}</strong> 只，已加载 <strong>{{ funds.length }}</strong> 只
         </span>
-        <button class="data-refresh-btn" :class="{ refreshing }" @click="refreshData" :disabled="refreshing">
-          {{ refreshing ? '刷新中...' : '刷新' }}
-        </button>
+        <span class="data-refresh" :class="{ refreshing }" @click="refreshData">
+          {{ refreshing ? '刷新中' : '刷新' }}
+        </span>
       </div>
     </div>
 
-    <!-- 周期Tab + 排序箭头 + 自定义权重 -->
+    <!-- 周期Tab + 自定义指标 -->
     <div class="toolbar">
-      <div class="period-tabs scroll-x">
+      <div class="period-tabs">
         <div
           v-for="p in periods"
           :key="p.key"
@@ -191,137 +172,75 @@
           </span>
         </div>
         <div class="weight-toggle" @click="showWeightPanel = !showWeightPanel">
-          <SvgIcon name="gear" size="16" /> 自定义权重
+          <SvgIcon name="gear" :size="16" class="wt-icon" /> 自定义指标
         </div>
       </div>
     </div>
 
-    <!-- 自定义权重面板 -->
+    <!-- 自定义指标面板 -->
     <div class="weight-panel" v-if="showWeightPanel">
       <div class="weight-panel-header">
-        <span>自定义靠谱指数权重</span>
-        <span class="weight-panel-close" @click="showWeightPanel = false"><SvgIcon name="close" size="16" /></span>
+        <span>自定义评分权重（合计 100%）
+          <span class="weight-sum" :class="{ valid: weightSum === 100, invalid: weightSum !== 100 }">当前：{{ weightSum }}%</span>
+        </span>
+        <span class="weight-panel-close" @click="showWeightPanel = false"><SvgIcon name="close" :size="16" /></span>
       </div>
       <div class="weight-sliders">
-        <div class="weight-slider-item">
-          <label>阶段收益权重 <span class="ws-val">{{ customWeights.ret }}%</span></label>
-          <input type="range" min="0" max="100" step="5" v-model.number="customWeights.ret" @input="onWeightInput('ret')" />
+        <div class="weight-row" v-for="item in weightItems" :key="item.key">
+          <span class="weight-label">{{ item.label }}</span>
+          <input type="range" :min="0" :max="100" :value="item.value" class="weight-range" @input="e => item.value = Number(e.target.value)" />
+          <input type="number" :min="0" :max="100" :value="item.value" class="weight-num" @input="e => item.value = Number(e.target.value)" />%
         </div>
-        <div class="weight-slider-item">
-          <label>最大回撤权重 <span class="ws-val">{{ customWeights.dd }}%</span></label>
-          <input type="range" min="0" max="100" step="5" v-model.number="customWeights.dd" @input="onWeightInput('dd')" />
-        </div>
-        <div class="weight-slider-item">
-          <label>夏普比率权重 <span class="ws-val">{{ customWeights.sr }}%</span></label>
-          <input type="range" min="0" max="100" step="5" v-model.number="customWeights.sr" @input="onWeightInput('sr')" />
-        </div>
-        <div class="weight-slider-item">
-          <label>卡玛比率权重 <span class="ws-val">{{ customWeights.calmar }}%</span></label>
-          <input type="range" min="0" max="100" step="5" v-model.number="customWeights.calmar" @input="onWeightInput('calmar')" />
-        </div>
-        <div class="weight-slider-item">
-          <label>信息比率权重 <span class="ws-val">{{ customWeights.ir }}%</span></label>
-          <input type="range" min="0" max="100" step="5" v-model.number="customWeights.ir" @input="onWeightInput('ir')" />
-        </div>
-        <div class="weight-slider-item">
-          <label>跟踪误差权重 <span class="ws-val">{{ customWeights.te }}%</span></label>
-          <input type="range" min="0" max="100" step="5" v-model.number="customWeights.te" @input="onWeightInput('te')" />
-        </div>
-      </div>
-      <div class="weight-total" :class="{ 'weight-valid': weightSum === 100, 'weight-invalid': weightSum !== 100 }">
-        合计：{{ weightSum }}%
-        <span v-if="weightSum !== 100" class="weight-warn">（必须等于 100%）</span>
-        <span v-else class="weight-ok"><SvgIcon name="check" size="16" /> 已应用自定义权重</span>
       </div>
       <div class="weight-actions">
-        <button class="btn-confirm" @click="confirmWeights" :disabled="weightSum !== 100">确认</button>
-        <button class="btn-reset" @click="resetWeights">恢复默认 50/25/25/0/0/0</button>
+        <button class="btn-reset" @click="resetWeights">恢复默认</button>
+        <button class="btn-confirm" :disabled="weightSum !== 100" @click="applyCustomWeights">确认</button>
       </div>
     </div>
-
-    <!-- 组合选择器弹窗 -->
-    <div class="modal-mask" v-if="showPortfolioPicker" @click.self="showPortfolioPicker = false">
-      <div class="modal-box modal-box--sm">
-        <div class="modal-hd">
-          添加到组合
-          <a class="modal-close" @click="showPortfolioPicker = false">×</a>
-        </div>
-        <div class="modal-bd">
-          <p class="pf-picker-fund" v-if="pendingFund">
-            <strong>{{ pendingFund.code }}</strong> {{ pendingFund.name }}
-          </p>
-          <div v-if="portfolioPickerLoading" class="pf-picker-loading">加载中...</div>
-          <template v-else>
-            <div v-if="userPortfolios.length === 0" class="pf-picker-empty">
-              还没有组合，
-              <a class="link" @click="createAndAddFund">新建一个</a>
-            </div>
-            <div
-              v-for="p in userPortfolios" :key="p.id"
-              class="pf-picker-item"
-              @click="selectPortfolioForFund(p.id)"
-            >
-              <span>{{ p.portfolio_data?.name || '未命名组合' }}</span>
-              <span class="pf-picker-count">{{ (p.portfolio_data?.funds || []).length }} 只基金</span>
-            </div>
-          </template>
-        </div>
-      </div>
-    </div>
-
-    <!-- 基金列表（2行卡片布局） -->
-    <div class="fund-list" ref="fundListRef" v-if="funds.length > 0">
-      <div class="fund-card" v-for="(fund, idx) in funds" :key="fund.c" @click="openDetail(fund)">
-        <!-- 第一行：基金代码 + 基金名称 -->
-        <div class="fund-row1">
-          <span class="fund-code">{{ fund.c }}</span>
-          <span class="fund-name" @click.stop="openDetail(fund)">{{ fund.n }}</span>
-        </div>
-        <!-- 第二行：规模/持仓 + 操作按钮 -->
-        <div class="fund-row2">
-          <div class="fund-row2-data">
-            <span class="fund-data-item" v-if="fund.scale != null">
-              <span class="fund-data-val">{{ fmtScale(fund.scale) }}</span>
-              <span class="fund-data-label">规模(亿)</span>
-            </span>
-            <span class="fund-data-item" v-if="fund.stock_pct != null">
-              <span class="fund-data-val">{{ fund.stock_pct }}%</span>
-              <span class="fund-data-label">股票占比</span>
-            </span>
-            <span class="fund-data-item" v-if="fund.bond_pct != null">
-              <span class="fund-data-val">{{ fund.bond_pct }}%</span>
-              <span class="fund-data-label">债券占比</span>
-            </span>
-            <span class="fund-data-item fund-data-item--na" v-if="fund.scale == null && fund.stock_pct == null && fund.bond_pct == null">
-              <span class="fund-data-val">--</span>
-              <span class="fund-data-label">规模/持仓</span>
-            </span>
-          </div>
-          <div class="fund-actions">
-            <span class="action-btn" :class="{ active: likedFunds.has(fund.c) }" @click.stop="toggleLike(fund.c)" :title="likedFunds.has(fund.c) ? '已点赞' : '点赞'">
-              <SvgIcon name="thumbs-up" size="16" />
-              <span class="action-count" v-if="likedFunds.has(fund.c)">1</span>
-            </span>
-            <span class="action-btn" :class="{ active: dislikedFunds.has(fund.c) }" @click.stop="toggleDislike(fund.c)" :title="dislikedFunds.has(fund.c) ? '已吐槽' : '吐槽'">
-              <SvgIcon name="thumbs-down" size="16" />
-              <span class="action-count" v-if="dislikedFunds.has(fund.c)">1</span>
-            </span>
-            <span class="action-btn" :class="{ active: portfolioFunds.has(fund.c) }" @click.stop="togglePortfolio(fund.c)" :title="portfolioFunds.has(fund.c) ? '已添加' : '添加到组合'">
-              <SvgIcon name="plus-circle" size="16" />
-            </span>
-          </div>
-        </div>
-        <!-- 第三行：各周期靠谱指数 -->
-        <div class="fund-row3">
-          <div class="period-scores scroll-x">
-            <div class="period-score-item" v-for="p in periods" :key="p.key" @click.stop="switchPeriod(p.key)"
-              :class="{ active: currentPeriod === p.key, 'period-selected': currentPeriod === p.key }">
-              <span class="ps-label">{{ p.label }}</span>
-              <span class="ps-score" :class="[scoreCls(fund[p.key]), { 'ps-score-centered': currentPeriod === p.key }]">{{ fmtScore(fund[p.key]) }}</span>
-            </div>
-          </div>
-        </div>
-      </div>
+    <!-- 基金列表 - 横向表格 -->
+    <div class="fund-table-wrap" v-if="funds.length > 0">
+      <table class="fund-table">
+        <thead>
+          <tr>
+            <th class="col-code">代码</th>
+            <th class="col-name">简称</th>
+            <th class="col-num">规模(亿)</th>
+            <th class="col-pct">权益%</th>
+            <th class="col-pct">债券%</th>
+            <th v-for="p in periods" :key="p.key" class="col-score" :class="{ 'col-sort': currentPeriod === p.key }">
+              {{ p.label }}
+            </th>
+            <th class="col-actions">操作</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr
+            v-for="(fund, idx) in funds"
+            :key="fund.c"
+            class="fund-row"
+          >
+            <td class="col-code">{{ fund.c }}</td>
+            <td class="col-name" @click="openDetail(fund)">{{ fund.n }}</td>
+            <td class="col-num">{{ fmtNum(fund.scale) }}</td>
+            <td class="col-pct">{{ fmtPct(fund.equityPct) }}</td>
+            <td class="col-pct">{{ fmtPct(fund.bondPct) }}</td>
+            <td v-for="p in periods" :key="p.key" class="col-score" :class="{ 'col-sort': currentPeriod === p.key }">
+              <span class="score-val" :class="scoreCls(fund[p.key])">{{ fmtScore(fund[p.key]) }}</span>
+            </td>
+            <td class="col-actions">
+              <span class="action-btn" title="点赞" @click.stop="thumbUp(fund)">
+                <SvgIcon name="thumbs-up" :size="16" />
+              </span>
+              <span class="action-btn" title="吐槽" @click.stop="thumbDown(fund)">
+                <SvgIcon name="thumbs-down" :size="16" />
+              </span>
+              <span class="action-btn action-add" title="加入组合" @click.stop="addToPortfolio(fund)">
+                <SvgIcon name="plus-circle" :size="16" />
+              </span>
+            </td>
+          </tr>
+        </tbody>
+      </table>
     </div>
 
     <!-- 加载更多 -->
@@ -340,18 +259,13 @@
       <span class="loading-text">正在加载基金数据...</span>
     </div>
 
-    <!-- 底部说明（靠谱指数说明 + 评分说明入口） -->
+    <!-- 底部说明 + 评分帮助 -->
     <div class="bottom-info" v-if="dataLoaded">
-      <div class="bottom-disclaimer">
-        <p>数据来源：FundGuideAPI。</p>
-        <p>截止时间：{{ meta.nav_date ? meta.nav_date + ' 21:30' : '上一次数据更新日 21:30' }}。</p>
-        <p>相关指标根据基金历史净值计算，不保证数据的及时性，准确性，完整性，有效性。</p>
-        <p>数据仅供娱乐，不对因此产生的任何结果承担责任。</p>
-      </div>
-      <div class="bottom-help-entry">
-        <span class="help-link" @click="showScoreHelp = true">
-          <SvgIcon name="help" size="14" /> 靠谱指数评分说明
-        </span>
+      <span>数据来源：FundGuideapi · 风险指标自行计算（历史净值回算）</span>
+      <span v-if="meta.nav_date">数据截止：{{ meta.nav_date }}</span>
+      <div class="bottom-help">
+        <span class="bottom-help-title" @click="showScoreHelp = true">靠谱指数评分说明</span>
+        <p>综合收益率、最大回撤、夏普比率在全市场排名后加权计算。满分100分，分值越高表现越优秀。默认权重：收益30% + 回撤20% + 夏普20% + 卡玛10% + 信息比率10% + 跟踪误差10%。</p>
       </div>
     </div>
 
@@ -359,12 +273,12 @@
     <Teleport to="body">
       <template v-if="detailFund">
         <div class="mask" @click="detailFund = null"></div>
-        <div class="panel-slide detail-panel">
-          <div class="panel-hd detail-header">
+        <div class="detail-panel">
+          <div class="detail-header">
             <span class="detail-name">{{ detailFund.n }}</span>
-            <span class="panel-close" @click="detailFund = null"><SvgIcon name="close" size="20" /></span>
+            <span class="detail-close" @click="detailFund = null">&#x2715;</span>
           </div>
-          <div class="panel-bd detail-body">
+          <div class="detail-body">
             <!-- 基本信息 -->
             <div class="detail-section">
               <div class="attr-row">
@@ -379,50 +293,90 @@
                 <span class="attr-label">最新净值</span>
                 <span class="attr-value">{{ detailFund.nav }}<span v-if="detailFund.date" class="attr-date">（{{ detailFund.date }}）</span></span>
               </div>
-              <div class="attr-row" v-if="meta.nav_date">
-                <span class="attr-label">数据更新</span>
-                <span class="attr-value">{{ meta.nav_date }} 21:30 更新</span>
-              </div>
-              <div class="attr-row" v-if="detailFund.scale != null">
-                <span class="attr-label">基金规模</span>
-                <span class="attr-value">{{ fmtScale(detailFund.scale) }}</span>
-              </div>
-              <div class="attr-row" v-if="detailFund.stock_pct != null">
-                <span class="attr-label">股票占比</span>
-                <span class="attr-value">{{ detailFund.stock_pct }}%</span>
-              </div>
-              <div class="attr-row" v-if="detailFund.bond_pct != null">
-                <span class="attr-label">债券占比</span>
-                <span class="attr-value">{{ detailFund.bond_pct }}%</span>
+            </div>
+
+            <!-- 靠谱分 -->
+            <div class="detail-section">
+              <span class="detail-section-title">靠谱指数评分（v6）</span>
+              <div class="detail-scores-grid">
+                <div v-for="p in periods" :key="p.key" class="ds-item">
+                  <span class="ds-period">{{ p.label }}</span>
+                  <span class="ds-score" :class="scoreCls(detailFund[p.key])">
+                    {{ fmtScore(detailFund[p.key]) }}
+                  </span>
+                </div>
               </div>
             </div>
 
-            <!-- 综合数据表（靠谱指数 + 阶段收益 + 风险指标合并） -->
-            <div class="detail-section">
-              <span class="detail-section-title">综合数据</span>
-              <div class="unified-table">
-                <div class="unified-head">
-                  <span class="unified-th" style="width:48px">周期</span>
-                  <span class="unified-th" style="flex:1.2;text-align:center">靠谱指数</span>
-                  <span class="unified-th" style="flex:1;text-align:center">阶段收益</span>
-                  <span class="unified-th" style="flex:1;text-align:center">最大回撤</span>
-                  <span class="unified-th" style="flex:1;text-align:center">夏普比率</span>
+            <!-- 阶段收益率 -->
+            <div class="detail-section" v-if="hasReturns(detailFund)">
+              <div class="section-title-row">
+                <span class="detail-section-title">阶段收益率</span>
+                <span class="section-source">天天基金{{ detailFund.date ? ' · 截至' + detailFund.date : '' }}</span>
+              </div>
+              <div class="returns-grid">
+                <div class="return-col" v-if="detailFund.r0w != null">
+                  <span class="ret-label">近1周</span>
+                  <span class="ret-value" :class="retCls(detailFund.r0w)">{{ fmtRet(detailFund.r0w) }}</span>
                 </div>
-                <div v-for="rp in unifiedPeriods" :key="rp.label" class="unified-row"
-                  v-show="detailFund[rp.k] != null || detailFund[rp.ret] != null || detailFund[rp.dd] != null || detailFund[rp.sr] != null">
-                  <span class="unified-label">{{ rp.label }}</span>
-                  <span class="unified-val" :class="scoreCls(detailFund[rp.k])">
-                    {{ fmtScore(detailFund[rp.k]) }}
-                  </span>
-                  <span class="unified-val" :class="retCls(detailFund[rp.ret])">
-                    {{ fmtRet(detailFund[rp.ret]) }}
-                  </span>
-                  <span class="unified-val" :class="ddCls(detailFund[rp.dd])">
+                <div class="return-col" v-if="detailFund.r1m != null">
+                  <span class="ret-label">近1月</span>
+                  <span class="ret-value" :class="retCls(detailFund.r1m)">{{ fmtRet(detailFund.r1m) }}</span>
+                </div>
+                <div class="return-col" v-if="detailFund.r3m != null">
+                  <span class="ret-label">近3月</span>
+                  <span class="ret-value" :class="retCls(detailFund.r3m)">{{ fmtRet(detailFund.r3m) }}</span>
+                </div>
+                <div class="return-col" v-if="detailFund.r6m != null">
+                  <span class="ret-label">近6月</span>
+                  <span class="ret-value" :class="retCls(detailFund.r6m)">{{ fmtRet(detailFund.r6m) }}</span>
+                </div>
+                <div class="return-col" v-if="detailFund.r1y != null">
+                  <span class="ret-label">近1年</span>
+                  <span class="ret-value" :class="retCls(detailFund.r1y)">{{ fmtRet(detailFund.r1y) }}</span>
+                </div>
+                <div class="return-col" v-if="detailFund.r2y != null">
+                  <span class="ret-label">近2年</span>
+                  <span class="ret-value" :class="retCls(detailFund.r2y)">{{ fmtRet(detailFund.r2y) }}</span>
+                </div>
+                <div class="return-col" v-if="detailFund.r3y != null">
+                  <span class="ret-label">近3年</span>
+                  <span class="ret-value" :class="retCls(detailFund.r3y)">{{ fmtRet(detailFund.r3y) }}</span>
+                </div>
+                <div class="return-col" v-if="detailFund.r5y != null">
+                  <span class="ret-label">近5年</span>
+                  <span class="ret-value" :class="retCls(detailFund.r5y)">{{ fmtRet(detailFund.r5y) }}</span>
+                </div>
+                <div class="return-col" v-if="detailFund.ytd != null">
+                  <span class="ret-label">今年来</span>
+                  <span class="ret-value" :class="retCls(detailFund.ytd)">{{ fmtRet(detailFund.ytd) }}</span>
+                </div>
+                <div class="return-col" v-if="detailFund.return_all != null">
+                  <span class="ret-label">成立以来</span>
+                  <span class="ret-value" :class="retCls(detailFund.return_all)">{{ fmtRet(detailFund.return_all) }}</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- 风险指标 -->
+            <div class="detail-section" v-if="hasRisk(detailFund)">
+              <div class="section-title-row">
+                <span class="detail-section-title">风险指标</span>
+                <span class="section-source">历史净值回算</span>
+              </div>
+              <div class="risk-table">
+                <div class="risk-head">
+                  <span class="risk-th" style="width:60px">周期</span>
+                  <span class="risk-th" style="flex:1;text-align:center">最大回撤</span>
+                  <span class="risk-th" style="flex:1;text-align:center">夏普比率</span>
+                </div>
+                <div v-for="rp in riskPeriods" :key="rp.label" class="risk-row"
+                  v-show="detailFund[rp.dd] != null || detailFund[rp.sr] != null">
+                  <span class="risk-label">{{ rp.label }}</span>
+                  <span class="risk-val" :class="ddCls(detailFund[rp.dd])">
                     {{ fmtDD(detailFund[rp.dd]) }}
                   </span>
-                  <span class="unified-val">
-                    {{ fmtSR(detailFund[rp.sr]) }}
-                  </span>
+                  <span class="risk-val">{{ fmtSR(detailFund[rp.sr]) }}</span>
                 </div>
               </div>
             </div>
@@ -440,44 +394,53 @@
     <Teleport to="body">
       <template v-if="showScoreHelp">
         <div class="mask" @click="showScoreHelp = false"></div>
-        <div class="panel-slide help-panel">
-          <div class="panel-hd help-header">
-            <span class="help-title">靠谱指数评分说明</span>
-            <span class="panel-close" @click="showScoreHelp = false"><SvgIcon name="close" size="20" /></span>
+        <div class="help-panel">
+          <div class="help-header">
+            <span class="help-title">靠谱指数评分说明（v6）</span>
+            <span class="help-close" @click="showScoreHelp = false">&#x2715;</span>
           </div>
-          <div class="panel-bd help-body">
+          <div class="help-body">
             <div class="help-section">
               <span class="help-desc">
-                所有基金均参与无差异评分排名。靠谱指数综合考虑基金的收益率、最大回撤、夏普比率、卡玛比率、信息比率、跟踪误差、基金规模、综合费率等指标。在全市场中进行百分位排名后加权计算，分值越高代表该周期内综合表现越优秀。分值介于 0 - 100 分（分值最低为绿色，分值最高为红色）。
+                靠谱指数综合考虑基金的收益率、最大回撤和夏普比率，在全市场中进行百分位排名后加权计算。满分100分，分值越高代表该周期内综合表现越优秀。
+              </span>
+              <span class="help-desc" style="margin-top:12px;font-weight:600;">
+                评分权重：收益排位 50% + 回撤排位 25% + 夏普排位 25%
               </span>
             </div>
             <div class="help-section">
               <span class="help-section-label">颜色等级</span>
               <div class="help-color-row">
-                <span class="help-dot" style="background:#d4351c;"></span>
-                <span class="help-color-text score-hot-text">高分（红色）</span>
-                <span class="help-color-desc">综合表现优秀</span>
+                <span class="help-dot" style="background:#FFB800;"></span>
+                <span class="help-color-text score-gold-text">85分及以上</span>
+                <span class="help-color-desc">顶尖水平</span>
               </div>
               <div class="help-color-row">
-                <span class="help-dot" style="background:#f47738;"></span>
-                <span class="help-color-text score-warm-text">中高分（橙色）</span>
-                <span class="help-color-desc">综合表现良好</span>
+                <span class="help-dot" style="background:#FF6B35;"></span>
+                <span class="help-color-text score-orange-text">75 ~ 84分</span>
+                <span class="help-color-desc">优秀水平</span>
               </div>
               <div class="help-color-row">
-                <span class="help-dot" style="background:#505a5f;"></span>
-                <span class="help-color-text score-mid-text">中等（灰色）</span>
-                <span class="help-color-desc">综合表现一般</span>
+                <span class="help-dot" style="background:#06B6D4;"></span>
+                <span class="help-color-text score-cyan-text">65 ~ 74分</span>
+                <span class="help-color-desc">中等偏上</span>
               </div>
               <div class="help-color-row">
-                <span class="help-dot" style="background:#00703c;"></span>
-                <span class="help-color-text score-cool-text">低分（绿色）</span>
-                <span class="help-color-desc">综合表现较差</span>
+                <span class="help-dot" style="background:#8B949E;"></span>
+                <span class="help-color-text score-default-text">65分以下</span>
+                <span class="help-color-desc">中等及以下</span>
               </div>
+            </div>
+            <div class="help-section">
+              <span class="help-section-label">参与条件</span>
+              <span class="help-desc">
+                所有基金均参与评分排名（不再限制收益率>0）。评分基于全市场统一百分位排名，满分100分。
+              </span>
             </div>
             <div class="help-section">
               <span class="help-section-label">数据更新</span>
               <span class="help-desc">
-                靠谱指数评分每个交易日 21:30 后自动更新。
+                基金数据每个交易日 21:30 后更新（源自天天基金 FundGuideapi），靠谱分在数据更新后同步重算。净值日期见页面顶部。
               </span>
             </div>
           </div>
@@ -488,11 +451,10 @@
 </template>
 
 <script setup>
-import { ref, computed, reactive, onMounted, watch, nextTick } from 'vue'
-import SvgIcon from '../../components/SvgIcon.vue'
+import { ref, computed, reactive, onMounted, onUnmounted } from 'vue'
 import { fetchFundScores, fetchFundMeta } from '../../api/data.js'
-import { useAuth } from '../../composables/useAuth'
-import { getMyPortfolios, addFundToPortfolio, savePortfolio } from '../../api/user-data'
+import { addFundToPortfolio } from '../../api/user-data'
+import SvgIcon from '../../components/SvgIcon.vue'
 
 // ========== 常量 ==========
 const periods = [
@@ -513,22 +475,6 @@ const riskPeriods = [
   { label: '近2年', dd: 'dd2y', sr: 'sr2y' },
   { label: '近3年', dd: 'dd3y', sr: 'sr3y' },
   { label: '近5年', dd: 'dd5y', sr: 'sr5y' },
-]
-
-// 详情页综合数据表（靠谱指数 + 阶段收益 + 风险指标合并）
-const unifiedPeriods = [
-  { label: '1周',   k: 'k0w', ret: 'r0w', dd: null,   sr: null },
-  { label: '1月',   k: 'k1m', ret: 'r1m', dd: null,   sr: null },
-  { label: '3月',   k: 'k3m', ret: 'r3m', dd: null,   sr: null },
-  { label: '6月',   k: 'k6m', ret: 'r6m', dd: null,   sr: null },
-  { label: '1年',   k: 'k1',  ret: 'r1y', dd: 'dd1y', sr: 'sr1y' },
-  { label: '2年',   k: 'k2',  ret: 'r2y', dd: 'dd2y', sr: 'sr2y' },
-  { label: '3年',   k: 'k3',  ret: 'r3y', dd: 'dd3y', sr: 'sr3y' },
-  { label: '5年',   k: 'k5',  ret: 'r5y', dd: 'dd5y', sr: 'sr5y' },
-  { label: '7年',   k: 'k7',  ret: null,  dd: null,   sr: null },
-  { label: '10年',  k: 'k10', ret: null,  dd: null,   sr: null },
-  { label: '今年来', k: null,  ret: 'ytd', dd: null,   sr: null },
-  { label: '成立来', k: null,  ret: 'return_all', dd: null, sr: null },
 ]
 
 // 三级分类树（基于天天基金 FundGuideapi 实际 t0/t1 值，与数据库保持一致）
@@ -591,74 +537,39 @@ const filterDK = ref('')
 const filterHP = ref('')
 const filterDailyLimit = ref('')
 const filterSG = ref('')       // 申购状态：''全部 '1'可申购 '0'暂停申购
-const classSource = ref('hspj')
-const showAllSources = ref(false)
-// 主展示数据源（恒生聚源/天天分类）
-const mainSourceKeys = ['hspj', 'tt']
-const visibleClassSources = computed(() => {
-  const mains = classSources.filter(s => mainSourceKeys.includes(s.key))
-  if (classSource.value && !mainSourceKeys.includes(classSource.value)) {
-    const extra = classSources.find(s => s.key === classSource.value)
-    if (extra) mains.push(extra)
-  }
-  return mains
-})
-const hiddenClassSources = computed(() => classSources.filter(s => !mainSourceKeys.includes(s.key)))
-
+const classSource = ref('hspj')    // 分类数据源：hspj=恒生聚源，tt=天天分类，choice/ifind/wind/mstar/jajx/yhfl
 const classSources = [
   { key: 'hspj',   label: '恒生聚源', available: true },
   { key: 'tt',     label: '天天分类', available: true },
-  { key: 'mstar',  label: 'Morningstar', available: false },
-  { key: 'wind',   label: 'Wind',     available: false },
-  { key: 'ifind',  label: 'iFinD',   available: false },
   { key: 'choice', label: 'Choice',   available: false },
+  { key: 'ifind',  label: 'iFinD',    available: false },
+  { key: 'wind',   label: 'Wind',     available: false },
+  { key: 'mstar',  label: 'Morningstar', available: false },
   { key: 'jajx',   label: '济安金信', available: false },
   { key: 'yhfl',   label: '银河分类', available: false },
-  { key: 'htfl',   label: '海通',     available: false },
-  { key: 'zsyy',   label: '招商',     available: false },
 ]
 
-// 自定义权重
+// 自定义指标权重（6项）
 const showWeightPanel = ref(false)
-const customWeights = reactive({ ret: 50, dd: 25, sr: 25, calmar: 0, ir: 0, te: 0 })
-const weightSum = computed(() => customWeights.ret + customWeights.dd + customWeights.sr + customWeights.calmar + customWeights.ir + customWeights.te)
-const weightsValid = computed(() => weightSum.value === 100)
-
-// 权重滑块输入：限制合计不超过100%
-function onWeightInput(changedKey) {
-  const keys = ['ret', 'dd', 'sr', 'calmar', 'ir', 'te']
-  const sum = keys.reduce((acc, k) => acc + customWeights[k], 0)
-  if (sum > 100) {
-    // 将超出部分从除当前外最大的项中扣除
-    const excess = sum - 100
-    const otherKeys = keys.filter(k => k !== changedKey).sort((a, b) => customWeights[b] - customWeights[a])
-    let remaining = excess
-    for (const k of otherKeys) {
-      if (remaining <= 0) break
-      const reduce = Math.min(customWeights[k], remaining)
-      customWeights[k] -= reduce
-      remaining -= reduce
-    }
-  }
-}
-
-function checkWeights() {
-  // Auto-trigger recalculation handled by computed
-}
+const DEFAULT_WEIGHTS = { ret: 30, dd: 20, sr: 20, calmar: 10, ir: 10, te: 10 }
+const weightItems = reactive([
+  { key: 'ret',    label: '区间收益', value: DEFAULT_WEIGHTS.ret },
+  { key: 'dd',     label: '最大回撤', value: DEFAULT_WEIGHTS.dd },
+  { key: 'sr',     label: '夏普比率', value: DEFAULT_WEIGHTS.sr },
+  { key: 'calmar', label: '卡玛比例', value: DEFAULT_WEIGHTS.calmar },
+  { key: 'ir',     label: '信息比率', value: DEFAULT_WEIGHTS.ir },
+  { key: 'te',     label: '跟踪误差', value: DEFAULT_WEIGHTS.te },
+])
+const weightSum = computed(() => weightItems.reduce((s, i) => s + (Number(i.value) || 0), 0))
 
 function resetWeights() {
-  customWeights.ret = 50
-  customWeights.dd = 25
-  customWeights.sr = 25
-  customWeights.calmar = 0
-  customWeights.ir = 0
-  customWeights.te = 0
+  weightItems.forEach(i => { i.value = DEFAULT_WEIGHTS[i.key] })
 }
 
-function confirmWeights() {
+function applyCustomWeights() {
   if (weightSum.value !== 100) return
-  // 关闭权重面板并刷新排序（weightSum computed 为 100 时自动触发）
   showWeightPanel.value = false
+  // trigger re-sort
   sortFunds()
 }
 
@@ -666,17 +577,6 @@ function setClassSource(key) {
   const src = classSources.find(s => s.key === key)
   if (!src || !src.available) return
   classSource.value = key
-  // 如果选中的是隐藏数据源，自动收起"更多"
-  if (!mainSourceKeys.includes(key)) {
-    showAllSources.value = false
-  }
-  filterT0.value = ''
-  filterT1.value = ''
-  loadData(true)
-}
-
-function onSourceChange() {
-  setClassSource(classSource.value)
 }
 
 // 搜索/周期/分页/排序
@@ -695,60 +595,6 @@ const totalCount = ref(null)      // 当前筛选条件下后端总数（来自 
 const detailFund = ref(null)
 const showScoreHelp = ref(false)
 
-// 点赞/吐槽/添加组合
-const likedFunds = reactive(new Set())
-const dislikedFunds = reactive(new Set())
-const portfolioFunds = reactive(new Set())
-
-// Auth
-const { isLoggedIn } = useAuth()
-const showPortfolioPicker = ref(false)
-const pendingFund = ref(null)       // 待添加基金 { code, name }
-const userPortfolios = ref([])
-const portfolioPickerLoading = ref(false)
-
-function toggleLike(code) {
-  if (likedFunds.has(code)) { likedFunds.delete(code) }
-  else { likedFunds.add(code); dislikedFunds.delete(code) }
-}
-function toggleDislike(code) {
-  if (dislikedFunds.has(code)) { dislikedFunds.delete(code) }
-  else { dislikedFunds.add(code); likedFunds.delete(code) }
-}
-async function togglePortfolio(code) {
-  // 如果没有登录，直接本地标记
-  if (!isLoggedIn.value) {
-    if (portfolioFunds.has(code)) portfolioFunds.delete(code)
-    else portfolioFunds.add(code)
-    return
-  }
-  // 已登录：打开组合选择器
-  const fund = funds.value.find(f => f.c === code)
-  if (!fund) return
-  pendingFund.value = { code: fund.c, name: fund.n || '' }
-  portfolioPickerLoading.value = true
-  try {
-    userPortfolios.value = await getMyPortfolios()
-  } finally {
-    portfolioPickerLoading.value = false
-  }
-  showPortfolioPicker.value = true
-}
-async function selectPortfolioForFund(portfolioId) {
-  if (!pendingFund.value) return
-  await addFundToPortfolio(portfolioId, { c: pendingFund.value.code, n: pendingFund.value.name })
-  portfolioFunds.add(pendingFund.value.code)
-  showPortfolioPicker.value = false
-  pendingFund.value = null
-}
-async function createAndAddFund() {
-  const name = window.prompt('请输入新组合名称：')
-  if (!name?.trim()) return
-  await savePortfolio({ name: name.trim(), funds: [] })
-  // 重新获取列表
-  userPortfolios.value = await getMyPortfolios()
-}
-
 // ========== 计算属性：分类联动 ==========
 const t0List = computed(() => Object.keys(CAT_TREE))
 
@@ -762,15 +608,6 @@ function fmtScore(v) {
   const n = parseFloat(v)
   if (!n || n <= 0) return '--'
   return n.toFixed(2)
-}
-
-function fmtScale(v) {
-  if (v == null || v === '') return '--'
-  const n = parseFloat(v)
-  if (isNaN(n)) return '--'
-  if (n >= 10000) return (n / 10000).toFixed(1) + '万亿'
-  if (n >= 1) return n.toFixed(2) + '亿'
-  return (n * 10000).toFixed(0) + '万'
 }
 
 function fmtRet(v) {
@@ -796,6 +633,53 @@ function scoreCls(v) {
   if (n >= 70) return 'score-warm'
   if (n >= 50) return 'score-mid'
   return 'score-cool'
+}
+
+function fmtNum(v) {
+  if (v == null || v === 0) return '--'
+  const n = parseFloat(v)
+  if (isNaN(n)) return '--'
+  return n.toFixed(2)
+}
+
+function fmtPct(v) {
+  if (v == null) return '--'
+  const n = parseFloat(v)
+  if (isNaN(n)) return '--'
+  return n.toFixed(0) + '%'
+}
+
+// 点赞/吐槽
+const thumbedFunds = ref(new Set())
+const dislikedFunds = ref(new Set())
+
+function thumbUp(fund) {
+  if (dislikedFunds.value.has(fund.c)) dislikedFunds.value.delete(fund.c)
+  if (thumbedFunds.value.has(fund.c)) {
+    thumbedFunds.value.delete(fund.c)
+  } else {
+    thumbedFunds.value.add(fund.c)
+  }
+  thumbedFunds.value = new Set(thumbedFunds.value)
+}
+
+function thumbDown(fund) {
+  if (thumbedFunds.value.has(fund.c)) thumbedFunds.value.delete(fund.c)
+  if (dislikedFunds.value.has(fund.c)) {
+    dislikedFunds.value.delete(fund.c)
+  } else {
+    dislikedFunds.value.add(fund.c)
+  }
+  dislikedFunds.value = new Set(dislikedFunds.value)
+}
+
+async function addToPortfolio(fund) {
+  const result = await addFundToPortfolio(fund.c, fund.n)
+  if (result.success) {
+    alert(result.message)
+  } else {
+    alert(result.message || result.error || '添加失败')
+  }
 }
 
 function retCls(v) {
@@ -946,17 +830,8 @@ function setT0(val) {
   loadData(true)
 }
 
-function onT0Change() {
-  filterT1.value = ''
-  loadData(true)
-}
-
 function setT1(val) {
   filterT1.value = val
-  loadData(true)
-}
-
-function onT1Change() {
   loadData(true)
 }
 
@@ -1018,42 +893,13 @@ function openDetail(fund) {
   detailFund.value = fund
 }
 
-// ========== 周期评分行横向滚动联动 ==========
-const fundListRef = ref(null)
-let syncScrollFlag = false
-
-function setupScrollSync() {
-  nextTick(() => {
-    const container = fundListRef.value
-    if (!container) return
-    const scoreRows = container.querySelectorAll('.period-scores')
-    if (scoreRows.length < 2) return
-
-    const sync = (source) => {
-      if (syncScrollFlag) return
-      syncScrollFlag = true
-      scoreRows.forEach(row => {
-        if (row !== source) row.scrollLeft = source.scrollLeft
-      })
-      syncScrollFlag = false
-    }
-
-    scoreRows.forEach(row => {
-      row.removeEventListener('scroll', row._scrollHandler)
-      row._scrollHandler = () => sync(row)
-      row.addEventListener('scroll', row._scrollHandler, { passive: true })
-    })
-  })
-}
-
-// 数据变化时重新绑定滚动联动
-watch(() => funds.value.length, () => {
-  if (funds.value.length > 0) setupScrollSync()
-})
-
 onMounted(() => {
+  document.title = '靠谱指数工具-评分 | ALLFUND.CN'
   loadData()
   loadMeta()
+})
+onUnmounted(() => {
+  document.title = 'ALLFUND.CN - 投资工作助手'
 })
 </script>
 
@@ -1065,21 +911,23 @@ onMounted(() => {
 .top-bar {
   display: flex; align-items: center; gap: var(--space-md);
   padding: var(--space-md); border-bottom: 1px solid var(--border);
-  background: var(--bg-card);
+  background: #ffffff;
 }
 .top-title-row { display: flex; align-items: baseline; gap: 6px; flex-shrink: 0; }
 .top-title-text { font-size: 24px; font-weight: 700; color: var(--text-primary); }
 @media (min-width: 641px) { .top-title-text { font-size: 36px; } }
+
 .help-icon-btn {
   width: 24px; height: 24px; line-height: 24px; text-align: center;
   font-size: 14px; color: var(--text-secondary);
   border: 2px solid var(--text-secondary); cursor: pointer;
   flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center;
 }
-.search-box { flex: 1; position: relative; }
+
+.search-box { flex: 1; position: relative; width: 100%; }
 .search-input {
   width: 100%; padding: 8px 36px 8px 8px;
-  border: 2px solid var(--brand); font-size: 16px;
+  border: 2px solid #1d70b8; font-size: 16px;
   color: var(--text-primary); outline: none; box-sizing: border-box;
 }
 .search-input:focus { outline: 3px solid #ffdd00; outline-offset: 0; }
@@ -1089,61 +937,38 @@ onMounted(() => {
   color: var(--text-secondary); font-size: 14px; cursor: pointer;
 }
 
+/* 数据信息条 */
+.data-info-bar {
+  display: flex; flex-direction: column; align-items: flex-start;
+  padding: var(--space-sm) var(--space-md); background: #ffffff;
+  border-bottom: 1px solid var(--border); font-size: 14px; color: var(--text-secondary);
+}
+.data-info-row { display: flex; align-items: center; gap: var(--space-sm); }
+.data-refresh {
+  margin-left: var(--space-sm); padding: 2px 8px;
+  font-size: 14px; color: var(--link); cursor: pointer; text-decoration: underline;
+}
+.data-refresh.refreshing { opacity: 0.5; }
+
 /* 筛选区 */
-.filter-section { background: var(--bg-card); border-bottom: 1px solid var(--border); }
-.filter-row {
-  display: flex; align-items: center; padding: var(--space-sm) var(--space-md);
-  gap: var(--space-sm); flex-wrap: nowrap;
-}
-.filter-row-source { border-bottom: 1px solid var(--border); flex-wrap: nowrap; align-items: center; }
-.source-tags { display: flex; align-items: center; gap: 8px; flex: 1; flex-wrap: wrap; }
-.source-tag {
-  padding: 4px 14px; font-size: 15px; color: var(--text-primary);
-  background: var(--bg-body); border: 2px solid var(--bg-body);
-  cursor: pointer; font-weight: 400; white-space: nowrap;
-}
-.source-tag:hover, .filter-select:hover { border-color: var(--brand); }
-.source-tag.active {
-  color: var(--brand); font-weight: 700;
-  background: var(--bg-card); border-color: var(--brand);
-}
-.source-tag:disabled { color: var(--text-secondary); cursor: not-allowed; opacity: 0.6; }
-.source-tag-badge { margin-left: 4px; font-size: 12px; color: var(--text-secondary); }
-.source-tag--more {
-  color: var(--brand); background: transparent; border-style: dashed;
-  text-decoration: underline; text-underline-offset: 3px;
-}
-.source-tag--collapse { color: var(--brand); background: transparent; border-style: dashed; }
+.filter-section { background: #ffffff; border-bottom: 1px solid var(--border); }
+.filter-row { display: flex; align-items: flex-start; padding: var(--space-sm) var(--space-md); gap: var(--space-sm); }
 .filter-label {
   font-size: 14px; color: var(--text-secondary); font-weight: 700;
-  flex-shrink: 0; white-space: nowrap; padding-top: 4px;
+  flex-shrink: 0; width: 60px; padding-top: 4px;
 }
-.filter-select-wrap { flex: 1; max-width: 360px; }
-.filter-select {
-  width: 100%; padding: 6px 32px 6px 8px;
-  font-size: 16px; color: var(--text-primary);
-  border: 2px solid var(--border); background: var(--bg-card);
-  appearance: none; -webkit-appearance: none;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%230b0c0c' stroke-width='2' fill='none'/%3E%3C/svg%3E");
-  background-repeat: no-repeat; background-position: right 10px center;
-  cursor: pointer; outline: none;
-}
-.filter-select:focus { border-color: var(--brand); outline: 3px solid #ffdd00; outline-offset: 0; }
-
-/* 通用横向滚动 */
-.scroll-x { overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: thin; }
-.filter-chips { display: flex; flex-wrap: nowrap; gap: 0; flex: 1; }
+.filter-chips { display: flex; flex-wrap: wrap; gap: 0; flex: 1; }
 .filter-chip {
   padding: 4px 12px; font-size: 16px; color: var(--link);
   cursor: pointer; text-decoration: underline; text-underline-offset: 4px;
   text-decoration-color: transparent; transition: text-decoration-color 0.15s;
-  white-space: nowrap;
 }
 .filter-chip:hover { text-decoration-color: var(--link); }
 .filter-chip.active {
-  color: var(--brand); font-weight: 700; text-decoration: none;
-  border-bottom: 4px solid var(--brand); padding-bottom: 0;
+  color: #1d70b8; font-weight: 700; text-decoration: none;
+  border-bottom: 4px solid #1d70b8; padding-bottom: 0;
 }
+
 .more-filter-toggle {
   display: flex; align-items: center; gap: 4px;
   padding: var(--space-sm) var(--space-md); font-size: 16px; color: var(--link);
@@ -1157,191 +982,151 @@ onMounted(() => {
 /* 周期Tab */
 .toolbar {
   display: flex; align-items: center; gap: var(--space-md);
-  padding: var(--space-sm) var(--space-md); background: var(--bg-card);
+  padding: var(--space-sm) var(--space-md); background: #ffffff;
   border-bottom: 1px solid var(--border);
 }
-.period-tabs { display: flex; gap: 0; white-space: nowrap; flex: 1; }
+.period-tabs { display: flex; gap: 0; overflow-x: auto; white-space: nowrap; flex: 1; }
 .period-tab {
   flex-shrink: 0; padding: 8px 16px; font-size: 16px; color: var(--link);
-  cursor: pointer; border-bottom: 4px solid transparent; font-weight: 400;
-  text-decoration: none;
+  cursor: pointer; border-bottom: 4px solid transparent; text-decoration: none;
+  font-weight: 400;
 }
 .period-tab:hover { border-bottom-color: var(--border); }
 .period-tab.active {
-  color: var(--brand); font-weight: 700; border-bottom-color: var(--brand);
+  color: #1d70b8; font-weight: 700; border-bottom-color: #1d70b8;
 }
 .sort-arrow { font-size: 12px; margin-left: 4px; }
 
 .filter-result-row {
-  display: flex; align-items: center; justify-content: space-between;
-  padding: var(--space-sm) var(--space-md); background: var(--bg-body);
+  padding: var(--space-sm) var(--space-md); background: #f3f2f1;
   border-top: 1px solid var(--border);
 }
 .filter-result-count { font-size: 16px; color: var(--text-secondary); }
-.filter-result-count strong { color: var(--text-primary); font-weight: 700; }
+.filter-result-count strong { color: #0b0c0c; font-weight: 700; }
 
-.data-refresh-btn {
-  padding: 6px 16px; border: none;
-  background: var(--brand); color: #fff;
-  font-size: 14px; font-weight: 500; cursor: pointer;
+/* 基金列表 - 横向滚动表格 */
+.fund-table-wrap {
+  overflow-x: auto; -webkit-overflow-scrolling: touch;
+  border-top: 1px solid var(--border);
 }
-.data-refresh-btn:hover, .btn-confirm:hover { background: var(--brand-dark); }
-.data-refresh-btn:disabled, .btn-confirm:disabled { opacity: 0.6; cursor: not-allowed; }
+.fund-table {
+  width: 100%; border-collapse: collapse; font-size: 14px; white-space: nowrap;
+  min-width: 1100px;
+}
+.fund-table thead { background: #f3f2f1; }
+.fund-table th {
+  padding: var(--space-sm) 8px; text-align: left;
+  font-size: 13px; font-weight: 700; color: var(--text-primary);
+  border-bottom: 2px solid var(--border);
+  position: sticky; top: 0; background: #f3f2f1; z-index: 1;
+}
+.fund-table td {
+  padding: 6px 8px; border-bottom: 1px solid var(--border);
+  vertical-align: middle;
+}
+.fund-row:hover { background: #f8f8f8; }
 
-/* 基金列表（2行卡片布局） */
-.fund-list { background: var(--bg-card); }
-.fund-card {
-  border-bottom: 1px solid var(--border);
-  padding: var(--space-sm) var(--space-md);
-  cursor: pointer; transition: background 0.1s;
-}
-.fund-card:hover { background: #f8f8f8; }
+.col-code { width: 80px; font-weight: 700; color: var(--text-secondary); font-family: monospace; font-size: 13px; }
+.col-name { max-width: 180px; font-weight: 700; cursor: pointer; color: var(--link); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.col-name:hover { text-decoration: underline; }
+.col-num { width: 80px; text-align: right; color: var(--text-secondary); }
+.col-pct { width: 60px; text-align: right; color: var(--text-secondary); }
+.col-score { width: 50px; text-align: center; }
+.col-score .score-val { font-weight: 700; font-size: 13px; }
+.col-sort { background: #e8f0fe; }
+.col-actions { width: 90px; text-align: center; }
 
-/* 第一行：基金代码 + 基金名称 */
-.fund-row1 { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
-.fund-code { font-size: 13px; font-weight: 700; color: var(--text-primary); white-space: nowrap; }
-.fund-name {
-  font-size: 14px; color: var(--text-primary);
-  cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-}
-.fund-name:hover { text-decoration: underline; }
+.score-hot  { color: #d4351c; }  /* >=85 红色 */
+.score-warm { color: #f47738; }  /* >=70 橙色 */
+.score-mid  { color: #505a5f; }  /* >=50 灰色 */
+.score-cool { color: #00703c; }  /* <50  绿色 */
 
-/* 第二行：规模/持仓 + 操作按钮 */
-.fund-row2 {
-  display: flex; align-items: center; justify-content: space-between;
-  gap: var(--space-sm); margin-top: 6px; flex-wrap: wrap;
-}
-.fund-row2-data { display: flex; align-items: center; gap: var(--space-md); flex-shrink: 0; }
-.fund-data-item { display: flex; flex-direction: column; align-items: center; min-width: 48px; }
-.fund-data-item--na { opacity: 0.4; }
-.fund-data-val { font-size: 13px; font-weight: 700; color: var(--text-primary); }
-.fund-data-label { font-size: 11px; color: var(--text-secondary); }
-.fund-actions { display: flex; align-items: center; gap: 4px; flex-shrink: 0; }
 .action-btn {
-  display: inline-flex; align-items: center; gap: 2px;
-  padding: 4px 6px; cursor: pointer;
-  color: var(--text-secondary); border-radius: 4px;
-  transition: color 0.15s, background 0.15s;
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 28px; height: 28px; cursor: pointer; color: var(--text-muted);
+  vertical-align: middle; margin: 0 2px;
 }
-.action-btn:hover { color: var(--brand); background: var(--bg-hover); }
-.action-btn.active { color: var(--brand); background: #e6f7ee; }
-.action-count { font-size: 11px; font-weight: 700; }
-
-/* 第三行：各周期靠谱指数 */
-.fund-row3 { margin-top: 6px; }
-.period-scores { display: flex; gap: 2px; }
-.period-score-item {
-  display: flex; flex-direction: column; align-items: center;
-  min-width: 52px; padding: 4px 6px;
-  border: 1px solid var(--border); border-radius: 2px;
-  cursor: pointer; transition: background 0.1s; flex-shrink: 0;
-}
-.period-score-item:hover { background: var(--bg-hover); }
-.period-score-item.active {
-  border-color: var(--brand); border-width: 2px; background: #f0f6ff;
-}
-.period-score-item.active .ps-label { color: var(--brand); font-weight: 700; }
-.ps-label { font-size: 11px; color: var(--text-secondary); white-space: nowrap; }
-.ps-score { font-size: 13px; font-weight: 700; }
-.ps-score-centered { font-size: 15px; font-weight: 800; }
-
-/* 统一评分颜色（列表 & 详情弹窗共用） */
-.score-hot, .score-hot-text, .unified-val.risk-high { color: #d4351c; }
-.score-warm, .score-warm-text, .unified-val.risk-mid { color: #f47738; }
-.score-mid, .score-mid-text { color: #505a5f; }
-.score-cool, .score-cool-text, .unified-val.risk-low { color: #00703c; }
-.ret-up { color: var(--color-up); }
-.ret-down { color: var(--color-down); }
+.action-btn:hover { color: var(--brand); }
+.action-add:hover { color: #00703c; }
 
 /* 加载更多 */
 .load-more {
   text-align: center; padding: var(--space-lg);
-  font-size: 16px; color: var(--brand); cursor: pointer;
-  text-decoration: underline; text-underline-offset: 4px;
+  font-size: 16px; color: var(--link); cursor: pointer; text-decoration: underline;
 }
-.load-more:hover, .help-link:hover { color: var(--link-hover); }
 
 /* 状态 */
 .empty-state { text-align: center; padding: var(--space-2xl) var(--space-md); }
-.empty-text {
-  font-size: 19px; color: var(--text-primary); font-weight: 700;
-  margin-bottom: var(--space-sm);
-}
+.empty-text { font-size: 19px; color: var(--text-primary); font-weight: 700; margin-bottom: var(--space-sm); }
 .empty-hint { font-size: 16px; color: var(--text-secondary); }
 .loading-wrap { display: flex; justify-content: center; padding: var(--space-2xl) 0; }
 .loading-text { font-size: 16px; color: var(--text-secondary); }
 
-/* 底部说明区 */
+/* 底部 */
 .bottom-info {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 4px;
   padding: var(--space-xl) var(--space-md) var(--space-2xl);
+  font-size: 14px; color: var(--text-secondary);
   border-top: 1px solid var(--border); margin-top: var(--space-xl);
-  background: var(--bg-body);
-}
-.bottom-disclaimer { text-align: center; margin: 0 auto var(--space-md); max-width: 600px; }
-.bottom-disclaimer p {
-  margin: 3px 0; font-size: 14px; color: var(--text-secondary); line-height: 1.7;
-}
-.bottom-help-entry { text-align: center; }
-.help-link {
-  display: inline-flex; align-items: center; gap: 4px;
-  font-size: 14px; color: var(--brand); cursor: pointer;
-  text-decoration: underline; text-underline-offset: 3px;
 }
 
-/* ===== 弹窗通用基类 ===== */
+/* 颜色 */
+.ret-up { color: var(--color-up); }
+.ret-down { color: var(--color-down); }
+
+/* ===== 弹窗 ===== */
 .mask { position: fixed; inset: 0; background: rgba(29,112,184,0.6); z-index: 100; }
-.panel-slide {
+
+.detail-panel {
   position: fixed; bottom: 0; left: 50%; transform: translateX(-50%);
-  width: 100%; max-width: 600px; background: var(--bg-card);
-  border: 1px solid var(--border);
+  width: 100%; max-width: 600px; max-height: 88vh;
+  background: #ffffff; border: 1px solid var(--border);
   overflow: hidden; display: flex; flex-direction: column; z-index: 101;
 }
-.detail-panel { max-height: 88vh; }
-.help-panel { max-height: 70vh; }
-.panel-hd {
+.detail-header {
   display: flex; justify-content: space-between; align-items: center;
   padding: var(--space-md) var(--space-lg); border-bottom: 1px solid var(--border);
-  background: var(--bg-body); flex-shrink: 0;
+  background: #f3f2f1; flex-shrink: 0;
 }
 .detail-name { font-size: 19px; font-weight: 700; flex: 1; margin-right: var(--space-md); line-height: 1.3; }
-.help-title { font-size: 19px; font-weight: 700; color: var(--text-primary); }
-.panel-close { font-size: 24px; color: var(--text-primary); cursor: pointer; padding: 4px; line-height: 1; }
-.panel-bd { flex: 1; overflow-y: auto; padding: var(--space-lg); }
+.detail-close { font-size: 24px; color: var(--text-primary); cursor: pointer; padding: 4px; line-height: 1; }
+.detail-body { flex: 1; overflow-y: auto; padding: var(--space-lg); }
 .detail-section { margin-bottom: var(--space-xl); }
 .detail-section-title {
-  display: block; font-size: 19px; font-weight: 700; color: var(--text-primary);
-  margin-bottom: var(--space-md);
+  font-size: 19px; font-weight: 700; color: var(--text-primary);
+  display: block; margin-bottom: var(--space-md);
   border-bottom: 2px solid var(--border); padding-bottom: 4px;
 }
-.attr-row {
-  display: flex; justify-content: space-between; padding: var(--space-sm) 0;
-  border-bottom: 1px solid var(--border);
-}
+.section-title-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--space-md); }
+.section-source { font-size: 14px; color: var(--text-secondary); }
+.attr-row { display: flex; justify-content: space-between; padding: var(--space-sm) 0; border-bottom: 1px solid var(--border); }
 .attr-label { font-size: 16px; color: var(--text-secondary); flex-shrink: 0; width: 80px; }
 .attr-value { font-size: 16px; color: var(--text-primary); text-align: right; flex: 1; line-height: 1.4; }
 .attr-date { font-size: 14px; color: var(--text-secondary); }
 
-/* 综合数据表 */
-.unified-table { border: 1px solid var(--border); margin-top: var(--space-sm); }
-.unified-head {
-  display: flex; padding: var(--space-sm) var(--space-sm);
-  border-bottom: 2px solid var(--border); background: var(--bg-body);
+.detail-scores-grid {
+  display: flex; justify-content: space-around; padding: var(--space-md);
+  border: 1px solid var(--border);
 }
-.unified-th { font-size: 13px; color: var(--text-secondary); font-weight: 700; text-align: center; }
-.unified-row {
-  display: flex; align-items: center; padding: 6px var(--space-sm);
-  border-bottom: 1px solid var(--border);
-}
-.unified-row:last-child { border-bottom: none; }
-.unified-label {
-  width: 48px; font-size: 14px; color: var(--text-secondary);
-  flex-shrink: 0; font-weight: 700;
-}
-.unified-val {
-  flex: 1; text-align: center; font-size: 14px; font-weight: 700;
-  color: var(--text-primary);
-}
-.unified-val:first-of-type { flex: 1.2; }
+.ds-item { display: flex; flex-direction: column; align-items: center; }
+.ds-period { font-size: 14px; color: var(--text-secondary); margin-bottom: 4px; }
+.ds-score { font-size: 19px; font-weight: 700; }
+
+.returns-grid { display: flex; flex-wrap: wrap; gap: var(--space-md); }
+.return-col { display: flex; flex-direction: column; align-items: center; min-width: 70px; padding: var(--space-sm); border: 1px solid var(--border); }
+.ret-label { font-size: 14px; color: var(--text-secondary); margin-bottom: 4px; }
+.ret-value { font-size: 16px; font-weight: 700; color: var(--text-primary); }
+
+.risk-table { border: 1px solid var(--border); }
+.risk-head { display: flex; padding: var(--space-sm); border-bottom: 2px solid var(--border); background: #f3f2f1; }
+.risk-th { font-size: 14px; color: var(--text-secondary); font-weight: 700; }
+.risk-row { display: flex; align-items: center; padding: var(--space-sm); border-bottom: 1px solid var(--border); }
+.risk-row:last-child { border-bottom: none; }
+.risk-label { width: 60px; font-size: 14px; color: var(--text-secondary); flex-shrink: 0; font-weight: 700; }
+.risk-val { flex: 1; text-align: center; font-size: 16px; font-weight: 700; color: var(--text-primary); }
+.risk-val.risk-high { color: #d4351c; }
+.risk-val.risk-mid { color: #f47738; }
+.risk-val.risk-low { color: #00703c; }
 
 .detail-goto {
   display: block; text-align: center; padding: var(--space-md) 0 var(--space-sm);
@@ -1349,101 +1134,81 @@ onMounted(() => {
   font-size: 16px; color: var(--link); font-weight: 700; text-decoration: underline;
 }
 
-/* 帮助弹窗内容 */
-.help-section { margin-bottom: var(--space-lg); }
-.help-section-label {
-  display: block; font-size: 19px; font-weight: 700; color: var(--text-primary);
-  margin-bottom: var(--space-sm);
-  border-bottom: 2px solid var(--border); padding-bottom: 4px;
+/* 帮助弹窗 */
+.help-panel {
+  position: fixed; bottom: 0; left: 50%; transform: translateX(-50%);
+  width: 100%; max-width: 600px; max-height: 70vh;
+  background: #ffffff; border: 1px solid var(--border);
+  overflow: hidden; display: flex; flex-direction: column; z-index: 101;
 }
+.help-header {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: var(--space-md) var(--space-lg); border-bottom: 1px solid var(--border);
+  background: #f3f2f1; flex-shrink: 0;
+}
+.help-title { font-size: 19px; font-weight: 700; color: var(--text-primary); }
+.help-close { font-size: 24px; color: var(--text-primary); cursor: pointer; padding: 4px; line-height: 1; }
+.help-body { flex: 1; overflow-y: auto; padding: var(--space-lg); }
+.help-section { margin-bottom: var(--space-lg); }
+.help-section-label { display: block; font-size: 19px; font-weight: 700; color: var(--text-primary); margin-bottom: var(--space-sm); border-bottom: 2px solid var(--border); padding-bottom: 4px; }
 .help-desc { display: block; font-size: 16px; color: var(--text-primary); line-height: 1.7; }
 .help-color-row { display: flex; align-items: center; gap: var(--space-md); padding: 4px 0; }
 .help-dot { width: 16px; height: 4px; flex-shrink: 0; }
 .help-color-text { font-size: 16px; font-weight: 700; flex-shrink: 0; min-width: 100px; }
+.score-hot-text { color: #d4351c; }
+.score-warm-text { color: #f47738; }
+.score-mid-text { color: #505a5f; }
+.score-cool-text { color: #00703c; }
 .help-color-desc { font-size: 16px; color: var(--text-secondary); }
 
 /* 自定义权重面板 */
 .weight-toggle {
   padding: var(--space-xs) var(--space-sm); font-size: 14px;
   color: var(--link); cursor: pointer; border: 1px solid var(--border);
-  white-space: nowrap; display: flex; align-items: center; gap: 4px;
+  white-space: nowrap;
 }
-.weight-toggle:hover { background: var(--bg-hover); }
+.weight-toggle:hover { background: #f3f2f1; }
+
 .weight-panel {
-  border: 1px solid var(--border); background: var(--bg-card);
+  border: 1px solid var(--border); background: #ffffff;
   padding: var(--space-lg); margin-top: var(--space-sm);
 }
 .weight-panel-header {
   display: flex; justify-content: space-between; align-items: center;
-  font-size: 19px; font-weight: 700; color: var(--text-primary);
-  margin-bottom: var(--space-md);
+  font-size: 19px; font-weight: 700; color: var(--text-primary); margin-bottom: var(--space-md);
 }
 .weight-panel-close { font-size: 20px; color: var(--text-secondary); cursor: pointer; }
-.weight-sliders { display: flex; flex-direction: column; gap: var(--space-md); }
-.weight-slider-item label {
-  display: flex; justify-content: space-between;
-  font-size: 16px; color: var(--text-primary); margin-bottom: var(--space-xs);
-}
-.ws-val { font-weight: 700; color: var(--brand); }
-.weight-slider-item input[type="range"] {
-  width: 100%; height: 8px; -webkit-appearance: none; background: var(--bg-body); outline: none;
-}
-.weight-slider-item input[type="range"]::-webkit-slider-thumb {
-  -webkit-appearance: none; width: 24px; height: 24px; background: var(--brand); cursor: pointer;
-}
-.weight-total {
-  margin-top: var(--space-md); padding: var(--space-sm);
-  font-size: 16px; font-weight: 700; text-align: center;
-}
+
+.weight-sliders { display: flex; flex-direction: column; gap: var(--space-sm); }
+.weight-row { display: flex; align-items: center; gap: var(--space-sm); }
+.weight-label { font-size: 14px; min-width: 80px; color: var(--text-primary); }
+.weight-range { flex: 1; height: 6px; -webkit-appearance: none; background: #f3f2f1; outline: none; }
+.weight-range::-webkit-slider-thumb { -webkit-appearance: none; width: 18px; height: 18px; background: #1d70b8; cursor: pointer; }
+.weight-num { width: 50px; padding: 2px 4px; border: 1px solid var(--border); font-size: 14px; text-align: center; }
+.weight-sum { font-size: 14px; margin-left: var(--space-sm); }
+.weight-sum.valid { color: #00703c; }
+.weight-sum.invalid { color: #d4351c; }
+
+.weight-actions { display: flex; gap: var(--space-sm); justify-content: flex-end; margin-top: var(--space-md); }
+.btn-reset { padding: var(--space-xs) var(--space-lg); font-size: 14px; background: #f3f2f1; color: var(--text-primary); border: 1px solid var(--border); cursor: pointer; }
+.btn-confirm { padding: var(--space-xs) var(--space-lg); font-size: 14px; background: #00703c; color: #fff; border: none; cursor: pointer; }
+.btn-confirm:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.bottom-help { margin-top: var(--space-sm); padding-top: var(--space-sm); border-top: 1px solid var(--border); }
+.bottom-help-title { font-size: 14px; color: var(--link); cursor: pointer; text-decoration: underline; margin-bottom: 4px; }
+.bottom-help p { font-size: 13px; color: var(--text-secondary); margin: 0; line-height: 1.5; }
 .weight-valid { background: #e6f7ee; color: #00703c; }
 .weight-invalid { background: #fef0ef; color: #d4351c; }
 .weight-warn { font-weight: 400; }
 .weight-ok { color: #00703c; }
+
 .weight-actions { text-align: center; margin-top: var(--space-sm); }
 .btn-reset {
   background: none; border: 1px solid var(--border); color: var(--text-secondary);
   padding: var(--space-xs) var(--space-md); font-size: 14px; cursor: pointer;
 }
-.btn-reset:hover { background: var(--bg-hover); }
-.btn-confirm {
-  padding: var(--space-xs) var(--space-lg); margin-right: var(--space-sm);
-  background: var(--brand); color: #fff; border: none;
-  font-size: 14px; font-weight: 500; cursor: pointer;
-}
+.btn-reset:hover { background: #f3f2f1; }
 
 /* 分类源禁用 */
 .filter-chip.disabled { color: var(--text-secondary); opacity: 0.5; cursor: not-allowed; }
-
-/* ===== 模态弹窗 ===== */
-.modal-mask {
-  position: fixed; inset: 0; z-index: 1000;
-  background: rgba(0,0,0,0.45);
-  display: flex; align-items: center; justify-content: center;
-}
-.modal-box { background: #fff; padding: var(--space-lg); max-width: 520px; width: 90vw; }
-.modal-box--sm { max-width: 400px; }
-.modal-hd {
-  font-size: 19px; font-weight: 700; color: var(--text-primary);
-  display: flex; justify-content: space-between; align-items: center;
-  margin-bottom: var(--space-md);
-}
-.modal-close {
-  font-size: 24px; cursor: pointer; color: var(--text-secondary);
-  text-decoration: none; line-height: 1;
-}
-.modal-bd { font-size: 16px; color: var(--text-primary); }
-
-/* 组合选择器 */
-.pf-picker-fund { padding: var(--space-sm); background: var(--bg-body); margin-bottom: var(--space-sm); }
-.pf-picker-loading, .pf-picker-empty {
-  padding: var(--space-lg) 0; text-align: center; color: var(--text-secondary);
-}
-.pf-picker-empty .link { color: var(--brand); cursor: pointer; text-decoration: underline; }
-.pf-picker-item {
-  display: flex; justify-content: space-between; align-items: center;
-  padding: var(--space-sm); border: 1px solid var(--border);
-  margin-bottom: 6px; cursor: pointer;
-}
-.pf-picker-item:hover { background: var(--bg-hover); }
-.pf-picker-count { font-size: 14px; color: var(--text-secondary); }
 </style>

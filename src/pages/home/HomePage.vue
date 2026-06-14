@@ -34,7 +34,27 @@
         </div>
         <div class="market-sharpe-label">{{ marketSharpeLabel || '数据加载中...' }}</div>
       </div>
-      <router-link class="view-detail" to="/config">查看大类资产详情 ></router-link>
+      <router-link class="view-detail" to="/signal">查看大类资产详情 ></router-link>
+    </div>
+
+    <!-- DS 固收+组合展示 -->
+    <div class="card" v-if="dsPortfolios.length > 0">
+      <div class="card-title">
+        AI 固收+组合
+        <span class="card-subtitle">DeepSeek 推荐</span>
+      </div>
+      <div class="ds-pf-grid">
+        <div class="ds-pf-card" v-for="pf in dsPortfolios" :key="pf.id">
+          <div class="ds-pf-name">{{ pf.strategyName }}</div>
+          <div class="ds-pf-summary">{{ pf.summary }}</div>
+          <div class="ds-pf-funds">
+            <span class="ds-pf-fund" v-for="f in pf.funds.slice(0, 4)" :key="f.code">
+              {{ f.name }} {{ f.weight }}%
+            </span>
+          </div>
+        </div>
+      </div>
+      <router-link class="view-detail" to="/portfolio">查看全部AI组合 ></router-link>
     </div>
 
     <!-- 股债性价比概览 -->
@@ -257,6 +277,17 @@ const refData = ref(null)
 // 指数估值概览
 const evaTop5        = ref([])
 const evaHigh5       = ref([])
+
+// DS 固收+组合
+const dsPortfolios = ref([])
+function loadDsPortfolios() {
+  try {
+    const raw = localStorage.getItem('allfund_ai_portfolios')
+    const all = raw ? JSON.parse(raw) : []
+    // 只显示固收+策略的最近 3 个
+    dsPortfolios.value = all.filter(p => p.strategyName && p.strategyName.includes('固收+')).slice(0, 3)
+  } catch { dsPortfolios.value = [] }
+}
 const evaUpdateTime = ref('')
 
 // 帮助弹窗
@@ -427,6 +458,7 @@ async function loadValue500() {
 onMounted(() => {
   loadQuotes()
   loadValue500()
+  loadDsPortfolios()
 })
 </script>
 
@@ -514,6 +546,15 @@ onMounted(() => {
   font-size: 16px; color: var(--link); text-decoration: underline; display: inline-block;
 }
 .view-detail:hover { color: var(--link-hover); }
+
+/* DS 固收+组合 */
+.ds-pf-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--space-md); margin-bottom: var(--space-md); }
+@media (max-width: 768px) { .ds-pf-grid { grid-template-columns: 1fr; } }
+.ds-pf-card { padding: var(--space-md); border: 1px solid var(--border); border-left: 4px solid #6c5ce7; }
+.ds-pf-name { font-size: 16px; font-weight: 700; margin-bottom: var(--space-xs); }
+.ds-pf-summary { font-size: 13px; color: var(--text-secondary); margin-bottom: var(--space-sm); line-height: 1.4; }
+.ds-pf-funds { display: flex; flex-wrap: wrap; gap: 4px; }
+.ds-pf-fund { font-size: 12px; padding: 2px 6px; background: #f3f2f1; border-radius: 2px; }
 
 /* 股债性价比 */
 .sbv-summary { display: flex; gap: var(--space-xl); margin-bottom: var(--space-md); }
