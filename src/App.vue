@@ -4,7 +4,7 @@
     <header class="govuk-header" v-if="!isMobile">
       <div class="govuk-header__container">
         <div class="govuk-header__logo">
-          <span class="govuk-header__logotype-text">allfund.cn</span>
+          <router-link to="/" class="govuk-header__logotype-text" style="text-decoration:none;color:#fff">allfund.cn</router-link>
         </div>
         <div class="govuk-header__content">
           <nav class="govuk-header__navigation">
@@ -44,6 +44,21 @@
       </p>
     </div>
 
+    <!-- 全局金刚区导航（PC端横排，所有页面可见） -->
+    <nav class="quick-nav" v-if="!isMobile">
+      <div class="quick-nav__inner">
+        <router-link
+          v-for="item in quickLinks"
+          :key="item.path"
+          :to="item.path"
+          class="quick-nav__item"
+          :class="{ 'quick-nav__item--active': route.path === item.path || route.path.startsWith(item.path + '/') }"
+        >
+          {{ item.label }}
+        </router-link>
+      </div>
+    </nav>
+
     <!-- 主内容区 -->
     <main class="app-main" :class="{ 'pc-main': !isMobile }">
       <router-view v-slot="{ Component }">
@@ -73,6 +88,13 @@ function onResize() {
 }
 onMounted(() => window.addEventListener('resize', onResize))
 onUnmounted(() => window.removeEventListener('resize', onResize))
+
+/* ---- 全局金刚区 ---- */
+const quickLinks = [
+  { path: '/signal',           label: '指标信号' },
+  { path: '/tools/fund-rank',  label: '靠谱指数' },
+  { path: '/portfolio',        label: '基金组合' },
+]
 
 /* ---- Tab 数据 ---- */
 const tabs = [
@@ -187,6 +209,20 @@ const showBack   = computed(() => {
 .govuk-phase-banner__text {
   line-height: 1.25;
 }
+
+/* ========== 全局金刚区导航 ========== */
+.quick-nav {
+  max-width: 960px; margin: 0 auto; padding: 0 30px;
+  background: #fff; border-bottom: 1px solid var(--border);
+}
+.quick-nav__inner { display: flex; gap: 0; }
+.quick-nav__item {
+  display: block; padding: 12px 24px; font-size: 16px; font-weight: 700;
+  color: var(--text-secondary); text-decoration: none;
+  border-bottom: 4px solid transparent; transition: all 0.15s;
+}
+.quick-nav__item:hover { color: var(--brand); border-bottom-color: var(--brand); }
+.quick-nav__item--active { color: var(--brand); border-bottom-color: var(--brand); }
 
 /* ========== 移动端标题栏 ========== */
 .mobile-header {

@@ -1,18 +1,5 @@
 <template>
   <div class="page-home">
-    <!-- 金刚区：核心功能入口 -->
-    <div class="kingkong-area">
-      <router-link
-        v-for="entry in entries"
-        :key="entry.path"
-        :to="entry.path"
-        class="kingkong-item"
-      >
-        <span class="kingkong-icon">{{ entry.icon }}</span>
-        <span class="kingkong-label">{{ entry.label }}</span>
-      </router-link>
-    </div>
-
     <!-- 实时指数概览 -->
     <div class="card index-quote-bar" v-if="quotesLoaded">
       <div class="quote-scroll-wrap">
@@ -39,7 +26,7 @@
     <div class="card market-banner">
       <div class="banner-header">
         <span class="banner-title">全市场加权平均隐含夏普</span>
-        <span class="help-icon" @click="helpKey = 'marketGauge'">❓</span>
+        <span class="help-icon" @click="helpKey = 'marketGauge'"><SvgIcon name="help" :size="16" class="help-icon-svg" /></span>
       </div>
       <div class="market-sharpe-wrap">
         <div class="market-sharpe-value" :class="marketSharpe > 0 ? 'text-up' : 'text-down'">
@@ -55,7 +42,7 @@
       <div class="card-title">
         股债性价比
         <span class="card-subtitle">Fed Model</span>
-        <span class="help-icon" @click="helpKey = 'stockBondValue'">❓</span>
+        <span class="help-icon" @click="helpKey = 'stockBondValue'"><SvgIcon name="help" :size="16" class="help-icon-svg" /></span>
       </div>
       <div class="sbv-summary">
         <div class="sbv-big">
@@ -92,7 +79,7 @@
     <div class="card">
       <div class="card-title">
         大类资产性价比
-        <span class="help-icon" @click="helpKey = 'impliedReturn'">❓</span>
+        <span class="help-icon" @click="helpKey = 'impliedReturn'"><SvgIcon name="help" :size="16" class="help-icon-svg" /></span>
       </div>
       <div class="asset-subtitle">现金用Shibor，债券用YTM，股票用Gordon模型，黄金用实际利率模型</div>
       <div class="asset-grid" v-if="assets.length">
@@ -243,17 +230,6 @@ import { ref, onMounted } from 'vue'
 import { fetchValue500All, fetchDanjuanEva } from '../../utils/api'
 import { getIndexQuotes, buildMarketData } from '../../utils/market-data'
 import { calcAllExpectedReturns, calcEnhancedRiskParityWeights, calcMarketSharpe, calcRiskPremium } from '../../utils/calc'
-
-const entries = [
-  { path: '/config',             icon: '📈', label: '大类资产' },
-  { path: '/style-factor',       icon: '🎯', label: '风格因子' },
-  { path: '/tools/industry-rank',icon: '📊', label: '指数估值' },
-  { path: '/tools/fund-rank',    icon: '🏅', label: '靠谱指数' },
-  { path: '/portfolio',           icon: '💰', label: '基金组合' },
-  { path: '/tools',              icon: '🔧', label: '指数工具' },
-  { path: '/tools',              icon: '👑', label: '大V榜单'  },
-  { path: '/lab',                icon: '✍️', label: '运营助手' },
-]
 
 // 行情数据
 const quotesLoaded = ref(false)
@@ -503,7 +479,8 @@ onMounted(() => {
 }
 .kingkong-item:last-child { border-bottom: none; }
 .kingkong-item:hover { color: var(--link-hover); text-decoration: underline; }
-.kingkong-icon { display: none; }
+.kingkong-icon { width: 24px; height: 24px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; color: var(--brand); }
+.kingkong-icon :deep(svg) { width: 20px; height: 20px; }
 .kingkong-label { font-weight: 400; }
 @media (min-width: 641px) {
   .kingkong-item { font-size: 19px; }
@@ -586,6 +563,8 @@ onMounted(() => {
 .ind-pct { font-weight: 700; font-variant-numeric: tabular-nums; flex-shrink: 0; font-size: 16px; }
 
 /* 底部声明 */
+.help-icon-svg { display: inline-block; cursor: help; color: var(--text-secondary); vertical-align: middle; }
+
 .footer-note-bar {
   text-align: left; padding: var(--space-xl) 0; font-size: 14px; color: var(--text-secondary); line-height: 1.8;
   border-top: 1px solid var(--border); margin-top: var(--space-xl);
