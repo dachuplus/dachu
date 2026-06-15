@@ -15,30 +15,41 @@
 
     <!-- 筛选区 -->
     <div class="filter-section">
-      <!-- 分类数据源（下拉） -->
+      <!-- 分类数据源 -->
       <div class="filter-row">
         <span class="filter-label">分类：</span>
-        <select class="filter-select" :value="classSource" @change="e => setClassSource(e.target.value)">
-          <option v-for="src in classSources" :key="src.key" :value="src.key" :disabled="!src.available">
-            {{ src.label }}{{ src.available ? '' : '（接入中）' }}
-          </option>
-        </select>
+        <div class="filter-chips">
+          <div class="filter-chip" :class="{ active: classSource === 'hspj' }" @click="setClassSource('hspj')">聚源</div>
+          <div class="filter-chip" :class="{ active: classSource === 'tt' }" @click="setClassSource('tt')">天天</div>
+          <div class="filter-chip more-chip" @click="showMoreSources = !showMoreSources">
+            更多 ▾
+            <div class="source-dropdown" v-if="showMoreSources" @click.stop>
+              <div v-for="src in otherSources" :key="src.key" class="source-drop-item"
+                :class="{ disabled: !src.available }"
+                @click="setClassSource(src.key); showMoreSources = false">
+                {{ src.label }}{{ src.available ? '' : '（接入中）' }}
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
 
-      <!-- 一级分类（下拉） -->
+      <!-- 一级分类 -->
       <div class="filter-row">
-        <select class="filter-select" :value="filterT0" @change="e => setT0(e.target.value)">
-          <option value="">全部分类</option>
-          <option v-for="t0 in t0List" :key="t0" :value="t0">{{ t0 }}</option>
-        </select>
+        <span class="filter-label">一级分类</span>
+        <div class="filter-chips">
+          <div class="filter-chip" :class="{ active: filterT0 === '' }" @click="setT0('')">全部</div>
+          <div v-for="t0 in t0List" :key="t0" class="filter-chip" :class="{ active: filterT0 === t0 }" @click="setT0(t0)">{{ t0 }}</div>
+        </div>
       </div>
 
-      <!-- 二级分类（依赖一级，下拉） -->
+      <!-- 二级分类（依赖一级） -->
       <div class="filter-row" v-if="t1List.length > 0">
-        <select class="filter-select" :value="filterT1" @change="e => setT1(e.target.value)">
-          <option value="">全部二级</option>
-          <option v-for="t1 in t1List" :key="t1" :value="t1">{{ t1 }}</option>
-        </select>
+        <span class="filter-label">二级分类</span>
+        <div class="filter-chips">
+          <div class="filter-chip" :class="{ active: filterT1 === '' }" @click="setT1('')">全部</div>
+          <div v-for="t1 in t1List" :key="t1" class="filter-chip" :class="{ active: filterT1 === t1 }" @click="setT1(t1)">{{ t1 }}</div>
+        </div>
       </div>
 
       <!-- 更多筛选（展开/收起） -->
@@ -213,7 +224,7 @@
             class="fund-row"
           >
             <td class="col-code">{{ fund.c }}</td>
-            <td class="col-name" @click="openDetail(fund)">{{ fund.n }}</td>
+            <td class="col-name" @click="openDetail(fund)">{{ fund.n || '基金' + fund.c }}</td>
             <td class="col-num">{{ fmtNum(fund.scale) }}</td>
             <td class="col-pct">{{ fmtPct(fund.equityPct) }}</td>
             <td class="col-pct">{{ fmtPct(fund.bondPct) }}</td>
@@ -541,6 +552,8 @@ const classSources = [
   { key: 'jajx',   label: '济安金信', available: false },
   { key: 'yhfl',   label: '银河分类', available: false },
 ]
+const showMoreSources = ref(false)
+const otherSources = classSources.filter(s => s.key !== 'hspj' && s.key !== 'tt')
 
 // 自定义指标权重（6项）
 const showWeightPanel = ref(false)
@@ -970,6 +983,18 @@ onUnmounted(() => {
   color: #1d70b8; font-weight: 700; text-decoration: none;
   border-bottom: 4px solid #1d70b8; padding-bottom: 0;
 }
+.more-chip { position: relative; }
+.source-dropdown {
+  position: absolute; top: 100%; left: 0; z-index: 100;
+  background: #fff; border: 1px solid var(--border); min-width: 160px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+.source-drop-item {
+  padding: var(--space-sm) var(--space-md); font-size: 14px; cursor: pointer;
+  color: var(--text-primary); text-decoration: none;
+}
+.source-drop-item:hover { background: #f3f2f1; }
+.source-drop-item.disabled { color: var(--text-secondary); cursor: not-allowed; }
 
 .more-filter-toggle {
   display: flex; align-items: center; gap: 4px;

@@ -412,7 +412,7 @@ async function generateAiPortfolio() {
         .select('c,n,t0,k_all,score_grade')
         .not('k_all','is',null).gte('k_all', 70)
         .order('k_all', { ascending: false }).limit(30)
-      fundPool = (data || []).map(f => `${f.c} ${f.n} (靠谱${f.k_all?.toFixed(0)})`)
+      fundPool = (data || []).map(f => `${f.c} ${f.n || '基金'+f.c} (靠谱${f.k_all?.toFixed(0)})`)
     }
     if (fundPool.length === 0) {
       fundPool = ['510300 沪深300ETF', '159915 创业板ETF', '511260 10年国债ETF', '518880 黄金ETF', '512100 中证1000ETF', '510500 中证500ETF', '512880 证券ETF', '512010 医药ETF', '159928 消费ETF', '512480 半导体ETF', '512660 军工ETF', '512800 银行ETF', '515030 新能源ETF', '512980 传媒ETF', '159985 豆粕ETF']
@@ -533,7 +533,7 @@ async function fetchAllETFs(items) {
       const funds = data || []; const etfs = []
       if (funds.length > 0) {
         const pw = Math.round(item.weight / funds.length); const used = pw * (funds.length - 1)
-        funds.forEach((f, idx) => etfs.push({ code: f.c, name: f.n, weight: idx === funds.length - 1 ? item.weight - used : pw, k3: f.k3, r3y: f.r3y, reason: '靠谱指数(3年) ' + (f.k3||0).toFixed(1) }))
+        funds.forEach((f, idx) => etfs.push({ code: f.c, name: f.n || '基金'+f.c, weight: idx === funds.length - 1 ? item.weight - used : pw, k3: f.k3, r3y: f.r3y, reason: '靠谱指数(3年) ' + (f.k3||0).toFixed(1) }))
       }
       return { ...item, etfs, loading: false }
     } catch { return { ...item, etfs: [], loading: false } }
