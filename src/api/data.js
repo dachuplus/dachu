@@ -66,7 +66,7 @@ export async function fetchFundMeta() {
     const { data, error } = await supabase
       .from('fund_scores_meta')
       .select('*')
-      .order('id', { ascending: false })
+      .order('tsq', { ascending: false })
       .limit(1)
       .single()
     if (error) return null

@@ -149,6 +149,46 @@
         </div>
       </div>
 
+      <!-- 自定义指标入口 -->
+      <div class="weight-entry-row">
+        <div class="weight-toggle" @click="showWeightPanel = !showWeightPanel">
+          <SvgIcon name="gear" :size="16" class="wt-icon" /> 自定义指标
+        </div>
+      </div>
+
+      <!-- 自定义指标面板 -->
+      <div class="weight-panel" v-if="showWeightPanel">
+        <div class="weight-panel-header">
+          <span>自定义评分权重（合计 100%）
+            <span class="weight-sum" :class="{ valid: weightSum === 100, invalid: weightSum !== 100 }">当前：{{ weightSum }}%</span>
+          </span>
+          <span class="weight-panel-close" @click="showWeightPanel = false"><SvgIcon name="close" :size="16" /></span>
+        </div>
+        <div class="weight-sliders">
+          <div class="weight-row" v-for="item in weightItems" :key="item.key">
+            <span class="weight-label">{{ item.label }}</span>
+            <input type="range" :min="0" :max="100" :value="item.value" class="weight-range" @input="e => item.value = Number(e.target.value)" />
+            <input type="number" :min="0" :max="100" :value="item.value" class="weight-num" @input="e => item.value = Number(e.target.value)" />%
+          </div>
+        </div>
+        <div class="weight-actions">
+          <button class="btn-reset" @click="resetWeights">恢复默认</button>
+          <button class="btn-confirm" :disabled="weightSum !== 100" @click="applyCustomWeights">确认</button>
+        </div>
+      </div>
+
+      <!-- 显示周期选择器 -->
+      <div class="period-select-row">
+        <span class="period-select-label">显示周期：</span>
+        <span v-for="p in displayPeriods" :key="p.key" class="period-tag" :class="{ active: currentPeriod === p.key }" @click="switchPeriod(p.key)">
+          {{ p.label }}
+        </span>
+        <select class="period-select" :value="extraPeriod" @change="e => extraPeriod = e.target.value">
+          <option value="">+ 选择其他周期</option>
+          <option v-for="p in availableExtraPeriods" :key="p.key" :value="p.key">{{ p.label }}</option>
+        </select>
+      </div>
+
       <!-- 筛选结果数量 -->
       <div class="filter-result-row" v-if="dataLoaded">
         <span class="filter-result-count">
@@ -160,49 +200,8 @@
       </div>
     </div>
 
-    <!-- 周期Tab + 自定义指标 -->
-    <div class="toolbar">
-      <div class="period-tabs">
-        <div
-          v-for="p in periods"
-          :key="p.key"
-          class="period-tab"
-          :class="{ active: currentPeriod === p.key }"
-          @click="switchPeriod(p.key)"
-        >
-          {{ p.label }}
-          <span class="sort-arrow" v-if="currentPeriod === p.key">
-            {{ sortAsc ? '▲' : '▼' }}
-          </span>
-        </div>
-        <div class="weight-toggle" @click="showWeightPanel = !showWeightPanel">
-          <SvgIcon name="gear" :size="16" class="wt-icon" /> 自定义指标
-        </div>
-      </div>
-    </div>
-
-    <!-- 自定义指标面板 -->
-    <div class="weight-panel" v-if="showWeightPanel">
-      <div class="weight-panel-header">
-        <span>自定义评分权重（合计 100%）
-          <span class="weight-sum" :class="{ valid: weightSum === 100, invalid: weightSum !== 100 }">当前：{{ weightSum }}%</span>
-        </span>
-        <span class="weight-panel-close" @click="showWeightPanel = false"><SvgIcon name="close" :size="16" /></span>
-      </div>
-      <div class="weight-sliders">
-        <div class="weight-row" v-for="item in weightItems" :key="item.key">
-          <span class="weight-label">{{ item.label }}</span>
-          <input type="range" :min="0" :max="100" :value="item.value" class="weight-range" @input="e => item.value = Number(e.target.value)" />
-          <input type="number" :min="0" :max="100" :value="item.value" class="weight-num" @input="e => item.value = Number(e.target.value)" />%
-        </div>
-      </div>
-      <div class="weight-actions">
-        <button class="btn-reset" @click="resetWeights">恢复默认</button>
-        <button class="btn-confirm" :disabled="weightSum !== 100" @click="applyCustomWeights">确认</button>
-      </div>
-    </div>
-    <!-- 基金列表 - 横向表格 -->
-    <div class="fund-table-wrap" v-if="funds.length > 0">
+    <!-- 基金列表 - 桌面端：横向表格 -->
+    <div class="fund-table-wrap" v-if="!isMobile && funds.length > 0">
       <table class="fund-table">
         <thead>
           <tr>
@@ -212,16 +211,7 @@
             <th class="col-name sortable" @click="toggleColumnSort('n')">
               简称<span class="th-arrow" v-if="sortField === 'n'">{{ sortDir === 'asc' ? '▲' : '▼' }}</span>
             </th>
-            <th class="col-num sortable" @click="toggleColumnSort('scale')">
-              规模(亿)<span class="th-arrow" v-if="sortField === 'scale'">{{ sortDir === 'asc' ? '▲' : '▼' }}</span>
-            </th>
-            <th class="col-pct sortable" @click="toggleColumnSort('equityPct')">
-              权益%<span class="th-arrow" v-if="sortField === 'equityPct'">{{ sortDir === 'asc' ? '▲' : '▼' }}</span>
-            </th>
-            <th class="col-pct sortable" @click="toggleColumnSort('bondPct')">
-              债券%<span class="th-arrow" v-if="sortField === 'bondPct'">{{ sortDir === 'asc' ? '▲' : '▼' }}</span>
-            </th>
-            <th v-for="p in periods" :key="p.key" class="col-score sortable" :class="{ 'col-sort': currentPeriod === p.key }" @click="switchPeriod(p.key)">
+            <th v-for="p in displayPeriods" :key="p.key" class="col-score sortable" :class="{ 'col-sort': currentPeriod === p.key }" @click="switchPeriod(p.key)">
               {{ p.label }}<span class="th-arrow" v-if="currentPeriod === p.key">{{ sortAsc ? '▲' : '▼' }}</span>
             </th>
             <th class="col-actions">操作</th>
@@ -235,10 +225,7 @@
           >
             <td class="col-code">{{ fund.c }}</td>
             <td class="col-name" @click="openDetail(fund)">{{ fund.n || '基金' + fund.c }}</td>
-            <td class="col-num">{{ fmtNum(fund.scale) }}</td>
-            <td class="col-pct">{{ fmtPct(fund.equityPct) }}</td>
-            <td class="col-pct">{{ fmtPct(fund.bondPct) }}</td>
-            <td v-for="p in periods" :key="p.key" class="col-score" :class="{ 'col-sort': currentPeriod === p.key }">
+            <td v-for="p in displayPeriods" :key="p.key" class="col-score" :class="{ 'col-sort': currentPeriod === p.key }">
               <span class="score-val" :class="scoreCls(fund[p.key])">{{ fmtScore(fund[p.key]) }}</span>
             </td>
             <td class="col-actions">
@@ -257,9 +244,52 @@
       </table>
     </div>
 
+    <!-- 基金列表 - 移动端：卡片布局 -->
+    <div class="mobile-fund-list" v-if="isMobile && funds.length > 0">
+      <div
+        v-for="fund in sortedFunds"
+        :key="fund.c"
+        class="fund-card"
+        @click="openDetail(fund)"
+      >
+        <div class="fund-card-top">
+          <span class="fund-code">{{ fund.c }}</span>
+          <span class="fund-name">{{ fund.n || '基金' + fund.c }}</span>
+          <span class="fund-card-actions" @click.stop>
+            <span class="action-icon" title="点赞" @click="thumbUp(fund)">
+              <SvgIcon name="thumbs-up" :size="16" />
+            </span>
+            <span class="action-icon" title="吐槽" @click="thumbDown(fund)">
+              <SvgIcon name="thumbs-down" :size="16" />
+            </span>
+            <span class="action-icon" title="加入组合" @click="addToPortfolio(fund)">
+              <SvgIcon name="plus-circle" :size="16" />
+            </span>
+          </span>
+        </div>
+        <div class="fund-card-scores">
+          <span
+            v-for="p in displayPeriods"
+            :key="p.key"
+            class="score-chip"
+            :class="{ 'score-chip-active': currentPeriod === p.key }"
+            @click.stop="switchPeriod(p.key)"
+          >
+            <span class="chip-label">{{ p.label }}</span>
+            <span class="chip-val" :class="scoreCls(fund[p.key])">{{ fmtScore(fund[p.key]) }}</span>
+          </span>
+        </div>
+      </div>
+    </div>
+
     <!-- 加载更多 -->
     <div class="load-more" v-if="hasMore && funds.length > 0" @click="loadMore">
       {{ loading ? '加载中...' : '加载更多' }}
+    </div>
+
+    <!-- 已加载完全部 -->
+    <div class="loaded-all" v-if="!hasMore && funds.length > 0 && dataLoaded">
+      已加载全部 <strong>{{ funds.length }}</strong> 只
     </div>
 
     <!-- 空状态 -->
@@ -275,8 +305,8 @@
 
     <!-- 底部说明 -->
     <div class="bottom-info" v-if="dataLoaded">
-      <p class="bottom-line" v-if="meta.nav_date || meta.tsq">
-        <span>更新时间：{{ meta.nav_date || fmtUpdateTime(meta.tsq) }}</span>
+      <p class="bottom-line" v-if="meta.tsq">
+        <span>更新时间：{{ fmtUpdateTime(meta.tsq) }}</span>
       </p>
       <p class="bottom-line">数据来源：公募基金公开数据</p>
       <p class="bottom-line">评分说明：靠谱指数评分为综合收益率、最大回撤、夏普比率、卡玛比率，信息比率，跟踪误差等指标，在全市场排名后加权计算。满分100分，分值越高表现越优秀。</p>
@@ -481,9 +511,25 @@ const periods = [
   { key: 'k2',  label: '2年' },
   { key: 'k3',  label: '3年' },
   { key: 'k5',  label: '5年' },
-  { key: 'k7',  label: '7年' },
-  { key: 'k10', label: '10年' },
 ]
+
+// 默认显示周期 + 可选额外周期
+const defaultPeriodKeys = ['k1', 'k3', 'k5']   // 始终显示：1年/3年/5年
+const extraPeriod = ref('')                      // 用户自选的第4列周期
+
+const displayPeriods = computed(() => {
+  const result = periods.filter(p => defaultPeriodKeys.includes(p.key))
+  if (extraPeriod.value) {
+    const ep = periods.find(p => p.key === extraPeriod.value)
+    if (ep) result.push(ep)
+  }
+  return result
+})
+
+// 可选周期（排除默认已显示的）
+const availableExtraPeriods = computed(() =>
+  periods.filter(p => !defaultPeriodKeys.includes(p.key))
+)
 
 const riskPeriods = [
   { label: '近1年', dd: 'dd1y', sr: 'sr1y' },
@@ -573,6 +619,10 @@ const CAT_TREE_TT = {
     'FOF-进取型': ['FOF-进取型'],
   },
 }
+
+// ========== 响应式断点 ==========
+const isMobile = ref(window.innerWidth < 641)
+function onResize() { isMobile.value = window.innerWidth < 641 }
 
 // ========== 状态 ==========
 const funds = ref([])
@@ -1012,11 +1062,13 @@ function openDetail(fund) {
 
 onMounted(() => {
   document.title = '靠谱指数工具-评分 | ALLFUND.CN'
+  window.addEventListener('resize', onResize)
   loadData()
   loadMeta()
 })
 onUnmounted(() => {
   document.title = 'ALLFUND.CN - 投资工作助手'
+  window.removeEventListener('resize', onResize)
 })
 </script>
 
@@ -1117,39 +1169,37 @@ onUnmounted(() => {
 .more-filter-body { border-top: 1px solid var(--border); padding-bottom: var(--space-sm); }
 .filter-tip { padding: var(--space-sm) var(--space-md); font-size: 14px; color: var(--text-secondary); }
 
-/* 周期Tab */
-.toolbar {
-  display: flex; align-items: center; gap: var(--space-md);
-  padding: var(--space-sm) var(--space-md); background: #ffffff;
-  border-bottom: 1px solid var(--border);
-}
-.period-tabs { display: flex; gap: 0; overflow-x: auto; white-space: nowrap; flex: 1; }
-.period-tab {
-  flex-shrink: 0; padding: 8px 16px; font-size: 16px; color: var(--link);
-  cursor: pointer; border-bottom: 4px solid transparent; text-decoration: none;
-  font-weight: 400;
-}
-.period-tab:hover { border-bottom-color: var(--border); }
-.period-tab.active {
-  color: #1d70b8; font-weight: 700; border-bottom-color: #1d70b8;
-}
-.sort-arrow { font-size: 12px; margin-left: 4px; }
+/* 周期Tab - 已移除 toolbar 行，周期选择通过表头点击完成 */
 
 .filter-result-row {
+  display: flex; align-items: center; justify-content: space-between; gap: var(--space-md);
   padding: var(--space-sm) var(--space-md); background: #f3f2f1;
   border-top: 1px solid var(--border);
 }
+.filter-result-left { display: flex; align-items: center; gap: var(--space-md); flex-wrap: wrap; }
 .filter-result-count { font-size: 16px; color: var(--text-secondary); }
 .filter-result-count strong { color: #0b0c0c; font-weight: 700; }
+.filter-update-time { font-size: 13px; color: var(--text-secondary); }
+.filter-update-time::before { content: '·'; margin-right: 6px; }
 
 /* 基金列表 - 横向滚动表格 */
 .fund-table-wrap {
   overflow-x: auto; -webkit-overflow-scrolling: touch;
   border-top: 1px solid var(--border);
+  position: relative;
+}
+.fund-table-wrap::-webkit-scrollbar {
+  height: 6px;
+}
+.fund-table-wrap::-webkit-scrollbar-thumb {
+  background: #b1b4b6; border-radius: 3px;
+}
+.fund-table-wrap::-webkit-scrollbar-track {
+  background: #f3f2f1;
 }
 .fund-table {
   width: 100%; border-collapse: collapse; font-size: 14px; white-space: nowrap;
-  min-width: 1100px;
+  min-width: 900px;
 }
 .fund-table thead { background: #f3f2f1; }
 .fund-table th {
@@ -1165,6 +1215,16 @@ onUnmounted(() => {
 .fund-row:hover { background: #f8f8f8; }
 
 .col-code { width: 80px; font-weight: 700; color: var(--text-secondary); font-family: monospace; font-size: 13px; }
+/* 固定首列 */
+.fund-table th.col-code {
+  position: sticky; left: 0; z-index: 3;
+}
+.fund-table td.col-code {
+  position: sticky; left: 0; z-index: 1; background: #fff;
+}
+.fund-row:hover td.col-code {
+  background: #f8f8f8;
+}
 .col-name { max-width: 180px; font-weight: 700; cursor: pointer; color: var(--link); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .col-name:hover { text-decoration: underline; }
 .col-num { width: 80px; text-align: right; color: var(--text-secondary); }
@@ -1173,6 +1233,66 @@ onUnmounted(() => {
 .col-score .score-val { font-weight: 700; font-size: 13px; }
 .col-sort { background: #e8f0fe; }
 .col-actions { width: 90px; text-align: center; }
+
+/* ===== 移动端卡片布局 ===== */
+.mobile-fund-list {
+  border-top: 1px solid var(--border);
+}
+
+.fund-card {
+  padding: var(--space-md); border-bottom: 1px solid var(--border);
+  cursor: pointer; background: #fff;
+}
+.fund-card:active { background: #f3f2f1; }
+
+.fund-card-top {
+  display: flex; align-items: center; gap: var(--space-sm);
+}
+
+.fund-code {
+  font-size: 13px; font-weight: 700; color: var(--text-secondary);
+  font-family: monospace; flex-shrink: 0; min-width: 56px;
+}
+
+.fund-name {
+  flex: 1; font-size: 15px; font-weight: 700; color: var(--link);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  min-width: 0; line-height: 1.4;
+}
+
+.fund-card-actions {
+  display: flex; align-items: center; gap: 2px; flex-shrink: 0;
+}
+
+.action-icon {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 28px; height: 28px; cursor: pointer; color: var(--text-muted);
+}
+.action-icon:active { color: var(--brand); }
+
+.fund-card-scores {
+  display: flex; gap: var(--space-sm); margin-top: 8px;
+  flex-wrap: wrap;
+}
+
+.score-chip {
+  display: flex; align-items: center; gap: 3px;
+  padding: 3px 10px; border: 1px solid var(--border);
+  background: #f8f8f8;
+}
+
+.score-chip-active {
+  border-color: #1d70b8; background: #e8f0fe;
+  box-shadow: inset 0 0 0 1px #1d70b8;
+}
+
+.chip-label {
+  font-size: 11px; color: var(--text-secondary); font-weight: 400;
+}
+
+.chip-val {
+  font-size: 14px; font-weight: 700;
+}
 
 /* 可排序表头 */
 .sortable { cursor: pointer; user-select: none; }
@@ -1197,6 +1317,45 @@ onUnmounted(() => {
   text-align: center; padding: var(--space-lg);
   font-size: 16px; color: var(--link); cursor: pointer; text-decoration: underline;
 }
+.load-more:hover { background: #f3f2f1; }
+.loaded-all {
+  padding: var(--space-md); text-align: center; font-size: 14px; color: var(--text-secondary);
+  border-top: 1px solid var(--border);
+}
+.loaded-all strong { color: #0b0c0c; font-weight: 700; }
+
+/* 自定义指标入口（加载更多后） */
+.weight-entry-row {
+  display: flex; justify-content: center;
+  padding: var(--space-lg); border-top: 1px solid var(--border);
+}
+
+/* 显示周期选择器 */
+.period-select-row {
+  display: flex; align-items: center; gap: var(--space-xs);
+  padding: var(--space-sm) var(--space-md);
+  background: #f3f2f1;
+  flex-wrap: wrap;
+}
+.period-select-label {
+  font-size: 14px; color: var(--text-secondary); font-weight: 700;
+}
+.period-tag {
+  display: inline-block; padding: 4px 12px;
+  font-size: 14px; color: var(--link);
+  cursor: pointer; border: 1px solid var(--border);
+  background: #fff;
+}
+.period-tag:hover { border-color: #1d70b8; }
+.period-tag.active {
+  color: #fff; background: #1d70b8; border-color: #1d70b8;
+}
+.period-select {
+  padding: 4px 8px; font-size: 14px;
+  border: 1px solid var(--border); color: var(--text-secondary);
+  background: #fff; cursor: pointer; margin-left: var(--space-xs);
+}
+.period-select:focus { border-color: #1d70b8; outline: none; }
 
 /* 状态 */
 .empty-state { text-align: center; padding: var(--space-2xl) var(--space-md); }
