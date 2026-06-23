@@ -97,6 +97,14 @@ jobs:
           echo "============================================"
           python scripts/import_via_rest.py
 
+      - name: 步骤3b — HSPJ 基金分类更新（基于聚源标准）
+        if: ${{ !inputs.skip_risk }}
+        run: |
+          echo "============================================"
+          echo "  步骤3b: HSPJ 分类更新 (聚源基金分类标准)"
+          echo "============================================"
+          python scripts/classify_hspj_from_json.py
+
       - name: 步骤3-alt — 仅收益靠谱分 REST API 导入（跳过风险指标）
         if: ${{ inputs.skip_risk }}
         run: |

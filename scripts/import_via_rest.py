@@ -13,14 +13,12 @@ if not MGMT_TOKEN:
 MGMT_API    = 'https://api.supabase.com/v1/projects/tqhtegazxykkqfcpejky/database/query'
 
 BATCH = 1000   # REST API 单次最多 1000 条
-COLS = [
-    'c','n','t0','t1','t2','t6','a','hp',
-    'ytd','r0w','r1m','r3m','r6m','r1y','r2y','r3y','r5y',
-    'nav','date',
+# fund_scores 表实际列（垂直分表后仅保留评分+分类+基础信息）
+# 其他列（收益/风险/规模等）已迁移到 fund_returns/fund_risks 等表
+FUND_SCORES_COLS = [
+    'c','n','t0','t1','t1_tt',
     'k0w','k1m','k3m','k6m','k1','k2','k3','k5','k7','k10',
     'k_all','score_grade',
-    'dd1y','dd2y','dd3y','dd5y','sr1y','sr2y','sr3y','sr5y',
-    'return_all',
 ]
 
 # ── 工具函数 ──────────────────────────────────────────────────────────────
@@ -82,22 +80,14 @@ def esc_null(v):
         return None
 
 def row_to_rest(r):
-    """把 NDJSON 的一行转成 REST API 需要的 dict"""
+    """把 NDJSON 的一行转成 REST API 需要的 dict（仅 fund_scores 表存在的列）"""
     d = {}
-    # 字符串字段：原样传递，空值传 None（REST API 会存 NULL）
-    for col in ('c','n','t0','t1','t2','t6','hp','date','score_grade'):
+    # 字符串字段
+    for col in ('c','n','t0','t1','t1_tt','score_grade'):
         v = r.get(col)
         d[col] = v if v and str(v).strip() else None
-    # 布尔字段
-    d['a'] = int(r.get('a', 0) or 0)
-    # 数值字段：用 esc_null（0→None，让 DB 存 NULL）
-    for col in ('ytd','r0w','r1m','r3m','r6m','r1y','r2y','r3y','r5y',
-                'nav',
-                'k0w','k1m','k3m','k6m','k1','k2','k3','k5','k7','k10',
-                'k_all',
-                'dd1y','dd2y','dd3y','dd5y',
-                'sr1y','sr2y','sr3y','sr5y',
-                'return_all'):
+    # 数值字段：评分相关
+    for col in ('k0w','k1m','k3m','k6m','k1','k2','k3','k5','k7','k10','k_all'):
         v = r.get(col)
         d[col] = esc_null(v)
     return d
@@ -293,11 +283,11 @@ if result and len(result) > 0:
 final_nav = nav_date or existing_nav
 pg(f"""UPDATE fund_scores_meta
     SET total_count = {len(funds)}, scored_count = {scored_count},
-        nav_date = '{final_nav}', tsq = NOW()::text
+        nav_date = '{final_nav}', tsq = NOW()
     WHERE id = 8""")
 if not result or len(result) == 0:
     pg(f"""INSERT INTO fund_scores_meta (id, total_count, scored_count, nav_date, tsq)
-        VALUES (8, {len(funds)}, {scored_count}, '{final_nav}', NOW()::text)""")
+        VALUES (8, {len(funds)}, {scored_count}, '{final_nav}', NOW())""")
 print(f'  ✓ meta 已更新 (id=8, total={len(funds)}, scored={scored_count}, date={final_nav})', flush=True)
 
 # 6. 验证

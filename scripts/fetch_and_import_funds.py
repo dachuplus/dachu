@@ -44,6 +44,71 @@ FT_MAP = {
 }
 FT_LIST = list(FT_MAP.keys())
 
+# ── 加载聚源分类映射 ────────────────────────────────────────────────
+HSPJ_MAP = {}
+HSPJ_NAMES = {}  # basename → [t0, t1]，用于份额基金匹配
+def load_hspj_map():
+    """加载聚源 Excel 分类映射 JSON 文件"""
+    global HSPJ_MAP, HSPJ_NAMES
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    map_path = os.path.join(script_dir, 'hspj_classify.json')
+    if os.path.exists(map_path):
+        with open(map_path, 'r') as f:
+            data = json.load(f)
+        HSPJ_MAP = data.get('code_map', {})
+        HSPJ_NAMES = data.get('name_map', {})
+        print(f'  ✓ 加载聚源分类映射: {len(HSPJ_MAP)} 主代码 + {len(HSPJ_NAMES)} 名称索引', flush=True)
+    else:
+        print('  ⚠ 未找到聚源分类映射文件，t1 将使用默认分类', flush=True)
+
+SHARE_SUFFIX_RE = None  # 编译后缓存的份额后缀正则
+
+def strip_share_suffix(name):
+    """去掉基金名称末尾的份额后缀 (A/B/C/D/E/Y等)"""
+    global SHARE_SUFFIX_RE
+    if SHARE_SUFFIX_RE is None:
+        import re
+        SHARE_SUFFIX_RE = re.compile(r'[ABCDEFHIORY]+$')
+    return SHARE_SUFFIX_RE.sub('', (name or '').strip())
+
+def classify_hspj(code, name, ft):
+    """
+    根据聚源 Excel 分类标准为基金分配 t1
+    返回: (t0, t1)
+    策略：
+    1. 直接代码匹配 → 使用 Excel 分类
+    2. 名称匹配（去掉份额后缀）→ 使用同名主基金的分类
+    3. 兜底 → 使用 FT_MAP[ft] 作为 t0 和 t1
+    
+    自学习：当通过代码匹配时，将主基金名称加入 HSPJ_NAMES，
+    使得同名的 B/C/D/E/Y 等份额基金能通过名称匹配到相同分类。
+    """
+    pure_code = code.replace('.OF', '')
+    
+    # 策略1: 直接代码匹配
+    if pure_code in HSPJ_MAP:
+        t0, t1 = HSPJ_MAP[pure_code]
+        # 自学习：将此主基金的 basename 加入名称索引
+        basename = strip_share_suffix(name)
+        if basename and basename not in HSPJ_NAMES:
+            HSPJ_NAMES[basename] = [t0, t1]
+        return (t0, t1)
+    
+    # 策略2: 名称匹配
+    basename = strip_share_suffix(name)
+    if basename in HSPJ_NAMES:
+        return tuple(HSPJ_NAMES[basename])
+    
+    # 策略3: 模糊匹配（尝试去掉更多尾部字符）
+    for trim_len in range(1, 4):
+        if len(basename) > trim_len + 2:
+            trimmed = basename[:-trim_len]
+            if trimmed in HSPJ_NAMES:
+                return tuple(HSPJ_NAMES[trimmed])
+    
+    # 兜底
+    return (FT_MAP[ft], FT_MAP[ft])
+
 
 def _float(v):
     try:
@@ -92,11 +157,15 @@ def fetch_funds(ft):
                 f = item.split(',')
                 if len(f) < 13:
                     continue
+                code = f[0].strip() + '.OF'
+                name = (f[1] or '').strip()
+                t0, t1 = classify_hspj(code, name, ft)
                 all_funds.append({
-                    'c': f[0].strip() + '.OF',
-                    'n': (f[1] or '').strip(),
-                    't0': FT_MAP[ft],
-                    't1': (f[3] or '').strip() or FT_MAP[ft],
+                    'c': code,
+                    'n': name,
+                    't0': t0,
+                    't1': t1,
+                    't1_tt': (f[3] or '').strip(),  # 天天基金 API 原始 t2 分类值
                     't2': (f[3] or '').strip(),
                     't6': '',
                     'a': 0,
@@ -310,6 +379,9 @@ def main():
     print('=' * 60)
     print('fund_scores 全量抓取 + Supabase 导入')
     print('=' * 60)
+
+    # 0. 加载聚源分类映射
+    load_hspj_map()
 
     # 1. 拉取天天基金全量
     print('\n[1] 拉取天天基金全量数据...')

@@ -40,13 +40,15 @@ export async function fetchFundScores(params = {}) {
   if (supabase) {
     let query = supabase.from('fund_scores').select('*', { count: 'exact' })
     if (t0) query = query.eq('t0', t0)
-    if (t1) query = query.eq('t1', t1)
+    // 分类筛选：天天基金用 t1_tt 列，恒生聚源用 t1 列
+    if (t1) {
+      const t1Col = classSource === 'tt' ? 't1_tt' : 't1'
+      query = query.eq(t1Col, t1)
+    }
     if (search) query = query.or(`n.ilike.%${search}%,c.ilike.%${search}%`)
     // 申购状态筛选（sg: '1'可申购, '0'暂停申购）
     if (sg === '1') query = query.eq('sg', 1)
     if (sg === '0') query = query.eq('sg', 0)
-    // classSource 预留：未来不同数据源可能使用不同分类字段（如 t0_hspj/t1_hspj vs t0_tt/t1_tt）
-    // 当前版本使用统一 t0/t1 字段，classSource 仅在前端影响分类树显示
     const from = (page - 1) * pageSize
     const { data, count, error } = await query
       .order(kKey, { ascending: !!sortAsc, nullsFirst: false })
