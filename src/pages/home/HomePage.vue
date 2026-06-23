@@ -124,7 +124,7 @@
         <div class="skeleton" style="height:14px; width:100%; margin-bottom:8px;"></div>
         <div class="skeleton" style="height:14px; width:80%;"></div>
       </div>
-      <router-link class="view-detail" to="/config">查看大类资产性价比详情 ></router-link>
+      <router-link class="view-detail" to="/signal?tab=allocate">查看大类资产性价比详情 ></router-link>
     </div>
 
     <!-- 参考基准 -->
@@ -203,7 +203,7 @@
       <div class="card-title">
         指数估值概览
         <span class="card-subtitle">PE百分位</span>
-        <span class="help-icon" @click="goToIndustryRank">详情 ></span>
+        <router-link class="help-icon" to="/signal?tab=industry">详情 ></router-link>
       </div>
       <div class="eva-quick">
         <div class="eva-section">
@@ -223,7 +223,7 @@
           </div>
         </div>
       </div>
-      <router-link class="view-detail" to="/tools/industry-rank">查看全部指数估值 ></router-link>
+      <router-link class="view-detail" to="/signal?tab=industry">查看全部指数估值 ></router-link>
     </div>
 
     <!-- 帮助弹窗 -->
@@ -248,7 +248,7 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { fetchValue500All, fetchDanjuanEva } from '../../utils/api'
-import { getIndexQuotes, buildMarketData } from '../../utils/market-data'
+import { getIndexQuotes, buildMarketData, parseValue500Data } from '../../utils/market-data'
 import { calcAllExpectedReturns, calcEnhancedRiskParityWeights, calcMarketSharpe, calcRiskPremium } from '../../utils/calc'
 
 // 行情数据
@@ -288,7 +288,6 @@ function loadDsPortfolios() {
     dsPortfolios.value = all.filter(p => p.strategyName && p.strategyName.includes('固收+')).slice(0, 3)
   } catch { dsPortfolios.value = [] }
 }
-const evaUpdateTime = ref('')
 
 // 帮助弹窗
 const helpKey = ref(null)
@@ -351,14 +350,7 @@ async function loadValue500() {
     ])
 
     // 解析 value500
-    const bondData = v500.bond?.code === 0 ? v500.bond.data : {}
-    const shiborData = v500.shibor?.code === 0 ? v500.shibor.data : {}
-    const m2Data = v500.m2?.code === 0 ? v500.m2.data : {}
-    const cpiData = v500.cpi?.code === 0 ? v500.cpi.data : {}
-    const epData = v500.ep?.code === 0 ? v500.ep.data : {}
-    const pe300Data = v500.pe300?.code === 0 ? v500.pe300.data : {}
-
-    const rf = (bondData.yield10y && bondData.yield10y > 0) ? bondData.yield10y : null
+    const { bond: bondData, shibor: shiborData, m2: m2Data, cpi: cpiData, ep: epData, pe300: pe300Data, rf } = parseValue500Data(v500)
 
     // 参考基准
     refData.value = {
@@ -443,8 +435,6 @@ async function loadValue500() {
           pct: d.pePercentile != null ? d.pePercentile.toFixed(2) + '%' : '--',
           color: d.evaColor || '#2ED573'
         }))
-        const dated = aStock.find(d => d.date)
-        if (dated) evaUpdateTime.value = dated.date
       }
     } catch (ee) {
       console.error('[home] 蛋卷估值获取失败', ee)
@@ -491,31 +481,6 @@ onMounted(() => {
 .home-help-close {
   text-align: center; margin-top: var(--space-lg); padding: var(--space-sm);
   font-size: 16px; cursor: pointer; color: var(--link); text-decoration: underline;
-}
-
-/* 金刚区 → 文字列表 */
-.kingkong-area {
-  border-top: 1px solid var(--border);
-  border-bottom: 1px solid var(--border);
-  margin-bottom: var(--space-xl);
-  padding: var(--space-sm) 0;
-}
-.kingkong-item {
-  display: flex;
-  align-items: center;
-  padding: var(--space-sm) 0;
-  text-decoration: none;
-  color: var(--link);
-  font-size: 16px;
-  border-bottom: 1px solid var(--border);
-}
-.kingkong-item:last-child { border-bottom: none; }
-.kingkong-item:hover { color: var(--link-hover); text-decoration: underline; }
-.kingkong-icon { width: 24px; height: 24px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; color: var(--brand); }
-.kingkong-icon :deep(svg) { width: 20px; height: 20px; }
-.kingkong-label { font-weight: 400; }
-@media (min-width: 641px) {
-  .kingkong-item { font-size: 19px; }
 }
 
 /* 行情条 */

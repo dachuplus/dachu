@@ -32,10 +32,10 @@ def pg_query(sql):
         return None
 
 
-def calc_scores_v5(funds):
+def calc_scores_v7(funds):
     """
-    v5 靠谱指数计算（全市场统一排名百分位×100）
-    权重：收益排位×60% + 回撤排位×30% + 夏普排位×10%
+    v7 靠谱指数计算（全市场统一排名百分位×100）
+    权重：收益排位×50% + 回撤排位×25% + 夏普排位×25%
     """
     periods = [
         {'k': 'k0w', 'r': 'r0w', 'dd': None, 'sr': None},
@@ -183,8 +183,8 @@ def main():
         sys.exit(1)
 
     # 2. 重新计算靠谱分
-    print(f'\n[2] 重新计算靠谱指数 v5（{len(funds)}只基金，全周期）...')
-    calc_scores_v5(funds)
+    print(f'\n[2] 重新计算靠谱指数 v7（{len(funds)}只基金，全周期）...')
+    calc_scores_v7(funds)
 
     # 统计
     for pk in ['k0w', 'k1m', 'k3m', 'k6m', 'k1', 'k2', 'k3', 'k5']:

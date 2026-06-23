@@ -41,18 +41,18 @@ const routes = [
     component: () => import('../pages/profile/ProfilePage.vue'),
     meta: { tab: 'profile', title: '我的' }
   },
-  // 旧路径重定向
+  // 旧路径重定向（带 tab 参数，跳转到正确视图）
   {
     path: '/config',
-    redirect: '/signal'
+    redirect: '/signal?tab=allocate'
   },
   {
     path: '/style-factor',
-    redirect: '/signal'
+    redirect: '/signal?tab=factor'
   },
   {
     path: '/tools/industry-rank',
-    redirect: '/signal'
+    redirect: '/signal?tab=industry'
   },
 ]
 

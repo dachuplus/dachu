@@ -138,3 +138,46 @@ ALTER TABLE fund_scores_meta ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Allow anon read on fund_scores_meta" ON fund_scores_meta FOR SELECT TO anon USING (true);
 CREATE POLICY "Allow anon upsert on fund_scores_meta" ON fund_scores_meta FOR INSERT TO anon WITH CHECK (true);
 CREATE POLICY "Allow anon update on fund_scores_meta" ON fund_scores_meta FOR UPDATE TO anon USING (true) WITH CHECK (true);
+
+-- ============================================================
+-- 6. user_profiles - 用户注册/登录信息
+-- ============================================================
+CREATE TABLE IF NOT EXISTS user_profiles (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL UNIQUE REFERENCES auth.users(id) ON DELETE CASCADE,
+  email VARCHAR(255),
+  display_name VARCHAR(100),
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  last_login_at TIMESTAMP WITH TIME ZONE,
+  login_count INTEGER DEFAULT 0,
+  tsq TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_user_profiles_user_id ON user_profiles(user_id);
+
+ALTER TABLE user_profiles ENABLE ROW LEVEL SECURITY;
+-- 用户只能读写自己的 profile
+CREATE POLICY "Users read own profile" ON user_profiles FOR SELECT TO authenticated USING (auth.uid() = user_id);
+CREATE POLICY "Users insert own profile" ON user_profiles FOR INSERT TO authenticated WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "Users update own profile" ON user_profiles FOR UPDATE TO authenticated USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
+
+-- ============================================================
+-- 7. user_portfolios - 用户自建组合
+-- ============================================================
+CREATE TABLE IF NOT EXISTS user_portfolios (
+  id BIGSERIAL PRIMARY KEY,
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  name VARCHAR(200) NOT NULL DEFAULT '我的组合',
+  portfolio_data JSONB NOT NULL DEFAULT '[]'::jsonb,  -- [{code, name, weight, addedAt}]
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  tsq TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_user_portfolios_user_id ON user_portfolios(user_id);
+
+ALTER TABLE user_portfolios ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Users read own portfolios" ON user_portfolios FOR SELECT TO authenticated USING (auth.uid() = user_id);
+CREATE POLICY "Users insert own portfolios" ON user_portfolios FOR INSERT TO authenticated WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "Users update own portfolios" ON user_portfolios FOR UPDATE TO authenticated USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "Users delete own portfolios" ON user_portfolios FOR DELETE TO authenticated USING (auth.uid() = user_id);

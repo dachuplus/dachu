@@ -433,3 +433,37 @@ export function buildMarketData(quotes, peData, options) {
     }
   }
 }
+
+// ===== 4. value500 数据解析（共享工具） =====
+
+/**
+ * 从 value500 API 返回结果中安全提取数据字段
+ * @param {Object} v500 - fetchValue500All() 的返回值 { bond: {code, data}, shibor: {...}, ... }
+ * @returns {Object} { bond, shibor, m2, cpi, ep, pe300, rf, get }
+ *   - bond/shibor/m2/cpi/ep/pe300: 各页面解析后的 data 对象
+ *   - rf: 无风险利率（10Y国债收益率）
+ *   - get(key): 泛型提取器，用于额外页面（如 gold/usdx/bdi/ppi/pmi）
+ */
+export function parseValue500Data(v500) {
+  const extract = (key) => v500[key]?.code === 0 ? v500[key].data : {}
+
+  const bondData = extract('bond')
+  const shiborData = extract('shibor')
+  const m2Data = extract('m2')
+  const cpiData = extract('cpi')
+  const epData = extract('ep')
+  const pe300Data = extract('pe300')
+
+  const rf = (bondData.yield10y && bondData.yield10y > 0) ? bondData.yield10y : null
+
+  return {
+    bond: bondData,
+    shibor: shiborData,
+    m2: m2Data,
+    cpi: cpiData,
+    ep: epData,
+    pe300: pe300Data,
+    rf,
+    get: extract
+  }
+}

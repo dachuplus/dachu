@@ -254,12 +254,13 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted, nextTick, watch } from 'vue'
-import * as echarts from 'echarts'
-import { getIndexQuotes, buildMarketData } from '../../utils/market-data'
+import { ref, reactive, computed, onMounted, onUnmounted, nextTick, watch } from 'vue'
+import { useRoute } from 'vue-router'
+import echarts from '../../utils/echarts-setup'
+import { getIndexQuotes, buildMarketData, parseValue500Data } from '../../utils/market-data'
 import { calcAllExpectedReturns, calcEnhancedRiskParityWeights, calcMarketSharpe, calcRiskPremium } from '../../utils/calc'
 import { fetchValue500All, fetchDanjuanEva } from '../../utils/api'
-import { COLORS, createGovukChart } from '../../utils/echarts-theme'
+import { COLORS } from '../../utils/echarts-theme'
 import { supabase } from '../../api/supabase'
 
 // ===== Tab 结构 =====
@@ -280,14 +281,6 @@ const refreshing = ref(false)
 
 // ===== 宏觀數據 =====
 const bondY10y = ref(null)
-const bondSpread = ref(null)
-const shiborOn = ref(null)
-const shiborDate = ref('')
-const m2Growth = ref(null)
-const cpi = ref(null)
-const cpiDate = ref('')
-const epDate = ref('')
-const marketSharpeVal = ref(null)
 const dashData = ref(null)
 
 // ===== 资产配置 =====
@@ -314,7 +307,6 @@ const macroList = ref([
 // "更多"展开状态
 const macroExpand = reactive({})
 const macroHistory = reactive({}) // 完整历史数据缓存
-const macroIndexHistory = ref(null) // 上证指数对齐后的历史数据 (keyed by date string)
 const MACRO_DEFAULT_WINDOW = 250 // dataZoom 默认窗口：250个数据点（约1年日线）
 
 const chartRefs = {}
@@ -428,29 +420,15 @@ async function loadAll() {
       fetchValue500All()
     ])
 
-    const bondData = v500.bond?.code === 0 ? v500.bond.data : {}
-    const shiborData = v500.shibor?.code === 0 ? v500.shibor.data : {}
-    const m2Data = v500.m2?.code === 0 ? v500.m2.data : {}
-    const cpiData = v500.cpi?.code === 0 ? v500.cpi.data : {}
-    const epData = v500.ep?.code === 0 ? v500.ep.data : {}
-    const pe300Data = v500.pe300?.code === 0 ? v500.pe300.data : {}
-    const goldData = v500.gold?.code === 0 ? v500.gold.data : {}
-    const usdxData = v500.usdx?.code === 0 ? v500.usdx.data : {}
-    const bdiData = v500.bdi?.code === 0 ? v500.bdi.data : {}
-    const ppiData = v500.ppi?.code === 0 ? v500.ppi.data : {}
-    const pmiData = v500.pmi?.code === 0 ? v500.pmi.data : {}
-
-    const rf = (bondData.yield10y && bondData.yield10y > 0) ? bondData.yield10y : null
+    const { bond: bondData, shibor: shiborData, m2: m2Data, cpi: cpiData, ep: epData, pe300: pe300Data, rf, get: v500Get } = parseValue500Data(v500)
+    const goldData = v500Get('gold')
+    const usdxData = v500Get('usdx')
+    const bdiData = v500Get('bdi')
+    const ppiData = v500Get('ppi')
+    const pmiData = v500Get('pmi')
 
     // 宏观数据
     bondY10y.value = bondData.yield10y ?? null
-    bondSpread.value = bondData.spread ?? null
-    shiborOn.value = shiborData.on ?? null
-    shiborDate.value = shiborData.date || ''
-    m2Growth.value = m2Data.m2yoy ?? null
-    cpi.value = cpiData.cpi ?? null
-    cpiDate.value = cpiData.date || ''
-    epDate.value = epData.date || ''
 
     // 更新时间
     const firstQuote = quotes['sh000001'] || quotes['sh000300'] || {}
@@ -498,7 +476,6 @@ async function loadAll() {
 
     // 全市场夏普
     const ms = calcMarketSharpe(rpResult.sharpeMap)
-    marketSharpeVal.value = ms
     dashData.value = {
       value: ms != null ? ms : 0,
       label: ms != null ? (ms > 0 ? '市场性价比偏正面' : '市场性价比偏负面') : '无数据'
@@ -547,7 +524,7 @@ async function loadAll() {
     }))
 
     // 风格因子
-    calcStyleFactors(marketData, v300Pct, pe300Data)
+    calcStyleFactors(quotes, v300Pct, pe300Data)
 
     // 债券利差
     bondSpreads.value = bondData.spread != null
@@ -581,28 +558,67 @@ async function loadAll() {
 }
 
 // ===== 风格因子计算 =====
-function calcStyleFactors(marketData, v300Pct, pe300Data) {
+function calcStyleFactors(quotes, v300Pct, pe300Data) {
+  const hs300 = quotes['沪深300'] || quotes['sh000300'] || {}
+  const sz50 = quotes['上证50'] || quotes['sh000016'] || {}
+  const zz500 = quotes['中证500'] || quotes['sh000905'] || {}
+  const cyb = quotes['创业板指'] || quotes['sz399006'] || {}
+  const zzhl = quotes['中证红利'] || quotes['sh000922'] || {}
+
+  const hs300PE = hs300.pe || 0
+  const hs300Pct = v300Pct != null ? v300Pct : 50
+
+  // Helper: estimate percentile from index PE relative to 沪深300 PE, anchored on hs300Pct
+  function peToPercentile(idxPE, normalRatio = 1.0) {
+    if (!idxPE || idxPE <= 0 || !hs300PE || hs300PE <= 0) return hs300Pct
+    // Ratio vs normal: >1 means more expensive relative to normal, so higher percentile
+    const currentRatio = idxPE / hs300PE
+    const deviation = currentRatio / normalRatio
+    // Sigmoid-like mapping: deviation 1.0 → hs300Pct, deviation >1 shifts upward
+    let pct = hs300Pct + (deviation - 1) * 80
+    return Math.max(5, Math.min(95, Math.round(pct)))
+  }
+
+  // Typical PE ratios relative to 沪深300
+  const TYPICAL_RATIOS = {
+    value:     0.75,  // 中证红利 usually trades at lower PE
+    size:      1.30,  // 中证500 usually higher PE
+    growth:    1.80,  // 创业板 usually much higher PE
+    quality:   0.85,  // 上证50 similar or slightly lower
+  }
+
+  const valuePE = zzhl.pe || sz50.pe || 0
+  const sizePE = zz500.pe || 0
+  const growthPE = cyb.pe || 0
+  const qualityPE = sz50.pe || 0
+
+  // Momentum: map changePct to 0-100 scale (typical daily range -3% to +3%)
+  const momentumPct = hs300.changePct || 0
+  const momentumPercentile = Math.max(5, Math.min(95, Math.round(50 + momentumPct * 15)))
+
+  // Low vol: proxy using 中证500 changePct inverse (less volatile → lower change)
+  const zz500Change = zz500.changePct || 0
+  const volPercentile = Math.max(5, Math.min(95, Math.round(50 - zz500Change * 10)))
+
   const factors = [
-    { key: 'value', name: '价值', sources: ['sh000922', 'sh000016'], formula: '中证红利/上证50 PE倒数比' },
-    { key: 'size', name: '规模', sources: ['sh000905'], formula: '中证500 PE倒数' },
-    { key: 'growth', name: '成长', sources: ['sh399006'], formula: '创业板 PE倒数' },
-    { key: 'momentum', name: '动量', sources: ['sh000300'], formula: '沪深300 涨跌幅' },
-    { key: 'quality', name: '质量', sources: ['sh000016'], formula: '上证50 ROE' },
-    { key: 'vol', name: '低波', sources: ['sh000905'], formula: '中证500 波动倒数' },
+    { key: 'value',    name: '价值',   percentile: peToPercentile(valuePE, TYPICAL_RATIOS.value) },
+    { key: 'size',     name: '规模',   percentile: peToPercentile(sizePE, TYPICAL_RATIOS.size) },
+    { key: 'growth',   name: '成长',   percentile: peToPercentile(growthPE, TYPICAL_RATIOS.growth) },
+    { key: 'momentum', name: '动量',   percentile: momentumPercentile },
+    { key: 'quality',  name: '质量',   percentile: peToPercentile(qualityPE, TYPICAL_RATIOS.quality) },
+    { key: 'vol',      name: '低波',   percentile: volPercentile },
   ]
+
   const results = factors.map(f => {
-    let percentile = 50
+    const p = f.percentile
     let signal = 'neutral', signalLabel = '中性'
-    if (pe300Data.pePercentile != null) {
-      percentile = Math.round(pe300Data.pePercentile)
-    }
-    if (percentile > 70) { signal = 'hot'; signalLabel = '偏高' }
-    else if (percentile < 30) { signal = 'cold'; signalLabel = '偏低' }
+    if (p > 70) { signal = 'hot'; signalLabel = '偏高' }
+    else if (p < 30) { signal = 'cold'; signalLabel = '偏低' }
     return {
       name: f.name,
-      percentile,
+      percentile: p,
       signal, signalLabel,
-      color: percentile > 70 ? 'var(--color-up)' : percentile < 30 ? 'var(--color-down)' : '#505a5f'
+      color: p > 70 ? 'var(--color-up)' : p < 30 ? 'var(--color-down)' : '#505a5f'
     }
   })
   factorFactors.value = results
@@ -1028,8 +1044,29 @@ watch(activeTab, (tab) => {
 })
 
 onMounted(() => {
+  const route = useRoute()
+  const tabFromQuery = route.query.tab
+  if (tabFromQuery && tabs.some(t => t.key === tabFromQuery)) {
+    activeTab.value = tabFromQuery
+  }
   loadAll()
+
+  // 窗口 resize 时自动调整图表大小
+  window.addEventListener('resize', handleResize)
 })
+
+onUnmounted(() => {
+  window.removeEventListener('resize', handleResize)
+})
+
+function handleResize() {
+  const charts = [gaugeChart, pieChart, radarChart, bondCurveChart, fedHistChart, compareIdxChart]
+  charts.forEach(c => c?.resize())
+  Object.values(chartRefs).forEach(el => {
+    const instance = echarts.getInstanceByDom(el)
+    if (instance) instance.resize()
+  })
+}
 </script>
 
 <style scoped>
@@ -1160,4 +1197,18 @@ onMounted(() => {
 .data-source { font-size: 12px; color: var(--text-secondary); margin-top: var(--space-sm); }
 .text-up { color: var(--color-up) !important; }
 .text-down { color: var(--color-down) !important; }
+
+/* ===== 移动端适配 ===== */
+@media (max-width: 768px) {
+  .fed-grid { grid-template-columns: repeat(1, 1fr); }
+  .comm-grid { grid-template-columns: repeat(1, 1fr); }
+  .macro-indicators { grid-template-columns: repeat(1, 1fr); }
+  .macro-chart-wrap { height: 160px; }
+  .macro-chart { height: 160px; }
+  .gauge-wrap { height: 240px; }
+  .pie-chart { height: 240px; }
+  .radar-wrap { height: 280px; }
+  .chart-wrap { height: 200px; }
+  .allocate-layout { flex-direction: column; }
+}
 </style>

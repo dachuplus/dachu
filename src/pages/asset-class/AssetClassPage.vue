@@ -15,7 +15,7 @@
     <div class="card" v-if="marketSharpe !== '--'">
       <div class="card-title">
         全市场加权平均隐含夏普
-        <span class="help-icon" @click="showHelp('marketSharpe')">❓</span>
+        <span class="help-icon" @click="showHelp('marketSharpe')"><SvgIcon name="help" :size="16" class="help-icon-svg" /></span>
       </div>
       <p class="card-desc">基于风险平价权重加权平均，正值=整体有超额收益吸引力</p>
       <div class="market-sharpe-box">
@@ -31,7 +31,7 @@
       <div class="card-title">
         股债性价比
         <span class="card-subtitle">Fed Model</span>
-        <span class="help-icon" @click="showHelp('stockBondValue')">❓</span>
+        <span class="help-icon" @click="showHelp('stockBondValue')"><SvgIcon name="help" :size="16" class="help-icon-svg" /></span>
       </div>
       <div class="sbv-row">
         <div class="sbv-main">
@@ -80,7 +80,7 @@
     <div class="card">
       <div class="card-title">
         预期收益率 vs 风险溢价
-        <span class="help-icon" @click="showHelp('expectedReturn')">❓</span>
+        <span class="help-icon" @click="showHelp('expectedReturn')"><SvgIcon name="help" :size="16" class="help-icon-svg" /></span>
       </div>
       <p class="card-desc">现金用Shibor，债券用YTM，股票用Gordon模型，黄金用实际利率模型</p>
       <div class="table-wrap">
@@ -118,7 +118,7 @@
       <div class="card-title">
         隐含夏普比率
         <span class="card-subtitle">风险调整后性价比</span>
-        <span class="help-icon" @click="showHelp('sharpe')">❓</span>
+        <span class="help-icon" @click="showHelp('sharpe')"><SvgIcon name="help" :size="16" class="help-icon-svg" /></span>
       </div>
       <p class="card-desc">Sharpe = (预期收益 - 无风险利率) / 年化波动率</p>
       <div class="sharpe-list">
@@ -145,7 +145,7 @@
     <div class="card">
       <div class="card-title">
         建议配置权重
-        <span class="help-icon" @click="showHelp('weight')">❓</span>
+        <span class="help-icon" @click="showHelp('weight')"><SvgIcon name="help" :size="16" class="help-icon-svg" /></span>
       </div>
       <p class="card-desc">Kan & Zhou (2007) 增强型风险平价：基础权重 × 夏普信号调整</p>
       <div class="weight-section">
@@ -202,6 +202,7 @@ import { ref, reactive, computed, onMounted } from 'vue'
 import { getIndexQuotes, buildMarketData } from '../../utils/market-data'
 import { calcAllExpectedReturns, calcEnhancedRiskParityWeights, calcMarketSharpe, calcRiskPremium } from '../../utils/calc'
 import { fetchValue500All } from '../../utils/api'
+import SvgIcon from '../../components/SvgIcon.vue'
 
 // 资产元信息
 const ASSET_META = {
@@ -432,6 +433,7 @@ onMounted(loadData)
 .card-subtitle { font-size: 14px; color: var(--text-secondary); margin-left: 6px; font-weight: 400; }
 .card-desc { font-size: 14px; color: var(--text-secondary); margin-bottom: var(--space-md); }
 .help-icon { cursor: pointer; }
+.help-icon-svg { display: inline-block; cursor: help; color: var(--text-secondary); vertical-align: middle; }
 .help-update-info { margin-top: var(--space-md); padding-top: var(--space-sm); border-top: 1px solid var(--border); font-size: 14px; color: var(--text-secondary); line-height: 1.8; }
 .help-update-info .help-section-label { font-weight: 700; }
 

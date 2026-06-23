@@ -1,78 +1,208 @@
+// 用户数据 API —— 注册/登录/组合信息持久化
+import { supabase } from './supabase'
+
+// ========== 用户 Profile ==========
+
 /**
- * api/user-data.js — 用户组合数据持久化（localStorage）
- *
- * 无 Supabase Auth 依赖，用户通过手机号标识。
- * 组合数据存储在 localStorage 中。
+ * 创建/更新用户 profile（注册/登录时调用）
  */
+export async function upsertUserProfile(user) {
+  if (!user?.id) return null
+  const { data, error } = await supabase
+    .from('user_profiles')
+    .upsert({
+      user_id: user.id,
+      email: user.email,
+      last_login_at: new Date().toISOString(),
+    }, { onConflict: 'user_id' })
 
-const STORAGE_PREFIX = 'allfund_portfolios_'
-
-/** 获取当前用户的手机号（从 useAuth 获取或缓存） */
-function getPhone() {
-  try {
-    const auth = localStorage.getItem('allfund_auth')
-    if (auth) return JSON.parse(auth).phone || 'anonymous'
-  } catch {}
-  return 'anonymous'
+  if (error) {
+    console.error('[user-data] upsertUserProfile error:', error)
+    return null
+  }
+  return data
 }
 
-/** 获取用户的 key */
-function getKey() {
-  return STORAGE_PREFIX + getPhone()
+/**
+ * 增加登录次数
+ */
+export async function incrementLoginCount(userId) {
+  const { error } = await supabase.rpc('increment_login_count', { uid: userId })
+  if (error) {
+    // RPC 可能不存在，用 update 兜底
+    const { data: existing } = await supabase
+      .from('user_profiles')
+      .select('login_count')
+      .eq('user_id', userId)
+      .single()
+
+    const count = (existing?.login_count || 0) + 1
+    await supabase
+      .from('user_profiles')
+      .update({ login_count: count, last_login_at: new Date().toISOString() })
+      .eq('user_id', userId)
+  }
 }
 
-/** 获取我的组合列表 */
+/**
+ * 获取当前用户的 profile
+ */
+export async function getMyProfile() {
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return null
+
+  const { data } = await supabase
+    .from('user_profiles')
+    .select('*')
+    .eq('user_id', user.id)
+    .single()
+
+  return data
+}
+
+// ========== 用户组合 ==========
+
+/**
+ * 获取当前用户的组合列表
+ */
 export async function getMyPortfolios() {
-  const key = getKey()
-  try {
-    const raw = localStorage.getItem(key)
-    return raw ? JSON.parse(raw) : []
-  } catch {
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return []
+
+  const { data, error } = await supabase
+    .from('user_portfolios')
+    .select('*')
+    .eq('user_id', user.id)
+    .order('updated_at', { ascending: false })
+
+  if (error) {
+    console.error('[user-data] getMyPortfolios error:', error)
     return []
   }
+  return data || []
 }
 
-/** 保存组合 */
-export async function savePortfolio(portfolio) {
-  const portfolios = await getMyPortfolios()
-  const idx = portfolios.findIndex(p => p.id === portfolio.id)
-  if (idx >= 0) {
-    portfolios[idx] = { ...portfolios[idx], ...portfolio }
-  } else {
-    portfolios.push({ id: Date.now().toString(36), funds: [], ...portfolio })
+/**
+ * 添加基金到默认组合
+ */
+export async function addFundToPortfolio(code, name) {
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) {
+    // 未登录：回退到 localStorage
+    return addToLocalPortfolio(code, name)
   }
-  localStorage.setItem(getKey(), JSON.stringify(portfolios))
-  return portfolios
-}
 
-/** 更新组合 */
-export async function updatePortfolio(portfolioId, updates) {
-  const portfolios = await getMyPortfolios()
-  const idx = portfolios.findIndex(p => p.id === portfolioId)
-  if (idx >= 0) {
-    portfolios[idx] = { ...portfolios[idx], ...updates }
-    localStorage.setItem(getKey(), JSON.stringify(portfolios))
-  }
-  return portfolios
-}
+  // 先查是否已有组合
+  let { data: portfolios } = await supabase
+    .from('user_portfolios')
+    .select('*')
+    .eq('user_id', user.id)
+    .order('created_at', { ascending: true })
+    .limit(1)
 
-/** 删除组合 */
-export async function deletePortfolio(portfolioId) {
-  const portfolios = (await getMyPortfolios()).filter(p => p.id !== portfolioId)
-  localStorage.setItem(getKey(), JSON.stringify(portfolios))
-  return portfolios
-}
-
-/** 向组合中添加基金 */
-export async function addFundToPortfolio(portfolioId, fund) {
-  const portfolios = await getMyPortfolios()
-  const portfolio = portfolios.find(p => p.id === portfolioId)
-  if (portfolio) {
-    portfolio.funds = portfolio.funds || []
-    if (!portfolio.funds.some(f => f.c === fund.c)) {
-      portfolio.funds.push(fund)
+  if (!portfolios || portfolios.length === 0) {
+    // 没有组合：创建新组合
+    const { error: insertErr } = await supabase
+      .from('user_portfolios')
+      .insert({
+        user_id: user.id,
+        name: '我的组合',
+        portfolio_data: [{ code, name, weight: 0, addedAt: new Date().toISOString() }],
+      })
+    if (insertErr) {
+      console.error('[user-data] create portfolio error:', insertErr)
+      return { success: false, error: insertErr.message }
     }
-    localStorage.setItem(getKey(), JSON.stringify(portfolios))
+    return { success: true, message: `已将 ${name} 添加到新组合` }
   }
-  return portfolios
+
+  // 已有组合：追加
+  const portfolio = portfolios[0]
+  const items = portfolio.portfolio_data || []
+  if (items.find(i => i.code === code)) {
+    return { success: false, message: `${name} 已在组合中` }
+  }
+  items.push({ code, name, weight: 0, addedAt: new Date().toISOString() })
+
+  const { error: updateErr } = await supabase
+    .from('user_portfolios')
+    .update({
+      portfolio_data: items,
+      updated_at: new Date().toISOString()
+    })
+    .eq('id', portfolio.id)
+
+  if (updateErr) {
+    console.error('[user-data] update portfolio error:', updateErr)
+    return { success: false, error: updateErr.message }
+  }
+  return { success: true, message: `已将 ${name} 添加到组合` }
+}
+
+/**
+ * 从组合中移除基金
+ */
+export async function removeFundFromPortfolio(portfolioId, code) {
+  const { data: portfolio } = await supabase
+    .from('user_portfolios')
+    .select('portfolio_data')
+    .eq('id', portfolioId)
+    .single()
+
+  if (!portfolio) return { success: false }
+
+  const items = (portfolio.portfolio_data || []).filter(i => i.code !== code)
+  await supabase
+    .from('user_portfolios')
+    .update({ portfolio_data: items, updated_at: new Date().toISOString() })
+    .eq('id', portfolioId)
+
+  return { success: true }
+}
+
+/**
+ * 更新组合中基金的权重
+ */
+export async function updateFundWeight(portfolioId, code, weight) {
+  const { data: portfolio } = await supabase
+    .from('user_portfolios')
+    .select('portfolio_data')
+    .eq('id', portfolioId)
+    .single()
+
+  if (!portfolio) return { success: false }
+
+  const items = (portfolio.portfolio_data || []).map(i =>
+    i.code === code ? { ...i, weight } : i
+  )
+  await supabase
+    .from('user_portfolios')
+    .update({ portfolio_data: items, updated_at: new Date().toISOString() })
+    .eq('id', portfolioId)
+
+  return { success: true }
+}
+
+// ========== localStorage 兜底（未登录时使用） ==========
+
+function addToLocalPortfolio(code, name) {
+  try {
+    const raw = localStorage.getItem('allfund_portfolio') || '[]'
+    const portfolio = JSON.parse(raw)
+    if (portfolio.find(p => p.code === code)) {
+      return { success: false, message: `${name} 已在组合中` }
+    }
+    portfolio.push({ code, name, weight: 0, addedAt: new Date().toISOString() })
+    localStorage.setItem('allfund_portfolio', JSON.stringify(portfolio))
+    return { success: true, message: `已将 ${name} 添加到本地组合` }
+  } catch (e) {
+    return { success: false, error: e.message }
+  }
+}
+
+export function getLocalPortfolio() {
+  try {
+    const raw = localStorage.getItem('allfund_portfolio') || '[]'
+    return JSON.parse(raw)
+  } catch { return [] }
 }

@@ -10,7 +10,10 @@
           <div class="user-avatar">{{ (user?.email || '?')[0].toUpperCase() }}</div>
           <div class="user-detail">
             <div class="user-email">{{ user?.email || '--' }}</div>
-            <div class="user-id">UID: {{ user?.id?.slice(0, 8) || '--' }}</div>
+            <div class="user-meta">
+              <span>注册：{{ profile?.created_at ? fmtDate(profile.created_at) : '--' }}</span>
+              <span>登录次数：{{ profile?.login_count || 0 }}</span>
+            </div>
           </div>
         </div>
         <button class="btn-signout" @click="handleSignOut">退出登录</button>
@@ -18,30 +21,28 @@
 
       <!-- 未登录 -->
       <div v-else class="auth-section">
-        <div class="auth-tabs">
-          <span class="auth-tab" :class="{ active: authMode === 'signin' }" @click="authMode = 'signin'">登录</span>
-          <span class="auth-tab" :class="{ active: authMode === 'signup' }" @click="authMode = 'signup'">注册</span>
+        <p class="auth-hint">登录后可使用组合管理、历史记录等功能</p>
+        <button class="btn-primary govuk-button" @click="showLogin">登录 / 注册</button>
+      </div>
+    </div>
+
+    <!-- 我的组合（已登录时显示） -->
+    <div class="card" v-if="isLoggedIn">
+      <div class="card-title">我的组合</div>
+      <div v-if="portfolios.length === 0" class="empty-portfolio">
+        <p>还没有组合，去 <router-link to="/tools/fund-rank">靠谱指数</router-link> 挑选基金添加到组合吧</p>
+      </div>
+      <div v-for="pf in portfolios" :key="pf.id" class="portfolio-card">
+        <div class="pf-header">
+          <span class="pf-name">{{ pf.name }}</span>
+          <span class="pf-meta">{{ pf.portfolio_data?.length || 0 }} 只基金 · 更新于 {{ fmtDate(pf.updated_at) }}</span>
         </div>
-        <div class="auth-form">
-          <input
-            class="govuk-input"
-            type="email"
-            v-model="authEmail"
-            placeholder="邮箱地址"
-            @keyup.enter="handleAuth"
-          />
-          <input
-            class="govuk-input"
-            type="password"
-            v-model="authPassword"
-            placeholder="密码（至少6位）"
-            @keyup.enter="handleAuth"
-          />
-          <div class="auth-error" v-if="authError">{{ authError }}</div>
-          <div class="auth-success" v-if="authSuccess">{{ authSuccess }}</div>
-          <button class="btn-primary govuk-button" @click="handleAuth" :disabled="authLoading">
-            {{ authLoading ? '处理中...' : (authMode === 'signin' ? '登录' : '注册') }}
-          </button>
+        <div class="pf-funds" v-if="pf.portfolio_data?.length">
+          <div v-for="item in pf.portfolio_data" :key="item.code" class="pf-fund-row">
+            <span class="pf-fund-code">{{ item.code }}</span>
+            <span class="pf-fund-name">{{ item.name }}</span>
+            <button class="pf-remove" @click="removeFromPortfolio(pf.id, item.code)">移除</button>
+          </div>
         </div>
       </div>
     </div>
@@ -68,42 +69,31 @@
 </template>
 
 <script setup>
-import { ref, watch } from 'vue'
+import { ref } from 'vue'
 import { useAuth } from '../../composables/useAuth'
+import { removeFundFromPortfolio } from '../../api/user-data'
 
 const {
-  user, loading: authLoading, authError, isLoggedIn,
-  signUp, signIn, signOut
+  user, loading: authLoading, isLoggedIn,
+  portfolios, profile,
+  signOut, refreshUserData, showLogin
 } = useAuth()
 
-const authMode = ref('signin')
-const authEmail = ref('')
-const authPassword = ref('')
-const authSuccess = ref('')
 const showDisclaimer = ref(false)
 
-async function handleAuth() {
-  authSuccess.value = ''
-  if (!authEmail.value || !authPassword.value) {
-    authError.value = '请填写邮箱和密码'
-    return
-  }
-  if (authPassword.value.length < 6) {
-    authError.value = '密码至少6位'
-    return
-  }
-  if (authMode.value === 'signup') {
-    const result = await signUp(authEmail.value, authPassword.value)
-    if (result) {
-      authSuccess.value = '注册成功！请检查邮箱确认链接。'
-    }
-  } else {
-    await signIn(authEmail.value, authPassword.value)
-  }
+function fmtDate(ts) {
+  if (!ts) return '--'
+  const d = new Date(ts)
+  return d.toLocaleDateString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit' })
 }
 
 async function handleSignOut() {
   await signOut()
+}
+
+async function removeFromPortfolio(pfId, code) {
+  await removeFundFromPortfolio(pfId, code)
+  await refreshUserData()
 }
 </script>
 
@@ -127,7 +117,7 @@ async function handleSignOut() {
 }
 .user-detail { flex: 1; }
 .user-email { font-size: 18px; font-weight: 700; color: var(--text-primary); }
-.user-id { font-size: 14px; color: var(--text-secondary); }
+.user-meta { font-size: 14px; color: var(--text-secondary); margin-top: 4px; display: flex; gap: var(--space-lg); }
 .btn-signout {
   background: none; border: 1px solid var(--border); color: var(--text-secondary);
   padding: var(--space-xs) var(--space-md); font-size: 14px; cursor: pointer;
@@ -135,13 +125,31 @@ async function handleSignOut() {
 .btn-signout:hover { background: #f3f2f1; }
 
 /* 认证表单 */
-.auth-tabs { display: flex; gap: var(--space-lg); margin-bottom: var(--space-md); border-bottom: 2px solid var(--border); }
-.auth-tab { font-size: 16px; font-weight: 700; color: var(--text-secondary); cursor: pointer; padding-bottom: var(--space-xs); border-bottom: 3px solid transparent; margin-bottom: -2px; }
-.auth-tab.active { color: #1d70b8; border-bottom-color: #1d70b8; }
-.auth-form { display: flex; flex-direction: column; gap: var(--space-sm); }
-.auth-form .govuk-input { margin-bottom: 0; }
-.auth-error { font-size: 14px; color: #d4351c; }
-.auth-success { font-size: 14px; color: #00703c; }
+.auth-hint { font-size: 16px; color: var(--text-secondary); margin-bottom: var(--space-md); }
+
+/* 组合列表 */
+.empty-portfolio { padding: var(--space-xl) 0; font-size: 16px; color: var(--text-secondary); text-align: center; }
+.empty-portfolio a { color: var(--link); text-decoration: underline; }
+
+.portfolio-card {
+  border-top: 1px solid var(--border); padding: var(--space-md) 0;
+}
+.pf-header { margin-bottom: var(--space-sm); }
+.pf-name { font-size: 18px; font-weight: 700; color: var(--text-primary); }
+.pf-meta { font-size: 14px; color: var(--text-secondary); margin-left: var(--space-md); }
+
+.pf-funds { border-top: 1px solid #f3f2f1; padding-top: var(--space-sm); }
+.pf-fund-row {
+  display: flex; align-items: center; padding: var(--space-xs) 0;
+  font-size: 14px;
+}
+.pf-fund-code { font-weight: 700; color: var(--text-secondary); width: 90px; font-family: monospace; }
+.pf-fund-name { flex: 1; color: var(--text-primary); }
+.pf-remove {
+  background: none; border: none; color: #d4351c; font-size: 13px;
+  cursor: pointer; padding: 2px 8px;
+}
+.pf-remove:hover { text-decoration: underline; }
 
 /* 功能入口 */
 .profile-items { display: flex; flex-direction: column; border-top: 1px solid var(--border); }

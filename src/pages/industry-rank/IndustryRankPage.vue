@@ -131,7 +131,7 @@
         <div class="help-panel">
           <div class="help-header">
             <span class="help-title">指数估值说明</span>
-            <span class="help-close" @click="showHelp = false">✕</span>
+            <span class="help-close" @click="showHelp = false"><SvgIcon name="close" :size="16" /></span>
           </div>
           <div class="help-body">
             <div class="help-section">
@@ -187,6 +187,7 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { fetchDanjuanEva } from '../../utils/api.js'
+import SvgIcon from '../../components/SvgIcon.vue'
 
 // ========== 常量 ==========
 const ttypeOptions = [
@@ -401,7 +402,7 @@ function pctClass(v) {
 .eva-header-row {
   display: flex; align-items: center; padding: var(--space-sm) var(--space-md);
   background: #f3f2f1; border-bottom: 2px solid var(--border);
-  position: sticky; top: 0; z-index: 5; min-width: 900px;
+  position: sticky; top: 54px; z-index: 5; min-width: 900px;
 }
 .col { flex-shrink: 0; font-size: 14px; text-align: center; color: var(--text-secondary); font-weight: 700; }
 .col-name { width: 120px; text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

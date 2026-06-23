@@ -1,26 +1,21 @@
 <template>
   <div class="app-layout">
-    <!-- PC 端 gov.uk 黑色顶部导航 -->
+    <!-- PC 端顶部导航 -->
     <header class="govuk-header" v-if="!isMobile">
       <div class="govuk-header__container">
         <div class="govuk-header__logo">
           <router-link to="/" class="govuk-header__logotype-text" style="text-decoration:none;color:#fff">ALLFUND.CN</router-link>
         </div>
         <div class="govuk-header__content">
-          <nav class="govuk-header__navigation">
-            <ul class="govuk-header__navigation-list">
-              <li
-                v-for="tab in tabs"
-                :key="tab.path"
-                class="govuk-header__navigation-item"
-                :class="{ 'govuk-header__navigation-item--active': currentTab === tab.key }"
-              >
-                <router-link :to="tab.path" class="govuk-header__link">
-                  {{ tab.label }}
-                </router-link>
-              </li>
-            </ul>
-          </nav>
+          <div class="govuk-header__auth">
+            <!-- 已登录 -->
+            <template v-if="isLoggedIn">
+              <span class="auth-user-email">{{ user?.email }}</span>
+              <button class="auth-btn auth-btn--logout" @click="handleLogout">退出</button>
+            </template>
+            <!-- 未登录 -->
+            <button v-else class="auth-btn auth-btn--login" @click="showLogin">登录 / 注册</button>
+          </div>
         </div>
       </div>
     </header>
@@ -70,6 +65,11 @@
 
     <!-- 移动端底部 TabBar -->
     <MobileTabBar v-if="isMobile" />
+
+    <!-- 全局通知与对话框 -->
+    <Toast />
+    <ConfirmDialog />
+    <LoginDialog v-if="showLoginDialog" @close="showLoginDialog = false" @logged-in="onLoggedIn" />
   </div>
 </template>
 
@@ -77,17 +77,34 @@
 import { computed, ref, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import MobileTabBar from './components/MobileTabBar.vue'
+import Toast from './components/Toast.vue'
+import ConfirmDialog from './components/ConfirmDialog.vue'
+import LoginDialog from './components/LoginDialog.vue'
+import { useAuth } from './composables/useAuth'
 
 const route   = useRoute()
 const router  = useRouter()
+const { user, isLoggedIn, loading: authLoading, init, signOut, showLoginDialog, showLogin, hideLogin } = useAuth()
 
 /* ---- 响应式断点 ---- */
 const isMobile = ref(window.innerWidth < 769)
 function onResize() {
   isMobile.value = window.innerWidth < 769
 }
-onMounted(() => window.addEventListener('resize', onResize))
+onMounted(() => {
+  window.addEventListener('resize', onResize)
+  init()  // 初始化全局 auth
+})
 onUnmounted(() => window.removeEventListener('resize', onResize))
+
+/* ---- 认证 ---- */
+async function handleLogout() {
+  await signOut()
+}
+
+function onLoggedIn() {
+  hideLogin()
+}
 
 /* ---- 全局金刚区 ---- */
 const quickLinks = [
@@ -96,7 +113,7 @@ const quickLinks = [
   { path: '/portfolio',        label: '基金组合' },
 ]
 
-/* ---- Tab 数据 ---- */
+/* ---- Tab 数据（仅移动端 TabBar 使用）---- */
 const tabs = [
   { key: 'home',      path: '/',                 label: '首页' },
   { key: 'signal',    path: '/signal',           label: '信号' },
@@ -105,9 +122,8 @@ const tabs = [
   { key: 'profile',   path: '/profile',          label: '我的' },
 ]
 
-const currentTab = computed(() => route.meta?.tab || 'home')
-const pageTitle  = computed(() => route.meta?.title || '投资助手')
-const showBack   = computed(() => {
+const pageTitle = computed(() => route.meta?.title || '投资助手')
+const showBack  = computed(() => {
   const tabPaths = tabs.map(t => t.path)
   return !tabPaths.includes(route.path)
 })
@@ -147,38 +163,41 @@ const showBack   = computed(() => {
 /* 导航区 */
 .govuk-header__content {
   flex: 1;
-}
-.govuk-header__navigation {
   display: flex;
   justify-content: flex-end;
+  align-items: center;
 }
-.govuk-header__navigation-list {
-  list-style: none;
+.govuk-header__auth {
   display: flex;
-  gap: 0;
-  margin: 0;
-  padding: 0;
+  align-items: center;
+  gap: var(--space-sm);
 }
-.govuk-header__navigation-item {
-  margin: 0;
-  padding: 0;
-}
-.govuk-header__link {
-  display: block;
-  padding: 8px 16px;
+.auth-user-email {
   color: #ffffff;
-  font-size: 16px;
+  font-size: 14px;
+  font-weight: 400;
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.auth-btn {
+  background: transparent;
+  border: 1px solid rgba(255,255,255,0.5);
+  color: #ffffff;
+  font-size: 14px;
   font-weight: 700;
-  text-decoration: none;
-  border-bottom: 4px solid transparent;
-  transition: border-color 0.15s;
+  padding: 6px 14px;
+  cursor: pointer;
+  white-space: nowrap;
 }
-.govuk-header__link:hover {
-  border-bottom-color: #ffffff;
-  text-decoration: none;
+.auth-btn:hover {
+  border-color: #ffffff;
+  background: rgba(255,255,255,0.1);
 }
-.govuk-header__navigation-item--active .govuk-header__link {
-  border-bottom-color: #1d70b8;
+.auth-btn--logout {
+  border-color: rgba(255,255,255,0.3);
+  font-weight: 400;
 }
 
 /* ========== Phase banner ========== */

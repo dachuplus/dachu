@@ -19,7 +19,7 @@
         <div class="card radar-card">
           <div class="card-title">
             Barra 六因子雷达
-            <span class="help-icon" @click="showHelp('factorScore')">❓</span>
+            <span class="help-icon" @click="showHelp('factorScore')"><SvgIcon name="help" :size="16" class="help-icon-svg" /></span>
           </div>
           <div ref="radarRef" class="radar-chart"></div>
           <p class="radar-hint">越靠外圈=百分位越高=该因子越被高估(性价比差)</p>
@@ -52,7 +52,7 @@
         <div class="card">
           <div class="card-title">
             风格配置建议
-            <span class="help-icon" @click="showHelp('styleAdvice')">❓</span>
+            <span class="help-icon" @click="showHelp('styleAdvice')"><SvgIcon name="help" :size="16" class="help-icon-svg" /></span>
           </div>
           <div class="advice-list">
             <div class="advice-item" v-for="a in styleAdvice" :key="a.key">
@@ -76,7 +76,7 @@
         </div>
 
         <div class="card">
-          <div class="card-title">国债收益率曲线 <span class="help-icon" @click="showHelp('bondScore')">❓</span></div>
+          <div class="card-title">国债收益率曲线 <span class="help-icon" @click="showHelp('bondScore')"><SvgIcon name="help" :size="16" class="help-icon-svg" /></span></div>
           <div class="bond-yield-list">
             <div class="bond-yield-item" v-for="b in bondYields" :key="b.label">
               <span class="by-label">{{ b.label }}</span>
@@ -103,7 +103,7 @@
         </div>
 
         <div class="card">
-          <div class="card-title">核心商品价格 <span class="help-icon" @click="showHelp('commodityScore')">❓</span></div>
+          <div class="card-title">核心商品价格 <span class="help-icon" @click="showHelp('commodityScore')"><SvgIcon name="help" :size="16" class="help-icon-svg" /></span></div>
           <div class="cmd-grid">
             <div class="cmd-item" v-for="c in cmdPrices" :key="c.label">
               <div class="cmd-label">{{ c.label }}</div>
@@ -148,12 +148,13 @@
 </template>
 
 <script setup>
-import { ref, onMounted, nextTick, watch } from 'vue'
-import * as echarts from 'echarts'
+import { ref, onMounted, onUnmounted, nextTick, watch } from 'vue'
+import echarts from '../../utils/echarts-setup'
 import { getIndexQuotes } from '../../utils/market-data'
 import { calcFactorScore, getSignalFromPercentile } from '../../utils/calc'
 import { fetchValue500All } from '../../utils/api'
 import { COLORS, createGovukChart } from '../../utils/echarts-theme'
+import SvgIcon from '../../components/SvgIcon.vue'
 
 const activeTab = ref('stock')
 const dataDate = ref('--')
@@ -492,7 +493,18 @@ function switchTab(tab) {
   else if (tab === 'commodity') loadCommodityData()
 }
 
-onMounted(loadStockData)
+onMounted(() => {
+  loadStockData()
+  window.addEventListener('resize', handleResize)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('resize', handleResize)
+})
+
+function handleResize() {
+  radarChart?.resize()
+}
 </script>
 
 <style scoped>
@@ -508,6 +520,7 @@ onMounted(loadStockData)
 .card { background: #ffffff; border: 1px solid var(--border); padding: var(--space-lg); margin-bottom: var(--space-xl); }
 .card-title { font-size: 24px; font-weight: 700; color: var(--text-primary); margin-bottom: var(--space-md); }
 .help-icon { cursor: pointer; }
+.help-icon-svg { display: inline-block; cursor: help; color: var(--text-secondary); vertical-align: middle; }
 
 .radar-card { padding: var(--space-md); }
 .radar-chart { width: 100%; height: 320px; }

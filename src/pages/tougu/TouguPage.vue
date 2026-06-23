@@ -102,7 +102,7 @@
         <div class="help-panel item-help-panel">
           <div class="help-header">
             <span class="help-title">{{ itemHelp.name }}</span>
-            <span class="help-close" @click="itemHelp = null">✕</span>
+            <span class="help-close" @click="itemHelp = null"><SvgIcon name="close" :size="16" /></span>
           </div>
           <div class="help-body">
             <div class="help-section" v-if="itemHelp.company">
@@ -135,7 +135,7 @@
         <div class="help-panel">
           <div class="help-header">
             <span class="help-title">投顾产品说明</span>
-            <span class="help-close" @click="showHelp = false">✕</span>
+            <span class="help-close" @click="showHelp = false"><SvgIcon name="close" :size="16" /></span>
           </div>
           <div class="help-body">
             <div class="help-section">
@@ -166,6 +166,7 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { fetchTouguProducts } from '../../api/data.js'
+import SvgIcon from '../../components/SvgIcon.vue'
 
 const types = [
   { name: '全部',     key: 'all'     },

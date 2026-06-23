@@ -70,27 +70,46 @@ def main():
 
     # 2. 检查有靠谱分的基金
     print('\n[2] 靠谱分覆盖率检查...')
-    # 随机抽样检查 k3 字段
+    # 随机抽样检查 k_all 和 score_grade
     sample = supabase_get('fund_scores', {
-        'select': 'c,k1,k3',
-        'k3': 'gt.0',
+        'select': 'c,k1,k3,k_all,score_grade',
+        'k_all': 'gt.0',
         'limit': '5',
-        'order': 'k3.desc'
+        'order': 'k_all.desc'
     })
     if sample and len(sample) > 0:
-        print(f'  抽查 Top 5:')
+        print(f'  抽查 Top 5 (k_all):')
         for s in sample:
-            print(f'    {s["c"]}: k1={s.get("k1")}, k3={s.get("k3")}')
+            print(f'    {s["c"]}: k1={s.get("k1")}, k3={s.get("k3")}, k_all={s.get("k_all")}, grade={s.get("score_grade")}')
     else:
-        print(f'  WARNING: 未找到有靠谱分的基金')
+        print(f'  WARNING: 未找到有 k_all 分的基金')
         errors += 1
+
+    # 2b. 检查 score_grade 分布
+    print('\n[2b] score_grade 分布...')
+    for grade in ['green', 'blue', 'orange', 'gray']:
+        url = f'{SUPABASE_URL}/rest/v1/fund_scores?select=count&score_grade=eq.{grade}'
+        result = subprocess.run(
+            ['curl', '-s', url,
+             '-H', f'apikey: {ANON_KEY}',
+             '-H', f'Authorization: Bearer {ANON_KEY}',
+             '-H', 'Accept: application/vnd.pgrst.object+json',
+             '-H', 'Prefer: count=exact'],
+            capture_output=True, text=True, timeout=15
+        )
+        try:
+            data = json.loads(result.stdout)
+            cnt = data.get('count', 0)
+            print(f'  {grade}: {cnt}只')
+        except:
+            print(f'  {grade}: 查询失败')
 
     # 3. 检查 meta 信息
     print('\n[3] fund_scores_meta 检查...')
     meta = supabase_get('fund_scores_meta', {'select': '*', 'limit': '1'})
     if meta and len(meta) > 0:
         m = meta[0]
-        print(f'  更新时间: {m.get("update_time")}')
+        print(f'  更新时间: {m.get("tsq") or m.get("update_time")}')
         print(f'  总数: {m.get("total_count")}')
         print(f'  有分: {m.get("scored_count")}')
         print(f'  净值日期: {m.get("nav_date")}')

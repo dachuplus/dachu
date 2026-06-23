@@ -1,9 +1,9 @@
-name: 每日更新基金数据
+name: 每日更新基金数据（v7靠谱指数）
 
 on:
-  # 定时触发：北京时间每个交易日 21:30（UTC 13:30）
+  # 定时触发：北京时间每天 21:30（UTC 13:30）
   schedule:
-    - cron: '30 13 * * 1-5'
+    - cron: '30 13 * * *'
   # 手动触发
   workflow_dispatch:
     inputs:
@@ -20,6 +20,11 @@ jobs:
   update-fund-data:
     runs-on: ubuntu-latest
     timeout-minutes: 60
+    env:
+      SUPABASE_MGMT_TOKEN: ${{ secrets.SUPABASE_MGMT_TOKEN }}
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+      SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
 
     steps:
       - name: 检出代码
@@ -31,18 +36,19 @@ jobs:
           python-version: '3.11'
 
       - name: 验证环境变量
-        env:
-          SUPABASE_MGMT_TOKEN: ${{ secrets.SUPABASE_MGMT_TOKEN }}
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
         run: |
           if [ -z "$SUPABASE_MGMT_TOKEN" ]; then
             echo "ERROR: SUPABASE_MGMT_TOKEN 未设置！请在 GitHub Secrets 中配置。"
             exit 1
           fi
+          if [ -z "$SUPABASE_ANON_KEY" ]; then
+            echo "ERROR: SUPABASE_ANON_KEY 未设置！请在 GitHub Secrets 中配置。"
+            exit 1
+          fi
           echo "Supabase URL: $SUPABASE_URL"
           echo "Project Ref: $SUPABASE_PROJECT_REF"
           echo "MGMT_TOKEN 已配置: ${#SUPABASE_MGMT_TOKEN} 字符"
+          echo "ANON_KEY 已配置: ${#SUPABASE_ANON_KEY} 字符"
 
       - name: 步骤1 — 拉取天天基金全量数据（输出 NDJSON）
         run: |
@@ -107,9 +113,6 @@ jobs:
           echo "  完成时间: $(date '+%Y-%m-%d %H:%M:%S')"
           echo "============================================"
           python scripts/verify_update.py
-        env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
 
       - name: 失败通知
         if: failure()

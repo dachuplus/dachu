@@ -17,19 +17,15 @@
       <div class="card" v-if="!isLoggedIn">
         <div class="card-title">自建组合</div>
         <p class="card-desc">登录后可创建和管理自己的基金组合</p>
-        <div class="login-area">
-          <input v-model="loginPhone" class="login-input" placeholder="输入手机号" maxlength="11" />
-          <button class="login-btn" @click="doLogin" :disabled="loggingIn">
-            {{ loggingIn ? '登录中...' : '登录 / 注册' }}
-          </button>
-          <span class="login-error" v-if="loginError">{{ loginError }}</span>
-        </div>
+        <button class="btn-primary" @click="showLogin">登录 / 注册</button>
       </div>
 
       <!-- 已登录：组合列表 -->
       <template v-else>
         <div class="pf-actions">
+          <span class="user-badge">{{ user?.email || '已登录' }}</span>
           <button class="btn-primary" @click="showCreateModal = true">+ 新建组合</button>
+          <button class="btn-signout" @click="doLogout">退出</button>
         </div>
 
         <!-- 组合列表 -->
@@ -258,9 +254,16 @@ import { ref, onMounted } from 'vue'
 import { supabase } from '../../api/supabase'
 import SvgIcon from '../../components/SvgIcon.vue'
 import { fetchValue500All } from '../../utils/api'
-import { getIndexQuotes, buildMarketData } from '../../utils/market-data'
+import { getIndexQuotes, buildMarketData, parseValue500Data } from '../../utils/market-data'
 import { calcAllExpectedReturns, calcEnhancedRiskParityWeights } from '../../utils/calc'
-import { getMyPortfolios } from '../../api/user-data'
+import { useAuth } from '../../composables/useAuth'
+import { toast, confirm } from '../../composables/useToast.js'
+
+const {
+  user, isLoggedIn,
+  portfolios: customPortfolios,
+  signOut, refreshUserData, showLogin
+} = useAuth()
 
 // ===== Tab =====
 const tabs = [
@@ -276,55 +279,17 @@ function switchTab(key) {
   if (key === 'custom' && isLoggedIn.value) loadCustomPortfolios()
 }
 
-// ===== 登录 =====
-const isLoggedIn = ref(false)
-const loginPhone = ref('')
-const loginError = ref('')
-const loggingIn = ref(false)
-
-function checkLogin() {
-  const auth = localStorage.getItem('allfund_auth')
-  if (auth) {
-    try {
-      const data = JSON.parse(auth)
-      isLoggedIn.value = !!data.phone
-    } catch { isLoggedIn.value = false }
-  }
-}
-
-async function doLogin() {
-  const phone = loginPhone.value.trim()
-  if (!phone || phone.length !== 11) { loginError.value = '请输入正确的手机号'; return }
-  loggingIn.value = true
-  loginError.value = ''
-  // 本地手机号认证
-  const auth = { phone, name: phone, loginAt: Date.now() }
-  localStorage.setItem('allfund_auth', JSON.stringify(auth))
-  isLoggedIn.value = true
-  loggingIn.value = false
-  loadCustomPortfolios()
+// ===== 退出 =====
+async function doLogout() {
+  await signOut()
 }
 
 // ===== 自建组合 =====
-const customPortfolios = ref([])
 const showCreateModal = ref(false)
 const newPfName = ref('')
 
 async function loadCustomPortfolios() {
-  try {
-    const data = await getMyPortfolios()
-    customPortfolios.value = data || []
-  } catch {
-    // fallback to localStorage
-    const raw = localStorage.getItem('allfund_custom_pf')
-    if (raw) {
-      try { customPortfolios.value = JSON.parse(raw) } catch {}
-    }
-  }
-}
-
-function saveCustomToLocal() {
-  localStorage.setItem('allfund_custom_pf', JSON.stringify(customPortfolios.value))
+  await refreshUserData()
 }
 
 async function createPortfolio() {
@@ -337,15 +302,15 @@ async function createPortfolio() {
     updated_at: new Date().toISOString()
   }
   customPortfolios.value.unshift(pf)
-  saveCustomToLocal()
   showCreateModal.value = false
   newPfName.value = ''
 }
 
-function deletePf(id) {
-  if (!confirm('确定删除该组合？')) return
+async function deletePf(id) {
+  const ok = await confirm('确定删除？', '将删除该组合及其所有持仓信息，该操作不可撤销。')
+  if (!ok) return
   customPortfolios.value = customPortfolios.value.filter(p => p.id !== id)
-  saveCustomToLocal()
+  toast('组合已删除', 'success')
 }
 
 function editPortfolio(pf) {
@@ -358,7 +323,6 @@ function updateWeight(pfId, code, weight) {
   if (!pf) return
   const item = (pf.portfolio_data || []).find(i => i.code === code)
   if (item) item.weight = Math.max(0, Math.min(100, weight || 0))
-  saveCustomToLocal()
 }
 
 // ===== AI 组合（复用已有逻辑） =====
@@ -465,7 +429,7 @@ ${reqHint}
 // 添加到自建组合
 function addAiToCustom() {
   if (!aiPortfolio.value?.funds) return
-  if (!isLoggedIn.value) { loginError.value = '请先登录'; return }
+  if (!isLoggedIn.value) { toast('请先登录', 'warning'); return }
   const pfName = aiPortfolio.value.strategyName || 'AI组合'
   const pf = {
     id: Date.now().toString(),
@@ -475,7 +439,6 @@ function addAiToCustom() {
     updated_at: new Date().toISOString()
   }
   customPortfolios.value.unshift(pf)
-  saveCustomToLocal()
   aiStatusText.value = '已添加到自建组合'
 }
 
@@ -500,11 +463,7 @@ async function buildPortfolio() {
   loading.value = true
   try {
     const [quotes, v500] = await Promise.all([getIndexQuotes(), fetchValue500All()])
-    const bondData = v500.bond?.code === 0 ? v500.bond.data : {}
-    const shiborData = v500.shibor?.code === 0 ? v500.shibor.data : {}
-    const cpiData = v500.cpi?.code === 0 ? v500.cpi.data : {}
-    const pe300Data = v500.pe300?.code === 0 ? v500.pe300.data : {}
-    const rf = (bondData.yield10y && bondData.yield10y > 0) ? bondData.yield10y : null
+    const { bond: bondData, shibor: shiborData, cpi: cpiData, pe300: pe300Data, rf } = parseValue500Data(v500)
     const date = bondData.date || pe300Data.date || ''
     const marketData = buildMarketData(quotes, { pePercentile: pe300Data.pePercentile != null ? Math.round(pe300Data.pePercentile) : null }, { yield10y: rf || 0, shibor: { on: shiborData.on || 0, date: '' } })
     const er = calcAllExpectedReturns({ stock: { pe: marketData.stock?.pe || null, pePercentile: marketData.stock?.pePercentile || null }, bond: { yield10y: rf }, cash: { shiborOn: marketData.cash?.shiborOn || 0 }, gold: { yield10y: rf, cpi: cpiData.cpi } })
@@ -542,8 +501,6 @@ async function fetchAllETFs(items) {
 }
 
 onMounted(() => {
-  checkLogin()
-  if (isLoggedIn.value) loadCustomPortfolios()
   loadAiHistory()
 })
 </script>
@@ -564,14 +521,12 @@ onMounted(() => {
 .empty-card { text-align: center; padding: var(--space-2xl); color: var(--text-secondary); font-size: 16px; }
 
 /* ===== 登录 ===== */
-.login-area { display: flex; flex-wrap: wrap; gap: var(--space-sm); align-items: center; }
-.login-input { padding: var(--space-sm); border: 1px solid var(--border); font-size: 16px; width: 200px; }
-.login-btn { padding: var(--space-sm) var(--space-lg); background: #00703c; color: #fff; border: none; font-size: 16px; cursor: pointer; }
-.login-btn:disabled { opacity: 0.6; }
-.login-error { color: #d4351c; font-size: 14px; }
 
 /* ===== 自建组合 ===== */
-.pf-actions { margin-bottom: var(--space-md); }
+.pf-actions { margin-bottom: var(--space-md); display: flex; align-items: center; gap: var(--space-md); }
+.user-badge { font-size: 14px; color: var(--text-secondary); }
+.btn-signout { background: none; border: 1px solid var(--border); color: var(--text-secondary); padding: var(--space-xs) var(--space-md); font-size: 14px; cursor: pointer; }
+.btn-signout:hover { background: #f3f2f1; }
 .btn-primary { padding: var(--space-sm) var(--space-lg); background: #1d70b8; color: #fff; border: none; font-size: 16px; cursor: pointer; }
 .btn-primary:disabled { opacity: 0.5; }
 .btn-secondary { padding: var(--space-sm) var(--space-lg); background: #f3f2f1; color: var(--text-primary); border: 1px solid var(--border); font-size: 16px; cursor: pointer; }
@@ -673,4 +628,9 @@ onMounted(() => {
 .text-up { color: var(--color-up); }
 .text-down { color: var(--color-down); }
 .footer-note { text-align: left; padding: var(--space-xl) 0; font-size: 14px; color: var(--text-secondary); border-top: 1px solid var(--border); }
+
+/* ===== 移动端适配 ===== */
+@media (max-width: 768px) {
+  .ai-bt-grid { grid-template-columns: repeat(2, 1fr); }
+}
 </style>

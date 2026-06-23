@@ -18,6 +18,7 @@ COLS = [
     'ytd','r0w','r1m','r3m','r6m','r1y','r2y','r3y','r5y',
     'nav','date',
     'k0w','k1m','k3m','k6m','k1','k2','k3','k5','k7','k10',
+    'k_all','score_grade',
     'dd1y','dd2y','dd3y','dd5y','sr1y','sr2y','sr3y','sr5y',
     'return_all',
 ]
@@ -84,7 +85,7 @@ def row_to_rest(r):
     """把 NDJSON 的一行转成 REST API 需要的 dict"""
     d = {}
     # 字符串字段：原样传递，空值传 None（REST API 会存 NULL）
-    for col in ('c','n','t0','t1','t2','t6','hp','date'):
+    for col in ('c','n','t0','t1','t2','t6','hp','date','score_grade'):
         v = r.get(col)
         d[col] = v if v and str(v).strip() else None
     # 布尔字段
@@ -93,6 +94,7 @@ def row_to_rest(r):
     for col in ('ytd','r0w','r1m','r3m','r6m','r1y','r2y','r3y','r5y',
                 'nav',
                 'k0w','k1m','k3m','k6m','k1','k2','k3','k5','k7','k10',
+                'k_all',
                 'dd1y','dd2y','dd3y','dd5y',
                 'sr1y','sr2y','sr3y','sr5y',
                 'return_all'):
@@ -160,9 +162,9 @@ if os.path.exists(return_all_path):
             merged += 1
     print(f'  ✓ 合并成立以来收益 {merged}/{len(funds)} ({time.time()-t0:.1f}s)', flush=True)
 
-# 3. 重新计算靠谱分 v5
+# 3. 重新计算靠谱分 v7（权重 50/25/25）
 t0 = time.time()
-W_RET, W_DD, W_SR = 0.60, 0.30, 0.10
+W_RET, W_DD, W_SR = 0.50, 0.25, 0.25
 periods = [
     ('k0w','r0w',None,None),('k1m','r1m',None,None),
     ('k3m','r3m',None,None),('k6m','r6m',None,None),
@@ -209,6 +211,47 @@ for pk, rk, dk, sk in periods:
 scored = sum(1 for r in funds if r.get('k3',0) > 0)
 print(f'  ✓ 靠谱分计算完成 scored={scored}/{len(funds)} ({time.time()-t0:.1f}s)', flush=True)
 
+# 3b. 计算 k_all (v7 加权综合分) 和 score_grade
+t0 = time.time()
+PERIOD_W = {'k0w':5, 'k1m':5, 'k3m':10, 'k6m':15, 'k1':20, 'k2':20, 'k3':15, 'k5':10}
+k_all_cnt = 0
+for f in funds:
+    total_w = 0
+    weighted_sum = 0
+    for kf, w in PERIOD_W.items():
+        val = float(f.get(kf) or 0)
+        if val > 0 and w > 0:
+            weighted_sum += val * w
+            total_w += w
+    if total_w > 0:
+        f['k_all'] = round(weighted_sum / total_w, 4)
+        k_all_cnt += 1
+    else:
+        f['k_all'] = None
+
+# score_grade: 全市场百分位
+scored_funds = [f for f in funds if f['k_all'] is not None]
+scored_funds.sort(key=lambda x: x['k_all'], reverse=True)
+n_scored = len(scored_funds)
+for rank, f in enumerate(scored_funds):
+    pct = (1 - rank / (n_scored - 1)) * 100 if n_scored > 1 else 50
+    if pct >= 80:
+        f['score_grade'] = 'green'
+    elif pct >= 50:
+        f['score_grade'] = 'blue'
+    else:
+        f['score_grade'] = 'orange'
+for f in funds:
+    if 'score_grade' not in f:
+        f['score_grade'] = 'gray'
+
+grades = {}
+for f in funds:
+    g = f['score_grade']
+    grades[g] = grades.get(g, 0) + 1
+print(f'  ✓ k_all 计算完成: {k_all_cnt}/{len(funds)} 只有分 ({time.time()-t0:.1f}s)', flush=True)
+print(f'    grade分布: green={grades.get("green",0)}, blue={grades.get("blue",0)}, orange={grades.get("orange",0)}, gray={grades.get("gray",0)}', flush=True)
+
 # 4. 通过 REST API 批量导入
 # 先清空旧数据
 t0 = time.time()
@@ -239,12 +282,23 @@ for i in range(0, len(funds), BATCH):
 
 print(f'  ✓ 导入完成 {imported}/{len(funds)} ({time.time()-t0:.1f}s)', flush=True)
 
-# 5. 写入 meta
+# 5. 写入 meta（UPSERT id=8）
 nav_date = funds[0].get('date','') if funds else ''
-pg('TRUNCATE TABLE fund_scores_meta')
-pg(f"INSERT INTO fund_scores_meta (update_time, total_count, scored_count, nav_date) "
-    f"VALUES (NOW()::text, {len(funds)}, {scored}, '{nav_date}')")
-print(f'  ✓ meta 已更新 (total={len(funds)}, scored={scored}, date={nav_date})', flush=True)
+scored_count = k_all_cnt  # 使用 k_all 计分统计
+result = pg("SELECT nav_date, tsq FROM fund_scores_meta WHERE id = 8")
+existing_nav = ''
+if result and len(result) > 0:
+    existing_nav = result[0].get('nav_date', '') or ''
+# 合并 nav_date：保留已有的（来自 fetch 阶段），如果当前有新的则覆盖
+final_nav = nav_date or existing_nav
+pg(f"""UPDATE fund_scores_meta
+    SET total_count = {len(funds)}, scored_count = {scored_count},
+        nav_date = '{final_nav}', tsq = NOW()::text
+    WHERE id = 8""")
+if not result or len(result) == 0:
+    pg(f"""INSERT INTO fund_scores_meta (id, total_count, scored_count, nav_date, tsq)
+        VALUES (8, {len(funds)}, {scored_count}, '{final_nav}', NOW()::text)""")
+print(f'  ✓ meta 已更新 (id=8, total={len(funds)}, scored={scored_count}, date={final_nav})', flush=True)
 
 # 6. 验证
 result = pg('SELECT count(*) as cnt FROM fund_scores')

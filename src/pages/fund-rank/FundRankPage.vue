@@ -206,20 +206,30 @@
       <table class="fund-table">
         <thead>
           <tr>
-            <th class="col-code">代码</th>
-            <th class="col-name">简称</th>
-            <th class="col-num">规模(亿)</th>
-            <th class="col-pct">权益%</th>
-            <th class="col-pct">债券%</th>
-            <th v-for="p in periods" :key="p.key" class="col-score" :class="{ 'col-sort': currentPeriod === p.key }">
-              {{ p.label }}
+            <th class="col-code sortable" @click="toggleColumnSort('c')">
+              代码<span class="th-arrow" v-if="sortField === 'c'">{{ sortDir === 'asc' ? '▲' : '▼' }}</span>
+            </th>
+            <th class="col-name sortable" @click="toggleColumnSort('n')">
+              简称<span class="th-arrow" v-if="sortField === 'n'">{{ sortDir === 'asc' ? '▲' : '▼' }}</span>
+            </th>
+            <th class="col-num sortable" @click="toggleColumnSort('scale')">
+              规模(亿)<span class="th-arrow" v-if="sortField === 'scale'">{{ sortDir === 'asc' ? '▲' : '▼' }}</span>
+            </th>
+            <th class="col-pct sortable" @click="toggleColumnSort('equityPct')">
+              权益%<span class="th-arrow" v-if="sortField === 'equityPct'">{{ sortDir === 'asc' ? '▲' : '▼' }}</span>
+            </th>
+            <th class="col-pct sortable" @click="toggleColumnSort('bondPct')">
+              债券%<span class="th-arrow" v-if="sortField === 'bondPct'">{{ sortDir === 'asc' ? '▲' : '▼' }}</span>
+            </th>
+            <th v-for="p in periods" :key="p.key" class="col-score sortable" :class="{ 'col-sort': currentPeriod === p.key }" @click="switchPeriod(p.key)">
+              {{ p.label }}<span class="th-arrow" v-if="currentPeriod === p.key">{{ sortAsc ? '▲' : '▼' }}</span>
             </th>
             <th class="col-actions">操作</th>
           </tr>
         </thead>
         <tbody>
           <tr
-            v-for="(fund, idx) in funds"
+            v-for="(fund, idx) in sortedFunds"
             :key="fund.c"
             class="fund-row"
           >
@@ -269,7 +279,7 @@
       <span v-if="meta.nav_date">数据截止：{{ meta.nav_date }}</span>
       <div class="bottom-help">
         <span class="bottom-help-title" @click="showScoreHelp = true">靠谱指数评分说明</span>
-        <p>综合收益率、最大回撤、夏普比率在全市场排名后加权计算。满分100分，分值越高表现越优秀。默认权重：收益30% + 回撤20% + 夏普20% + 卡玛10% + 信息比率10% + 跟踪误差10%。</p>
+        <p>综合收益率、最大回撤、夏普比率在全市场排名后加权计算。满分100分，分值越高表现越优秀。默认权重：收益50% + 回撤25% + 夏普25%。</p>
       </div>
     </div>
 
@@ -458,6 +468,7 @@
 import { ref, computed, reactive, onMounted, onUnmounted } from 'vue'
 import { fetchFundScores, fetchFundMeta } from '../../api/data.js'
 import { addFundToPortfolio } from '../../api/user-data'
+import { toast } from '../../composables/useToast.js'
 import SvgIcon from '../../components/SvgIcon.vue'
 
 // ========== 常量 ==========
@@ -481,45 +492,73 @@ const riskPeriods = [
   { label: '近5年', dd: 'dd5y', sr: 'sr5y' },
 ]
 
-// 三级分类树（基于天天基金 FundGuideapi 实际 t0/t1 值，与数据库保持一致）
-const CAT_TREE = {
+// 恒生聚源分类树（t0/t1 与数据库 fund_scores 表实际值严格匹配）
+const CAT_TREE_HSPJ = {
   'FOF': {
-    'FOF-进取型': ['FOF-进取型'],
-    'FOF-稳健型': ['FOF-稳健型'],
-    'FOF-均衡型': ['FOF-均衡型'],
+    'FOF': ['FOF'],
+    '混合型FOF': ['混合型FOF'],
+    '养老目标FOF': ['养老目标FOF'],
+    '债券型FOF': ['债券型FOF'],
+    '股票型FOF': ['股票型FOF'],
   },
   'QDII基金': {
-    'QDII-普通股票': ['QDII-普通股票'],
-    'QDII-混合偏股': ['QDII-混合偏股'],
-    'QDII-纯债': ['QDII-纯债'],
-    'QDII-混合灵活': ['QDII-混合灵活'],
-    'QDII-混合债': ['QDII-混合债'],
-    'QDII-商品': ['QDII-商品'],
+    'QDII基金': ['QDII基金'],
+    'QDII股票型基金': ['QDII股票型基金'],
+    'QDII混合型基金': ['QDII混合型基金'],
+    'QDII债券型基金': ['QDII债券型基金'],
+    'QDII-另类投资基金': ['QDII-另类投资基金'],
     'QDII-FOF': ['QDII-FOF'],
-    'QDII-REITs': ['QDII-REITs'],
-    'QDII-混合平衡': ['QDII-混合平衡'],
-    '指数型-股票': ['指数型-股票'],
-    '指数型-海外股票': ['指数型-海外股票'],
   },
   '债券型基金': {
-    '债券型-长债': ['债券型-长债'],
-    '债券型-混合二级': ['债券型-混合二级'],
-    '债券型-混合一级': ['债券型-混合一级'],
-    '债券型-中短债': ['债券型-中短债'],
-    '指数型-固收': ['指数型-固收'],
+    '债券型基金': ['债券型基金'],
+    '纯债型基金': ['纯债型基金'],
+    '混合债券型基金': ['混合债券型基金'],
+    '指数型债券基金': ['指数型债券基金'],
   },
   '混合型基金': {
-    '混合型-偏股': ['混合型-偏股'],
-    '混合型-灵活': ['混合型-灵活'],
-    '混合型-平衡': ['混合型-平衡'],
-    '混合型-偏债': ['混合型-偏债'],
-    '混合型-绝对收益': ['混合型-绝对收益'],
-    '指数型-其他': ['指数型-其他'],
-    '指数型-固收': ['指数型-固收'],
+    '混合型基金': ['混合型基金'],
+    '偏股混合型基金': ['偏股混合型基金'],
+    '偏债混合型基金': ['偏债混合型基金'],
+    '灵活配置型基金': ['灵活配置型基金'],
+    '平衡混合型基金': ['平衡混合型基金'],
+    '指数型债券基金': ['指数型债券基金'],
   },
   '股票型基金': {
-    '指数型-股票': ['指数型-股票'],
-    '股票型': ['股票型'],
+    '股票型基金': ['股票型基金'],
+    '指数型股票基金': ['指数型股票基金'],
+    '普通股票型基金': ['普通股票型基金'],
+  },
+}
+
+// 天天基金分类树（基于天天基金 FundGuideapi 的 gp/zq/hh/fof/qdii 分类）
+const CAT_TREE_TT = {
+  '股票型': {
+    '普通股票型': ['普通股票型'],
+    '被动指数型': ['被动指数型'],
+    '增强指数型': ['增强指数型'],
+  },
+  '混合型': {
+    '偏股混合型': ['偏股混合型'],
+    '平衡混合型': ['平衡混合型'],
+    '偏债混合型': ['偏债混合型'],
+    '灵活配置型': ['灵活配置型'],
+  },
+  '债券型': {
+    '中长期纯债型': ['中长期纯债型'],
+    '短期纯债型': ['短期纯债型'],
+    '混合债券型(一级)': ['混合债券型(一级)'],
+    '混合债券型(二级)': ['混合债券型(二级)'],
+    '被动指数型债券': ['被动指数型债券'],
+  },
+  'QDII': {
+    'QDII股票型': ['QDII股票型'],
+    'QDII混合型': ['QDII混合型'],
+    'QDII债券型': ['QDII债券型'],
+    'QDII另类投资': ['QDII另类投资'],
+  },
+  'FOF': {
+    'FOF混合型': ['FOF混合型'],
+    'FOF债券型': ['FOF债券型'],
   },
 }
 
@@ -557,7 +596,7 @@ const otherSources = classSources.filter(s => s.key !== 'hspj' && s.key !== 'tt'
 
 // 自定义指标权重（6项）
 const showWeightPanel = ref(false)
-const DEFAULT_WEIGHTS = { ret: 30, dd: 20, sr: 20, calmar: 10, ir: 10, te: 10 }
+const DEFAULT_WEIGHTS = { ret: 50, dd: 25, sr: 25, calmar: 0, ir: 0, te: 0 }
 const weightItems = reactive([
   { key: 'ret',    label: '区间收益', value: DEFAULT_WEIGHTS.ret },
   { key: 'dd',     label: '最大回撤', value: DEFAULT_WEIGHTS.dd },
@@ -575,20 +614,27 @@ function resetWeights() {
 function applyCustomWeights() {
   if (weightSum.value !== 100) return
   showWeightPanel.value = false
-  // trigger re-sort
-  sortFunds()
+  // Re-fetch with updated weights (custom weight scoring computed client-side)
+  loadData(true)
 }
 
 function setClassSource(key) {
   const src = classSources.find(s => s.key === key)
   if (!src || !src.available) return
+  if (classSource.value === key) return
   classSource.value = key
+  // 切换数据源时重置分类筛选（不同来源的分类体系不同）
+  filterT0.value = ''
+  filterT1.value = ''
+  loadData(true)
 }
 
 // 搜索/周期/分页/排序
 const searchText = ref('')
 const currentPeriod = ref('k1')
 const sortAsc = ref(false)        // 靠谱指数排序方向（false=降序，true=升序）
+const sortField = ref('')          // 客户端排序列（非评分列）：'c'|'n'|'scale'|'equityPct'|'bondPct'
+const sortDir = ref('desc')        // 客户端排序方向
 const page = ref(1)
 const pageSize = 100
 const hasMore = ref(false)
@@ -602,11 +648,13 @@ const detailFund = ref(null)
 const showScoreHelp = ref(false)
 
 // ========== 计算属性：分类联动 ==========
-const t0List = computed(() => Object.keys(CAT_TREE))
+const currentCatTree = computed(() => classSource.value === 'tt' ? CAT_TREE_TT : CAT_TREE_HSPJ)
+
+const t0List = computed(() => Object.keys(currentCatTree.value))
 
 const t1List = computed(() => {
-  if (!filterT0.value || !CAT_TREE[filterT0.value]) return []
-  return Object.keys(CAT_TREE[filterT0.value])
+  if (!filterT0.value || !currentCatTree.value[filterT0.value]) return []
+  return Object.keys(currentCatTree.value[filterT0.value])
 })
 
 // ========== 格式化 ==========
@@ -682,9 +730,9 @@ function thumbDown(fund) {
 async function addToPortfolio(fund) {
   const result = await addFundToPortfolio(fund.c, fund.n)
   if (result.success) {
-    alert(result.message)
+    toast(result.message, 'success')
   } else {
-    alert(result.message || result.error || '添加失败')
+    toast(result.message || result.error || '添加失败', 'error')
   }
 }
 
@@ -703,13 +751,7 @@ function ddCls(v) {
   return 'risk-low'
 }
 
-// 分类名去掉前缀（显示用）
-function t1Short(t1) {
-  if (!filterT0.value) return t1
-  const prefix = filterT0.value.replace(/基金$/, '') + '-'
-  return t1.startsWith(prefix) ? t1.slice(prefix.length) : t1
-}
-
+// ========== 份额类别提取（基于基金名称末尾大写字母） ==========
 function hasReturns(f) {
   return f.r1y != null || f.r3y != null || f.ytd != null
 }
@@ -735,21 +777,16 @@ function extractShareClass(name) {
   return match ? match[1] : ''
 }
 
-// ========== 智能识别筛选（基于基金名称） ==========
-function buildNameFilter() {
-  const filters = []
-  if (filterETF.value === '1') filters.push({ type: 'name_contains', val: 'ETF' })
-  if (filterETF.value === '0') filters.push({ type: 'name_not_contains', val: 'ETF' })
-  if (filterLOF.value === '1') filters.push({ type: 'name_contains', val: 'LOF' })
-  if (filterLOF.value === '0') filters.push({ type: 'name_not_contains', val: 'LOF' })
-  if (filterFOF.value === '1') filters.push({ type: 't0_eq', val: 'FOF' })
-  if (filterFOF.value === '0') filters.push({ type: 't0_neq', val: 'FOF' })
-  if (filterDK.value === '1') filters.push({ type: 'name_contains', val: '定开' })
-  if (filterDK.value === '0') filters.push({ type: 'name_not_contains', val: '定开' })
-  return filters
+// ========== 数据加载 ==========
+// 天天基金 → 恒生聚源 t0 名称映射（DB 当前仅含恒生聚源分类数据）
+const T0_MAP_TT = {
+  '股票型': '股票型基金',
+  '混合型': '混合型基金',
+  '债券型': '债券型基金',
+  'QDII': 'QDII基金',
+  'FOF': 'FOF',
 }
 
-// ========== 数据加载 ==========
 async function loadData(reset = true) {
   if (loading.value) return
   loading.value = true
@@ -761,9 +798,15 @@ async function loadData(reset = true) {
     if (filterFOF.value === '1') t0Filter = 'FOF'
     if (filterFOF.value === '0' && !filterT0.value) t0Filter = undefined // 不能简单过滤
 
+    // 天天基金分类 → 恒生聚源分类映射
+    if (classSource.value === 'tt' && t0Filter) {
+      t0Filter = T0_MAP_TT[t0Filter] || t0Filter
+    }
+
     const result = await fetchFundScores({
       t0: t0Filter,
       t1: filterT1.value || undefined,
+      classSource: classSource.value,
       search: buildSearchText(),
       kKey: currentPeriod.value,
       sortAsc: sortAsc.value,
@@ -870,6 +913,7 @@ function setSG(val) {
 }
 
 function switchPeriod(key) {
+  sortField.value = ''  // 切换到服务端排序，清除客户端排序
   if (currentPeriod.value === key) {
     // 已选中：切换升降序
     sortAsc.value = !sortAsc.value
@@ -880,6 +924,31 @@ function switchPeriod(key) {
   }
   loadData(true)
 }
+
+/** 客户端列排序（代码/简称/规模/权益%/债券%） */
+function toggleColumnSort(field) {
+  if (sortField.value === field) {
+    sortDir.value = sortDir.value === 'asc' ? 'desc' : 'asc'
+  } else {
+    sortField.value = field
+    sortDir.value = 'asc'  // 首次点击默认升序
+  }
+}
+
+/** 排序后的基金列表 */
+const sortedFunds = computed(() => {
+  if (!sortField.value) return funds.value
+  const dir = sortDir.value === 'asc' ? 1 : -1
+  const key = sortField.value
+  return [...funds.value].sort((a, b) => {
+    let va = a[key], vb = b[key]
+    if (va == null) va = dir > 0 ? Infinity : -Infinity
+    if (vb == null) vb = dir > 0 ? Infinity : -Infinity
+    if (typeof va === 'string') va = va.toLowerCase()
+    if (typeof vb === 'string') vb = vb.toLowerCase()
+    return va > vb ? dir : va < vb ? -dir : 0
+  })
+})
 
 function doSearch() { loadData(true) }
 
@@ -1062,6 +1131,11 @@ onUnmounted(() => {
 .col-score .score-val { font-weight: 700; font-size: 13px; }
 .col-sort { background: #e8f0fe; }
 .col-actions { width: 90px; text-align: center; }
+
+/* 可排序表头 */
+.sortable { cursor: pointer; user-select: none; }
+.sortable:hover { background: #e0e7ef; }
+.th-arrow { font-size: 11px; margin-left: 3px; color: #1d70b8; }
 
 .score-hot  { color: #d4351c; }  /* >=85 红色 */
 .score-warm { color: #f47738; }  /* >=70 橙色 */
