@@ -258,6 +258,7 @@ import { getIndexQuotes, buildMarketData, parseValue500Data } from '../../utils/
 import { calcAllExpectedReturns, calcEnhancedRiskParityWeights } from '../../utils/calc'
 import { useAuth } from '../../composables/useAuth'
 import { toast, confirm } from '../../composables/useToast.js'
+import { createPortfolio as savePortfolioToDb } from '../../api/user-data'
 
 const {
   user, isLoggedIn,
@@ -427,19 +428,49 @@ ${reqHint}
 }
 
 // 添加到自建组合
-function addAiToCustom() {
-  if (!aiPortfolio.value?.funds) return
-  if (!isLoggedIn.value) { toast('请先登录', 'warning'); return }
-  const pfName = aiPortfolio.value.strategyName || 'AI组合'
-  const pf = {
-    id: Date.now().toString(),
-    name: pfName,
-    portfolio_data: aiPortfolio.value.funds.map(f => ({ code: f.code, name: f.name, weight: f.weight || 10, reason: f.reason || '' })),
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString()
+async function addAiToCustom() {
+  if (!aiPortfolio.value?.funds) {
+    toast('暂无 AI 组合数据', 'warning')
+    return
   }
-  customPortfolios.value.unshift(pf)
-  aiStatusText.value = '已添加到自建组合'
+  if (!isLoggedIn.value) {
+    toast('请先登录后再添加到自建组合', 'warning')
+    return
+  }
+
+  const pfName = aiPortfolio.value.strategyName || 'AI组合'
+  const portfolioData = aiPortfolio.value.funds.map(f => ({
+    code: f.code,
+    name: f.name,
+    weight: f.weight || 10,
+    reason: f.reason || ''
+  }))
+
+  try {
+    // 持久化到 Supabase
+    const result = await savePortfolioToDb(pfName, portfolioData)
+    if (!result.success) {
+      toast('保存失败: ' + (result.error || '未知错误'), 'error')
+      return
+    }
+
+    // 同步到本地状态
+    const pf = {
+      id: Date.now().toString(),
+      name: pfName,
+      portfolio_data: portfolioData,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    }
+    customPortfolios.value.unshift(pf)
+
+    toast('已添加到自建组合', 'success')
+    // 自动切换到自建组合 tab
+    activeTab.value = 'custom'
+  } catch (err) {
+    console.error('[addAiToCustom]', err)
+    toast('添加失败: ' + (err.message || '未知错误'), 'error')
+  }
 }
 
 // ===== 模型组合（Kan & Zhou 风险平价） =====

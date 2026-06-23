@@ -200,6 +200,30 @@ function addToLocalPortfolio(code, name) {
   }
 }
 
+/**
+ * 创建完整组合（AI 组合"添加到自建组合"使用）
+ */
+export async function createPortfolio(name, portfolioData) {
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { success: false, error: '请先登录' }
+
+  const { error } = await supabase
+    .from('user_portfolios')
+    .insert({
+      user_id: user.id,
+      name,
+      portfolio_data: portfolioData,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    })
+
+  if (error) {
+    console.error('[user-data] createPortfolio error:', error)
+    return { success: false, error: error.message }
+  }
+  return { success: true }
+}
+
 export function getLocalPortfolio() {
   try {
     const raw = localStorage.getItem('allfund_portfolio') || '[]'

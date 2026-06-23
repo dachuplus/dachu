@@ -19,8 +19,8 @@
       <div class="filter-row">
         <span class="filter-label">分类：</span>
         <div class="filter-chips">
-          <div class="filter-chip" :class="{ active: classSource === 'hspj' }" @click="setClassSource('hspj')">聚源</div>
           <div class="filter-chip" :class="{ active: classSource === 'tt' }" @click="setClassSource('tt')">天天</div>
+          <div class="filter-chip" :class="{ active: classSource === 'hspj' }" @click="setClassSource('hspj')">聚源</div>
           <div class="filter-chip more-chip" @click="showMoreSources = !showMoreSources">
             更多 ▾
             <div class="source-dropdown" v-if="showMoreSources" @click.stop>
@@ -61,7 +61,7 @@
       <div class="more-filter-body" v-if="showMoreFilter">
         <!-- 份额类别 -->
         <div class="filter-row">
-          <span class="filter-label">份额类别</span>
+          <span class="filter-label">份额</span>
           <div class="filter-chips">
             <div class="filter-chip" :class="{ active: filterSC === '' }" @click="setSC('')">全部</div>
             <div v-for="sc in shareClassOptions" :key="sc" class="filter-chip" :class="{ active: filterSC === sc }" @click="setSC(sc)">{{ sc }}类</div>
@@ -110,7 +110,7 @@
 
         <!-- 申购状态 -->
         <div class="filter-row">
-          <span class="filter-label">申购状态</span>
+          <span class="filter-label">状态</span>
           <div class="filter-chips">
             <div class="filter-chip" :class="{ active: filterSG === '' }" @click="setSG('')">全部</div>
             <div class="filter-chip" :class="{ active: filterSG === '1' }" @click="setSG('1')">可申购</div>
@@ -120,7 +120,7 @@
 
         <!-- 单日涨跌≥20%（涨停/跌停基金，如T+2） -->
         <div class="filter-row">
-          <span class="filter-label">单日±20%</span>
+          <span class="filter-label">20%</span>
           <div class="filter-chips">
             <div class="filter-chip" :class="{ active: filterDailyLimit === '' }" @click="setDailyLimit('')">全部</div>
             <div class="filter-chip" :class="{ active: filterDailyLimit === '0' }" @click="setDailyLimit('0')">否</div>
@@ -273,14 +273,14 @@
       <span class="loading-text">正在加载基金数据...</span>
     </div>
 
-    <!-- 底部说明 + 评分帮助 -->
+    <!-- 底部说明 -->
     <div class="bottom-info" v-if="dataLoaded">
-      <span>数据来源：FundGuideapi · 风险指标自行计算（历史净值回算）</span>
-      <span v-if="meta.nav_date">数据截止：{{ meta.nav_date }}</span>
-      <div class="bottom-help">
-        <span class="bottom-help-title" @click="showScoreHelp = true">靠谱指数评分说明</span>
-        <p>综合收益率、最大回撤、夏普比率在全市场排名后加权计算。满分100分，分值越高表现越优秀。默认权重：收益50% + 回撤25% + 夏普25%。</p>
-      </div>
+      <p class="bottom-line" v-if="meta.nav_date || meta.tsq">
+        <span>更新时间：{{ meta.nav_date || fmtUpdateTime(meta.tsq) }}</span>
+      </p>
+      <p class="bottom-line">数据来源：公募基金公开数据</p>
+      <p class="bottom-line">评分说明：靠谱指数评分为综合收益率、最大回撤、夏普比率、卡玛比率，信息比率，跟踪误差等指标，在全市场排名后加权计算。满分100分，分值越高表现越优秀。</p>
+      <p class="bottom-warning">风险提示：评分仅供娱乐，不可作为投资依据，不对任何因此而产生的风险负责。市场有风险，投资需谨慎。</p>
     </div>
 
     <!-- 详情弹窗 -->
@@ -592,7 +592,7 @@ const filterDK = ref('')
 const filterHP = ref('')
 const filterDailyLimit = ref('')
 const filterSG = ref('')       // 申购状态：''全部 '1'可申购 '0'暂停申购
-const classSource = ref('hspj')    // 分类数据源：hspj=恒生聚源，tt=天天分类，choice/ifind/wind/mstar/jajx/yhfl
+const classSource = ref('tt')       // 分类数据源：tt=天天分类，hspj=恒生聚源，choice/ifind/wind/mstar/jajx/yhfl
 const classSources = [
   { key: 'hspj',   label: '恒生聚源', available: true },
   { key: 'tt',     label: '天天分类', available: true },
@@ -635,9 +635,10 @@ function setClassSource(key) {
   if (!src || !src.available) return
   if (classSource.value === key) return
   classSource.value = key
-  // 切换数据源时重置分类筛选（不同来源的分类体系不同）
+  // 切换数据源时重置分类筛选和更多筛选（不同来源的分类体系不同）
   filterT0.value = ''
   filterT1.value = ''
+  clearMoreFilters()
   loadData(true)
 }
 
@@ -648,7 +649,7 @@ const sortAsc = ref(false)        // 靠谱指数排序方向（false=降序，t
 const sortField = ref('')          // 客户端排序列（非评分列）：'c'|'n'|'scale'|'equityPct'|'bondPct'
 const sortDir = ref('desc')        // 客户端排序方向
 const page = ref(1)
-const pageSize = 100
+const pageSize = 300
 const hasMore = ref(false)
 const loading = ref(false)
 const dataLoaded = ref(false)
@@ -777,6 +778,14 @@ function eastMoneyUrl(code) {
   return `http://fund.eastmoney.com/${pureCode}.html`
 }
 
+function fmtUpdateTime(tsq) {
+  if (!tsq) return ''
+  try {
+    const d = new Date(tsq)
+    return d.toLocaleDateString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit' })
+  } catch { return '' }
+}
+
 // ========== 份额类别提取（基于基金名称末尾大写字母） ==========
 // 常见份额类别：A/B/C/D/E/F/H/I/R/Y
 const SHARE_CLASS_LETTERS = ['A', 'B', 'C', 'D', 'E', 'F', 'H', 'I', 'R', 'Y']
@@ -888,6 +897,7 @@ function refreshData() {
 function setT0(val) {
   filterT0.value = val
   filterT1.value = ''
+  clearMoreFilters()
   loadData(true)
 }
 
@@ -902,11 +912,31 @@ function setSC(val) {
 }
 
 function setFlag(type, val) {
-  if (type === 'ETF') filterETF.value = val
-  else if (type === 'LOF') filterLOF.value = val
-  else if (type === 'FOF') { filterFOF.value = val; if (val === '1') { filterT0.value = ''; filterT1.value = '' } }
-  else if (type === 'DK') filterDK.value = val
+  if (type === 'ETF') {
+    filterETF.value = val
+    // ETF/LOF 互斥：选ETF=是则LOF自动=否
+    if (val === '1') filterLOF.value = '0'
+  } else if (type === 'LOF') {
+    filterLOF.value = val
+    // ETF/LOF 互斥：选LOF=是则ETF自动=否
+    if (val === '1') filterETF.value = '0'
+  } else if (type === 'FOF') {
+    filterFOF.value = val
+    if (val === '1') { filterT0.value = ''; filterT1.value = '' }
+  } else if (type === 'DK') filterDK.value = val
   loadData(true)
+}
+
+/** 清除所有更多筛选条件 */
+function clearMoreFilters() {
+  filterSC.value = ''
+  filterETF.value = ''
+  filterLOF.value = ''
+  filterFOF.value = ''
+  filterDK.value = ''
+  filterHP.value = ''
+  filterDailyLimit.value = ''
+  filterSG.value = ''
 }
 
 function setHP(val) {
@@ -1177,10 +1207,15 @@ onUnmounted(() => {
 
 /* 底部 */
 .bottom-info {
-  display: flex; flex-direction: column; align-items: flex-start; gap: 4px;
+  display: flex; flex-direction: column; gap: 4px;
   padding: var(--space-xl) var(--space-md) var(--space-2xl);
-  font-size: 14px; color: var(--text-secondary);
   border-top: 1px solid var(--border); margin-top: var(--space-xl);
+}
+.bottom-line {
+  margin: 0; font-size: 14px; color: var(--text-secondary); line-height: 1.6;
+}
+.bottom-warning {
+  margin: 8px 0 0; font-size: 13px; color: #d4351c; line-height: 1.6; font-weight: 700;
 }
 
 /* 颜色 */
@@ -1307,9 +1342,6 @@ onUnmounted(() => {
 .btn-confirm { padding: var(--space-xs) var(--space-lg); font-size: 14px; background: #00703c; color: #fff; border: none; cursor: pointer; }
 .btn-confirm:disabled { opacity: 0.5; cursor: not-allowed; }
 
-.bottom-help { margin-top: var(--space-sm); padding-top: var(--space-sm); border-top: 1px solid var(--border); }
-.bottom-help-title { font-size: 14px; color: var(--link); cursor: pointer; text-decoration: underline; margin-bottom: 4px; }
-.bottom-help p { font-size: 13px; color: var(--text-secondary); margin: 0; line-height: 1.5; }
 .weight-valid { background: #e6f7ee; color: #00703c; }
 .weight-invalid { background: #fef0ef; color: #d4351c; }
 .weight-warn { font-weight: 400; }
