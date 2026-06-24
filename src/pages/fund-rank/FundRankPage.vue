@@ -303,9 +303,12 @@
     </div>
 
     <!-- 底部说明 -->
-    <div class="bottom-info" v-if="dataLoaded">
+    <div class="bottom-info">
       <p class="bottom-line" v-if="meta.tsq">
         <span>更新时间：{{ fmtUpdateTime(meta.tsq) }}</span>
+      </p>
+      <p class="bottom-line" v-else-if="dataLoaded">
+        <span>更新时间：加载中...</span>
       </p>
       <p class="bottom-line">数据来源：公募基金公开数据</p>
       <p class="bottom-line">评分说明：靠谱指数评分为综合收益率、最大回撤、夏普比率、卡玛比率，信息比率，跟踪误差等指标，在全市场排名后加权计算。满分100分，分值越高表现越优秀。</p>

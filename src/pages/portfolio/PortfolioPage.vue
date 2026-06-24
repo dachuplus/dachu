@@ -426,7 +426,7 @@ ${reqHint}
       id: Date.now().toString(),
       strategyName: parsed.strategyName || strategyName,
       summary: parsed.summary || '',
-      funds: (parsed.funds || []).map(f => ({ code: f.code, name: f.name, weight: Number(f.weight)||10, reason: f.reason||'' })),
+      funds: (parsed.funds || []).slice(0, 10).map(f => ({ code: f.code, name: f.name, weight: 10, reason: f.reason||'' })),
       backtest: parsed.backtest ? { annualReturn: Number(parsed.backtest.annualReturn)||0, maxDrawdown: Number(parsed.backtest.maxDrawdown)||0, sharpe: Number(parsed.backtest.sharpe)||0, winRate: Number(parsed.backtest.winRate)||0 } : null,
       createdAt: `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`
     }
@@ -645,7 +645,7 @@ onMounted(() => {
 .ai-result-date { font-size: 14px; color: var(--text-secondary); }
 .ai-summary { font-size: 16px; color: var(--text-secondary); margin-bottom: var(--space-md); line-height: 1.6; }
 .ai-funds { display: flex; flex-direction: column; gap: var(--space-sm); margin-bottom: var(--space-md); }
-.ai-fund-item { display: flex; justify-content: space-between; align-items: center; padding: var(--space-sm) var(--space-md); border: 1px solid var(--border); border-left: 4px solid #6c5ce7; }
+.ai-fund-item { display: flex; justify-content: space-between; align-items: center; padding: var(--space-sm) var(--space-md); border: 1px solid var(--border); }
 .ai-fund-left { display: flex; flex-direction: column; }
 .ai-fund-name { font-size: 16px; font-weight: 700; }
 .ai-fund-code { font-size: 13px; color: var(--text-secondary); }
