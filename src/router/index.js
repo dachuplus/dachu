@@ -1,4 +1,4 @@
-import { createRouter, createWebHistory } from 'vue-router'
+import { createRouter, createWebHashHistory } from 'vue-router'
 
 const routes = [
   {
@@ -57,12 +57,12 @@ const routes = [
 ]
 
 const router = createRouter({
-  history: createWebHistory(),
+  history: createWebHashHistory(),
   routes,
 })
 
 router.afterEach((to) => {
-  document.title = (to.meta?.title || '投资工作助手') + ' - 大厨仪表盘'
+  document.title = (to.meta?.title || '投资工作助手') + ' - 靠谱指数评分工具'
 })
 
 export default router
