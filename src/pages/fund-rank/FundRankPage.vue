@@ -223,8 +223,8 @@
             :key="fund.c"
             class="fund-row"
           >
-            <td class="col-code">{{ fund.c }}</td>
-            <td class="col-name" @click="openDetail(fund)">{{ fund.n || '基金' + fund.c }}</td>
+            <td class="col-code"><a :href="'https://fund.eastmoney.com/' + fund.c + '.html'" target="_blank" @click.stop>{{ fund.c }}</a></td>
+            <td class="col-name"><a :href="'https://fund.eastmoney.com/' + fund.c + '.html'" target="_blank" @click.stop>{{ fund.n || '基金' + fund.c }}</a></td>
             <td v-for="p in displayPeriods" :key="p.key" class="col-score" :class="{ 'col-sort': currentPeriod === p.key }">
               <span class="score-val" :class="scoreCls(fund[p.key])">{{ fmtScore(fund[p.key]) }}</span>
             </td>
@@ -250,11 +250,10 @@
         v-for="fund in sortedFunds"
         :key="fund.c"
         class="fund-card"
-        @click="openDetail(fund)"
       >
         <div class="fund-card-top">
-          <span class="fund-code">{{ fund.c }}</span>
-          <span class="fund-name">{{ fund.n || '基金' + fund.c }}</span>
+          <a class="fund-code" :href="'https://fund.eastmoney.com/' + fund.c + '.html'" target="_blank" @click.stop>{{ fund.c }}</a>
+          <a class="fund-name" :href="'https://fund.eastmoney.com/' + fund.c + '.html'" target="_blank" @click.stop>{{ fund.n || '基金' + fund.c }}</a>
           <span class="fund-card-actions" @click.stop>
             <span class="action-icon" title="点赞" @click="thumbUp(fund)">
               <SvgIcon name="thumbs-up" :size="16" />
@@ -1214,7 +1213,9 @@ onUnmounted(() => {
 }
 .fund-row:hover { background: #f8f8f8; }
 
-.col-code { width: 80px; font-weight: 700; color: var(--text-secondary); font-family: monospace; font-size: 13px; }
+.col-code { width: 80px; font-weight: 700; color: var(--text-primary); font-family: monospace; font-size: 13px; }
+.col-code a { color: var(--text-primary); text-decoration: none; }
+.col-code a:hover { color: var(--link); text-decoration: underline; }
 /* 固定首列 */
 .fund-table th.col-code {
   position: sticky; left: 0; z-index: 3;
@@ -1225,8 +1226,9 @@ onUnmounted(() => {
 .fund-row:hover td.col-code {
   background: #f8f8f8;
 }
-.col-name { max-width: 180px; font-weight: 700; cursor: pointer; color: var(--link); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.col-name:hover { text-decoration: underline; }
+.col-name { max-width: 180px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.col-name a { color: var(--text-primary); text-decoration: none; }
+.col-name a:hover { color: var(--link); text-decoration: underline; }
 .col-num { width: 80px; text-align: right; color: var(--text-secondary); }
 .col-pct { width: 60px; text-align: right; color: var(--text-secondary); }
 .col-score { width: 50px; text-align: center; }
@@ -1241,7 +1243,7 @@ onUnmounted(() => {
 
 .fund-card {
   padding: var(--space-md); border-bottom: 1px solid var(--border);
-  cursor: pointer; background: #fff;
+  background: #fff;
 }
 .fund-card:active { background: #f3f2f1; }
 
@@ -1250,15 +1252,18 @@ onUnmounted(() => {
 }
 
 .fund-code {
-  font-size: 13px; font-weight: 700; color: var(--text-secondary);
+  font-size: 13px; font-weight: 700; color: var(--text-primary);
   font-family: monospace; flex-shrink: 0; min-width: 56px;
+  text-decoration: none;
 }
+.fund-code:hover { color: var(--link); text-decoration: underline; }
 
 .fund-name {
-  flex: 1; font-size: 15px; font-weight: 700; color: var(--link);
+  flex: 1; font-size: 15px; font-weight: 700; color: var(--text-primary);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-  min-width: 0; line-height: 1.4;
+  min-width: 0; line-height: 1.4; text-decoration: none;
 }
+.fund-name:hover { color: var(--link); text-decoration: underline; }
 
 .fund-card-actions {
   display: flex; align-items: center; gap: 2px; flex-shrink: 0;

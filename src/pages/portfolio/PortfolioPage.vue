@@ -258,7 +258,7 @@ import { getIndexQuotes, buildMarketData, parseValue500Data } from '../../utils/
 import { calcAllExpectedReturns, calcEnhancedRiskParityWeights } from '../../utils/calc'
 import { useAuth } from '../../composables/useAuth'
 import { toast, confirm } from '../../composables/useToast.js'
-import { createPortfolio as savePortfolioToDb } from '../../api/user-data'
+import { createPortfolio as savePortfolioToDb, deletePortfolio } from '../../api/user-data'
 
 const {
   user, isLoggedIn,
@@ -295,21 +295,32 @@ async function loadCustomPortfolios() {
 
 async function createPortfolio() {
   if (!newPfName.value.trim()) return
-  const pf = {
+  const name = newPfName.value.trim()
+  showCreateModal.value = false
+  newPfName.value = ''
+
+  // 持久化到 Supabase
+  const result = await savePortfolioToDb(name, [])
+  if (!result.success) {
+    toast('创建失败: ' + (result.error || '未知错误'), 'error')
+    return
+  }
+
+  // 同步到本地状态（使用 DB 返回的真实 ID）
+  customPortfolios.value.unshift(result.data || {
     id: Date.now().toString(),
-    name: newPfName.value.trim(),
+    name,
     portfolio_data: [],
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString()
-  }
-  customPortfolios.value.unshift(pf)
-  showCreateModal.value = false
-  newPfName.value = ''
+  })
+  toast('组合已创建', 'success')
 }
 
 async function deletePf(id) {
   const ok = await confirm('确定删除？', '将删除该组合及其所有持仓信息，该操作不可撤销。')
   if (!ok) return
+  await deletePortfolio(id)
   customPortfolios.value = customPortfolios.value.filter(p => p.id !== id)
   toast('组合已删除', 'success')
 }
@@ -454,15 +465,14 @@ async function addAiToCustom() {
       return
     }
 
-    // 同步到本地状态
-    const pf = {
+    // 同步到本地状态（使用 DB 返回的真实 ID）
+    customPortfolios.value.unshift(result.data || {
       id: Date.now().toString(),
       name: pfName,
       portfolio_data: portfolioData,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString()
-    }
-    customPortfolios.value.unshift(pf)
+    })
 
     toast('已添加到自建组合', 'success')
     // 自动切换到自建组合 tab

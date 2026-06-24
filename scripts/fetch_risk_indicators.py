@@ -54,8 +54,10 @@ fail_count = 0
 skip_count = 0
 
 
-def fetch_and_calculate(fund_code, delay=0.3):
-    """抓取单只基金的历史净值数据，计算回撤和夏普比率"""
+def fetch_and_calculate(fund_code):
+    """抓取单只基金的历史净值数据，计算回撤和夏普比率。
+    注意：return_all 由 step 2b (fetch_return_all.py) 单独抓取，此处不再请求 HTML 页面，
+    仅通过累计净值/单位净值做兜底估算。"""
     global success_count, fail_count
 
     # 去掉 .OF 后缀
@@ -63,7 +65,6 @@ def fetch_and_calculate(fund_code, delay=0.3):
     url = f'http://fund.eastmoney.com/pingzhongdata/{code}.js'
 
     try:
-        time.sleep(delay)
         req = urllib.request.Request(url, headers=HEADERS)
         resp = urllib.request.urlopen(req, timeout=15)
         js = resp.read().decode('utf-8')
@@ -93,36 +94,21 @@ def fetch_and_calculate(fund_code, delay=0.3):
 
         end_date = records[-1]['date']
 
-        # 计算成立以来收益：优先从天天基金页面抓取精确数值，其次累计净值，最后单位净值
+        # 成立以来收益兜底：用累计净值（含分红），降级用单位净值
+        # 精确值由 step 2b (fetch_return_all.py) 通过 rankhandler API 抓取
         return_all = None
 
-        # 方法1：从基金详情页 HTML 抓取"成立来：2095.19%"（最准确，含红利再投资复利）
-        try:
-            page_url = f'https://fund.eastmoney.com/{code}.html'
-            page_req = urllib.request.Request(page_url, headers={
-                'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
-                'Referer': 'https://fund.eastmoney.com/',
-            })
-            page_resp = urllib.request.urlopen(page_req, timeout=10)
-            page_html = page_resp.read().decode('utf-8', errors='replace')
-            m_page = re.search(r'成立来：</span><span[^>]*>([\d.\-]+)%</span>', page_html)
-            if m_page:
-                return_all = float(m_page.group(1))
-        except Exception:
-            pass
+        # 方法1：用累计净值（含分红）
+        m_ac = re.search(r'var Data_ACWorthTrend\s*=\s*(\[\[.*?\]\])\s*;', js)
+        if m_ac:
+            ac_data = json.loads(m_ac.group(1))
+            if ac_data and len(ac_data) >= 2:
+                ac_first_nav = ac_data[0][1]
+                ac_last_nav = ac_data[-1][1]
+                if ac_first_nav and ac_first_nav > 0:
+                    return_all = round((ac_last_nav - ac_first_nav) / ac_first_nav * 100, 2)
 
-        # 方法2：用累计净值（含分红）
-        if return_all is None:
-            m_ac = re.search(r'var Data_ACWorthTrend\s*=\s*(\[\[.*?\]\])\s*;', js)
-            if m_ac:
-                ac_data = json.loads(m_ac.group(1))
-                if ac_data and len(ac_data) >= 2:
-                    ac_first_nav = ac_data[0][1]
-                    ac_last_nav = ac_data[-1][1]
-                    if ac_first_nav and ac_first_nav > 0:
-                        return_all = round((ac_last_nav - ac_first_nav) / ac_first_nav * 100, 2)
-
-        # 方法3：降级用单位净值
+        # 方法2：降级用单位净值
         if return_all is None:
             start_nav = records[0]['nav']
             end_nav = records[-1]['nav']
@@ -226,15 +212,17 @@ def main():
 
     # 打开输出文件
     with open(args.output, 'a' if args.resume else 'w') as outf:
-        # 用线程池并发抓取
+        # 用线程池并发抓取（按 delay 间隔提交任务以实现节流）
         with ThreadPoolExecutor(max_workers=args.workers) as executor:
             futures = {}
             for code in fund_codes:
                 if code in existing:
                     _skip_count += 1
                     continue
-                future = executor.submit(fetch_and_calculate, code, args.delay)
+                future = executor.submit(fetch_and_calculate, code)
                 futures[future] = code
+                # 提交间隔节流（分摊到 workers 个线程）
+                time.sleep(args.delay / max(args.workers, 1))
 
             done = 0
             for future in as_completed(futures):
@@ -247,11 +235,10 @@ def main():
                     outf.flush()
 
                 # 进度显示
-                if done % 50 == 0 or done == len(futures):
-                    elapsed = done * args.delay / args.workers
-                    eta = (len(futures) - done) * args.delay / args.workers
-                    print(f'  进度: {done}/{len(futures)} | 成功: {success_count} | 失败: {fail_count} | '
-                          f'跳过: {_skip_count} | 预计剩余: {eta/60:.1f}min')
+                if done % 200 == 0 or done == len(futures):
+                    pct = done / len(futures) * 100 if len(futures) > 0 else 0
+                    print(f'  进度: {done}/{len(futures)} ({pct:.1f}%) | 成功: {success_count} | 失败: {fail_count} | '
+                          f'跳过: {_skip_count}')
 
     print(f'\n完成!')
     print(f'  成功: {success_count}')

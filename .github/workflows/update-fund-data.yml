@@ -60,6 +60,9 @@ jobs:
 
       - name: 步骤2 — 抓取风险指标（回撤+夏普）
         if: ${{ !inputs.skip_risk }}
+        id: risk_indicators
+        timeout-minutes: 12
+        continue-on-error: true
         run: |
           echo "============================================"
           echo "  步骤2: 抓取风险指标 (回撤+夏普比率)"
@@ -73,13 +76,15 @@ jobs:
           python scripts/fetch_risk_indicators.py \
             --input scripts/funds_output.ndjson \
             --output scripts/risk_indicators.ndjson \
-            --workers 5 \
-            --delay 0.25 \
+            --workers 8 \
+            --delay 0.3 \
             --resume
           echo "风险指标计算完成: $(date '+%Y-%m-%d %H:%M:%S')"
 
       - name: 步骤2b — 抓取成立以来收益率（rankhandler API）
         if: ${{ !inputs.skip_risk }}
+        timeout-minutes: 10
+        continue-on-error: true
         run: |
           echo "============================================"
           echo "  步骤2b: 抓取成立以来收益率 (rankhandler API)"
@@ -95,6 +100,10 @@ jobs:
           echo "  步骤3: 合并风险指标 + 重算靠谱分 + REST API 导入"
           echo "  开始时间: $(date '+%Y-%m-%d %H:%M:%S')"
           echo "============================================"
+          # 风险指标失败时走备选：仅收益靠谱分
+          if [ "${{ steps.risk_indicators.outcome }}" = "failure" ]; then
+            echo "[WARN] 风险指标抓取超时/失败，跳过合并，仅使用收益靠谱分"
+          fi
           python scripts/import_via_rest.py
 
       - name: 步骤3b — HSPJ 基金分类更新（基于聚源标准）
@@ -123,7 +132,7 @@ jobs:
           python scripts/verify_update.py
 
       - name: 失败通知
-        if: failure()
+        if: ${{ failure() || cancelled() }}
         run: |
           echo "数据更新失败！请检查 GitHub Actions 日志。"
           echo "时间: $(date '+%Y-%m-%d %H:%M:%S')"

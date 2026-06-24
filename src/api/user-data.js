@@ -207,7 +207,7 @@ export async function createPortfolio(name, portfolioData) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { success: false, error: '请先登录' }
 
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from('user_portfolios')
     .insert({
       user_id: user.id,
@@ -216,9 +216,31 @@ export async function createPortfolio(name, portfolioData) {
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString()
     })
+    .select()
+    .single()
 
   if (error) {
     console.error('[user-data] createPortfolio error:', error)
+    return { success: false, error: error.message }
+  }
+  return { success: true, data }
+}
+
+/**
+ * 删除组合
+ */
+export async function deletePortfolio(portfolioId) {
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { success: false, error: '未登录' }
+
+  const { error } = await supabase
+    .from('user_portfolios')
+    .delete()
+    .eq('id', portfolioId)
+    .eq('user_id', user.id)
+
+  if (error) {
+    console.error('[user-data] deletePortfolio error:', error)
     return { success: false, error: error.message }
   }
   return { success: true }
