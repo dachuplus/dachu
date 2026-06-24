@@ -71,9 +71,15 @@
           </div>
         </div>
         <p class="data-source">数据参考：funddb.cn | 中国10年期国债收益率 {{ bondY10y }}%</p>
-        <!-- 10Y国债历史走势（FED分母端） -->
-        <div class="card-title" style="margin-top:20px">10Y国债收益率历史走势</div>
-        <div ref="fedHistRef" style="height:200px"></div>
+        <!-- FED 历史走势图 -->
+        <div class="card-title" style="margin-top:20px">
+          股债性价比历史走势（2002—今）
+          <span class="card-subtitle">上证指数叠加 10Y 国债收益率 ± 标准差带</span>
+        </div>
+        <div ref="fedChartRef" style="height:420px"></div>
+        <p class="chart-hint" style="margin-top:8px;font-size:12px;color:var(--text-muted)">
+          蓝线 = 10Y国债收益率 | 浅蓝带 = ±1σ / ±2σ 标准差 | 灰底 = 上证指数 | 红线 = 当前股债利差参考线
+        </p>
       </div>
     </div>
 
@@ -337,7 +343,7 @@ let gaugeChart = null
 let pieChart = null
 let radarChart = null
 let bondCurveChart = null
-let fedHistChart = null
+let fedChart = null
 let compareIdxChart = null
 
 // ===== 行业估值 =====
@@ -688,11 +694,197 @@ function drawBondCurve() {
   }
 }
 
-// ===== FED 10Y历史图 =====
-function drawFedHistChart() {
-  const el = document.querySelector('[ref=fedHistRef]')
-  if (!el || !macroHistory['cn10y']) return
-  drawMiniHistoryChart(el, macroHistory['cn10y'], '10Y国债收益率')
+// ===== FED 历史图（股债性价比 + 上证指数叠加） =====
+async function drawFedChart() {
+  const el = document.querySelector('[ref=fedChartRef]')
+  if (!el) return
+  if (fedChart) { fedChart.dispose(); fedChart = null }
+
+  // 已有缓存则直接绘制
+  if (fedSeriesData.value) {
+    _renderFedChart(el, fedSeriesData.value)
+    return
+  }
+
+  // 从 macro_history 拉取数据
+  if (!supabase) return
+  try {
+    const [cn10yRes, idxRes] = await Promise.all([
+      supabase.from('macro_history').select('date, value').eq('metric', 'cn10y').order('date', { ascending: true }).limit(10000),
+      supabase.from('macro_history').select('date, value').eq('metric', 'sh000001').order('date', { ascending: true }).limit(10000)
+    ])
+    if (cn10yRes.error || !cn10yRes.data?.length) return
+
+    const cn10yData = cn10yRes.data
+    const idxMap = {}
+    if (!idxRes.error && idxRes.data) {
+      idxRes.data.forEach(d => { idxMap[d.date] = d.value })
+    }
+
+    const dates = cn10yData.map(d => d.date)
+    const yields = cn10yData.map(d => d.value)
+    const indices = cn10yData.map(d => idxMap[d.date] ?? null)
+
+    // 计算均值和标准差（用于绘制带）
+    const validYields = yields.filter(v => v != null)
+    const n = validYields.length
+    const mean = validYields.reduce((a, b) => a + b, 0) / n
+    const variance = validYields.reduce((s, v) => s + (v - mean) ** 2, 0) / n
+    const std = Math.sqrt(variance)
+
+    // 获取当前股债利差参考线
+    const currentSpread = fedIndices.value[0]?.spread !== '--' ? parseFloat(fedIndices.value[0].spread) : null
+
+    const data = { dates, yields, indices, mean, std, currentSpread, validCount: n }
+    fedSeriesData.value = data
+    _renderFedChart(el, data)
+  } catch (err) {
+    console.error('[SignalPage] drawFedChart error:', err)
+  }
+}
+
+// 缓存 FED 数据避免重复拉取
+const fedSeriesData = ref(null)
+
+function _renderFedChart(el, data) {
+  const { dates, yields, indices, mean, std, currentSpread, validCount } = data
+  fedChart = echarts.init(el)
+
+  // 生成标准差带
+  const plus1 = yields.map(v => v != null ? mean + std : null)
+  const minus1 = yields.map(v => v != null ? mean - std : null)
+  const plus2 = yields.map(v => v != null ? mean + 2 * std : null)
+  const minus2 = yields.map(v => v != null ? mean - 2 * std : null)
+
+  // 上证指数归一化（对左轴映射到合理范围，取 min/max 归一化到 cn10y 范围附近）
+  const validIdx = indices.filter(v => v != null)
+  let idxMin = Infinity, idxMax = -Infinity
+  if (validIdx.length > 0) {
+    idxMin = Math.min(...validIdx)
+    idxMax = Math.max(...validIdx)
+  }
+  // 将指数映射到国债收益率轴范围：scale idx to [mean - 3*std, mean + 3*std]
+  const yMin = mean - 3 * std
+  const yMax = mean + 3 * std
+  const plotRange = yMax - yMin
+  const idxNorm = indices.map(v => {
+    if (v == null || idxMax === idxMin) return null
+    return yMin + ((v - idxMin) / (idxMax - idxMin)) * plotRange
+  })
+
+  const useDataZoom = dates.length > 250
+  const startPct = useDataZoom ? Math.max(0, Math.round((1 - 500 / dates.length) * 100)) : 0
+  const labelStep = Math.max(1, Math.floor(dates.length / 10))
+
+  const option = {
+    grid: { left: 60, right: 50, top: 20, bottom: useDataZoom ? 50 : 20 },
+    xAxis: {
+      type: 'category', data: dates, boundaryGap: false,
+      axisLine: { lineStyle: { color: '#b1b4b6' } },
+      axisTick: { show: false },
+      axisLabel: { fontSize: 10, color: '#505a5f', interval: labelStep - 1 }
+    },
+    yAxis: {
+      type: 'value', name: '收益率 %', nameTextStyle: { fontSize: 10, color: '#505a5f' },
+      splitLine: { lineStyle: { color: '#f3f2f1' } },
+      axisLine: { show: false },
+      axisLabel: { fontSize: 10, color: '#505a5f', formatter: v => v.toFixed(1) + '%' }
+    },
+    dataZoom: useDataZoom ? [{
+      type: 'slider', show: true, xAxisIndex: 0,
+      start: startPct, end: 100,
+      height: 24, bottom: 6,
+      borderColor: '#b1b4b6',
+      fillerColor: 'rgba(29,112,184,0.1)',
+      handleStyle: { color: '#1d70b8' },
+      textStyle: { fontSize: 9, color: '#505a5f' }
+    }] : [],
+    tooltip: {
+      trigger: 'axis',
+      formatter: params => {
+        const p = Array.isArray(params) ? params : [params]
+        let html = '<b>' + p[0].axisValue + '</b>'
+        for (const item of p) {
+          if (item.seriesName === '上证指数(归一化)') {
+            // 反归一化显示真实指数值
+            const origIdx = indices[item.dataIndex]
+            if (origIdx != null) html += `<br/>上证指数: ${origIdx.toFixed(0)}`
+          } else if (item.value != null) {
+            html += `<br/>${item.seriesName}: ${item.value.toFixed(2)}%`
+          }
+        }
+        return html
+      }
+    },
+    series: [
+      // 上证指数背景（灰色填充区域，归一化后）
+      {
+        name: '上证指数(归一化)', type: 'line', data: idxNorm,
+        lineStyle: { width: 0 },
+        symbol: 'none',
+        areaStyle: { color: 'rgba(180,180,180,0.18)' },
+        silent: true, z: 1
+      },
+      // ±2σ 带
+      {
+        name: '+2σ', type: 'line', data: plus2,
+        lineStyle: { width: 0.5, color: '#e0e0e0', type: 'dashed' },
+        symbol: 'none', silent: true, z: 2
+      },
+      {
+        name: '−2σ', type: 'line', data: minus2,
+        lineStyle: { width: 0.5, color: '#e0e0e0', type: 'dashed' },
+        areaStyle: { color: 'rgba(29,112,184,0.04)' },
+        symbol: 'none', silent: true, z: 2
+      },
+      // ±1σ 带
+      {
+        name: '+1σ', type: 'line', data: plus1,
+        lineStyle: { width: 0.5, color: '#c0c0c0', type: 'dashed' },
+        symbol: 'none', silent: true, z: 3
+      },
+      {
+        name: '−1σ', type: 'line', data: minus1,
+        lineStyle: { width: 0.5, color: '#c0c0c0', type: 'dashed' },
+        areaStyle: { color: 'rgba(29,112,184,0.06)' },
+        symbol: 'none', silent: true, z: 3
+      },
+      // 均值线
+      {
+        name: '均值', type: 'line',
+        data: new Array(dates.length).fill(mean),
+        lineStyle: { width: 1, color: '#888', type: 'dotted' },
+        symbol: 'none', silent: true, z: 4
+      },
+      // 10Y国债收益率主曲线
+      {
+        name: '10Y国债收益率', type: 'line', data: yields,
+        lineStyle: { width: 2, color: '#1d70b8' },
+        areaStyle: { color: {
+          type: 'linear', x: 0, y: 0, x2: 0, y2: 1,
+          colorStops: [{ offset: 0, color: 'rgba(29,112,184,0.15)' }, { offset: 1, color: 'rgba(29,112,184,0.02)' }]
+        }},
+        symbol: 'none', smooth: false, z: 5
+      },
+      // 当前股债利差参考线
+      ...(currentSpread != null ? [{
+        name: `当前股债利差 ${currentSpread.toFixed(2)}%`,
+        type: 'line',
+        data: new Array(dates.length).fill(null),
+        markLine: {
+          silent: true,
+          symbol: 'none',
+          lineStyle: { color: '#d4351c', width: 2, type: 'dashed' },
+          label: { fontSize: 10, color: '#d4351c', formatter: `股债利差 ${currentSpread.toFixed(2)}%` },
+          data: [{ yAxis: mean, name: '参考' }]
+        },
+        z: 6
+      }] : [])
+    ]
+  }
+
+  fedChart.setOption(option)
+  fedChart.resize()
 }
 
 // ===== 资产对比 上证指数历史图 =====
@@ -1030,7 +1222,7 @@ function drawPie() {
 watch(activeTab, (tab) => {
   nextTick(() => {
     if (tab === 'macro') { drawGauge(); drawMacroCharts() }
-    else if (tab === 'fed') drawFedHistChart()
+    else if (tab === 'fed') drawFedChart()
     else if (tab === 'compare') drawCompareIdxChart()
     else if (tab === 'allocate') drawPie()
     else if (tab === 'factor') {
