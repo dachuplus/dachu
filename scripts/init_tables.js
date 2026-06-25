@@ -32,8 +32,6 @@ CREATE TABLE IF NOT EXISTS fund_scores (
   k2 NUMERIC(6,4),
   k3 NUMERIC(6,4),
   k5 NUMERIC(6,4),
-  k7 NUMERIC(6,4),
-  k10 NUMERIC(6,4),
   dd1y NUMERIC(10,4),
   dd2y NUMERIC(10,4),
   dd3y NUMERIC(10,4),
@@ -41,8 +39,7 @@ CREATE TABLE IF NOT EXISTS fund_scores (
   sr1y NUMERIC(10,4),
   sr2y NUMERIC(10,4),
   sr3y NUMERIC(10,4),
-  sr5y NUMERIC(10,4),
-  tsq TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+  sr5y NUMERIC(10,4)
 );
 CREATE INDEX IF NOT EXISTS idx_fund_scores_c ON fund_scores(c);
 CREATE INDEX IF NOT EXISTS idx_fund_scores_k3 ON fund_scores(k3 DESC);

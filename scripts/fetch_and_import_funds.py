@@ -327,8 +327,6 @@ def import_to_supabase(funds):
                 _esc_null(r.get('k2')),
                 _esc_null(r.get('k3')),
                 _esc_null(r.get('k5')),
-                _esc_null(r.get('k7')),
-                _esc_null(r.get('k10')),
                 _esc_null(r.get('dd1y')),
                 _esc_null(r.get('dd2y')),
                 _esc_null(r.get('dd3y')),
@@ -340,7 +338,7 @@ def import_to_supabase(funds):
             ]
             values.append(f"({','.join(str(v) for v in vals)})")
 
-        cols = 'c,n,t0,t1,t2,t6,a,hp,ytd,r0w,r1m,r3m,r6m,r1y,r2y,r3y,r5y,nav,date,k0w,k1m,k3m,k6m,k1,k2,k3,k5,k7,k10,dd1y,dd2y,dd3y,dd5y,sr1y,sr2y,sr3y,sr5y'
+        cols = 'c,n,t0,t1,t2,t6,a,hp,ytd,r0w,r1m,r3m,r6m,r1y,r2y,r3y,r5y,nav,date,k0w,k1m,k3m,k6m,k1,k2,k3,k5,dd1y,dd2y,dd3y,dd5y,sr1y,sr2y,sr3y,sr5y'
         sql = f"INSERT INTO fund_scores ({cols}) VALUES\n" + ',\n'.join(values)
 
         try:
@@ -408,8 +406,6 @@ def main():
         fund['k2'] = 0
         fund['k3'] = 0
         fund['k5'] = 0
-        fund['k7'] = 0
-        fund['k10'] = 0
         fund['dd1y'] = None
         fund['dd2y'] = None
         fund['dd3y'] = None

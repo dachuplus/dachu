@@ -223,10 +223,10 @@
             :key="fund.c"
             class="fund-row"
           >
-            <td class="col-code"><a :href="'https://fund.eastmoney.com/' + fund.c + '.html'" target="_blank" @click.stop>{{ fund.c }}</a></td>
-            <td class="col-name"><a :href="'https://fund.eastmoney.com/' + fund.c + '.html'" target="_blank" @click.stop>{{ fund.n || '基金' + fund.c }}</a></td>
+            <td class="col-code"><a :href="eastMoneyUrl(fund.c)" target="_blank" @click.stop>{{ fund.c }}</a></td>
+            <td class="col-name"><a :href="eastMoneyUrl(fund.c)" target="_blank" @click.stop>{{ fund.n || '基金' + fund.c }}</a></td>
             <td v-for="p in displayPeriods" :key="p.key" class="col-score" :class="{ 'col-sort': currentPeriod === p.key }">
-              <span class="score-val" :class="scoreCls(fund[p.key])">{{ fmtScore(fund[p.key]) }}</span>
+              <span class="score-val" :style="scoreColor(fund[p.key])">{{ fmtScore(fund[p.key]) }}</span>
             </td>
             <td class="col-actions">
               <span class="action-btn" title="点赞" @click.stop="thumbUp(fund)">
@@ -252,8 +252,8 @@
         class="fund-card"
       >
         <div class="fund-card-top">
-          <a class="fund-code" :href="'https://fund.eastmoney.com/' + fund.c + '.html'" target="_blank" @click.stop>{{ fund.c }}</a>
-          <a class="fund-name" :href="'https://fund.eastmoney.com/' + fund.c + '.html'" target="_blank" @click.stop>{{ fund.n || '基金' + fund.c }}</a>
+          <a class="fund-code" :href="eastMoneyUrl(fund.c)" target="_blank" @click.stop>{{ fund.c }}</a>
+          <a class="fund-name" :href="eastMoneyUrl(fund.c)" target="_blank" @click.stop>{{ fund.n || '基金' + fund.c }}</a>
           <span class="fund-card-actions" @click.stop>
             <span class="action-icon" title="点赞" @click="thumbUp(fund)">
               <SvgIcon name="thumbs-up" :size="16" />
@@ -275,7 +275,7 @@
             @click.stop="switchPeriod(p.key)"
           >
             <span class="chip-label">{{ p.label }}</span>
-            <span class="chip-val" :class="scoreCls(fund[p.key])">{{ fmtScore(fund[p.key]) }}</span>
+            <span class="chip-val" :style="scoreColor(fund[p.key])">{{ fmtScore(fund[p.key]) }}</span>
           </span>
         </div>
       </div>
@@ -347,7 +347,7 @@
               <div class="detail-scores-grid">
                 <div v-for="p in periods" :key="p.key" class="ds-item">
                   <span class="ds-period">{{ p.label }}</span>
-                  <span class="ds-score" :class="scoreCls(detailFund[p.key])">
+                  <span class="ds-score" :style="scoreColor(detailFund[p.key])">
                     {{ fmtScore(detailFund[p.key]) }}
                   </span>
                 </div>
@@ -455,26 +455,15 @@
               </span>
             </div>
             <div class="help-section">
-              <span class="help-section-label">颜色等级</span>
-              <div class="help-color-row">
-                <span class="help-dot" style="background:#FFB800;"></span>
-                <span class="help-color-text score-gold-text">85分及以上</span>
-                <span class="help-color-desc">顶尖水平</span>
-              </div>
-              <div class="help-color-row">
-                <span class="help-dot" style="background:#FF6B35;"></span>
-                <span class="help-color-text score-orange-text">75 ~ 84分</span>
-                <span class="help-color-desc">优秀水平</span>
-              </div>
-              <div class="help-color-row">
-                <span class="help-dot" style="background:#06B6D4;"></span>
-                <span class="help-color-text score-cyan-text">65 ~ 74分</span>
-                <span class="help-color-desc">中等偏上</span>
-              </div>
-              <div class="help-color-row">
-                <span class="help-dot" style="background:#8B949E;"></span>
-                <span class="help-color-text score-default-text">65分以下</span>
-                <span class="help-color-desc">中等及以下</span>
+              <span class="help-section-label">颜色等级（全市场百分位渐变）</span>
+              <div class="gradient-legend">
+                <div class="gradient-bar"></div>
+                <div class="gradient-labels">
+                  <span>0分 · 绿（后 50%）</span>
+                  <span>50分 · 黄绿（中位）</span>
+                  <span>75分 · 橙（前 25%）</span>
+                  <span>100分 · 红（前 1%）</span>
+                </div>
               </div>
             </div>
             <div class="help-section">
@@ -698,7 +687,7 @@ function setClassSource(key) {
 const searchText = ref('')
 const currentPeriod = ref('k1')
 const sortAsc = ref(false)        // 靠谱指数排序方向（false=降序，true=升序）
-const sortField = ref('')          // 客户端排序列（非评分列）：'c'|'n'|'scale'|'equityPct'|'bondPct'
+const sortField = ref('')          // 客户端排序列（非评分列）：'c'|'n'|'equityPct'|'bondPct'
 const sortDir = ref('desc')        // 客户端排序方向
 const page = ref(1)
 const pageSize = 300
@@ -746,12 +735,14 @@ function fmtSR(v) {
   return parseFloat(v).toFixed(4)
 }
 
-function scoreCls(v) {
-  const n = parseFloat(v) || 0
-  if (n >= 85) return 'score-hot'
-  if (n >= 70) return 'score-warm'
-  if (n >= 50) return 'score-mid'
-  return 'score-cool'
+// 基于百分位分数的连续颜色渐变：低分→绿色(120°)，高分→红色(0°)
+// score_grade 对应全市场百分位：≥80=green, ≥50=blue, >0=orange, null=gray
+function scoreColor(v) {
+  const n = parseFloat(v)
+  if (isNaN(n) || n == null) return { color: '#8B949E' }  // 无数据灰色
+  // hue: 0分=120°(绿) → 50分=60°(黄绿) → 75分=30°(橙) → 100分=0°(红)
+  const hue = 120 * (1 - n / 100)
+  return { color: `hsl(${Math.round(hue)}, 85%, 45%)` }
 }
 
 function fmtNum(v) {
@@ -826,8 +817,9 @@ function hasRisk(f) {
 }
 
 function eastMoneyUrl(code) {
+  if (!code) return '#'
   const pureCode = code.replace(/\.of$/i, '').replace(/\.OF$/, '')
-  return `http://fund.eastmoney.com/${pureCode}.html`
+  return `https://fund.eastmoney.com/${pureCode}.html`
 }
 
 function fmtUpdateTime(tsq) {
@@ -869,7 +861,7 @@ async function loadData(reset = true) {
     // 确定 t0 过滤（FOF 类型筛选用 t0_eq）
     let t0Filter = filterT0.value || undefined
     if (filterFOF.value === '1') t0Filter = 'FOF'
-    if (filterFOF.value === '0' && !filterT0.value) t0Filter = undefined // 不能简单过滤
+    if (filterFOF.value === '0' && !filterT0.value) t0Filter = undefined
 
     // 天天基金分类 → 恒生聚源分类映射
     if (classSource.value === 'tt' && t0Filter) {
@@ -885,14 +877,6 @@ async function loadData(reset = true) {
       sortAsc: sortAsc.value,
       page: page.value,
       pageSize,
-      // 客户端附加筛选参数（后端不支持的由前端过滤）
-      hp: filterHP.value || undefined,
-      dailyLimit: filterDailyLimit.value || undefined,
-      sg: filterSG.value || undefined,   // 申购状态
-      etf: filterETF.value || undefined,
-      lof: filterLOF.value || undefined,
-      dk: filterDK.value || undefined,
-      fof: filterFOF.value || undefined,
     })
 
     if (result.data) {
@@ -934,7 +918,10 @@ async function loadMeta() {
   try {
     const m = await fetchFundMeta()
     if (m) meta.value = m
-  } catch (e) { /* ignore */ }
+    else console.warn('[fund-rank] meta: no data')
+  } catch (e) {
+    console.error('[fund-rank] meta load error:', e)
+  }
 }
 
 function refreshData() {
@@ -1059,7 +1046,7 @@ function loadMore() {
 }
 
 function openDetail(fund) {
-  detailFund.value = fund
+  detailFund.value = { ...fund }
 }
 
 onMounted(() => {
@@ -1069,7 +1056,7 @@ onMounted(() => {
   loadMeta()
 })
 onUnmounted(() => {
-  document.title = 'ALLFUND.CN - 投资工作助手'
+  document.title = 'ALLFUND.CN | 靠谱指数评分工具'
   window.removeEventListener('resize', onResize)
 })
 </script>
@@ -1307,10 +1294,22 @@ onUnmounted(() => {
 .sortable:hover { background: #e0e7ef; }
 .th-arrow { font-size: 11px; margin-left: 3px; color: #1d70b8; }
 
-.score-hot  { color: #d4351c; }  /* >=85 红色 */
-.score-warm { color: #f47738; }  /* >=70 橙色 */
-.score-mid  { color: #505a5f; }  /* >=50 灰色 */
-.score-cool { color: #00703c; }  /* <50  绿色 */
+/* 渐变色条图例 */
+.gradient-legend { margin-top: 8px; }
+.gradient-bar {
+  height: 12px; border-radius: 6px;
+  background: linear-gradient(to right,
+    hsl(120, 85%, 45%),   /* 0分 绿 */
+    hsl(90, 85%, 45%),    /* 25分 */
+    hsl(60, 85%, 45%),    /* 50分 黄绿 */
+    hsl(30, 85%, 45%),    /* 75分 橙 */
+    hsl(0, 85%, 45%)      /* 100分 红 */
+  );
+}
+.gradient-labels {
+  display: flex; justify-content: space-between;
+  margin-top: 6px; font-size: 11px; color: var(--text-secondary);
+}
 
 .action-btn {
   display: inline-flex; align-items: center; justify-content: center;
@@ -1467,15 +1466,6 @@ onUnmounted(() => {
 .help-section { margin-bottom: var(--space-lg); }
 .help-section-label { display: block; font-size: 19px; font-weight: 700; color: var(--text-primary); margin-bottom: var(--space-sm); border-bottom: 2px solid var(--border); padding-bottom: 4px; }
 .help-desc { display: block; font-size: 16px; color: var(--text-primary); line-height: 1.7; }
-.help-color-row { display: flex; align-items: center; gap: var(--space-md); padding: 4px 0; }
-.help-dot { width: 16px; height: 4px; flex-shrink: 0; }
-.help-color-text { font-size: 16px; font-weight: 700; flex-shrink: 0; min-width: 100px; }
-.score-hot-text { color: #d4351c; }
-.score-warm-text { color: #f47738; }
-.score-mid-text { color: #505a5f; }
-.score-cool-text { color: #00703c; }
-.help-color-desc { font-size: 16px; color: var(--text-secondary); }
-
 /* 自定义权重面板 */
 .weight-toggle {
   padding: var(--space-xs) var(--space-sm); font-size: 14px;

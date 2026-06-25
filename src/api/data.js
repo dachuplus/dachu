@@ -35,10 +35,14 @@ export async function fetchTouguProducts(filters = {}) {
 }
 
 // ========== 基金靠谱指数 ==========
+// fund_scores 表实际列（16列）：
+//   id, c, n, t0, t1, t1_tt, k0w, k1m, k3m, k6m, k1, k2, k3, k5, k_all, score_grade
+// 列表视图用核心 14 列（排除 id）
+const FUND_SCORES_COLS = 'c,n,t0,t1,t1_tt,k0w,k1m,k3m,k6m,k1,k2,k3,k5,k_all,score_grade'
 export async function fetchFundScores(params = {}) {
-  const { t0, t1, search, kKey = 'k1', page = 1, pageSize = 100, sortAsc, sg, classSource } = params
+  const { t0, t1, search, kKey = 'k1', page = 1, pageSize = 100, sortAsc, classSource } = params
   if (supabase) {
-    let query = supabase.from('fund_scores').select('*', { count: 'exact' })
+    let query = supabase.from('fund_scores').select(FUND_SCORES_COLS, { count: 'exact', head: false })
     if (t0) query = query.eq('t0', t0)
     // 分类筛选：天天基金用 t1_tt 列，恒生聚源用 t1 列
     if (t1) {
@@ -46,9 +50,6 @@ export async function fetchFundScores(params = {}) {
       query = query.eq(t1Col, t1)
     }
     if (search) query = query.or(`n.ilike.%${search}%,c.ilike.%${search}%`)
-    // 申购状态筛选（sg: '1'可申购, '0'暂停申购）
-    if (sg === '1') query = query.eq('sg', 1)
-    if (sg === '0') query = query.eq('sg', 0)
     const from = (page - 1) * pageSize
     const { data, count, error } = await query
       .order(kKey, { ascending: !!sortAsc, nullsFirst: false })
@@ -65,7 +66,7 @@ export async function fetchFundMeta() {
   if (supabase) {
     const { data, error } = await supabase
       .from('fund_scores_meta')
-      .select('*')
+      .select('nav_date,total_count,scored_count,tsq')
       .order('tsq', { ascending: false })
       .limit(1)
       .single()

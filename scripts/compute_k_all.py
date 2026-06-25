@@ -34,7 +34,6 @@ HEADERS = {
 PERIOD_WEIGHTS = {
     'k0w': 5, 'k1m': 5, 'k3m': 10, 'k6m': 15,
     'k1': 20, 'k2': 20, 'k3': 15, 'k5': 10,
-    'k7': 0, 'k10': 0,  # 当前无数据
 }
 
 
@@ -57,7 +56,7 @@ def fetch_all():
     offset = 0
     limit = 1000
 
-    k_fields = ['k0w', 'k1m', 'k3m', 'k6m', 'k1', 'k2', 'k3', 'k5', 'k7', 'k10']
+    k_fields = ['k0w', 'k1m', 'k3m', 'k6m', 'k1', 'k2', 'k3', 'k5']
     fields = 'c,' + ','.join(k_fields)
 
     while True:
@@ -77,7 +76,7 @@ def compute_k_all(funds):
     """计算 k_all 和 score_grade"""
     print('\n[2] 计算 k_all (v7 加权) ...')
 
-    k_fields = ['k0w', 'k1m', 'k3m', 'k6m', 'k1', 'k2', 'k3', 'k5', 'k7', 'k10']
+    k_fields = ['k0w', 'k1m', 'k3m', 'k6m', 'k1', 'k2', 'k3', 'k5']
 
     total = len(funds)
     scored = 0

@@ -17,7 +17,7 @@ BATCH = 1000   # REST API 单次最多 1000 条
 # 其他列（收益/风险/规模等）已迁移到 fund_returns/fund_risks 等表
 FUND_SCORES_COLS = [
     'c','n','t0','t1','t1_tt',
-    'k0w','k1m','k3m','k6m','k1','k2','k3','k5','k7','k10',
+    'k0w','k1m','k3m','k6m','k1','k2','k3','k5',
     'k_all','score_grade',
 ]
 
@@ -87,7 +87,7 @@ def row_to_rest(r):
         v = r.get(col)
         d[col] = v if v and str(v).strip() else None
     # 数值字段：评分相关
-    for col in ('k0w','k1m','k3m','k6m','k1','k2','k3','k5','k7','k10','k_all'):
+    for col in ('k0w','k1m','k3m','k6m','k1','k2','k3','k5','k_all'):
         v = r.get(col)
         d[col] = esc_null(v)
     return d

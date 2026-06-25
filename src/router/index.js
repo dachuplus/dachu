@@ -62,7 +62,7 @@ const router = createRouter({
 })
 
 router.afterEach((to) => {
-  document.title = (to.meta?.title || '投资工作助手') + ' - 靠谱指数评分工具'
+  document.title = (to.meta?.title || '靠谱指数评分工具') + ' | ALLFUND.CN'
 })
 
 export default router
