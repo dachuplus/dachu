@@ -160,6 +160,16 @@ def fetch_funds(ft):
                 code = f[0].strip() + '.OF'
                 name = (f[1] or '').strip()
                 t0, t1 = classify_hspj(code, name, ft)
+                # 申购状态: f[18] (1=可申购, 0=暂停申购)
+                sg_val = None
+                if len(f) > 18 and f[18].strip():
+                    try: sg_val = int(f[18].strip())
+                    except: pass
+                # 日涨跌幅: f[17]
+                daily_val = None
+                if len(f) > 17 and f[17].strip():
+                    try: daily_val = float(f[17].strip())
+                    except: pass
                 all_funds.append({
                     'c': code,
                     'n': name,
@@ -170,6 +180,8 @@ def fetch_funds(ft):
                     't6': '',
                     'a': 0,
                     'hp': 0,
+                    'sg': sg_val,
+                    'daily_change': daily_val,
                     'ytd': _float(f[4]),
                     'r0w': _float(f[5]),
                     'r1m': _float(f[6]),
@@ -308,6 +320,8 @@ def import_to_supabase(funds):
                 _esc(r.get('t6', '')),
                 r.get('a', 0) or 0,
                 _esc_null(r.get('hp')),
+                _esc_null(r.get('sg')),
+                _esc_null(r.get('daily_change')),
                 _esc_null(r.get('ytd')),
                 _esc_null(r.get('r0w')),
                 _esc_null(r.get('r1m')),
@@ -338,7 +352,7 @@ def import_to_supabase(funds):
             ]
             values.append(f"({','.join(str(v) for v in vals)})")
 
-        cols = 'c,n,t0,t1,t2,t6,a,hp,ytd,r0w,r1m,r3m,r6m,r1y,r2y,r3y,r5y,nav,date,k0w,k1m,k3m,k6m,k1,k2,k3,k5,dd1y,dd2y,dd3y,dd5y,sr1y,sr2y,sr3y,sr5y'
+        cols = 'c,n,t0,t1,t2,t6,a,hp,sg,daily_change,ytd,r0w,r1m,r3m,r6m,r1y,r2y,r3y,r5y,nav,date,k0w,k1m,k3m,k6m,k1,k2,k3,k5,dd1y,dd2y,dd3y,dd5y,sr1y,sr2y,sr3y,sr5y'
         sql = f"INSERT INTO fund_scores ({cols}) VALUES\n" + ',\n'.join(values)
 
         try:

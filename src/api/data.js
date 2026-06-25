@@ -35,10 +35,10 @@ export async function fetchTouguProducts(filters = {}) {
 }
 
 // ========== 基金靠谱指数 ==========
-// fund_scores 表实际列（16列）：
-//   id, c, n, t0, t1, t1_tt, k0w, k1m, k3m, k6m, k1, k2, k3, k5, k_all, score_grade
-// 列表视图用核心 14 列（排除 id）
-const FUND_SCORES_COLS = 'c,n,t0,t1,t1_tt,k0w,k1m,k3m,k6m,k1,k2,k3,k5,k_all,score_grade'
+// fund_scores 表实际列（18列）：
+//   id, c, n, t0, t1, t1_tt, sg, daily_change, k0w, k1m, k3m, k6m, k1, k2, k3, k5, k_all, score_grade
+// 列表视图用核心 16 列（排除 id）
+const FUND_SCORES_COLS = 'c,n,t0,t1,t1_tt,sg,daily_change,k0w,k1m,k3m,k6m,k1,k2,k3,k5,k_all,score_grade'
 export async function fetchFundScores(params = {}) {
   const { t0, t1, search, kKey = 'k1', page = 1, pageSize = 100, sortAsc, classSource } = params
   if (supabase) {

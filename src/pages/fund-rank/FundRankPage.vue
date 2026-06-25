@@ -68,6 +68,16 @@
           </div>
         </div>
 
+        <!-- 是否场内 -->
+        <div class="filter-row">
+          <span class="filter-label">场内</span>
+          <div class="filter-chips">
+            <div class="filter-chip" :class="{ active: filterCN === '' }" @click="setCN('')">全部</div>
+            <div class="filter-chip" :class="{ active: filterCN === '1' }" @click="setCN('1')">是</div>
+            <div class="filter-chip" :class="{ active: filterCN === '0' }" @click="setCN('0')">否</div>
+          </div>
+        </div>
+
         <!-- 是否ETF -->
         <div class="filter-row">
           <span class="filter-label">ETF</span>
@@ -98,7 +108,7 @@
           </div>
         </div>
 
-        <!-- 是否定开 -->
+        <!-- 是否定开（名称含"定开"或"定期开放"） -->
         <div class="filter-row">
           <span class="filter-label">定开</span>
           <div class="filter-chips">
@@ -142,9 +152,9 @@
           </div>
         </div>
 
-        <!-- 规模筛选说明 -->
+        <!-- 筛选说明 -->
         <div class="filter-tip">
-          注：ETF/LOF/FOF/定开/持有期/±20%等属性基于基金名称智能识别，可能存在误判。<br>
+          注：ETF/LOF/FOF/定开/场内等属性基于基金名称智能识别；持有期/申购状态/±20%数据源自天天基金。可能存在滞后或误判。<br>
           基金规模、机构占比、股票占比数据暂未收录，后续版本更新。
         </div>
       </div>
@@ -629,6 +639,7 @@ const filterSC = ref('')
 const filterETF = ref('')
 const filterLOF = ref('')
 const filterFOF = ref('')
+const filterCN = ref('')       // 场内：''全部 '1'是(ETF/LOF/REITs不计联接) '0'否(场外+ETF联接)
 const filterDK = ref('')
 const filterHP = ref('')
 const filterDailyLimit = ref('')
@@ -830,17 +841,39 @@ function fmtUpdateTime(tsq) {
   } catch { return '' }
 }
 
-// ========== 份额类别提取（基于基金名称末尾大写字母） ==========
-// 常见份额类别：A/B/C/D/E/F/H/I/R/Y
-const SHARE_CLASS_LETTERS = ['A', 'B', 'C', 'D', 'E', 'F', 'H', 'I', 'R', 'Y']
-const shareClassOptions = SHARE_CLASS_LETTERS
+// ========== 份额类别提取（基于基金名称，排除产品类型关键词） ==========
+// 产品类型关键词（ETF/LOF/FOF/QDII/REITs 不是份额类别！）
+// 按长关键词优先顺序排列，避免 ETF联接 被误剥离为 ETF
+const PRODUCT_TYPE_KEYWORDS = ['ETF联接', 'ETF', 'LOF', 'FOF', 'QDII', 'REITs', 'REIT']
+// 有效份额类别字母
+const VALID_SHARE_CLASSES = ['A', 'B', 'C', 'D', 'E', 'F', 'H', 'I', 'R', 'Y']
 
-/** 从基金名称提取份额类别字母，如 "华夏成长混合A" → "A"，"某某精选C" → "C" */
+/** 判断名称是否为场内产品（ETF不含联接/LOF/REITs） */
+function isExchangeListed(name) {
+  if (!name) return false
+  return (name.includes('ETF') && !name.includes('ETF联接')) || name.includes('LOF') || name.includes('REIT')
+}
+
+/** 从基金名称提取份额类别字母，排除 ETF/LOF/FOF/QDII/REITs 等产品类型 */
 function extractShareClass(name) {
   if (!name) return ''
-  const match = name.match(/([A-Z])$/)
-  return match ? match[1] : ''
+  let clean = name
+  // 剥离末尾的产品类型关键词
+  for (const kw of PRODUCT_TYPE_KEYWORDS) {
+    if (clean.endsWith(kw)) {
+      clean = clean.slice(0, -kw.length)
+      break  // 只剥离一个产品类型（不循环复用）
+    }
+  }
+  // 提取末尾大写字母作为份额类别
+  const match = clean.match(/([A-Z])$/)
+  if (match && VALID_SHARE_CLASSES.includes(match[1])) {
+    return match[1]
+  }
+  return ''
 }
+
+const shareClassOptions = VALID_SHARE_CLASSES
 
 // ========== 数据加载 ==========
 // 天天基金 → 恒生聚源 t0 名称映射（DB 当前仅含恒生聚源分类数据）
@@ -882,17 +915,31 @@ async function loadData(reset = true) {
     if (result.data) {
       // 存储后端总数（t0/t1/search 过滤后，ETF/LOF等前端过滤前的真实数）
       if (result.count != null) totalCount.value = result.count
-      // 前端补充筛选（基于名称智能识别）
+      // 前端补充筛选
       let filtered = result.data
+      // 份额类别（名称末尾字母，排除产品类型关键词）
       if (filterSC.value) filtered = filtered.filter(f => extractShareClass(f.n) === filterSC.value)
+      // 场内（ETF不含联接/LOF/REITs → 是；其余含ETF联接 → 否）
+      if (filterCN.value === '1') filtered = filtered.filter(f => isExchangeListed(f.n))
+      if (filterCN.value === '0') filtered = filtered.filter(f => !isExchangeListed(f.n))
+      // ETF/LOF/FOF（产品类型名称匹配）
       if (filterETF.value === '1') filtered = filtered.filter(f => /ETF/i.test(f.n))
       if (filterETF.value === '0') filtered = filtered.filter(f => !/ETF/i.test(f.n))
       if (filterLOF.value === '1') filtered = filtered.filter(f => /LOF/i.test(f.n))
       if (filterLOF.value === '0') filtered = filtered.filter(f => !/LOF/i.test(f.n))
-      if (filterDK.value === '1') filtered = filtered.filter(f => /定开/.test(f.n))
-      if (filterDK.value === '0') filtered = filtered.filter(f => !/定开/.test(f.n))
+      // 定开（名称含"定开"或"定期开放"）
+      if (filterDK.value === '1') filtered = filtered.filter(f => /定开|定期开放/.test(f.n))
+      if (filterDK.value === '0') filtered = filtered.filter(f => !/定开|定期开放/.test(f.n))
+      // FOF（使用DB分类 t0 列，更准确）
       if (filterFOF.value === '1') filtered = filtered.filter(f => f.t0 === 'FOF')
       if (filterFOF.value === '0') filtered = filtered.filter(f => f.t0 !== 'FOF')
+      // 申购状态（天天基金数据 f[18]：1=可申购, 0/null=暂停）
+      if (filterSG.value === '1') filtered = filtered.filter(f => f.sg === 1)
+      if (filterSG.value === '0') filtered = filtered.filter(f => f.sg !== 1)
+      // 单日涨跌≥±20%（天天基金数据 f[17]）
+      if (filterDailyLimit.value === '1') filtered = filtered.filter(f => f.daily_change != null && Math.abs(parseFloat(f.daily_change)) >= 20)
+      if (filterDailyLimit.value === '0') filtered = filtered.filter(f => f.daily_change == null || Math.abs(parseFloat(f.daily_change)) < 20)
+      // 持有期（基于天天基金赎回规则，当前数据暂不可用）
       if (filterHP.value === 'no') filtered = filtered.filter(f => !f.hp)
       if (filterHP.value && filterHP.value !== 'no') {
         const hp = parseInt(filterHP.value)
@@ -953,12 +1000,8 @@ function setSC(val) {
 function setFlag(type, val) {
   if (type === 'ETF') {
     filterETF.value = val
-    // ETF/LOF 互斥：选ETF=是则LOF自动=否
-    if (val === '1') filterLOF.value = '0'
   } else if (type === 'LOF') {
     filterLOF.value = val
-    // ETF/LOF 互斥：选LOF=是则ETF自动=否
-    if (val === '1') filterETF.value = '0'
   } else if (type === 'FOF') {
     filterFOF.value = val
     if (val === '1') { filterT0.value = ''; filterT1.value = '' }
@@ -969,6 +1012,7 @@ function setFlag(type, val) {
 /** 清除所有更多筛选条件 */
 function clearMoreFilters() {
   filterSC.value = ''
+  filterCN.value = ''
   filterETF.value = ''
   filterLOF.value = ''
   filterFOF.value = ''
@@ -990,6 +1034,11 @@ function setDailyLimit(val) {
 
 function setSG(val) {
   filterSG.value = val
+  loadData(true)
+}
+
+function setCN(val) {
+  filterCN.value = val
   loadData(true)
 }
 
