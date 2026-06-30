@@ -37,6 +37,11 @@ const routes = [
     meta: { tab: 'lab', title: '实验室' }
   },
   {
+    path: '/data-center',
+    component: () => import('../pages/data-center/DataCenterPage.vue'),
+    meta: { tab: 'tools', title: '数据中心' }
+  },
+  {
     path: '/profile',
     component: () => import('../pages/profile/ProfilePage.vue'),
     meta: { tab: 'profile', title: '我的' }

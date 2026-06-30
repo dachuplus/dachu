@@ -59,10 +59,10 @@
           <p>投资有风险，决策需谨慎。</p>
           <p>数据来源：天天基金、value500.com、蛋卷基金、恒生聚源、Supabase</p>
         </div>
-        <a href="/fund_combined.xlsx" class="profile-item" download>
-          <span class="pi-label">下载数据 (Excel)</span>
-          <span class="pi-arrow">↓</span>
-        </a>
+        <router-link to="/data-center" class="profile-item">
+          <span class="pi-label">下载数据 (数据中心)</span>
+          <span class="pi-arrow">›</span>
+        </router-link>
         <div class="profile-item">
           <span class="pi-label">数据来源</span>
           <span class="pi-arrow">›</span>

@@ -51,14 +51,14 @@
         >
           {{ item.label }}
         </router-link>
-        <a
-          href="/fund_combined.xlsx"
+        <router-link
+          to="/data-center"
           class="quick-nav__item quick-nav__item--download"
-          download
-          title="下载完整基金数据表 (Excel)"
+          :class="{ 'quick-nav__item--active': route.path === '/data-center' }"
+          title="数据中心：查看并下载全部数据表"
         >
           数据下载
-        </a>
+        </router-link>
       </div>
     </nav>
 
