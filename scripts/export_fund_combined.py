@@ -4,8 +4,8 @@
 import os, sys, argparse, requests, csv, time
 
 # 兼容两种环境变量命名（本地: VITE_SUPABASE_*, CI: SUPABASE_*）
-SUPABASE_URL = os.environ.get('VITE_SUPABASE_URL') or os.environ.get('SUPABASE_URL', '')
-ANON_KEY = os.environ.get('VITE_SUPABASE_ANON_KEY') or os.environ.get('SUPABASE_ANON_KEY', '')
+SUPABASE_URL = os.environ.get('VITE_SUPABASE_URL') or os.environ.get('SUPABASE_URL') or 'https://tqhtegazxykkqfcpejky.supabase.co'
+ANON_KEY = os.environ.get('VITE_SUPABASE_ANON_KEY') or os.environ.get('SUPABASE_ANON_KEY') or 'sb_publishable_iFtMcvav774gqF28gGYQVw_QMmuS-z3'
 REST = f'{SUPABASE_URL}/rest/v1/fund_combined'
 
 # 命令行参数
@@ -38,7 +38,7 @@ COLS = [
     'dd1y', 'sr1y',
     'holders_count', 'total_manage_scale',
     'score_grade',
-    'k3m', 'k6m', 'k1', 'k2', 'k3', 'k5', 'k7', 'k10',
+    'k_all', 'k0w', 'k1m', 'k3m', 'k6m', 'k1', 'k2', 'k3', 'k5', 'k7', 'k10',
 ]
 COL_CN = {
     'c': '基金代码', 'name': '基金名称', 't0': '一级分类', 't1': '二级分类',
@@ -47,6 +47,7 @@ COL_CN = {
     'dd1y': '1年最大回撤(%)', 'sr1y': '1年夏普比率',
     'holders_count': '持有人数', 'total_manage_scale': '总管理规模(亿)',
     'score_grade': '评级',
+    'k_all': '综合评分', 'k0w': '本周评分', 'k1m': '1月评分',
     'k3m': '3月评分', 'k6m': '6月评分', 'k1': '1年评分', 'k2': '2年评分',
     'k3': '3年评分', 'k5': '5年评分', 'k7': '7年评分', 'k10': '10年评分',
 }

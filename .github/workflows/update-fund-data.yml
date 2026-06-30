@@ -114,6 +114,13 @@ jobs:
           echo "============================================"
           python scripts/classify_hspj_from_json.py
 
+      - name: 步骤3c — 同步 fund_scores → fund_combined
+        run: |
+          echo "============================================"
+          echo "  步骤3c: 同步评分到 fund_combined"
+          echo "============================================"
+          python scripts/sync_fund_combined_scores.py
+
       - name: 步骤3-alt — 仅收益靠谱分 REST API 导入（跳过风险指标）
         if: ${{ inputs.skip_risk }}
         run: |
@@ -142,12 +149,12 @@ jobs:
           echo "文件大小: $(ls -lh public/fund_combined.xlsx | awk '{print $5}')"
           echo "导出完成: $(date '+%Y-%m-%d %H:%M:%S')"
 
-      - name: 步骤6 — 构建前端站点
+      - name: 步骤6 — 安装 Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '22'
 
-      - name: 安装依赖并构建
+      - name: 步骤6b — 安装依赖并构建
         run: |
           echo "============================================"
           echo "  步骤6: 安装依赖 + 构建站点"
@@ -156,13 +163,15 @@ jobs:
           npx vite build
           echo "构建完成: $(date '+%Y-%m-%d %H:%M:%S')"
 
-      - name: 步骤7 — 部署到 EdgeOne Pages
+      - name: 步骤7 — 打包并部署到 EdgeOne Pages
         env:
           EDGEONE_PAGES_TOKEN: ${{ secrets.EDGEONE_PAGES_TOKEN }}
         run: |
           echo "============================================"
-          echo "  步骤7: 部署到 EdgeOne Pages"
+          echo "  步骤7: 打包并部署到 EdgeOne Pages"
           echo "============================================"
+          rm -f dist.zip
+          cd dist && zip -r ../dist.zip . && cd ..
           npx edgeone pages deploy dist.zip -n allfund -t "$EDGEONE_PAGES_TOKEN"
           echo "部署完成: $(date '+%Y-%m-%d %H:%M:%S')"
 
