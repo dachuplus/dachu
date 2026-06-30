@@ -1,11 +1,30 @@
 #!/usr/bin/env python3
-"""导出完整 fund_combined 表为 Excel"""
+"""导出完整 fund_combined 表为 Excel（支持本地和 CI 环境）"""
 
-import os, requests, csv, time
+import os, sys, argparse, requests, csv, time
 
-SUPABASE_URL = os.environ.get('VITE_SUPABASE_URL', '')
-ANON_KEY = os.environ.get('VITE_SUPABASE_ANON_KEY', '')
+# 兼容两种环境变量命名（本地: VITE_SUPABASE_*, CI: SUPABASE_*）
+SUPABASE_URL = os.environ.get('VITE_SUPABASE_URL') or os.environ.get('SUPABASE_URL', '')
+ANON_KEY = os.environ.get('VITE_SUPABASE_ANON_KEY') or os.environ.get('SUPABASE_ANON_KEY', '')
 REST = f'{SUPABASE_URL}/rest/v1/fund_combined'
+
+# 命令行参数
+parser = argparse.ArgumentParser(description='导出 fund_combined 为 Excel')
+parser.add_argument('--output', default=None, help='Excel 输出路径（默认: exports/fund_combined.xlsx）')
+parser.add_argument('--csv', default=None, help='CSV 输出路径（默认: exports/fund_combined_full.csv）')
+args = parser.parse_args()
+
+# 输出路径：脚本所在目录的相对路径
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+PROJECT_DIR = os.path.dirname(SCRIPT_DIR)
+DEFAULT_XLSX = os.path.join(PROJECT_DIR, 'exports', 'fund_combined.xlsx')
+DEFAULT_CSV = os.path.join(PROJECT_DIR, 'exports', 'fund_combined_full.csv')
+
+xlsx_output = args.output or DEFAULT_XLSX
+csv_output = args.csv or DEFAULT_CSV
+
+# 确保输出目录存在
+os.makedirs(os.path.dirname(xlsx_output), exist_ok=True)
 
 HEADERS = {
     'apikey': ANON_KEY,
@@ -57,8 +76,7 @@ while True:
 print(f'共拉取 {len(all_rows)} 行')
 
 # 写入 CSV
-csv_path = '/Users/maoshanbo/WorkBuddy/20260405093252/allfund/exports/fund_combined_full.csv'
-with open(csv_path, 'w', newline='', encoding='utf-8-sig') as f:
+with open(csv_output, 'w', newline='', encoding='utf-8-sig') as f:
     w = csv.writer(f)
     w.writerow([COL_CN.get(c, c) for c in COLS])
     for row in all_rows:
@@ -72,7 +90,7 @@ with open(csv_path, 'w', newline='', encoding='utf-8-sig') as f:
             vals.append(v)
         w.writerow(vals)
 
-print(f'✓ CSV: {csv_path}')
+print(f'✓ CSV: {csv_output}')
 
 # 转 Excel
 try:
@@ -144,7 +162,7 @@ try:
     # 冻结首行
     ws.freeze_panes = 'A2'
 
-    xlsx_path = '/Users/maoshanbo/WorkBuddy/20260405093252/allfund/exports/fund_combined.xlsx'
+    xlsx_path = xlsx_output
     wb.save(xlsx_path)
     print(f'✓ Excel: {xlsx_path} ({len(all_rows)} 行)')
 

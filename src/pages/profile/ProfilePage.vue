@@ -59,6 +59,10 @@
           <p>投资有风险，决策需谨慎。</p>
           <p>数据来源：天天基金、value500.com、蛋卷基金、恒生聚源、Supabase</p>
         </div>
+        <a href="/fund_combined.xlsx" class="profile-item" download>
+          <span class="pi-label">下载数据 (Excel)</span>
+          <span class="pi-arrow">↓</span>
+        </a>
         <div class="profile-item">
           <span class="pi-label">数据来源</span>
           <span class="pi-arrow">›</span>
@@ -157,6 +161,7 @@ async function removeFromPortfolio(pfId, code) {
   display: flex; justify-content: space-between;
   padding: var(--space-md) 0; border-bottom: 1px solid var(--border);
   cursor: pointer; font-size: 16px;
+  text-decoration: none; color: inherit;
 }
 .profile-item:hover { background: #f8f8f8; }
 .pi-label { font-size: 16px; color: var(--text-primary); font-weight: 700; }

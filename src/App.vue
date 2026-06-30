@@ -51,6 +51,14 @@
         >
           {{ item.label }}
         </router-link>
+        <a
+          href="/fund_combined.xlsx"
+          class="quick-nav__item quick-nav__item--download"
+          download
+          title="下载完整基金数据表 (Excel)"
+        >
+          数据下载
+        </a>
       </div>
     </nav>
 
@@ -242,6 +250,15 @@ const showBack  = computed(() => {
 }
 .quick-nav__item:hover { color: var(--brand); border-bottom-color: var(--brand); }
 .quick-nav__item--active { color: var(--brand); border-bottom-color: var(--brand); }
+.quick-nav__item--download {
+  color: var(--text-secondary);
+  border-bottom-color: transparent;
+  cursor: pointer;
+}
+.quick-nav__item--download:hover {
+  color: #0b5c8a;
+  border-bottom-color: #0b5c8a;
+}
 
 /* ========== 移动端标题栏 ========== */
 .mobile-header {

@@ -131,6 +131,41 @@ jobs:
           echo "============================================"
           python scripts/verify_update.py
 
+      - name: 步骤5 — 导出 fund_combined.xlsx
+        run: |
+          echo "============================================"
+          echo "  步骤5: 导出 fund_combined.xlsx"
+          echo "  开始时间: $(date '+%Y-%m-%d %H:%M:%S')"
+          echo "============================================"
+          pip install openpyxl requests
+          python scripts/export_fund_combined.py --output public/fund_combined.xlsx
+          echo "文件大小: $(ls -lh public/fund_combined.xlsx | awk '{print $5}')"
+          echo "导出完成: $(date '+%Y-%m-%d %H:%M:%S')"
+
+      - name: 步骤6 — 构建前端站点
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: 安装依赖并构建
+        run: |
+          echo "============================================"
+          echo "  步骤6: 安装依赖 + 构建站点"
+          echo "============================================"
+          npm install
+          npx vite build
+          echo "构建完成: $(date '+%Y-%m-%d %H:%M:%S')"
+
+      - name: 步骤7 — 部署到 EdgeOne Pages
+        env:
+          EDGEONE_PAGES_TOKEN: ${{ secrets.EDGEONE_PAGES_TOKEN }}
+        run: |
+          echo "============================================"
+          echo "  步骤7: 部署到 EdgeOne Pages"
+          echo "============================================"
+          npx edgeone pages deploy dist.zip -n allfund -t "$EDGEONE_PAGES_TOKEN"
+          echo "部署完成: $(date '+%Y-%m-%d %H:%M:%S')"
+
       - name: 失败通知
         if: ${{ failure() || cancelled() }}
         run: |
