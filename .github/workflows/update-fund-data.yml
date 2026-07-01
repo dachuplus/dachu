@@ -118,13 +118,26 @@ jobs:
           fi
           python scripts/import_via_rest.py
 
-      - name: 步骤3b — HSPJ 基金分类更新（基于聚源标准）
+      - name: 步骤3b — 基金分类同步（从 fund_combined → fund_scores，以天天基金为准）
         if: ${{ !inputs.skip_risk }}
         run: |
           echo "============================================"
-          echo "  步骤3b: HSPJ 分类更新 (聚源基金分类标准)"
+          echo "  步骤3b: 分类同步 (天天基金分类 → fund_scores)"
           echo "============================================"
-          python scripts/classify_hspj_from_json.py
+          echo "  执行: UPDATE fund_scores t0/t1 FROM fund_combined"
+          python scripts/sync_classification_to_fund_scores.py
+
+      - name: 步骤3b2 — 补充货币基金+QDII 评分（rankhandler 全市场收益率 → 全市场排名靠谱分）
+        if: ${{ !inputs.skip_risk }}
+        timeout-minutes: 15
+        continue-on-error: true
+        run: |
+          echo "============================================"
+          echo "  步骤3b2: 补充货币基金+QDII 评分"
+          echo "  开始时间: $(date '+%Y-%m-%d %H:%M:%S')"
+          echo "============================================"
+          python scripts/supplement_money_qdii_scores.py
+          echo "货币+QDII 评分补充完成: $(date '+%Y-%m-%d %H:%M:%S')"
 
       - name: 步骤3c — 同步 fund_scores → fund_combined
         run: |
@@ -149,6 +162,17 @@ jobs:
           echo "  完成时间: $(date '+%Y-%m-%d %H:%M:%S')"
           echo "============================================"
           python scripts/verify_update.py
+
+      - name: 步骤4b — 数据质量校验（抽样验证 + 极端值检测）
+        continue-on-error: true
+        run: |
+          echo "============================================"
+          echo "  步骤4b: 数据质量校验"
+          echo "  开始时间: $(date '+%Y-%m-%d %H:%M:%S')"
+          echo "============================================"
+          pip install requests
+          python scripts/validate_fund_data.py --sample 30
+          echo "校验完成: $(date '+%Y-%m-%d %H:%M:%S')"
 
       - name: 步骤5 — 导出 fund_combined.xlsx
         run: |

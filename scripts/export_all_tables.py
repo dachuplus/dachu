@@ -161,6 +161,57 @@ COLUMN_ORDER = {
     'fund_scores': FUND_SCORES_COL_ORDER,
 }
 
+# 列名中英文映射（Excel 表头用中文）
+COLUMN_NAMES = {
+    'c': '基金代码',
+    'n': '基金名称',
+    'fund_manager': '基金经理',
+    'company': '管理人',
+    't0': '一级分类',
+    't1': '二级分类',
+    't1_tt': '天天分类',
+    'fund_scale': '基金规模(亿元)',
+    'manage_fee': '管理费/y',
+    'risk_level': '风险等级',
+    'ytd': '今年以来',
+    'r0w': '近1周',
+    'r1m': '近1月',
+    'r3m': '近3月',
+    'r6m': '近6月',
+    'r1y': '近1年',
+    'r2y': '近2年',
+    'r3y': '近3年',
+    'r5y': '近5年',
+    'r7y': '近7年',
+    'r10y': '近10年',
+    'return_all': '成立以来',
+    'dd1y': '最大回撤1y',
+    'dd2y': '最大回撤2y',
+    'dd3y': '最大回撤3y',
+    'dd5y': '最大回撤5y',
+    'sr1y': '夏普比率1y',
+    'sr2y': '夏普比率2y',
+    'sr3y': '夏普比率3y',
+    'sr5y': '夏普比率5y',
+    'k0w': '评分_近1周',
+    'k1m': '评分_近1月',
+    'k3m': '评分_近3月',
+    'k6m': '评分_近6月',
+    'k1': '评分_近1年',
+    'k2': '评分_近2年',
+    'k3': '评分_近3年',
+    'k5': '评分_近5年',
+    'k7': '评分_近7年',
+    'k10': '评分_近10年',
+    'k_all': '综合评分',
+    'score_grade': '评级',
+    'daily_change': '日涨跌',
+    'sg': '申购状态',
+    'holders_count': '持有人数',
+    'total_manage_scale': '经理总规模',
+    'id': 'ID',
+}
+
 def export_to_excel(table_name, rows, output_path):
     """导出为 Excel，含数据说明 sheet"""
     from openpyxl.styles import Font, Alignment, Border, Side
@@ -182,7 +233,9 @@ def export_to_excel(table_name, rows, output_path):
             columns.extend(extra)
         else:
             columns = list(rows[0].keys())
-        ws.append(columns)
+        # 使用中文表头（如有映射），否则用原始列名
+        headers = [COLUMN_NAMES.get(c, c) for c in columns]
+        ws.append(headers)
         
         # 加粗表头
         for col_idx in range(1, len(columns) + 1):
