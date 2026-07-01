@@ -93,6 +93,18 @@ jobs:
           python scripts/fetch_return_all.py scripts/return_all.ndjson 0.3
           echo "成立以来收益率抓取完成: $(date '+%Y-%m-%d %H:%M:%S')"
 
+      - name: 步骤2c — 导出基金详情（公司/规模/费率）
+        if: ${{ !inputs.skip_risk }}
+        timeout-minutes: 5
+        run: |
+          echo "============================================"
+          echo "  步骤2c: 导出基金详情 (公司/规模/费率)"
+          echo "  开始时间: $(date '+%Y-%m-%d %H:%M:%S')"
+          echo "============================================"
+          pip install requests
+          python scripts/export_fund_details.py scripts/fund_details.ndjson
+          echo "基金详情导出完成: $(date '+%Y-%m-%d %H:%M:%S')"
+
       - name: 步骤3 — 合并风险指标 + 重新计算靠谱分 + REST API 导入 Supabase
         if: ${{ !inputs.skip_risk }}
         run: |
@@ -147,6 +159,16 @@ jobs:
           pip install openpyxl requests
           python scripts/export_fund_combined.py --output public/fund_combined.xlsx
           echo "文件大小: $(ls -lh public/fund_combined.xlsx | awk '{print $5}')"
+          echo "导出完成: $(date '+%Y-%m-%d %H:%M:%S')"
+
+      - name: 步骤5b — 导出全部数据表到数据中心
+        run: |
+          echo "============================================"
+          echo "  步骤5b: 导出全部11张表到 public/downloads/"
+          echo "  开始时间: $(date '+%Y-%m-%d %H:%M:%S')"
+          echo "============================================"
+          mkdir -p public/downloads
+          python scripts/export_all_tables.py --output-dir public/downloads
           echo "导出完成: $(date '+%Y-%m-%d %H:%M:%S')"
 
       - name: 步骤6 — 安装 Node.js

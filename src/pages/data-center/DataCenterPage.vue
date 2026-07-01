@@ -601,7 +601,7 @@ const tableData = ref({})
 // 表定义
 const tables = [
   { key: 'fund_combined', name: '基金综合数据表', desc: '基金分类(t0/t1)、详情(公司/规模/费率)、收益(ytd~r5y)、风险(dd1y/sr1y)、评分(k_all/score_grade/k0w~k10) — 核心合并表，20,677条', rows: 20677 },
-  { key: 'fund_scores', name: '基金评分表', desc: 'CI每日更新核心评分表，11周期×3维度加权评分（k0w/k1m/k3m/k6m/k1/k2/k3/k5/k_all）、百分位评级、分类、份额类型', rows: 19325 },
+  { key: 'fund_scores', name: '基金评分表（完整版）', desc: '每日更新：基金代码/名称/基金经理/管理人/分类/规模/费率 → 阶段收益(ytd~r10y/成立以来) → 阶段回撤(dd1y~dd5y) → 阶段夏普(sr1y~sr5y) → 基金评分(k0w~k_all/score_grade)，42列完整数据', rows: 19325 },
   { key: 'fund_quarterly_scores', name: '季度评分表', desc: '基于季报数据的各时间窗口评分（3m/6m/1y/2y/3y/5y/7y/10y）+ 原始季度数据JSON', rows: 18584 },
   { key: 'macro_history', name: '宏观历史数据表', desc: '中国10年国债(cn10y)、美国10年国债(us10y)、Shibor、CPI、M2历史数据，覆盖1996-至今', rows: 24109 },
   { key: 'tougu_products', name: '投顾产品表', desc: '天天基金/华宝/盈米/新浪仓石四来源基金投顾产品，含收益率、最大回撤、标签分类', rows: 103 },

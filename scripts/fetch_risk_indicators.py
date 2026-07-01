@@ -116,6 +116,16 @@ def fetch_and_calculate(fund_code):
 
         result = {'c': fund_code, 'return_all': return_all}
 
+        # 提取基金经理名（从 Data_currentFundManager）
+        try:
+            mgr_m = re.search(r'var Data_currentFundManager\s*=\s*(\[.*?\])\s*;', js)
+            if mgr_m:
+                mgr_data = json.loads(mgr_m.group(1))
+                if mgr_data and len(mgr_data) > 0:
+                    result['fund_manager'] = mgr_data[0].get('name', '')
+        except:
+            result['fund_manager'] = None
+
         for period in PERIODS:
             label = period['key']
             days = period['days']

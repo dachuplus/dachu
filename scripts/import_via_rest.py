@@ -13,11 +13,19 @@ if not MGMT_TOKEN:
 MGMT_API    = 'https://api.supabase.com/v1/projects/tqhtegazxykkqfcpejky/database/query'
 
 BATCH = 1000   # REST API 单次最多 1000 条
-# fund_scores 表实际列（垂直分表后仅保留评分+分类+基础信息）
-# 其他列（收益/风险/规模等）已迁移到 fund_returns/fund_risks 等表
+# fund_scores 表实际列（完整版：评分 + 分类 + 收益 + 回撤 + 夏普 + 详情）
 FUND_SCORES_COLS = [
     'c','n','t0','t1','t1_tt',
     'sg','daily_change',
+    # 基本信息
+    'company','fund_scale','manage_fee','fund_manager',
+    # 阶段收益
+    'ytd','r0w','r1m','r3m','r6m','r1y','r2y','r3y','r5y','r7y','r10y','return_all',
+    # 阶段回撤
+    'dd1y','dd2y','dd3y','dd5y',
+    # 阶段夏普
+    'sr1y','sr2y','sr3y','sr5y',
+    # 评分
     'k0w','k1m','k3m','k6m','k1','k2','k3','k5',
     'k_all','score_grade',
 ]
@@ -81,10 +89,10 @@ def esc_null(v):
         return None
 
 def row_to_rest(r):
-    """把 NDJSON 的一行转成 REST API 需要的 dict（仅 fund_scores 表存在的列）"""
+    """把 NDJSON 的一行转成 REST API 需要的 dict（fund_scores 全部列）"""
     d = {}
     # 字符串字段
-    for col in ('c','n','t0','t1','t1_tt','score_grade'):
+    for col in ('c','n','t0','t1','t1_tt','score_grade','company','manage_fee','fund_manager'):
         v = r.get(col)
         d[col] = v if v and str(v).strip() else None
     # 数值字段：申购状态
@@ -99,6 +107,26 @@ def row_to_rest(r):
     for col in ('k0w','k1m','k3m','k6m','k1','k2','k3','k5','k_all','daily_change'):
         v = r.get(col)
         d[col] = esc_null(v)
+    # 数值字段：收益
+    for col in ('ytd','r0w','r1m','r3m','r6m','r1y','r2y','r3y','r5y','r7y','r10y','return_all'):
+        v = r.get(col)
+        d[col] = esc_null(v)
+    # 数值字段：回撤
+    for col in ('dd1y','dd2y','dd3y','dd5y'):
+        v = r.get(col)
+        d[col] = esc_null(v)
+    # 数值字段：夏普
+    for col in ('sr1y','sr2y','sr3y','sr5y'):
+        v = r.get(col)
+        d[col] = esc_null(v)
+    # 浮点数：规模
+    for col in ('fund_scale',):
+        v = r.get(col)
+        if v is not None:
+            try: d[col] = float(v)
+            except: d[col] = None
+        else:
+            d[col] = None
     return d
 
 # ── 主流程 ──────────────────────────────────────────────────────────────
@@ -133,7 +161,7 @@ if os.path.exists(risk_path):
         c = fund.get('c', '')
         if c in risk_map:
             r = risk_map[c]
-            for k in ['dd1y','dd2y','dd3y','dd5y','sr1y','sr2y','sr3y','sr5y','return_all']:
+            for k in ['dd1y','dd2y','dd3y','dd5y','sr1y','sr2y','sr3y','sr5y','return_all','fund_manager']:
                 fund[k] = r.get(k)
             merged += 1
     print(f'  ✓ 合并风险指标 {merged}/{len(funds)} ({time.time()-t0:.1f}s)', flush=True)
@@ -160,6 +188,36 @@ if os.path.exists(return_all_path):
             fund['return_all'] = ra_map[c]
             merged += 1
     print(f'  ✓ 合并成立以来收益 {merged}/{len(funds)} ({time.time()-t0:.1f}s)', flush=True)
+
+# 2c. 合并基金详情（公司名/规模/费率）
+details_path = os.path.join(SCRIPT_DIR, 'fund_details.ndjson')
+if os.path.exists(details_path):
+    t0 = time.time()
+    details_map = {}
+    with open(details_path, 'r') as f:
+        for line in f:
+            line = line.strip()
+            if line:
+                d = json.loads(line)
+                c = d.get('c', '')
+                if c:
+                    details_map[c] = d
+    merged = 0
+    for fund in funds:
+        c = fund.get('c', '').replace('.OF', '')
+        if c in details_map:
+            d = details_map[c]
+            for k in ['company', 'fund_scale', 'manage_fee']:
+                v = d.get(k)
+                if v is not None and not fund.get(k):
+                    fund[k] = v
+            merged += 1
+    print(f'  ✓ 合并基金详情 {merged}/{len(funds)} ({time.time()-t0:.1f}s)', flush=True)
+else:
+    print('  ⚠ 无基金详情文件，跳过', flush=True)
+
+# 2d. 合并基金经理（已内嵌在 risk_indicators.ndjson 的 fund_manager 字段中）
+# fund_manager 已在步骤 2 通过 risk_indicators 合并，此处无需额外处理
 
 # 3. 重新计算靠谱分 v7（权重 50/25/25）
 t0 = time.time()

@@ -49,9 +49,9 @@ TABLES = {
         'scoring': True,
     },
     'fund_scores': {
-        'name': '基金评分表',
-        'desc': 'CI 每日更新的核心评分表，11 周期 × 3 维度加权评分（k0w/k1m/k3m/k6m/k1/k2/k3/k5/k_all）、百分位评级(score_grade)、基金分类(t0/t1)、份额类型(sg)',
-        'source': '全市场基金收益率 + 回撤(dd) + 夏普比率(sr) 经百分位排名后按 V7 算法加权合成',
+        'name': '基金评分表（完整版）',
+        'desc': '每日更新的核心数据表：基金代码/名称/基金经理/管理人/分类/规模/费率 → 阶段收益(ytd/r0w~r10y/return_all) → 阶段回撤(dd1y~dd5y) → 阶段夏普(sr1y~sr5y) → 基金评分(k0w~k_all/score_grade)。按以上顺序排列。',
+        'source': 'FundGuideapi（收益率/分类）+ pingzhongdata（回撤/夏普/基金经理）+ fund_combined（公司/规模/费率）+ rankhandler（货币基金/成立以来收益）',
         'update': '每日通过 GitHub Actions CI 自动更新（北京时间 21:30）',
         'scoring': True,
     },
@@ -149,6 +149,18 @@ def get_table_data(table_name):
     
     return all_rows
 
+# ===== 列顺序定义（按用户要求的展示顺序） =====
+FUND_SCORES_COL_ORDER = [
+    'c','n','fund_manager','company','t0','t1','fund_scale','manage_fee',
+    'ytd','r0w','r1m','r3m','r1y','r3y','r5y','r7y','r10y','return_all',
+    'dd1y','dd2y','dd3y','dd5y',
+    'sr1y','sr2y','sr3y','sr5y',
+    'k0w','k1m','k3m','k6m','k1','k2','k3','k5','k_all','score_grade',
+]
+COLUMN_ORDER = {
+    'fund_scores': FUND_SCORES_COL_ORDER,
+}
+
 def export_to_excel(table_name, rows, output_path):
     """导出为 Excel，含数据说明 sheet"""
     from openpyxl.styles import Font, Alignment, Border, Side
@@ -160,8 +172,16 @@ def export_to_excel(table_name, rows, output_path):
     if not rows:
         ws.append(['(空表)'])
     else:
-        # 列名
-        columns = list(rows[0].keys())
+        # 列名：优先使用定义的顺序，否则用自然顺序
+        col_order = COLUMN_ORDER.get(table_name)
+        if col_order:
+            # 只保留实际存在的列
+            columns = [c for c in col_order if c in rows[0]]
+            # 追加未在顺序中定义的新列
+            extra = [c for c in rows[0].keys() if c not in columns]
+            columns.extend(extra)
+        else:
+            columns = list(rows[0].keys())
         ws.append(columns)
         
         # 加粗表头

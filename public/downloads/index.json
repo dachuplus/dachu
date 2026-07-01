@@ -1,9 +1,9 @@
 {
-  "updated_at": "2026-07-01T09:11:35.109728",
+  "updated_at": "2026-07-01T09:46:35.638446",
   "tables": {
     "config": {
       "rows": 3,
-      "size_mb": 0.007275581359863281,
+      "size_mb": 0.0072784423828125,
       "path": "/downloads/config.xlsx"
     },
     "fund_combined": {
@@ -18,7 +18,7 @@
     },
     "fund_scores": {
       "rows": 19325,
-      "size_mb": 2.237982749938965,
+      "size_mb": 3.6272592544555664,
       "path": "/downloads/fund_scores.xlsx"
     },
     "fund_scores_meta": {
@@ -33,12 +33,12 @@
     },
     "macro_history": {
       "rows": 24109,
-      "size_mb": 0.6590642929077148,
+      "size_mb": 0.6590614318847656,
       "path": "/downloads/macro_history.xlsx"
     },
     "site_stats": {
       "rows": 1,
-      "size_mb": 0.005955696105957031,
+      "size_mb": 0.0059566497802734375,
       "path": "/downloads/site_stats.xlsx"
     },
     "tougu_products": {
@@ -48,12 +48,12 @@
     },
     "user_portfolios": {
       "rows": 0,
-      "size_mb": 0.005841255187988281,
+      "size_mb": 0.0058422088623046875,
       "path": "/downloads/user_portfolios.xlsx"
     },
     "user_profiles": {
       "rows": 0,
-      "size_mb": 0.0058193206787109375,
+      "size_mb": 0.005820274353027344,
       "path": "/downloads/user_profiles.xlsx"
     }
   }
