@@ -47,6 +47,189 @@
       </div>
     </div>
 
+    <!-- 评分方法论 -->
+    <div class="card">
+      <div class="card-title">评分方法论 — V7 靠谱指数算法</div>
+      <p class="section-desc">ALLFUND.CN 的"靠谱指数"（k_all）是对全市场基金进行量化评分的核心指标。以下详细说明从原始数据到最终评分的完整计算过程。</p>
+
+      <!-- 第一步 -->
+      <h2 class="method-step-title">第一步：原始数据采集</h2>
+      <p>评分系统使用两类原始数据，分别来自不同的天天基金 API：</p>
+      <table class="field-table">
+        <thead><tr><th>数据类别</th><th>数据来源</th><th>字段</th><th>说明</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><strong>阶段收益率</strong></td>
+            <td><code>FundGuideapi</code></td>
+            <td>r0w / r1m / r3m / r6m / r1y / r2y / r3y / r5y</td>
+            <td>天天基金直接返回的百分比收益率（如 12.35 表示 +12.35%），无需自行计算</td>
+          </tr>
+          <tr>
+            <td><strong>风险指标</strong></td>
+            <td><code>pingzhongdata</code></td>
+            <td>dd1y~dd5y（最大回撤%）<br>sr1y~sr5y（夏普比率）</td>
+            <td>从每日净值历史计算得出。回撤为负数（如 -15.23 表示最大回撤 15.23%），夏普为原始数值</td>
+          </tr>
+          <tr>
+            <td><strong>货币基金收益率</strong></td>
+            <td><code>rankhandler</code> (POST)</td>
+            <td>f[9]=YTD / f[10]=近1年 / f[12]=近3年</td>
+            <td>货币型基金使用独立的 rankhandler API（字段布局与 FundGuideapi 不同）</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <!-- 第二步 -->
+      <h2 class="method-step-title">第二步：单周期评分计算（k0w / k1m / k3m / k6m / k1 / k2 / k3 / k5）</h2>
+      <p>将全市场每只基金的各项指标分别进行<strong>百分位排名</strong>，换算为 0~100 的得分：</p>
+
+      <div class="formula-box">
+        <div class="formula-title">百分位排名公式</div>
+        <div class="formula-body">
+          <strong>percentile = (1 − rank / (N − 1)) × 100</strong>
+        </div>
+        <div class="formula-note">
+          其中 rank 为降序排序后的位置（rank=0 表示最优，rank=N−1 表示最差），N 为全市场有效基金数量。<br>
+          最优基金得分 100，最差基金得分 0。
+        </div>
+      </div>
+
+      <h3 class="method-subtitle">2.1 短周期评分（k0w / k1m / k3m / k6m）— 仅收益维度</h3>
+      <p>短周期（1周/1月/3月/6月）缺乏可靠的风险指标（dd/sr），仅使用收益率排名：</p>
+      <div class="formula-box">
+        <div class="formula-body">
+          <strong>k<sub>short</sub> = ret_percentile</strong>
+        </div>
+      </div>
+      <p>即：按该周期收益率（r0w / r1m / r3m / r6m）在全市场中降序排名，直接转换为 0~100 得分。</p>
+
+      <h3 class="method-subtitle">2.2 长周期评分（k1 / k2 / k3 / k5）— 三维度加权（V7 算法）</h3>
+      <p>长周期（1年/2年/3年/5年）同时考虑收益、风险和风险调整后收益三个维度：</p>
+      <div class="formula-box">
+        <div class="formula-title">V7 长周期评分公式</div>
+        <div class="formula-body">
+          <strong>k<sub>long</sub> = 50% × ret_percentile + 25% × dd_percentile + 25% × sr_percentile</strong>
+        </div>
+        <div class="formula-note">
+          各维度独立在全市场排名，分别得到 0~100 的百分位得分，然后加权合成。
+        </div>
+      </div>
+
+      <div class="dimension-grid">
+        <div class="dimension-card">
+          <div class="dim-header">收益率维度 (50%)</div>
+          <div class="dim-detail">
+            <strong>数据</strong>：该周期的阶段收益率（如 k1 用 r1y）<br>
+            <strong>排序</strong>：收益率越高，排名越好（降序）<br>
+            <strong>含义</strong>：衡量基金的绝对收益能力
+          </div>
+        </div>
+        <div class="dimension-card">
+          <div class="dim-header">最大回撤维度 (25%)</div>
+          <div class="dim-detail">
+            <strong>数据</strong>：pingzhongdata 返回的 dd1y~dd5y（负数）<br>
+            <strong>排序</strong>：回撤负数越大（越接近 0），排名越好（降序）<br>
+            <strong>含义</strong>：衡量基金的下行风险控制能力<br>
+            <strong>公式</strong>：<code>dd_max = −max(peak − nav<sub>i</sub>) / peak × 100</code>
+          </div>
+        </div>
+        <div class="dimension-card">
+          <div class="dim-header">夏普比率维度 (25%)</div>
+          <div class="dim-detail">
+            <strong>数据</strong>：pingzhongdata 返回的 sr1y~sr5y<br>
+            <strong>排序</strong>：夏普比率越高，排名越好（降序）<br>
+            <strong>含义</strong>：衡量基金的风险调整后收益（每单位风险获得的超额收益）<br>
+            <strong>公式</strong>：<code>Sharpe = (E[R<sub>daily</sub>] − R<sub>f</sub>) / σ<sub>daily</sub> × √250</code><br>
+            <strong>无风险利率</strong>：R<sub>f</sub> = 2%（年化），即每日 0.02/250 = 0.00008
+          </div>
+        </div>
+      </div>
+
+      <!-- 第三步 -->
+      <h2 class="method-step-title">第三步：综合评分 k_all — 多周期加权汇总</h2>
+      <p>将 8 个周期的评分按时间加权合成一个综合评分，近期的权重更大、远期的权重更小：</p>
+
+      <div class="formula-box">
+        <div class="formula-title">k_all 加权公式</div>
+        <div class="formula-body">
+          <strong>k_all = (k0w×5 + k1m×5 + k3m×10 + k6m×15 + k1×20 + k2×20 + k3×15 + k5×10) / total_weight</strong>
+        </div>
+        <div class="formula-note">
+          仅对 k_i > 0（有有效数据）的周期参与加权。若某周期数据缺失，该周期排除，剩余权重按比例重新归一化。<br>
+          权重总和 = 5+5+10+15+20+20+15+10 = 100（权重天然归一化）。
+        </div>
+      </div>
+
+      <table class="field-table">
+        <thead><tr><th>周期评分</th><th>对应收益</th><th>权重</th><th>组合维度</th><th>说明</th></tr></thead>
+        <tbody>
+          <tr><td><code>k0w</code></td><td>近1周 (r0w)</td><td style="text-align:center">5%</td><td>收益</td><td>超短线动量信号</td></tr>
+          <tr><td><code>k1m</code></td><td>近1月 (r1m)</td><td style="text-align:center">5%</td><td>收益</td><td>短线动量信号</td></tr>
+          <tr><td><code>k3m</code></td><td>近3月 (r3m)</td><td style="text-align:center">10%</td><td>收益</td><td>中线趋势</td></tr>
+          <tr><td><code>k6m</code></td><td>近6月 (r6m)</td><td style="text-align:center">15%</td><td>收益</td><td>中长线趋势</td></tr>
+          <tr><td><code>k1</code></td><td>近1年 (r1y)</td><td style="text-align:center"><strong>20%</strong></td><td>收益+回撤+夏普</td><td>核心长周期（权重最高）</td></tr>
+          <tr><td><code>k2</code></td><td>近2年 (r2y)</td><td style="text-align:center"><strong>20%</strong></td><td>收益+回撤+夏普</td><td>核心长周期（权重最高）</td></tr>
+          <tr><td><code>k3</code></td><td>近3年 (r3y)</td><td style="text-align:center">15%</td><td>收益+回撤+夏普</td><td>长周期稳定性</td></tr>
+          <tr><td><code>k5</code></td><td>近5年 (r5y)</td><td style="text-align:center">10%</td><td>收益+回撤+夏普</td><td>超长周期稳定性</td></tr>
+        </tbody>
+      </table>
+
+      <!-- 第四步 -->
+      <h2 class="method-step-title">第四步：评级分类（score_grade）— 全市场百分位分级</h2>
+      <p>将全市场所有有 k_all 的基金按得分从高到低排序，根据百分位分入四个等级：</p>
+
+      <div class="formula-box">
+        <div class="formula-title">百分位计算公式</div>
+        <div class="formula-body">
+          <strong>pct = (1 − rank / (N−1)) × 100</strong>
+        </div>
+      </div>
+
+      <table class="field-table">
+        <thead><tr><th>百分位范围</th><th>评级</th><th>标签</th><th>含义</th><th>全市场占比</th></tr></thead>
+        <tbody>
+          <tr><td>pct ≥ 80</td><td><span class="grade-badge grade-green">green</span></td><td style="color:#00703c;font-weight:700">优秀</td><td>全市场前 20%</td><td>约 3,865 只 (18.7%)</td></tr>
+          <tr><td>50 ≤ pct &lt; 80</td><td><span class="grade-badge grade-blue">blue</span></td><td style="color:#1d70b8;font-weight:700">良好</td><td>全市场 20%~50%</td><td>约 5,798 只 (28.1%)</td></tr>
+          <tr><td>0 &lt; pct &lt; 50</td><td><span class="grade-badge grade-orange">orange</span></td><td style="color:#d4351c;font-weight:700">一般</td><td>全市场后 50%</td><td>约 9,660 只 (46.8%)</td></tr>
+          <tr><td>无 k_all</td><td><span class="grade-badge grade-gray">gray</span></td><td style="color:#6b7280;font-weight:700">无数据</td><td>数据不足无法评分</td><td>约 1,354 只 (6.5%)</td></tr>
+        </tbody>
+      </table>
+
+      <!-- 第五步：完整数据流 -->
+      <h2 class="method-step-title">完整数据流</h2>
+      <div class="flow-diagram">
+        <div class="flow-row">
+          <div class="flow-node">FundGuideapi<br><small>阶段收益率</small></div>
+          <div class="flow-arrow">→</div>
+          <div class="flow-node">全市场<br>百分位排名</div>
+          <div class="flow-arrow">→</div>
+          <div class="flow-node">8 周期评分<br>k0w~k5</div>
+          <div class="flow-arrow">→</div>
+          <div class="flow-node">加权汇总<br>k_all</div>
+          <div class="flow-arrow">→</div>
+          <div class="flow-node">百分位分级<br>score_grade</div>
+        </div>
+        <div class="flow-row flow-row-aux">
+          <div class="flow-node flow-node-aux">pingzhongdata<br><small>回撤(dd) + 夏普(sr)</small></div>
+          <div class="flow-arrow flow-arrow-up">↗</div>
+          <div style="width:120px"></div>
+          <div style="width:120px"></div>
+          <div style="width:120px"></div>
+          <div style="width:120px"></div>
+        </div>
+      </div>
+
+      <h2 class="method-step-title">算法版本演进</h2>
+      <table class="field-table">
+        <thead><tr><th>版本</th><th>公式</th><th>说明</th></tr></thead>
+        <tbody>
+          <tr><td><strong>V5</strong> (旧)</td><td>k = 60%×ret + 30%×dd + 10%×sr</td><td>偏重收益，已废弃</td></tr>
+          <tr><td><strong>V7</strong> (当前)</td><td>k = 50%×ret + 25%×dd + 25%×sr</td><td>收益与风险平衡，当前生产使用</td></tr>
+        </tbody>
+      </table>
+      <p class="api-note" style="margin-top:var(--space-md)">📐 用户可在"评分"页面自定义收益/回撤/夏普/卡玛/信息比率/跟踪误差的权重，实时计算个性化评分。</p>
+    </div>
+
     <!-- API 接口文档 -->
     <div class="card">
       <div class="card-title">数据接口文档</div>
@@ -565,4 +748,91 @@ onMounted(loadIndex)
 
 .summary-table th { background: #1d70b8; color: #fff; }
 .summary-table td { font-size: 14px; }
+
+/* 评分方法论 */
+.method-step-title {
+  font-size: 22px; font-weight: 700; color: #1d70b8;
+  margin: var(--space-2xl) 0 var(--space-md);
+  padding-bottom: var(--space-sm); border-bottom: 2px solid #1d70b8;
+}
+.method-subtitle {
+  font-size: 17px; font-weight: 700; color: var(--text-primary);
+  margin: var(--space-lg) 0 var(--space-sm);
+}
+
+/* 公式框 */
+.formula-box {
+  background: #f8f8f8; border: 1px solid var(--border);
+  padding: var(--space-md); margin: var(--space-md) 0;
+  border-left: 4px solid #1d70b8;
+}
+.formula-title {
+  font-size: 14px; font-weight: 700; color: var(--text-secondary);
+  margin-bottom: var(--space-xs); text-transform: uppercase; letter-spacing: 0.5px;
+}
+.formula-body {
+  font-size: 18px; font-weight: 700; color: #1d70b8;
+  font-family: 'Courier New', monospace; line-height: 1.8;
+}
+.formula-note {
+  font-size: 13px; color: var(--text-secondary); margin-top: var(--space-sm);
+  line-height: 1.6;
+}
+
+/* 维度卡片 */
+.dimension-grid {
+  display: grid; grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-md); margin: var(--space-md) 0;
+}
+@media (max-width: 768px) {
+  .dimension-grid { grid-template-columns: 1fr; }
+}
+.dimension-card {
+  background: #f8f8f8; border: 1px solid var(--border);
+  padding: var(--space-md);
+}
+.dim-header {
+  font-size: 15px; font-weight: 700; color: #1d70b8;
+  margin-bottom: var(--space-sm); padding-bottom: var(--space-sm);
+  border-bottom: 1px solid var(--border);
+}
+.dim-detail {
+  font-size: 13px; color: var(--text-secondary); line-height: 1.7;
+}
+.dim-detail code {
+  background: #e8e8e8; padding: 1px 4px; font-size: 12px;
+}
+
+/* 评级标签 */
+.grade-badge {
+  display: inline-block; padding: 2px 10px; font-size: 12px;
+  font-weight: 700; font-family: monospace;
+}
+.grade-green { background: #00703c; color: #fff; }
+.grade-blue { background: #1d70b8; color: #fff; }
+.grade-orange { background: #d4351c; color: #fff; }
+.grade-gray { background: #6b7280; color: #fff; }
+
+/* 数据流 */
+.flow-diagram {
+  background: #f8f8f8; border: 1px solid var(--border);
+  padding: var(--space-lg); margin: var(--space-md) 0;
+}
+.flow-row {
+  display: flex; align-items: center; justify-content: center;
+  gap: var(--space-sm); flex-wrap: wrap;
+}
+.flow-row-aux {
+  margin-top: var(--space-sm); padding-top: var(--space-sm);
+  border-top: 2px dashed var(--border);
+}
+.flow-node {
+  background: #ffffff; border: 2px solid #1d70b8; padding: var(--space-sm) var(--space-md);
+  text-align: center; font-size: 14px; font-weight: 700; color: var(--text-primary);
+  min-width: 100px;
+}
+.flow-node small { display: block; font-weight: 400; color: var(--text-secondary); margin-top: 2px; }
+.flow-node-aux { border-color: #5694ca; }
+.flow-arrow { font-size: 24px; color: #1d70b8; font-weight: 700; }
+.flow-arrow-up { font-size: 28px; }
 </style>

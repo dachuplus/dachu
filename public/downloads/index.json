@@ -1,59 +1,59 @@
 {
-  "updated_at": "2026-06-30T18:43:46.004006",
+  "updated_at": "2026-07-01T09:11:35.109728",
   "tables": {
     "config": {
       "rows": 3,
-      "size_mb": 0.006091117858886719,
+      "size_mb": 0.007275581359863281,
       "path": "/downloads/config.xlsx"
     },
     "fund_combined": {
       "rows": 20677,
-      "size_mb": 3.707636833190918,
+      "size_mb": 3.709794044494629,
       "path": "/downloads/fund_combined.xlsx"
     },
     "fund_quarterly_scores": {
       "rows": 18584,
-      "size_mb": 4.134029388427734,
+      "size_mb": 4.135370254516602,
       "path": "/downloads/fund_quarterly_scores.xlsx"
     },
     "fund_scores": {
       "rows": 19325,
-      "size_mb": 2.235868453979492,
+      "size_mb": 2.237982749938965,
       "path": "/downloads/fund_scores.xlsx"
     },
     "fund_scores_meta": {
       "rows": 2,
-      "size_mb": 0.004864692687988281,
+      "size_mb": 0.006087303161621094,
       "path": "/downloads/fund_scores_meta.xlsx"
     },
     "index_pe_history": {
       "rows": 0,
-      "size_mb": 0.004622459411621094,
+      "size_mb": 0.005889892578125,
       "path": "/downloads/index_pe_history.xlsx"
     },
     "macro_history": {
       "rows": 24109,
-      "size_mb": 0.657780647277832,
+      "size_mb": 0.6590642929077148,
       "path": "/downloads/macro_history.xlsx"
     },
     "site_stats": {
       "rows": 1,
-      "size_mb": 0.0047664642333984375,
+      "size_mb": 0.005955696105957031,
       "path": "/downloads/site_stats.xlsx"
     },
     "tougu_products": {
       "rows": 103,
-      "size_mb": 0.0234832763671875,
+      "size_mb": 0.024761199951171875,
       "path": "/downloads/tougu_products.xlsx"
     },
     "user_portfolios": {
       "rows": 0,
-      "size_mb": 0.004620552062988281,
+      "size_mb": 0.005841255187988281,
       "path": "/downloads/user_portfolios.xlsx"
     },
     "user_profiles": {
       "rows": 0,
-      "size_mb": 0.004619598388671875,
+      "size_mb": 0.0058193206787109375,
       "path": "/downloads/user_profiles.xlsx"
     }
   }

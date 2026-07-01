@@ -44,46 +44,79 @@ TABLES = {
     'fund_combined': {
         'name': '基金综合数据表',
         'desc': '基金分类(t0/t1)、公司/规模/费率、收益(ytd/r1y/r3y/r5y)、风险指标(dd1y/sr1y)、持有人数、评分(k_all/score_grade/k0w~k10) — 所有数据核心合并表，19+ 周期评分全覆盖',
+        'source': '天天基金 FundGuideapi（收益率/分类）+ pingzhongdata（回撤/夏普/风险评级）+ rankhandler（货币基金收益）+ fundf10（公司/规模/费率）',
+        'update': '每日通过 GitHub Actions CI 自动更新（北京时间 21:30）',
+        'scoring': True,
     },
     'fund_scores': {
         'name': '基金评分表',
         'desc': 'CI 每日更新的核心评分表，11 周期 × 3 维度加权评分（k0w/k1m/k3m/k6m/k1/k2/k3/k5/k_all）、百分位评级(score_grade)、基金分类(t0/t1)、份额类型(sg)',
+        'source': '全市场基金收益率 + 回撤(dd) + 夏普比率(sr) 经百分位排名后按 V7 算法加权合成',
+        'update': '每日通过 GitHub Actions CI 自动更新（北京时间 21:30）',
+        'scoring': True,
     },
     'fund_quarterly_scores': {
         'name': '季度评分表',
         'desc': '基于季报数据的各时间窗口评分（score_3m/6m/1y/2y/3y/5y/7y/10y），含原始 quarterly_data JSON',
+        'source': 'pingzhongdata 每日净值 → 季度收益/回撤/夏普计算 → 全市场排名 → 多周期均值评分',
+        'update': '每日通过 GitHub Actions CI 自动更新（北京时间 21:30）',
+        'scoring': False,
     },
     'fund_scores_meta': {
         'name': '评分元数据表',
         'desc': '评分更新时间、基金总数、有评分数、净值日期等元信息',
+        'source': 'Supabase 内部自动记录',
+        'update': '每次评分计算完成后自动更新',
+        'scoring': False,
     },
     'config': {
         'name': '配置表',
         'desc': '全站配置项（键值对，含 meta、tsq 时间戳）',
+        'source': '手动维护',
+        'update': '按需手动更新',
+        'scoring': False,
     },
     'macro_history': {
         'name': '宏观历史数据表',
         'desc': '中国10年国债(cn10y)、美国10年国债(us10y)、Shibor、CPI、M2 的历史数据，覆盖 1996-至今',
+        'source': 'akshare 开源 Python 库（自动采集公开宏观数据）',
+        'update': '每日通过 GitHub Actions CI 自动更新（北京时间 21:30）',
+        'scoring': False,
     },
     'index_pe_history': {
         'name': '指数PE历史表',
         'desc': '沪深300等指数的 PE/PB 历史估值数据',
+        'source': '腾讯行情 qt.gtimg.cn + 蛋卷基金 danjuanfunds.com',
+        'update': '每日通过 GitHub Actions CI 自动更新（北京时间 21:30）',
+        'scoring': False,
     },
     'site_stats': {
         'name': '站点统计表',
         'desc': '网站访问量等统计指标',
+        'source': 'EdgeOne Pages 边缘函数自动记录',
+        'update': '实时更新',
+        'scoring': False,
     },
     'tougu_products': {
         'name': '投顾产品表',
         'desc': '天天基金/华宝/盈米/新浪仓石四来源的基金投顾产品，含收益率、最大回撤、标签分类',
+        'source': '天天基金投顾页面 + 华宝/盈米/新浪仓石官方数据',
+        'update': '每日通过 GitHub Actions CI 自动更新（北京时间 21:30）',
+        'scoring': False,
     },
     'user_portfolios': {
         'name': '用户组合表',
         'desc': '用户自建基金组合数据（portfolio_data JSON），关联用户 ID',
+        'source': '用户通过 ALLFUND.CN 网站自行创建',
+        'update': '用户操作时实时更新',
+        'scoring': False,
     },
     'user_profiles': {
         'name': '用户档案表',
         'desc': '用户注册信息、登录次数、最后登录时间',
+        'source': '用户注册时填写',
+        'update': '用户操作时实时更新',
+        'scoring': False,
     },
 }
 
@@ -117,42 +150,117 @@ def get_table_data(table_name):
     return all_rows
 
 def export_to_excel(table_name, rows, output_path):
-    """导出为 Excel"""
-    if not rows:
-        # 空表也导出，至少有个表头
-        wb = openpyxl.Workbook()
-        ws = wb.active
-        ws.title = table_name[:31]
-        ws.append(['(空表)'])
-        wb.save(output_path)
-        return len(rows)
+    """导出为 Excel，含数据说明 sheet"""
+    from openpyxl.styles import Font, Alignment, Border, Side
     
     wb = openpyxl.Workbook()
     ws = wb.active
     ws.title = table_name[:31]
     
-    # 列名
-    columns = list(rows[0].keys())
-    ws.append(columns)
+    if not rows:
+        ws.append(['(空表)'])
+    else:
+        # 列名
+        columns = list(rows[0].keys())
+        ws.append(columns)
+        
+        # 加粗表头
+        for col_idx in range(1, len(columns) + 1):
+            ws.cell(row=1, column=col_idx).font = Font(bold=True)
+        
+        # 数据行
+        import json as _json
+        def safe_val(v):
+            if v is None: return ''
+            if isinstance(v, (int, float, str, bool)): return v
+            try: return _json.dumps(v, ensure_ascii=False)
+            except: return str(v)
+        
+        for row in rows:
+            ws.append([safe_val(row.get(col, '')) for col in columns])
+        
+        # 冻结首行
+        ws.freeze_panes = 'A2'
     
-    # 加粗表头
-    from openpyxl.styles import Font
-    for col_idx in range(1, len(columns) + 1):
-        ws.cell(row=1, column=col_idx).font = Font(bold=True)
+    # ===== 添加"数据说明" sheet =====
+    ws_meta = wb.create_sheet('数据说明')
+    meta = TABLES.get(table_name, {})
+    export_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     
-    # 数据行 — 处理非标量值（JSON/对象等）
-    import json as _json
-    def safe_val(v):
-        if v is None: return ''
-        if isinstance(v, (int, float, str, bool)): return v
-        try: return _json.dumps(v, ensure_ascii=False)
-        except: return str(v)
+    # 样式
+    header_font = Font(name='微软雅黑', bold=True, size=14, color='1d70b8')
+    label_font = Font(name='微软雅黑', bold=True, size=11)
+    value_font = Font(name='微软雅黑', size=11)
+    note_font = Font(name='微软雅黑', size=10, color='666666')
+    wrap_align = Alignment(wrap_text=True, vertical='top')
     
-    for row in rows:
-        ws.append([safe_val(row.get(col, '')) for col in columns])
+    ws_meta.column_dimensions['A'].width = 18
+    ws_meta.column_dimensions['B'].width = 80
     
-    # 冻结首行
-    ws.freeze_panes = 'A2'
+    row_idx = 1
+    
+    # 标题
+    ws_meta.cell(row=row_idx, column=1, value='ALLFUND.CN 数据说明').font = header_font
+    ws_meta.merge_cells(start_row=row_idx, start_column=1, end_row=row_idx, end_column=2)
+    row_idx += 2
+    
+    # 基本信息
+    info_rows = [
+        ('表名', table_name),
+        ('中文名称', meta.get('name', '')),
+        ('说明', meta.get('desc', '')),
+        ('数据来源', meta.get('source', '')),
+        ('更新频率', meta.get('update', '')),
+        ('导出时间', export_time),
+        ('行数', len(rows)),
+    ]
+    for label, value in info_rows:
+        ws_meta.cell(row=row_idx, column=1, value=label).font = label_font
+        c = ws_meta.cell(row=row_idx, column=2, value=str(value))
+        c.font = value_font
+        c.alignment = wrap_align
+        row_idx += 1
+    
+    # 评分表增加评分说明
+    if meta.get('scoring'):
+        row_idx += 1
+        ws_meta.cell(row=row_idx, column=1, value='评分方法 (V7)').font = Font(name='微软雅黑', bold=True, size=13, color='1d70b8')
+        ws_meta.merge_cells(start_row=row_idx, start_column=1, end_row=row_idx, end_column=2)
+        row_idx += 1
+        
+        scoring_notes = [
+            ('算法版本', 'V7 — 收益 50% + 回撤 25% + 夏普 25%'),
+            ('数据来源', 'FundGuideapi（阶段收益率 r0w~r5y）+ pingzhongdata（回撤 dd1y~dd5y、夏普 sr1y~sr5y）+ rankhandler（货币基金）'),
+            ('百分位排名', '全市场基金按各指标降序排名，percentile = (1 - rank/(N-1)) × 100，范围 0~100'),
+            ('短周期 k0w/k1m/k3m/k6m', '仅用收益率百分位排名：k_short = ret_percentile'),
+            ('长周期 k1/k2/k3/k5', '三维度加权：k_long = 50% × ret_percentile + 25% × dd_percentile + 25% × sr_percentile'),
+            ('综合评分 k_all', 'k_all = (k0w×5 + k1m×5 + k3m×10 + k6m×15 + k1×20 + k2×20 + k3×15 + k5×10) / total_weight（仅有效周期参与）'),
+            ('评级 score_grade', '按 k_all 百分位分级：green(前20%) > blue(20%-50%) > orange(后50%) > gray(无数据)'),
+            ('回撤计算', 'dd_max = -max((peak - nav[i]) / peak) × 100，负数百分比（如 -15.23 表示最大回撤 15.23%）'),
+            ('夏普计算', 'Sharpe = (E[Rdaily] - Rf) / σdaily × √250，无风险利率 Rf = 2%/年 = 0.02/250 = 0.00008'),
+            ('周期权重', 'k0w:5%, k1m:5%, k3m:10%, k6m:15%, k1:20%, k2:20%, k3:15%, k5:10%（总和=100，天然归一化）'),
+        ]
+        
+        for label, value in scoring_notes:
+            ws_meta.cell(row=row_idx, column=1, value=label).font = label_font
+            c = ws_meta.cell(row=row_idx, column=2, value=str(value))
+            c.font = value_font
+            c.alignment = wrap_align
+            row_idx += 1
+    
+    # 免责声明
+    row_idx += 1
+    ws_meta.cell(row=row_idx, column=1, value='免责声明').font = Font(name='微软雅黑', bold=True, size=11, color='999999')
+    row_idx += 1
+    disclaimer = (
+        '本数据由 ALLFUND.CN 通过公开数据接口自动采集和计算，仅供参考，不构成任何投资建议。'
+        '数据可能存在延迟或误差，请以天天基金等官方平台实时数据为准。'
+        '投资有风险，入市需谨慎。'
+    )
+    c = ws_meta.cell(row=row_idx, column=1, value=disclaimer)
+    c.font = note_font
+    c.alignment = Alignment(wrap_text=True)
+    ws_meta.merge_cells(start_row=row_idx, start_column=1, end_row=row_idx, end_column=2)
     
     wb.save(output_path)
     return len(rows)
