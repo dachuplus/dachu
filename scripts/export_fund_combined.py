@@ -42,7 +42,7 @@ COLS = [
 ]
 COL_CN = {
     'c': '基金代码', 'name': '基金名称', 't0': '一级分类', 't1': '二级分类',
-    'company': '基金公司', 'fund_scale': '基金规模(亿)', 'risk_level': '风险等级', 'manage_fee': '管理费(%)',
+    'company': '基金公司', 'fund_scale': '基金规模(亿)', 'risk_level': '风险等级', 'manage_fee': '管理费/y',
     'ytd': 'YTD(%)', 'r1y': '近1年(%)', 'r3y': '近3年(%)', 'r5y': '近5年(%)',
     'dd1y': '1年最大回撤(%)', 'sr1y': '1年夏普比率',
     'holders_count': '持有人数', 'total_manage_scale': '总管理规模(亿)',

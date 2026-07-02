@@ -49,13 +49,31 @@ def main():
     print(f"📡 推送 {REPO_OWNER}/{REPO_NAME}")
     parent = get_sha("main")
     print(f"  ✓ 远程 HEAD: {parent[:8]}")
-    # Get all local files changed since last commit (or all tracked files)
-    local = subprocess.run(["git", "diff-tree", "--no-commit-id", "--name-only", "-r", "HEAD"], capture_output=True, text=True, check=False)
-    changed = [f for f in local.stdout.strip().split("\n") if f]
-    # Also check if we need to include files from previous commits that aren't on remote
-    if not changed:
-        local = subprocess.run(["git", "ls-files"], capture_output=True, text=True, check=False)
-        changed = [f for f in local.stdout.strip().split("\n") if f]
+
+    # Use git status --porcelain to detect ALL changes:
+    #   staged (A/M/D), unstaged (M/D), and untracked (??)
+    # This replaces the old approach (git diff-tree HEAD + git ls-files)
+    # which missed untracked files that were never git add-ed.
+    result = subprocess.run(
+        ["git", "status", "--porcelain"],
+        capture_output=True, text=True, check=False
+    )
+    changed = []
+    for line in result.stdout.strip().split("\n"):
+        if not line:
+            continue
+        status = line[:2]
+        filepath = line[3:]
+        # Skip deleted files (can't upload them as blobs)
+        if "D" in status:
+            print(f"    ⏭ 跳过已删除: {filepath}")
+            continue
+        # Skip files that don't exist on disk
+        if not os.path.isfile(filepath):
+            print(f"    ⏭ 跳过不存在: {filepath}")
+            continue
+        changed.append(filepath)
+
     if not changed:
         print("  无改动，跳过"); return
     print(f"  ✓ 检测到 {len(changed)} 个文件")
