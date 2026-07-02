@@ -12,7 +12,7 @@ if not MGMT_TOKEN:
     sys.exit('请设置环境变量 SUPABASE_MGMT_TOKEN（Supabase Personal Access Token）')
 MGMT_API    = 'https://api.supabase.com/v1/projects/tqhtegazxykkqfcpejky/database/query'
 
-BATCH = 1000   # REST API 单次最多 1000 条
+BATCH = 500    # SQL INSERT 批量大小（从1000降到500，避免payload过大）
 # fund_scores 表实际列（完整版：评分 + 分类 + 收益 + 回撤 + 夏普 + 详情）
 FUND_SCORES_COLS = [
     'c','n','t0','t1','t1_tt',
@@ -31,15 +31,15 @@ FUND_SCORES_COLS = [
 ]
 
 # ── 工具函数 ──────────────────────────────────────────────────────────────
-def pg(sql):
-    """通过 Management API 执行 SQL，用于 TRUNCATE / meta 更新（用 curl 避免 Cloudflare 拦截）"""
+def pg(sql, timeout=180):
+    """通过 Management API 执行 SQL，用于 TRUNCATE / meta 更新 / 批量 INSERT（用 curl 避免 Cloudflare 拦截）"""
     payload = json.dumps({'query': sql})
     r = subprocess.run(
-        ['curl', '-s', '-X', 'POST', MGMT_API,
+        ['curl', '-s', '--max-time', str(timeout), '-X', 'POST', MGMT_API,
          '-H', f'Authorization: Bearer {MGMT_TOKEN}',
          '-H', 'Content-Type: application/json',
          '-d', payload],
-        capture_output=True, text=True, timeout=120
+        capture_output=True, text=True, timeout=timeout + 10
     )
     if r.returncode != 0:
         raise RuntimeError(f'curl fail: {r.stderr[:100]}')
@@ -309,35 +309,75 @@ for f in funds:
 print(f'  ✓ k_all 计算完成: {k_all_cnt}/{len(funds)} 只有分 ({time.time()-t0:.1f}s)', flush=True)
 print(f'    grade分布: green={grades.get("green",0)}, blue={grades.get("blue",0)}, orange={grades.get("orange",0)}, gray={grades.get("gray",0)}', flush=True)
 
-# 4. 通过 REST API 批量导入
+# 4. 通过 Management API 批量 SQL INSERT（比 REST API 快且更可靠）
 # 先清空旧数据
 t0 = time.time()
 print('  清空旧数据...', flush=True)
 pg('TRUNCATE TABLE fund_scores')
 print(f'  ✓ 已清空', flush=True)
 
-# 转换为 REST 格式并分批 POST
-imported = 0
+# SQL 值转义
+def sql_val(v):
+    if v is None:
+        return 'NULL'
+    if isinstance(v, bool):
+        return 'true' if v else 'false'
+    if isinstance(v, (int, float)):
+        if v != v:  # NaN
+            return 'NULL'
+        return repr(v)
+    s = str(v).replace("'", "''")
+    return f"'{s}'"
 
+INSERT_COLS = [
+    'c','n','t0','t1','t1_tt','sg','daily_change',
+    'company','fund_scale','manage_fee','fund_manager',
+    'ytd','r0w','r1m','r3m','r6m','r1y','r2y','r3y','r5y','r7y','r10y','return_all',
+    'dd1y','dd2y','dd3y','dd5y',
+    'sr1y','sr2y','sr3y','sr5y',
+    'k0w','k1m','k3m','k6m','k1','k2','k3','k5',
+    'k_all','score_grade',
+]
+COLS_STR = ', '.join(INSERT_COLS)
+
+def build_insert_sql(batch):
+    parts = []
+    for r in batch:
+        d = row_to_rest(r)
+        vals = ', '.join(sql_val(d.get(col)) for col in INSERT_COLS)
+        parts.append(f'({vals})')
+    return f'INSERT INTO fund_scores ({COLS_STR}) VALUES {", ".join(parts)}'
+
+imported = 0
+failed = 0
+
+def insert_batch(batch, label=''):
+    global imported, failed
+    if not batch:
+        return
+    try:
+        sql = build_insert_sql(batch)
+        pg(sql)
+        imported += len(batch)
+        pct = imported * 100 // len(funds)
+        print(f'  导入进度: {imported}/{len(funds)} ({pct}%) {label}', flush=True)
+    except Exception as e:
+        if len(batch) <= 25:
+            failed += len(batch)
+            print(f'  ✗ 批次{label} {len(batch)}条最终失败: {str(e)[:150]}', flush=True)
+        else:
+            mid = len(batch) // 2
+            print(f'  ↹ 批次{label} {len(batch)}条拆分重试: {str(e)[:100]}', flush=True)
+            insert_batch(batch[:mid], f'{label}a')
+            insert_batch(batch[mid:], f'{label}b')
+
+total_batches = (len(funds) + BATCH - 1) // BATCH
 for i in range(0, len(funds), BATCH):
     batch = funds[i:i+BATCH]
-    rows = [row_to_rest(r) for r in batch]
-    try:
-        rest_post('/rest/v1/fund_scores', rows, prefer='return=minimal')
-        imported += len(batch)
-        if (i // BATCH) % 5 == 0 or i + BATCH >= len(funds):
-            print(f'  导入进度: {imported}/{len(funds)} ({imported*100//len(funds)}%)', flush=True)
-    except Exception as e:
-        print(f'  ✗ 批次 {i}-{i+len(batch)} 失败: {e}', flush=True)
-        # 降级：逐条重试
-        for j, row in enumerate(rows):
-            try:
-                rest_post('/rest/v1/fund_scores', [row], prefer='return=minimal')
-                imported += 1
-            except Exception as e2:
-                print(f'    ✗ 记录 {batch[j].get("c","?")} 失败: {str(e2)[:100]}', flush=True)
+    batch_num = i // BATCH + 1
+    insert_batch(batch, f'[{batch_num}/{total_batches}]')
 
-print(f'  ✓ 导入完成 {imported}/{len(funds)} ({time.time()-t0:.1f}s)', flush=True)
+print(f'  ✓ 导入完成: 成功={imported}/{len(funds)}, 失败={failed} ({time.time()-t0:.1f}s)', flush=True)
 
 # 5. 写入 meta（UPSERT id=8）
 nav_date = funds[0].get('date','') if funds else ''
