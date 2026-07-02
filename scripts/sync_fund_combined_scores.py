@@ -96,9 +96,6 @@ def main():
     WHERE fund_combined.c = REPLACE(fs.c, '.OF', '');
     """
 
-    # Unset old/wrong env var that might interfere
-    os.environ.pop('SUPABASE_MGMT_TOKEN', None)
-    
     resp = mgmt_query(update_sql)
     if resp is None:
         print("  Phase 1 FAILED!", flush=True)
@@ -237,11 +234,14 @@ def main():
     # ── Verify ──
     print("\n[Verify] Checking results...", flush=True)
 
-    # Quick count
-    resp = rest_get("fund_combined", "select=c&limit=0")
+    # Quick count via SQL (more reliable than REST API content-range header)
+    print("  Counting via SQL...", flush=True)
+    resp = mgmt_query("SELECT COUNT(*) AS cnt FROM fund_combined")
     total = 0
-    if "content-range" in resp.headers:
-        total = int(resp.headers["content-range"].split("/")[1])
+    if resp is not None:
+        data = resp.json()
+        if data and isinstance(data, list) and len(data) > 0:
+            total = data[0].get('cnt', 0)
     print(f"  Total rows: {total}", flush=True)
 
     # Score grade distribution via SQL
