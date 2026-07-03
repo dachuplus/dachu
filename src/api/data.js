@@ -51,7 +51,7 @@ export async function fetchFundScores(params = {}) {
     }
     if (search) query = query.or(`n.ilike.%${search}%,c.ilike.%${search}%`)
     // 排除评分列为空的基金（货币型等无收益/夏普/回撤数据），避免 NULLS FIRST 导致有效结果被挤到后面
-    query = query.not(kKey, 'is', 'null')
+    query = query.not(kKey, 'is', null)
     const from = (page - 1) * pageSize
     const { data, count, error } = await query
       .order(kKey, { ascending: !!sortAsc })
