@@ -71,6 +71,12 @@
             <td>从每日净值历史计算得出。回撤为负数（如 -15.23 表示最大回撤 15.23%），夏普为原始数值</td>
           </tr>
           <tr>
+            <td><strong>风险指标补充</strong></td>
+            <td><code>tsdata</code> (HTML 页面)</td>
+            <td>sr1y~sr3y（夏普比率）<br>stddev1y~stddev3y（标准差）</td>
+            <td>天天基金预计算的风险指标，补充 pingzhongdata 未覆盖的基金（如部分可转债/二级债基），优先级低于 pingzhongdata</td>
+          </tr>
+          <tr>
             <td><strong>货币基金收益率</strong></td>
             <td><code>rankhandler</code> (POST)</td>
             <td>f[9]=YTD / f[10]=近1年 / f[12]=近3年</td>
@@ -212,10 +218,11 @@
         <div class="flow-row flow-row-aux">
           <div class="flow-node flow-node-aux">pingzhongdata<br><small>回撤(dd) + 夏普(sr)</small></div>
           <div class="flow-arrow flow-arrow-up">↗</div>
-          <div style="width:120px"></div>
-          <div style="width:120px"></div>
-          <div style="width:120px"></div>
-          <div style="width:120px"></div>
+          <div class="flow-node flow-node-aux">tsdata<br><small>夏普(sr) 补充</small></div>
+          <div class="flow-arrow flow-arrow-up">↗</div>
+          <div style="width:80px"></div>
+          <div style="width:80px"></div>
+          <div style="width:80px"></div>
         </div>
       </div>
 
@@ -404,13 +411,38 @@
 
       <!-- tsdata -->
       <div class="api-item">
-        <h3 class="api-name">5. tsdata — 基金风险等级页面</h3>
+        <h3 class="api-name">5. tsdata — 基金特色数据页面（风险指标+风险等级）</h3>
         <table class="api-meta-table">
           <tr><td class="meta-label">URL</td><td><code>https://fundf10.eastmoney.com/tsdata_{基金代码}.html</code></td></tr>
           <tr><td class="meta-label">方法</td><td>GET</td></tr>
-          <tr><td class="meta-label">返回</td><td>HTML</td></tr>
-          <tr><td class="meta-label">提取数据</td><td>风险等级（low1~low5），通过 <code>chooseLow</code> CSS class 定位</td></tr>
+          <tr><td class="meta-label">返回</td><td>HTML（服务端渲染，直接解析）</td></tr>
+          <tr><td class="meta-label">用途</td><td>补充 pingzhongdata 未覆盖的基金风险指标，提供预计算的夏普比率和标准差</td></tr>
         </table>
+        <p class="api-subtitle">提取数据</p>
+        <table class="field-table">
+          <thead><tr><th>数据项</th><th>字段</th><th>周期</th><th>说明</th></tr></thead>
+          <tbody>
+            <tr>
+              <td><strong>夏普比率</strong></td>
+              <td>sr1y / sr2y / sr3y</td>
+              <td>近1年/近2年/近3年</td>
+              <td>天天基金预计算的夏普比率，用于补充 pingzhongdata 缺失的基金（如部分可转债/二级债基）</td>
+            </tr>
+            <tr>
+              <td><strong>标准差</strong></td>
+              <td>stddev1y / stddev2y / stddev3y</td>
+              <td>近1年/近2年/近3年</td>
+              <td>反映基金收益率的波动程度，越小越稳定</td>
+            </tr>
+            <tr>
+              <td><strong>风险等级</strong></td>
+              <td>chooseLow CSS class</td>
+              <td>全市场/同类</td>
+              <td>低/中低/中/中高/高 五级分类</td>
+            </tr>
+          </tbody>
+        </table>
+        <p class="api-note">⚠️ tsdata 的夏普比率与 pingzhongdata 计算的夏普比率可能存在微小差异（计算窗口/无风险利率不同），优先使用 pingzhongdata，tsdata 仅作为补充数据源。</p>
       </div>
 
       <!-- 东方财富 push2 -->
@@ -576,7 +608,7 @@
           <tr><td>2</td><td>FundGuideapi</td><td>基金分类 + 收益数据（5大类）</td><td>GET</td></tr>
           <tr><td>3</td><td>pingzhongdata</td><td>净值历史/回撤/夏普/风险评级</td><td>GET</td></tr>
           <tr><td>4</td><td>fundf10 (jbgk)</td><td>公司/规模/费率详情</td><td>GET</td></tr>
-          <tr><td>5</td><td>fundf10 (tsdata)</td><td>风险等级</td><td>GET</td></tr>
+          <tr><td>5</td><td>fundf10 (tsdata)</td><td>夏普比率+标准差+风险等级（补充数据源）</td><td>GET</td></tr>
           <tr><td>6</td><td>push2 API</td><td>申万行业板块实时行情</td><td>GET</td></tr>
           <tr><td>7</td><td>qt.gtimg.cn</td><td>指数实时行情</td><td>GET</td></tr>
           <tr><td>8</td><td>danjuanfunds</td><td>指数估值评级</td><td>GET</td></tr>

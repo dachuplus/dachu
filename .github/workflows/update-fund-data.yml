@@ -58,10 +58,10 @@ jobs:
           echo "============================================"
           python scripts/fetch_and_import_funds.py --output-only
 
-      - name: 步骤2 — 抓取风险指标（回撤+夏普）
+      - name: 步骤2 — 抓取风险指标（回撤+夏普，pingzhongdata HTTPS）
         if: ${{ !inputs.skip_risk }}
         id: risk_indicators
-        timeout-minutes: 12
+        timeout-minutes: 20
         continue-on-error: true
         run: |
           echo "============================================"
@@ -80,6 +80,26 @@ jobs:
             --delay 0.3 \
             --resume
           echo "风险指标计算完成: $(date '+%Y-%m-%d %H:%M:%S')"
+
+      - name: 步骤2a — 补充风险指标（tsdata 页面夏普比率+标准差）
+        if: ${{ !inputs.skip_risk }}
+        timeout-minutes: 15
+        continue-on-error: true
+        run: |
+          echo "============================================"
+          echo "  步骤2a: 补充风险指标 (tsdata 页面)"
+          echo "  开始时间: $(date '+%Y-%m-%d %H:%M:%S')"
+          echo "============================================"
+          if [ ! -f scripts/risk_indicators.ndjson ]; then
+            echo "未找到 risk_indicators.ndjson，跳过 tsdata 补充"
+            exit 0
+          fi
+          python scripts/fetch_tsdata_risk.py \
+            --input scripts/risk_indicators.ndjson \
+            --output scripts/risk_indicators.ndjson \
+            --workers 5 \
+            --delay 0.3
+          echo "tsdata 补充完成: $(date '+%Y-%m-%d %H:%M:%S')"
 
       - name: 步骤2b — 抓取成立以来收益率（rankhandler API）
         if: ${{ !inputs.skip_risk }}

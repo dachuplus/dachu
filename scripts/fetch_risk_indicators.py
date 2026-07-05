@@ -62,7 +62,7 @@ def fetch_and_calculate(fund_code):
 
     # 去掉 .OF 后缀
     code = fund_code.replace('.OF', '').replace('.of', '')
-    url = f'http://fund.eastmoney.com/pingzhongdata/{code}.js'
+    url = f'https://fund.eastmoney.com/pingzhongdata/{code}.js'
 
     try:
         req = urllib.request.Request(url, headers=HEADERS)
