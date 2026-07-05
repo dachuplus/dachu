@@ -1,59 +1,59 @@
 {
-  "updated_at": "2026-07-01T09:46:35.638446",
+  "updated_at": "2026-07-05T10:47:01.764051",
   "tables": {
     "config": {
       "rows": 3,
-      "size_mb": 0.0072784423828125,
+      "size_mb": 0.00748443603515625,
       "path": "/downloads/config.xlsx"
     },
     "fund_combined": {
-      "rows": 20677,
-      "size_mb": 3.709794044494629,
+      "rows": 20844,
+      "size_mb": 3.5565338134765625,
       "path": "/downloads/fund_combined.xlsx"
     },
     "fund_quarterly_scores": {
       "rows": 18584,
-      "size_mb": 4.135370254516602,
+      "size_mb": 4.138149261474609,
       "path": "/downloads/fund_quarterly_scores.xlsx"
     },
     "fund_scores": {
-      "rows": 19325,
-      "size_mb": 3.6272592544555664,
+      "rows": 20844,
+      "size_mb": 4.103310585021973,
       "path": "/downloads/fund_scores.xlsx"
     },
     "fund_scores_meta": {
       "rows": 2,
-      "size_mb": 0.006087303161621094,
+      "size_mb": 0.006146430969238281,
       "path": "/downloads/fund_scores_meta.xlsx"
     },
     "index_pe_history": {
       "rows": 0,
-      "size_mb": 0.005889892578125,
+      "size_mb": 0.0059566497802734375,
       "path": "/downloads/index_pe_history.xlsx"
     },
     "macro_history": {
       "rows": 24109,
-      "size_mb": 0.6590614318847656,
+      "size_mb": 0.6591253280639648,
       "path": "/downloads/macro_history.xlsx"
     },
     "site_stats": {
       "rows": 1,
-      "size_mb": 0.0059566497802734375,
+      "size_mb": 0.006005287170410156,
       "path": "/downloads/site_stats.xlsx"
     },
     "tougu_products": {
       "rows": 103,
-      "size_mb": 0.024761199951171875,
+      "size_mb": 0.027396202087402344,
       "path": "/downloads/tougu_products.xlsx"
     },
     "user_portfolios": {
       "rows": 0,
-      "size_mb": 0.0058422088623046875,
+      "size_mb": 0.005883216857910156,
       "path": "/downloads/user_portfolios.xlsx"
     },
     "user_profiles": {
       "rows": 0,
-      "size_mb": 0.005820274353027344,
+      "size_mb": 0.0058765411376953125,
       "path": "/downloads/user_profiles.xlsx"
     }
   }

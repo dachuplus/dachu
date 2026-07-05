@@ -84,7 +84,6 @@
 
 ## 数据来源
 
-- 原始数据文件：`/asset-config-miniapp/package-fund/data/funds_meta.js`
 - 天天基金 API：`https://fund.eastmoney.com/data/rankhandler.aspx`
 - 更新时间：2026-04-19
 

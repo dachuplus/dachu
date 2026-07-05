@@ -1,9 +1,6 @@
 /**
  * utils/market-data.js - 实时市场数据服务 v2
  *
- * 移植自 asset-config-miniapp，ES Module 版本
- * wx.request → fetch()
- *
  * 数据来源（全部公开合规）：
  * 1. 腾讯股票API（qt.gtimg.cn）→ 指数实时行情 + PE/PB
  * 2. 东财 push2 API → 申万行业板块

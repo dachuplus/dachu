@@ -1,7 +1,6 @@
 /**
  * utils/value500.js - value500.com 页面解析工具
  *
- * 移植自 asset-config-miniapp cloudfunctions/fetchValue500
  * 各解析函数从 value500.com HTML 中提取关键数据
  */
 

@@ -1,6 +1,6 @@
 // 基金分类数据（自动生成自 funds_meta.js）
 // 生成时间：2026-06-07
-// 数据来源：asset-config-miniapp/package-fund/data/funds_meta.js
+// 数据来源：天天基金 FundGuideapi 分类体系
 
 /**
  * 三级分类列表

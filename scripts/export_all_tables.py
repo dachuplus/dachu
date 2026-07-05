@@ -14,8 +14,11 @@ SUPABASE_KEY = os.environ.get('SUPABASE_ANON_KEY') or os.environ.get('VITE_SUPAB
 IS_CI = os.environ.get('CI') == 'true' or os.environ.get('GITHUB_ACTIONS') == 'true'
 if IS_CI:
     import subprocess
-    result = subprocess.run(['pip', 'install', 'openpyxl'], capture_output=True, text=True)
-    print(f"[CI] pip install openpyxl: {result.returncode}")
+    result = subprocess.run(['pip', 'install', 'openpyxl', 'requests'], capture_output=True, text=True)
+    print(f"[CI] pip install openpyxl requests: {result.returncode}")
+    if result.returncode != 0:
+        print(f"[CI] pip stderr: {result.stderr}")
+        sys.exit(1)
 else:
     try:
         import openpyxl

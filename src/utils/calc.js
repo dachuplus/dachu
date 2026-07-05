@@ -1,8 +1,6 @@
 /**
  * utils/calc.js - 资产配置计算引擎 v3
  *
- * 移植自 asset-config-miniapp，ES Module 版本
- *
  * 核心改造（v3）：
  * 1. 去掉温度计系统，改为预期收益率驱动
  * 2. 权重分配采用 Kan & Zhou (2007) 增强型风险平价
