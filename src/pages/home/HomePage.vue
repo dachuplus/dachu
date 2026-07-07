@@ -238,7 +238,8 @@
 
     <!-- 底部声明 -->
     <div class="footer-note-bar">
-      <div>数据来源：腾讯API(行情)、value500(国债/Shibor/M2/CPI/股债比)</div>
+      <div v-if="fundUpdateText">基金靠谱分数据更新于：{{ fundUpdateText }}</div>
+      <div>数据来源：腾讯API(行情)、value500(国债/Shibor/M2/CPI/股债比)、天天基金(基金评分)</div>
       <div>数据仅供参考，不构成投资建议</div>
       <div>权重模型：Kan &amp; Zhou (2007) 增强型风险平价</div>
     </div>
@@ -247,6 +248,7 @@
 
 <script setup>
 import { ref, onMounted } from 'vue'
+import { fetchFundMeta } from '../../api/data.js'
 import { fetchValue500All, fetchDanjuanEva } from '../../utils/api'
 import { getIndexQuotes, buildMarketData, parseValue500Data } from '../../utils/market-data'
 import { calcAllExpectedReturns, calcEnhancedRiskParityWeights, calcMarketSharpe, calcRiskPremium } from '../../utils/calc'
@@ -280,6 +282,9 @@ const evaHigh5       = ref([])
 
 // DS 固收+组合
 const dsPortfolios = ref([])
+
+// 基金数据更新时间（来自 fund_scores_meta.tsq）
+const fundUpdateText = ref('')
 function loadDsPortfolios() {
   try {
     const raw = localStorage.getItem('allfund_ai_portfolios')
@@ -287,6 +292,21 @@ function loadDsPortfolios() {
     // 只显示固收+策略的最近 3 个
     dsPortfolios.value = all.filter(p => p.strategyName && p.strategyName.includes('固收+')).slice(0, 3)
   } catch { dsPortfolios.value = [] }
+}
+
+// 基金数据更新时间
+async function loadFundMeta() {
+  try {
+    const m = await fetchFundMeta()
+    if (m && m.tsq) {
+      const d = new Date(m.tsq)
+      const dateStr = d.toLocaleDateString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit' })
+      const timeStr = d.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', hour12: false })
+      fundUpdateText.value = `${dateStr} ${timeStr}`
+    }
+  } catch (e) {
+    console.error('[home] 基金元信息获取失败', e)
+  }
 }
 
 // 帮助弹窗
@@ -449,6 +469,7 @@ onMounted(() => {
   loadQuotes()
   loadValue500()
   loadDsPortfolios()
+  loadFundMeta()
 })
 </script>
 

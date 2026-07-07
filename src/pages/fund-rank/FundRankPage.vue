@@ -221,6 +221,9 @@
             <th class="col-name sortable" @click="toggleColumnSort('n')">
               简称<span class="th-arrow" v-if="sortField === 'n'">{{ sortDir === 'asc' ? '▲' : '▼' }}</span>
             </th>
+            <th class="col-manager sortable" @click="toggleColumnSort('fund_manager')">
+              基金经理<span class="th-arrow" v-if="sortField === 'fund_manager'">{{ sortDir === 'asc' ? '▲' : '▼' }}</span>
+            </th>
             <th v-for="p in displayPeriods" :key="p.key" class="col-score sortable" :class="{ 'col-sort': currentPeriod === p.key }" @click="switchPeriod(p.key)">
               {{ p.label }}<span class="th-arrow" v-if="currentPeriod === p.key">{{ sortAsc ? '▲' : '▼' }}</span>
             </th>
@@ -235,6 +238,7 @@
           >
             <td class="col-code"><a :href="eastMoneyUrl(fund.c)" target="_blank" @click.stop>{{ fund.c }}</a></td>
             <td class="col-name"><a :href="eastMoneyUrl(fund.c)" target="_blank" @click.stop>{{ fund.n || '基金' + fund.c }}</a></td>
+            <td class="col-manager" :title="fund.fund_manager">{{ fund.fund_manager || '--' }}</td>
             <td v-for="p in displayPeriods" :key="p.key" class="col-score" :class="{ 'col-sort': currentPeriod === p.key }">
               <span class="score-val" :style="scoreColor(fund[p.key])">{{ fmtScore(fund[p.key]) }}</span>
             </td>
@@ -276,6 +280,7 @@
             </span>
           </span>
         </div>
+        <div class="fund-card-mgr" v-if="fund.fund_manager">{{ fund.fund_manager }}</div>
         <div class="fund-card-scores">
           <span
             v-for="p in displayPeriods"
@@ -303,8 +308,14 @@
 
     <!-- 空状态 -->
     <div class="empty-state" v-if="dataLoaded && funds.length === 0 && !loading">
-      <p class="empty-text">没有找到符合条件的基金</p>
-      <p class="empty-hint">试试调整筛选条件或关键词</p>
+      <template v-if="loadError">
+        <p class="empty-text">基金数据加载失败</p>
+        <p class="empty-hint retry-hint" @click="refreshData">点击此处重试 ↻</p>
+      </template>
+      <template v-else>
+        <p class="empty-text">没有找到符合条件的基金</p>
+        <p class="empty-hint">试试调整筛选条件或关键词</p>
+      </template>
     </div>
 
     <!-- 加载中（首次） -->
@@ -729,6 +740,7 @@ const pageSize = 300
 const hasMore = ref(false)
 const loading = ref(false)
 const dataLoaded = ref(false)
+const loadError = ref(false)
 const refreshing = ref(false)
 const totalCount = ref(null)      // 当前筛选条件下后端总数（来自 Supabase count）
 
@@ -921,6 +933,7 @@ const T0_MAP_TT = {
 async function loadData(reset = true) {
   if (loading.value) return
   loading.value = true
+  loadError.value = false
   if (reset) page.value = 1
 
   try {
@@ -984,6 +997,7 @@ async function loadData(reset = true) {
     }
   } catch (e) {
     console.error('[fund-rank] load error', e)
+    loadError.value = true
   } finally {
     loading.value = false
     dataLoaded.value = true
@@ -1270,7 +1284,7 @@ onUnmounted(() => {
 }
 .fund-table {
   width: 100%; border-collapse: collapse; font-size: 14px; white-space: nowrap;
-  min-width: 900px;
+  min-width: 1040px;
 }
 .fund-table thead { background: #f3f2f1; }
 .fund-table th {
@@ -1301,6 +1315,9 @@ onUnmounted(() => {
 .col-name { max-width: 180px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .col-name a { color: var(--text-primary); text-decoration: none; }
 .col-name a:hover { color: var(--link); text-decoration: underline; }
+.col-manager { max-width: 140px; color: var(--text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.col-manager.sortable { cursor: pointer; user-select: none; }
+.col-manager.sortable:hover { background: #e0e7ef; }
 .col-num { width: 80px; text-align: right; color: var(--text-secondary); }
 .col-pct { width: 60px; text-align: right; color: var(--text-secondary); }
 .col-score { width: 50px; text-align: center; }
@@ -1336,6 +1353,11 @@ onUnmounted(() => {
   min-width: 0; line-height: 1.4; text-decoration: none;
 }
 .fund-name:hover { color: var(--link); text-decoration: underline; }
+
+.fund-card-mgr {
+  font-size: 13px; color: var(--text-secondary);
+  margin-top: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
 
 .fund-card-actions {
   display: flex; align-items: center; gap: 2px; flex-shrink: 0;
@@ -1450,6 +1472,7 @@ onUnmounted(() => {
 .empty-state { text-align: center; padding: var(--space-2xl) var(--space-md); }
 .empty-text { font-size: 19px; color: var(--text-primary); font-weight: 700; margin-bottom: var(--space-sm); }
 .empty-hint { font-size: 16px; color: var(--text-secondary); }
+.retry-hint { color: var(--link); cursor: pointer; text-decoration: underline; }
 .loading-wrap { display: flex; justify-content: center; padding: var(--space-2xl) 0; }
 .loading-text { font-size: 16px; color: var(--text-secondary); }
 
