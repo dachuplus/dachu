@@ -349,6 +349,30 @@
                 <span class="attr-label">最新净值</span>
                 <span class="attr-value">{{ detailFund.nav }}<span v-if="detailFund.date" class="attr-date">（{{ detailFund.date }}）</span></span>
               </div>
+              <div class="attr-row" v-if="detailFund.fund_manager">
+                <span class="attr-label">基金经理</span>
+                <span class="attr-value">{{ detailFund.fund_manager }}</span>
+              </div>
+              <div class="attr-row" v-if="detailFund.company">
+                <span class="attr-label">管理人</span>
+                <span class="attr-value">{{ detailFund.company }}</span>
+              </div>
+              <div class="attr-row" v-if="detailFund.found_date">
+                <span class="attr-label">成立日期</span>
+                <span class="attr-value">{{ detailFund.found_date }}</span>
+              </div>
+              <div class="attr-row" v-if="detailFund.share_scale != null">
+                <span class="attr-label">份额规模</span>
+                <span class="attr-value">{{ fmtScale(detailFund.share_scale) }}</span>
+              </div>
+              <div class="attr-row" v-if="detailFund.custody_fee != null">
+                <span class="attr-label">托管费率</span>
+                <span class="attr-value">{{ detailFund.custody_fee }}%/年</span>
+              </div>
+              <div class="attr-row" v-if="detailFund.sale_fee != null">
+                <span class="attr-label">销售服务费率</span>
+                <span class="attr-value">{{ detailFund.sale_fee }}%/年</span>
+              </div>
             </div>
 
             <!-- 靠谱分 -->
@@ -761,6 +785,15 @@ function fmtNum(v) {
   const n = parseFloat(v)
   if (isNaN(n)) return '--'
   return n.toFixed(2)
+}
+
+function fmtScale(v) {
+  if (v == null) return '--'
+  const n = parseFloat(v)
+  if (isNaN(n)) return '--'
+  if (n >= 10000) return (n / 10000).toFixed(2) + '万亿份'
+  if (n >= 1) return n.toFixed(2) + '亿份'
+  return (n * 10000).toFixed(0) + '万份'
 }
 
 function fmtPct(v) {

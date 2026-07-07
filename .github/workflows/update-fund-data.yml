@@ -12,6 +12,11 @@ on:
         required: false
         type: boolean
         default: false
+      full_basic_info:
+        description: '全量抓取基金基本概况（fundf10 jbgk，首次回填用）'
+        required: false
+        type: boolean
+        default: false
 
 env:
   PYTHONUNBUFFERED: '1'
@@ -124,6 +129,38 @@ jobs:
           pip install requests
           python scripts/export_fund_details.py scripts/fund_details.ndjson
           echo "基金详情导出完成: $(date '+%Y-%m-%d %H:%M:%S')"
+
+      - name: 步骤2c2 — 抓取基金基本概况（fundf10 jbgk：基金经理/管理人/分类/费率）
+        if: ${{ !inputs.skip_risk }}
+        timeout-minutes: 120
+        continue-on-error: true
+        run: |
+          echo "============================================"
+          echo "  步骤2c2: 抓取基金基本概况 (fundf10 jbgk)"
+          echo "  开始时间: $(date '+%Y-%m-%d %H:%M:%S')"
+          echo "============================================"
+          pip install requests
+          # 每日默认仅补缺失数据；全量回填用 --full（手动触发 full_basic_info=true）
+          # 并发 4 + 间隔 0.2s，避免被 fundf10 限流
+          if [ "${{ inputs.full_basic_info }}" = "true" ]; then
+            echo "[INFO] 全量模式：抓取全部基金基本概况"
+            python scripts/fetch_fund_basic_info.py --full --workers 4 --delay 0.2 --output scripts/fund_basic_info.ndjson
+          else
+            echo "[INFO] 补缺模式：仅抓取缺失基金经理/管理人/分类/份额/费率/成立日期的基金"
+            python scripts/fetch_fund_basic_info.py --workers 4 --delay 0.2 --output scripts/fund_basic_info.ndjson
+          fi
+          echo "基金基本概况抓取完成: $(date '+%Y-%m-%d %H:%M:%S')"
+
+      - name: 步骤2c3 — 确保 fund_scores 新列存在（DDL）
+        if: ${{ !inputs.skip_risk }}
+        run: |
+          echo "============================================"
+          echo "  步骤2c3: 确保 fund_scores 新增列 (share_scale/custody_fee/sale_fee/found_date)"
+          echo "  开始时间: $(date '+%Y-%m-%d %H:%M:%S')"
+          echo "============================================"
+          pip install requests
+          python scripts/ensure_basic_info_columns.py
+          echo "DDL 检查完成: $(date '+%Y-%m-%d %H:%M:%S')"
 
       - name: 步骤3 — 合并风险指标 + 重新计算靠谱分 + REST API 导入 Supabase
         if: ${{ !inputs.skip_risk }}

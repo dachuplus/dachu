@@ -19,6 +19,7 @@ FUND_SCORES_COLS = [
     'sg','daily_change',
     # 基本信息
     'company','fund_scale','manage_fee','fund_manager',
+    'share_scale','custody_fee','sale_fee','found_date',
     # 阶段收益
     'ytd','r0w','r1m','r3m','r6m','r1y','r2y','r3y','r5y','r7y','r10y','return_all',
     # 阶段回撤
@@ -92,7 +93,7 @@ def row_to_rest(r):
     """把 NDJSON 的一行转成 REST API 需要的 dict（fund_scores 全部列）"""
     d = {}
     # 字符串字段
-    for col in ('c','n','t0','t1','t1_tt','score_grade','company','manage_fee','fund_manager'):
+    for col in ('c','n','t0','t1','t1_tt','score_grade','company','manage_fee','fund_manager','found_date'):
         v = r.get(col)
         d[col] = v if v and str(v).strip() else None
     # 数值字段：申购状态
@@ -119,8 +120,8 @@ def row_to_rest(r):
     for col in ('sr1y','sr2y','sr3y','sr5y'):
         v = r.get(col)
         d[col] = esc_null(v)
-    # 浮点数：规模
-    for col in ('fund_scale',):
+    # 浮点数：规模 / 费率 / 份额
+    for col in ('fund_scale','share_scale','custody_fee','sale_fee'):
         v = r.get(col)
         if v is not None:
             try: d[col] = float(v)
@@ -215,6 +216,46 @@ if os.path.exists(details_path):
     print(f'  ✓ 合并基金详情 {merged}/{len(funds)} ({time.time()-t0:.1f}s)', flush=True)
 else:
     print('  ⚠ 无基金详情文件，跳过', flush=True)
+
+# 2c2. 合并基金基本概况（fundf10 jbgk 页面：基金经理/管理人/分类/份额/费率/成立日期）
+basic_info_path = os.path.join(SCRIPT_DIR, 'fund_basic_info.ndjson')
+if os.path.exists(basic_info_path):
+    t0 = time.time()
+    basic_map = {}
+    with open(basic_info_path, 'r') as f:
+        for line in f:
+            line = line.strip()
+            if line:
+                b = json.loads(line)
+                c = b.get('c', '').replace('.OF', '')
+                if c:
+                    basic_map[c] = b
+    # 仅填补 null/空值（不覆盖已有好数据）：基金经理/管理人/分类/规模/费率
+    # 注：t0/t1 分类当前已 100% 完整，且 FundGuideapi 为既有权威来源，不覆盖
+    fill_if_empty = ['fund_manager', 'company', 't0', 't1', 'fund_scale', 'manage_fee']
+    # 始终取 jbgk（天天基金官方档案，数据最权威且一致）：4 个新增列（原先为 null）
+    always_take = ['share_scale', 'custody_fee', 'sale_fee', 'found_date']
+    merged = 0
+    for fund in funds:
+        c = fund.get('c', '').replace('.OF', '')
+        if c in basic_map:
+            b = basic_map[c]
+            changed = False
+            for k in fill_if_empty:
+                v = b.get(k)
+                if v is not None and not fund.get(k):
+                    fund[k] = v
+                    changed = True
+            for k in always_take:
+                v = b.get(k)
+                if v is not None:
+                    fund[k] = v
+                    changed = True
+            if changed:
+                merged += 1
+    print(f'  ✓ 合并基金基本概况(jbgk) {merged}/{len(funds)} ({time.time()-t0:.1f}s)', flush=True)
+else:
+    print('  ⚠ 无基金基本概况文件，跳过', flush=True)
 
 # 2d. 合并基金经理（已内嵌在 risk_indicators.ndjson 的 fund_manager 字段中）
 # fund_manager 已在步骤 2 通过 risk_indicators 合并，此处无需额外处理
@@ -332,6 +373,7 @@ def sql_val(v):
 INSERT_COLS = [
     'c','n','t0','t1','t1_tt','sg','daily_change',
     'company','fund_scale','manage_fee','fund_manager',
+    'share_scale','custody_fee','sale_fee','found_date',
     'ytd','r0w','r1m','r3m','r6m','r1y','r2y','r3y','r5y','r7y','r10y','return_all',
     'dd1y','dd2y','dd3y','dd5y',
     'sr1y','sr2y','sr3y','sr5y',

@@ -405,7 +405,7 @@
           <tr><td class="meta-label">URL</td><td><code>https://fundf10.eastmoney.com/jbgk_{基金代码}.html</code></td></tr>
           <tr><td class="meta-label">方法</td><td>GET</td></tr>
           <tr><td class="meta-label">返回</td><td>HTML</td></tr>
-          <tr><td class="meta-label">提取数据</td><td>基金管理人(公司名)、管理费率、托管费率、净资产规模、成立日期 — 通过正则表达式解析 HTML</td></tr>
+          <tr><td class="meta-label">提取数据</td><td>基金经理(fund_manager)、管理人/公司名(company)、一级分类+二级分类(t0/t1)、净值规模(fund_scale)、份额规模(share_scale)、管理费率(manage_fee)、托管费率(custody_fee)、销售服务费率(sale_fee)、成立日期(found_date) — 通过正则表达式解析 HTML 表格</td></tr>
         </table>
       </div>
 
@@ -607,7 +607,7 @@
           <tr><td>1</td><td>rankhandler API</td><td>基金排行（含货币型）</td><td>GET/POST</td></tr>
           <tr><td>2</td><td>FundGuideapi</td><td>基金分类 + 收益数据（5大类）</td><td>GET</td></tr>
           <tr><td>3</td><td>pingzhongdata</td><td>净值历史/回撤/夏普/风险评级</td><td>GET</td></tr>
-          <tr><td>4</td><td>fundf10 (jbgk)</td><td>公司/规模/费率详情</td><td>GET</td></tr>
+          <tr><td>4</td><td>fundf10 (jbgk)</td><td>基金经理/管理人/分类/规模/费率/成立日期</td><td>GET</td></tr>
           <tr><td>5</td><td>fundf10 (tsdata)</td><td>夏普比率+标准差+风险等级（补充数据源）</td><td>GET</td></tr>
           <tr><td>6</td><td>push2 API</td><td>申万行业板块实时行情</td><td>GET</td></tr>
           <tr><td>7</td><td>qt.gtimg.cn</td><td>指数实时行情</td><td>GET</td></tr>
@@ -632,8 +632,8 @@ const tableData = ref({})
 
 // 表定义
 const tables = [
-  { key: 'fund_combined', name: '基金综合数据表', desc: '基金分类(t0/t1)、详情(公司/规模/费率)、收益(ytd~r5y)、风险(dd1y/sr1y)、评分(k_all/score_grade/k0w~k10) — 核心合并表，20,677条', rows: 20677 },
-  { key: 'fund_scores', name: '基金评分表（完整版）', desc: '每日更新：基金代码/名称/基金经理/管理人/分类/规模/费率 → 阶段收益(ytd~r10y/成立以来) → 阶段回撤(dd1y~dd5y) → 阶段夏普(sr1y~sr5y) → 基金评分(k0w~k_all/score_grade)，42列完整数据', rows: 19325 },
+  { key: 'fund_combined', name: '基金综合数据表', desc: '基金分类(t0/t1)、详情(公司/规模/费率)、收益(ytd~r5y)、风险(dd1y/sr1y)、评分(k_all/score_grade/k0w~k10) — 核心合并表，20,860条', rows: 20860 },
+  { key: 'fund_scores', name: '基金评分表（完整版）', desc: '每日更新：基金代码/名称/基金经理/管理人/分类(一级+二级)/净值规模/份额规模/管理费率/托管费率/销售服务费率/成立日期 → 阶段收益(ytd~r10y/成立以来) → 阶段回撤(dd1y~dd5y) → 阶段夏普(sr1y~sr5y) → 基金评分(k0w~k_all/score_grade)，46列完整数据', rows: 20860 },
   { key: 'fund_quarterly_scores', name: '季度评分表', desc: '基于季报数据的各时间窗口评分（3m/6m/1y/2y/3y/5y/7y/10y）+ 原始季度数据JSON', rows: 18584 },
   { key: 'macro_history', name: '宏观历史数据表', desc: '中国10年国债(cn10y)、美国10年国债(us10y)、Shibor、CPI、M2历史数据，覆盖1996-至今', rows: 24109 },
   { key: 'tougu_products', name: '投顾产品表', desc: '天天基金/华宝/盈米/新浪仓石四来源基金投顾产品，含收益率、最大回撤、标签分类', rows: 103 },
