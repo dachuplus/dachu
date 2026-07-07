@@ -1,4 +1,4 @@
-import { createRouter, createWebHashHistory } from 'vue-router'
+import { createRouter, createWebHistory } from 'vue-router'
 
 const routes = [
   {
@@ -104,10 +104,15 @@ const routes = [
     path: '/tools/industry-rank',
     redirect: '/signal?tab=industry'
   },
+  // SPA 兜底：未匹配的前端路由重定向到首页（配合 EdgeOne SPA fallback）
+  {
+    path: '/:pathMatch(.*)*',
+    redirect: '/'
+  },
 ]
 
 const router = createRouter({
-  history: createWebHashHistory(),
+  history: createWebHistory(),
   routes,
 })
 

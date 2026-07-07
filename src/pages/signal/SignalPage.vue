@@ -21,6 +21,27 @@
       <p>{{ dataError }}</p>
     </div>
 
+    <!-- ==================== 0. 信号总览（专业机构风格） ==================== -->
+    <div v-if="activeTab === 'overview'">
+      <div class="card overview-banner">
+        <div class="ov-banner-title">信号总览 · 配置建议</div>
+        <p class="ov-banner-text">{{ overviewConclusion }}</p>
+      </div>
+      <div class="ov-grid">
+        <div class="ov-card" v-for="c in signalOverview" :key="c.key">
+          <div class="ov-card-name">{{ c.name }}</div>
+          <div class="ov-card-value">{{ c.valueLabel }}</div>
+          <div class="ov-bar-wrap" v-if="c.pct != null">
+            <div class="ov-bar"><div class="ov-fill" :style="{ width: c.pct + '%', background: c.color }"></div></div>
+            <span class="ov-pct">{{ c.pct }}%</span>
+          </div>
+          <div class="ov-signal" :class="c.signal">{{ c.signalLabel }}</div>
+          <div class="ov-advice" :class="adviceClass(c.advice)">建议：{{ c.adviceLabel }}</div>
+        </div>
+      </div>
+      <p class="ov-hint">信号基于公开宏观与市场数据计算，仅供参考研究，不构成投资建议。</p>
+    </div>
+
     <!-- ==================== 1. 宏观策略 ==================== -->
     <div v-if="activeTab === 'macro'">
       <!-- 隐含夏普仪表盘 -->
@@ -271,6 +292,7 @@ import { supabase } from '../../api/supabase'
 
 // ===== Tab 结构 =====
 const tabs = [
+  { key: 'overview', label: '信号总览' },
   { key: 'macro',    label: '宏观策略' },
   { key: 'fed',      label: '股债对比' },
   { key: 'compare',  label: '资产对比' },
@@ -278,12 +300,30 @@ const tabs = [
   { key: 'factor',   label: '风格因子' },
   { key: 'industry', label: '行业估值' },
 ]
-const activeTab = ref('macro')
+const activeTab = ref('overview')
 
 // ===== 通用状态 =====
 const dataDate = ref('--')
 const dataError = ref('')
 const refreshing = ref(false)
+
+// ===== 信号总览（专业机构风格：信号值 + 分位 + 配置建议） =====
+const signalOverview = ref([])
+const pe300PctGlobal = ref(null)
+const pmiValGlobal = ref(null)
+const us10yVal = ref(null)
+const overviewConclusion = computed(() => {
+  const list = signalOverview.value
+  if (!list.length) return ''
+  const ow = list.filter(c => c.advice === 'overweight').length
+  const uw = list.filter(c => c.advice === 'underweight').length
+  const nt = list.length - ow - uw
+  let head
+  if (ow >= 3) head = '多数信号指向风险资产性价比提升，建议适度超配权益、把握结构性机会'
+  else if (uw >= 3) head = '多重信号偏紧，建议降低风险敞口、提升防御与现金比例'
+  else head = '信号分化，建议维持标准配置、以结构优化为主'
+  return `${head}。当前建议：超配 ${ow} · 低配 ${uw} · 标配 ${nt}`
+})
 
 // ===== 宏觀數據 =====
 const bondY10y = ref(null)
@@ -548,6 +588,11 @@ async function loadAll() {
 
     // FED
     calcFED(quotes, rf)
+
+    // 信号总览全局值 + 计算
+    pe300PctGlobal.value = v300Pct
+    pmiValGlobal.value = pmiData.pmi != null ? pmiData.pmi : null
+    buildSignalOverview()
 
     // Charts
     await nextTick()
@@ -1024,6 +1069,10 @@ async function loadMacroHistoryAsync() {
           item.value = data[0].value.toFixed(2) + '%'
           item.date = data[0].date
         }
+        if (key === 'us10y') {
+          us10yVal.value = parseFloat(data[0].value)
+          buildSignalOverview()
+        }
       }
       // 存储完整历史（保持 DESC 顺序）
       macroHistory[key] = data.map(d => ({
@@ -1181,6 +1230,70 @@ function calcFED(quotes, rf) {
     }
   })
   fedIndices.value = results
+}
+
+// ===== 信号总览计算 =====
+function adviceClass(advice) {
+  return advice === 'overweight' ? 'text-up' : advice === 'underweight' ? 'text-down' : ''
+}
+
+function makeCard(key, name, valueLabel, pct, signal, signalLabel, advice, adviceLabel) {
+  const colorMap = { hot: 'var(--color-up)', cold: 'var(--color-down)', neutral: '#505a5f' }
+  return { key, name, valueLabel, pct, signal, signalLabel, advice, adviceLabel, color: colorMap[signal] || '#505a5f' }
+}
+
+// 专业机构框架：6 大信号模块 → 指标值 + 历史分位 + 配置建议
+function buildSignalOverview() {
+  const cards = []
+  // 1. 市场温度：全市场加权平均隐含夏普
+  const sharpe = dashData.value ? dashData.value.value : null
+  cards.push(makeCard('temp', '市场温度',
+    sharpe != null ? sharpe.toFixed(2) : '--', null,
+    sharpe != null ? (sharpe > 0.1 ? 'hot' : sharpe < -0.1 ? 'cold' : 'neutral') : 'neutral',
+    sharpe != null ? (sharpe > 0.1 ? '偏热' : sharpe < -0.1 ? '偏冷' : '中性') : '中性',
+    sharpe != null ? (sharpe > 0.1 ? 'underweight' : sharpe < -0.1 ? 'overweight' : 'neutral') : 'neutral',
+    sharpe != null ? (sharpe > 0.1 ? '低配' : sharpe < -0.1 ? '超配' : '标配') : '标配'))
+  // 2. 估值水位：沪深300 PE 百分位
+  const pePct = pe300PctGlobal.value
+  cards.push(makeCard('val', '估值水位',
+    pePct != null ? pePct + '%' : '--', pePct,
+    pePct != null ? (pePct > 70 ? 'hot' : pePct < 30 ? 'cold' : 'neutral') : 'neutral',
+    pePct != null ? (pePct > 70 ? '偏贵' : pePct < 30 ? '偏低' : '中性') : '中性',
+    pePct != null ? (pePct > 70 ? 'underweight' : pePct < 30 ? 'overweight' : 'neutral') : 'neutral',
+    pePct != null ? (pePct > 70 ? '低配' : pePct < 30 ? '超配' : '标配') : '标配'))
+  // 3. 流动性：10Y 国债收益率（越低越宽松）
+  const y10 = bondY10y.value
+  cards.push(makeCard('liq', '流动性',
+    y10 != null ? (y10 * 100).toFixed(2) + '%' : '--', null,
+    y10 != null ? (y10 < 0.025 ? 'cold' : y10 > 0.03 ? 'hot' : 'neutral') : 'neutral',
+    y10 != null ? (y10 < 0.025 ? '宽松' : y10 > 0.03 ? '收紧' : '中性') : '中性',
+    y10 != null ? (y10 < 0.025 ? 'overweight' : 'neutral') : 'neutral',
+    y10 != null ? (y10 < 0.025 ? '超配' : '标配') : '标配'))
+  // 4. 信用景气：PMI（>50 扩张）
+  const pmi = pmiValGlobal.value
+  cards.push(makeCard('credit', '信用景气',
+    pmi != null ? pmi.toFixed(1) : '--', null,
+    pmi != null ? (pmi > 50 ? 'hot' : 'cold') : 'neutral',
+    pmi != null ? (pmi > 50 ? '扩张' : '收缩') : '中性',
+    pmi != null ? (pmi > 50 ? 'overweight' : 'underweight') : 'neutral',
+    pmi != null ? (pmi > 50 ? '超配' : '低配') : '标配'))
+  // 5. 海外联动：美债收益率（>4.5% 偏紧）
+  const uy = us10yVal.value
+  cards.push(makeCard('oversea', '海外联动',
+    uy != null ? uy.toFixed(2) + '%' : '待更新', null,
+    uy != null ? (uy > 4.5 ? 'hot' : 'cold') : 'neutral',
+    uy != null ? (uy > 4.5 ? '收紧' : '宽松') : '中性',
+    uy != null ? (uy > 4.5 ? 'underweight' : 'overweight') : 'neutral',
+    uy != null ? (uy > 4.5 ? '低配' : '超配') : '标配'))
+  // 6. 风格：价值因子百分位（<30% 低配价值/超配成长，>70% 反之）
+  const valFactor = factorFactors.value.find(f => f.key === 'value')
+  cards.push(makeCard('style', '风格(价值)',
+    valFactor ? valFactor.percentile + '%' : '待更新', valFactor ? valFactor.percentile : null,
+    valFactor ? (valFactor.percentile > 70 ? 'hot' : valFactor.percentile < 30 ? 'cold' : 'neutral') : 'neutral',
+    valFactor ? (valFactor.percentile > 70 ? '偏高' : valFactor.percentile < 30 ? '偏低' : '中性') : '中性',
+    valFactor ? (valFactor.percentile > 70 ? 'underweight' : 'overweight') : 'neutral',
+    valFactor ? (valFactor.percentile > 70 ? '低配' : '超配') : '标配'))
+  signalOverview.value = cards
 }
 
 // ===== 加载行业估值 =====
@@ -1391,7 +1504,27 @@ function handleResize() {
 .text-down { color: var(--color-down) !important; }
 
 /* ===== 移动端适配 ===== */
+/* 信号总览 */
+.overview-banner { background: #1d70b8; color: #fff; border-color: #1d70b8; }
+.ov-banner-title { font-size: 14px; font-weight: 700; opacity: 0.9; margin-bottom: 6px; }
+.ov-banner-text { font-size: 18px; font-weight: 700; margin: 0; line-height: 1.5; }
+.ov-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--space-md); margin-bottom: var(--space-xl); }
+.ov-card { border: 1px solid var(--border); padding: var(--space-md); background: #fff; }
+.ov-card-name { font-size: 13px; color: var(--text-secondary); font-weight: 700; }
+.ov-card-value { font-size: 24px; font-weight: 700; color: var(--text-primary); margin: 4px 0 8px; }
+.ov-bar-wrap { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; }
+.ov-bar { flex: 1; height: 8px; background: #f3f2f1; }
+.ov-fill { height: 100%; }
+.ov-pct { font-size: 12px; color: var(--text-secondary); width: 38px; text-align: right; }
+.ov-signal { display: inline-block; font-size: 13px; font-weight: 700; padding: 1px 8px; margin-bottom: 6px; }
+.ov-signal.hot { color: var(--color-up); }
+.ov-signal.cold { color: var(--color-down); }
+.ov-signal.neutral { color: var(--text-secondary); }
+.ov-advice { font-size: 14px; font-weight: 700; }
+.ov-hint { font-size: 12px; color: var(--text-secondary); }
+
 @media (max-width: 768px) {
+  .ov-grid { grid-template-columns: repeat(2, 1fr); }
   .fed-grid { grid-template-columns: repeat(1, 1fr); }
   .comm-grid { grid-template-columns: repeat(1, 1fr); }
   .macro-indicators { grid-template-columns: repeat(1, 1fr); }

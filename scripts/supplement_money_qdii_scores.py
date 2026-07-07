@@ -334,6 +334,42 @@ def batch_update_scores(score_updates, label):
     return len(score_updates)
 
 
+def ensure_currency_in_scores():
+    """货币型基金不在初始抓取(fetch_and_import_funds 仅含 gp/zq/hh/fof/qdii)，
+    需从 fund_combined 同步到 fund_scores，否则后续 UPDATE 无匹配行、货币被丢弃。
+    注：import_via_rest 每夜 TRUNCATE 重建 fund_scores，故本步必须每次执行。"""
+    print('\n步骤0: 确保货币型基金存在于 fund_scores...')
+    try:
+        comb = pg("SELECT c, name FROM fund_combined WHERE t0 = '货币型'")
+    except Exception as e:
+        print(f'  [ERR] 读 fund_combined 货币型失败: {str(e)[:160]}')
+        return
+    if not comb:
+        print('  fund_combined 无货币型，跳过')
+        return
+    codes_map = {f"{r['c']}.OF": (r.get('name') or '') for r in comb}
+    print(f'  fund_combined 货币型: {len(codes_map)} 只')
+    try:
+        exist = pg("SELECT c FROM fund_scores WHERE t0 = '货币型'")
+    except Exception:
+        exist = []
+    exist_set = {r['c'] for r in exist}
+    new = {c: n for c, n in codes_map.items() if c not in exist_set}
+    if not new:
+        print('  货币型已全部在 fund_scores，无需插入')
+        return
+    print(f'  需插入货币型: {len(new)} 只')
+    for i in range(0, len(new), 200):
+        chunk = list(new.items())[i:i + 200]
+        vals = [f"('{c}','{(n or '').replace(chr(39), chr(39) * 2)}','货币型','货币基金')" for c, n in chunk]
+        sql = f"INSERT INTO fund_scores (c, n, t0, t1) VALUES {', '.join(vals)}"
+        try:
+            pg(sql)
+        except Exception as e:
+            print(f'  [ERR] 插入货币型失败: {str(e)[:200]}')
+    print(f'  ✓ 货币型插入完成')
+
+
 def main():
     print('=' * 60)
     print('补充货币基金 + QDII 基金评分 (批量UPDATE版)')
@@ -398,10 +434,18 @@ def main():
     print('\n' + '=' * 60)
     print('Part B: 货币型基金 (ft=hb)')
     print('=' * 60)
-    
+
+    # 确保货币型已存在于 fund_scores（初始抓取 fetch_and_import_funds 不含 hb）
+    ensure_currency_in_scores()
+
     hb_updates = []
-    hb_codes = {code for code, r in target_funds.items() if r['t0'] == '货币型'}
-    
+    # 重新查询货币型代码（target_funds 为插入前快照，已过时）
+    try:
+        hb_rows = pg("SELECT c, n, t0, k_all FROM fund_scores WHERE t0 = '货币型'")
+    except Exception:
+        hb_rows = []
+    hb_codes = {r['c'].replace('.OF', '') for r in hb_rows}
+
     if hb_codes:
         # Fetch from ft=hb using POST
         hb_returns = fetch_hb_rankhandler()

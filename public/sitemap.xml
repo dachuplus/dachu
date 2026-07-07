@@ -6,32 +6,32 @@
     <priority>1.0</priority>
   </url>
   <url>
-    <loc>https://www.allfund.cn/#/signal</loc>
+    <loc>https://www.allfund.cn/signal</loc>
     <changefreq>daily</changefreq>
     <priority>0.9</priority>
   </url>
   <url>
-    <loc>https://www.allfund.cn/#/tools/fund-rank</loc>
+    <loc>https://www.allfund.cn/tools/fund-rank</loc>
     <changefreq>daily</changefreq>
     <priority>0.9</priority>
   </url>
   <url>
-    <loc>https://www.allfund.cn/#/tools/tougu</loc>
+    <loc>https://www.allfund.cn/tools/tougu</loc>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://www.allfund.cn/#/portfolio</loc>
+    <loc>https://www.allfund.cn/portfolio</loc>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://www.allfund.cn/#/lab</loc>
+    <loc>https://www.allfund.cn/lab</loc>
     <changefreq>monthly</changefreq>
     <priority>0.5</priority>
   </url>
   <url>
-    <loc>https://www.allfund.cn/#/data-center</loc>
+    <loc>https://www.allfund.cn/data-center</loc>
     <changefreq>weekly</changefreq>
     <priority>0.6</priority>
   </url>

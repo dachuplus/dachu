@@ -283,6 +283,10 @@ def main():
                    (not r.get('t0')) or (r.get('share_scale') is None) or \
                    (r.get('custody_fee') is None) or (r.get('sale_fee') is None) or \
                    (not r.get('found_date'))
+            # 货币型基金经理仅来自 fundf10 jbgk（风险指标不覆盖），
+            # 若不在 need 内，TRUNCATE 全量重建后会丢失，故每次都重抓
+            if r.get('t0') == '货币型':
+                miss = True
             if miss:
                 need.append(c)
         codes = need

@@ -654,6 +654,10 @@ const CAT_TREE_TT = {
     'FOF-均衡型': ['FOF-均衡型'],
     'FOF-进取型': ['FOF-进取型'],
   },
+  // 货币型：天天无 t1_tt 二级分类，按聚源 t0='货币型' 过滤
+  '货币型': {
+    '货币基金': [],
+  },
 }
 
 // ========== 响应式断点 ==========
@@ -755,6 +759,8 @@ const t0List = computed(() => Object.keys(currentCatTree.value))
 
 const t1List = computed(() => {
   if (!filterT0.value || !currentCatTree.value[filterT0.value]) return []
+  // 货币型无二级分类（t1_tt 为 null），不展示二级筛选
+  if (filterT0.value === '货币型') return []
   return Object.keys(currentCatTree.value[filterT0.value])
 })
 
@@ -921,15 +927,6 @@ function extractShareClass(name) {
 const shareClassOptions = VALID_SHARE_CLASSES
 
 // ========== 数据加载 ==========
-// 天天基金 → 恒生聚源 t0 名称映射（DB 当前仅含恒生聚源分类数据）
-const T0_MAP_TT = {
-  '股票型': '股票型基金',
-  '混合型': '混合型基金',
-  '债券型': '债券型基金',
-  'QDII': 'QDII基金',
-  'FOF': 'FOF',
-}
-
 async function loadData(reset = true) {
   if (loading.value) return
   loading.value = true
@@ -942,14 +939,21 @@ async function loadData(reset = true) {
     if (filterFOF.value === '1') t0Filter = 'FOF'
     if (filterFOF.value === '0' && !filterT0.value) t0Filter = undefined
 
-    // 天天基金分类 → 恒生聚源分类映射
-    if (classSource.value === 'tt' && t0Filter) {
-      t0Filter = T0_MAP_TT[t0Filter] || t0Filter
+    // 天天分类源：计算该一级分类下所有 t1_tt 取值集合，用于 in() 过滤
+    // （t1_tt 覆盖 ~95%，二级债基等不再因 t0 为空而返回 0）
+    let t1In
+    if (classSource.value === 'tt' && filterT0.value && !filterT1.value) {
+      const group = currentCatTree.value[filterT0.value]
+      if (group) {
+        t1In = []
+        for (const vals of Object.values(group)) t1In.push(...vals)
+      }
     }
 
     const result = await fetchFundScores({
       t0: t0Filter,
       t1: filterT1.value || undefined,
+      t1In,
       classSource: classSource.value,
       search: buildSearchText(),
       kKey: currentPeriod.value,

@@ -38,14 +38,24 @@ export async function fetchTouguProducts(filters = {}) {
 // fund_scores 表实际列（核心视图）：代码/名称/分类/详情/评分
 const FUND_SCORES_COLS = 'c,n,t0,t1,t1_tt,sg,daily_change,company,fund_manager,fund_scale,share_scale,manage_fee,custody_fee,sale_fee,found_date,k0w,k1m,k3m,k6m,k1,k2,k3,k5,k_all,score_grade'
 export async function fetchFundScores(params = {}) {
-  const { t0, t1, search, kKey = 'k1', page = 1, pageSize = 100, sortAsc, classSource } = params
+  const { t0, t1, t1In, search, kKey = 'k1', page = 1, pageSize = 100, sortAsc, classSource } = params
   if (supabase) {
     let query = supabase.from('fund_scores').select(FUND_SCORES_COLS, { count: 'exact', head: false })
-    if (t0) query = query.eq('t0', t0)
-    // 分类筛选：天天基金用 t1_tt 列，恒生聚源用 t1 列
-    if (t1) {
-      const t1Col = classSource === 'tt' ? 't1_tt' : 't1'
-      query = query.eq(t1Col, t1)
+    if (classSource === 'tt') {
+      // 天天分类：t1_tt 已填充（覆盖 ~95%），直接按 t1_tt 过滤，避免依赖 t0（聚源列，部分为空）
+      if (t1) {
+        query = query.eq('t1_tt', t1)
+      } else if (t0 === '货币型') {
+        // 货币型无 t1_tt，按聚源 t0 过滤
+        query = query.eq('t0', '货币型')
+      } else if (t1In && t1In.length) {
+        query = query.in('t1_tt', t1In)
+      }
+      // 注：tt 源不再用 t0 列过滤
+    } else {
+      // 恒生聚源分类：t0/t1 列全覆盖
+      if (t0) query = query.eq('t0', t0)
+      if (t1) query = query.eq('t1', t1)
     }
     if (search) query = query.or(`n.ilike.%${search}%,c.ilike.%${search}%`)
     // 不再过滤 null 评分（否则债券型-混合二级等数据源未覆盖的分类会显示为空）
