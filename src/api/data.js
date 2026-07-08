@@ -4,22 +4,10 @@
  * - 未配置时：返回 Mock 数据，方便本地开发
  */
 import { supabase } from './supabase.js'
+import { withCache } from '../utils/cache.js'
 
 // ========== 工具函数 ==========
-function fmtPct(val, asDecimal = true) {
-  if (val == null || val === '') return '--'
-  if (asDecimal) return (val * 100).toFixed(2) + '%'
-  return Number(val).toFixed(2) + '%'
-}
-
-/** 靠谱分颜色等级 */
-function scoreColor(k) {
-  if (k == null) return ''
-  if (k >= 85) return 'gold'
-  if (k >= 75) return 'orange'
-  if (k >= 65) return 'cyan'
-  return 'gray'
-}
+// 格式化函数已统一到 src/utils/format.js（fmtScore/fmtPct/scoreColor 等）
 
 // ========== 投顾产品 ==========
 export async function fetchTouguProducts(filters = {}) {
@@ -37,8 +25,13 @@ export async function fetchTouguProducts(filters = {}) {
 // ========== 基金靠谱指数 ==========
 // fund_scores 表实际列（核心视图）：代码/名称/分类/详情/评分
 const FUND_SCORES_COLS = 'c,n,t0,t1,t1_tt,sg,daily_change,company,fund_manager,fund_scale,share_scale,manage_fee,custody_fee,sale_fee,found_date,k0w,k1m,k3m,k6m,k1,k2,k3,k5,k_all,score_grade'
-export async function fetchFundScores(params = {}) {
-  const { t0, t1, t1In, search, kKey = 'k1', page = 1, pageSize = 100, sortAsc, classSource } = params
+export function fetchFundScores(params = {}) {
+  const key = 'fundScores:' + JSON.stringify(params)
+  return withCache(key, 60000, () => fetchFundScoresImpl(params))
+}
+
+async function fetchFundScoresImpl(params = {}) {
+  const { t0, t1, t1In, search, kKey = 'k1', page = 1, pageSize = 100, sortAsc, classSource, etf, lof, dk, sg, dailyLimit } = params
   if (supabase) {
     let query = supabase.from('fund_scores').select(FUND_SCORES_COLS, { count: 'exact', head: false })
     if (classSource === 'tt') {
@@ -58,6 +51,27 @@ export async function fetchFundScores(params = {}) {
       if (t1) query = query.eq('t1', t1)
     }
     if (search) query = query.or(`n.ilike.%${search}%,c.ilike.%${search}%`)
+    // 服务端下推：产品类型/状态筛选（避免前端只过滤首页导致计数与展示不一致）
+    if (etf) {
+      if (etf === '1') query = query.ilike('n', '%ETF%')
+      else if (etf === '0') query = query.not('n', 'ilike', '%ETF%')
+    }
+    if (lof) {
+      if (lof === '1') query = query.ilike('n', '%LOF%')
+      else if (lof === '0') query = query.not('n', 'ilike', '%LOF%')
+    }
+    if (dk) {
+      if (dk === '1') query = query.or('n.ilike.%定开%,n.ilike.%定期开放%')
+      else if (dk === '0') query = query.not('n', 'ilike', '%定开%').not('n', 'ilike', '%定期开放%')
+    }
+    if (sg) {
+      if (sg === '1') query = query.eq('sg', 1)
+      else if (sg === '0') query = query.neq('sg', 1)
+    }
+    if (dailyLimit) {
+      if (dailyLimit === '1') query = query.gte('daily_change', 20)
+      else if (dailyLimit === '0') query = query.or('daily_change.lt.20,daily_change.is.null')
+    }
     // 不再过滤 null 评分（否则债券型-混合二级等数据源未覆盖的分类会显示为空）
     // 改用 nullsFirst: false 让 null 排到最后
     const from = (page - 1) * pageSize
@@ -72,7 +86,11 @@ export async function fetchFundScores(params = {}) {
 }
 
 // ========== 基金元信息 ==========
-export async function fetchFundMeta() {
+export function fetchFundMeta() {
+  return withCache('fundMeta', 60000, fetchFundMetaImpl)
+}
+
+async function fetchFundMetaImpl() {
   if (supabase) {
     const { data, error } = await supabase
       .from('fund_scores_meta')
@@ -137,5 +155,3 @@ const MOCK_FUNDS = [
   { c: '110011.OF', n: '易方达优质精选', t0: '混合型基金', k1: 68, k2: 60, k3: 82.1, k5: null, r1y: 18.76, r3y: 12.56, dd1y: -18.34, sr1y: 0.98, date: '2026-05-14' },
   { c: '161725.OF', n: '招商中证白酒', t0: '股票型基金', k1: 55, k2: 48, k3: 75.4, k5: 70.2, r1y: 12.34, r3y: 8.45, dd1y: -21.56, sr1y: 0.72, date: '2026-05-14' },
 ]
-
-export { fmtPct, scoreColor }

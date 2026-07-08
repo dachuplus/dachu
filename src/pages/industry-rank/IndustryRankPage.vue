@@ -101,9 +101,9 @@
         >
           <div class="col col-name" :title="item.name">{{ item.name }}</div>
           <div class="col col-num">{{ fmtPe(item.pe) }}</div>
-          <div class="col col-pct" :class="pctClass(item.pePercentile)">{{ fmtPct(item.pePercentile) }}</div>
+          <div class="col col-pct" :class="pctClass(item.pePercentile)">{{ fmtPct(item.pePercentile, false) }}</div>
           <div class="col col-num">{{ fmtPb(item.pb) }}</div>
-          <div class="col col-pct" :class="pctClass(item.pbPercentile)">{{ fmtPct(item.pbPercentile) }}</div>
+          <div class="col col-pct" :class="pctClass(item.pbPercentile)">{{ fmtPct(item.pbPercentile, false) }}</div>
           <div class="col col-num">{{ fmtYield(item.dividendYield) }}</div>
           <div class="col col-num">{{ fmtRoe(item.roe) }}</div>
           <div class="col col-num">{{ fmtPeg(item.peg) }}</div>
@@ -188,6 +188,7 @@
 import { ref, onMounted } from 'vue'
 import { fetchDanjuanEva } from '../../utils/api.js'
 import SvgIcon from '../../components/SvgIcon.vue'
+import { fmtPct } from '../../utils/format.js'
 
 // ========== 常量 ==========
 const ttypeOptions = [
@@ -334,11 +335,6 @@ function fmtPe(v) {
 function fmtPb(v) {
   if (v == null || v === 0) return '--'
   return Number(v).toFixed(2)
-}
-
-function fmtPct(v) {
-  if (v == null) return '--'
-  return Number(v).toFixed(2) + '%'
 }
 
 function fmtYield(v) {

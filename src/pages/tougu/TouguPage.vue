@@ -61,13 +61,13 @@
             <div class="return-item">
               <span class="return-label">近3月</span>
               <span class="return-value" :class="pctClass(item.return3m)">
-                {{ fmtPct(item.return3m) }}
+                {{ fmtPctSigned(item.return3m) }}
               </span>
             </div>
             <div class="return-item">
               <span class="return-label">近1年</span>
               <span class="return-value" :class="pctClass(item.return1y)">
-                {{ fmtPct(item.return1y) }}
+                {{ fmtPctSigned(item.return1y) }}
               </span>
             </div>
             <div class="return-item">
@@ -166,6 +166,7 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { fetchTouguProducts } from '../../api/data.js'
+import { fmtPctSigned } from '../../utils/format.js'
 import SvgIcon from '../../components/SvgIcon.vue'
 
 const types = [
@@ -182,12 +183,6 @@ const updateTime  = ref('')
 const totalCount  = ref(0)
 const showHelp    = ref(false)
 const itemHelp    = ref(null)
-
-function fmtPct(val) {
-  if (val == null) return '--'
-  const pct = (val * 100).toFixed(2)
-  return (val > 0 ? '+' : '') + pct + '%'
-}
 
 function fmtDrawdown(val) {
   if (val == null) return '--'

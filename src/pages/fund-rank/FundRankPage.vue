@@ -138,23 +138,9 @@
           </div>
         </div>
 
-        <!-- 持有期 -->
-        <div class="filter-row">
-          <span class="filter-label">持有期</span>
-          <div class="filter-chips">
-            <div class="filter-chip" :class="{ active: filterHP === '' }" @click="setHP('')">全部</div>
-            <div class="filter-chip" :class="{ active: filterHP === 'no' }" @click="setHP('no')">无限制</div>
-            <div class="filter-chip" :class="{ active: filterHP === '7' }" @click="setHP('7')">7天</div>
-            <div class="filter-chip" :class="{ active: filterHP === '30' }" @click="setHP('30')">30天</div>
-            <div class="filter-chip" :class="{ active: filterHP === '90' }" @click="setHP('90')">90天</div>
-            <div class="filter-chip" :class="{ active: filterHP === '180' }" @click="setHP('180')">180天</div>
-            <div class="filter-chip" :class="{ active: filterHP === '365' }" @click="setHP('365')">1年+</div>
-          </div>
-        </div>
-
         <!-- 筛选说明 -->
         <div class="filter-tip">
-          注：ETF/LOF/FOF/定开/场内等属性基于基金名称智能识别；持有期/申购状态/±20%数据源自天天基金。可能存在滞后或误判。<br>
+          注：ETF/LOF/定开/申购状态/单日涨跌基于数据库字段精确筛选；场内/份额类别基于基金名称识别，可能存在少量误判。<br>
           基金规模、机构占比、股票占比数据暂未收录，后续版本更新。
         </div>
       </div>
@@ -533,6 +519,7 @@
 <script setup>
 import { ref, computed, reactive, onMounted, onUnmounted } from 'vue'
 import { fetchFundScores, fetchFundMeta } from '../../api/data.js'
+import { fmtScore, fmtRet, fmtDD, fmtSR, fmtScale, scoreColor } from '../../utils/format.js'
 import { addFundToPortfolio } from '../../api/user-data'
 import { toast } from '../../composables/useToast.js'
 import SvgIcon from '../../components/SvgIcon.vue'
@@ -680,7 +667,6 @@ const filterLOF = ref('')
 const filterFOF = ref('')
 const filterCN = ref('')       // 场内：''全部 '1'是(ETF/LOF/REITs不计联接) '0'否(场外+ETF联接)
 const filterDK = ref('')
-const filterHP = ref('')
 const filterDailyLimit = ref('')
 const filterSG = ref('')       // 申购状态：''全部 '1'可申购 '0'暂停申购
 const classSource = ref('tt')       // 分类数据源：tt=天天分类，hspj=恒生聚源，choice/ifind/wind/mstar/jajx/yhfl
@@ -740,7 +726,7 @@ const sortAsc = ref(false)        // 靠谱指数排序方向（false=降序，t
 const sortField = ref('')          // 客户端排序列（非评分列）：'c'|'n'|'equityPct'|'bondPct'
 const sortDir = ref('desc')        // 客户端排序方向
 const page = ref(1)
-const pageSize = 300
+const pageSize = 100
 const hasMore = ref(false)
 const loading = ref(false)
 const dataLoaded = ref(false)
@@ -764,62 +750,6 @@ const t1List = computed(() => {
   return Object.keys(currentCatTree.value[filterT0.value])
 })
 
-// ========== 格式化 ==========
-function fmtScore(v) {
-  const n = parseFloat(v)
-  if (!n || n <= 0) return '--'
-  return n.toFixed(2)
-}
-
-function fmtRet(v) {
-  if (v == null) return '--'
-  const n = parseFloat(v)
-  if (isNaN(n)) return '--'
-  return (n > 0 ? '+' : '') + n.toFixed(2) + '%'
-}
-
-function fmtDD(v) {
-  if (v == null) return '--'
-  return parseFloat(v).toFixed(2) + '%'
-}
-
-function fmtSR(v) {
-  if (v == null) return '--'
-  return parseFloat(v).toFixed(4)
-}
-
-// 基于百分位分数的连续颜色渐变：低分→绿色(120°)，高分→红色(0°)
-// score_grade 对应全市场百分位：≥80=green, ≥50=blue, >0=orange, null=gray
-function scoreColor(v) {
-  const n = parseFloat(v)
-  if (isNaN(n) || n == null) return { color: '#8B949E' }  // 无数据灰色
-  // hue: 0分=120°(绿) → 50分=60°(黄绿) → 75分=30°(橙) → 100分=0°(红)
-  const hue = 120 * (1 - n / 100)
-  return { color: `hsl(${Math.round(hue)}, 85%, 45%)` }
-}
-
-function fmtNum(v) {
-  if (v == null || v === 0) return '--'
-  const n = parseFloat(v)
-  if (isNaN(n)) return '--'
-  return n.toFixed(2)
-}
-
-function fmtScale(v) {
-  if (v == null) return '--'
-  const n = parseFloat(v)
-  if (isNaN(n)) return '--'
-  if (n >= 10000) return (n / 10000).toFixed(2) + '万亿份'
-  if (n >= 1) return n.toFixed(2) + '亿份'
-  return (n * 10000).toFixed(0) + '万份'
-}
-
-function fmtPct(v) {
-  if (v == null) return '--'
-  const n = parseFloat(v)
-  if (isNaN(n)) return '--'
-  return n.toFixed(0) + '%'
-}
 
 // 点赞/吐槽
 const thumbedFunds = ref(new Set())
@@ -960,41 +890,23 @@ async function loadData(reset = true) {
       sortAsc: sortAsc.value,
       page: page.value,
       pageSize,
+      etf: filterETF.value || undefined,
+      lof: filterLOF.value || undefined,
+      dk: filterDK.value || undefined,
+      sg: filterSG.value || undefined,
+      dailyLimit: filterDailyLimit.value || undefined,
     })
 
     if (result.data) {
-      // 存储后端总数（t0/t1/search 过滤后，ETF/LOF等前端过滤前的真实数）
+      // 服务端过滤后的真实总数（已含 t0/t1/search 及下推的 ETF/LOF/定开/申购状态/±20%）
       if (result.count != null) totalCount.value = result.count
-      // 前端补充筛选
+      // 前端补充筛选（仅保留无法服务端下推的份额类别/场内，其余已在服务端过滤）
       let filtered = result.data
       // 份额类别（名称末尾字母，排除产品类型关键词）
       if (filterSC.value) filtered = filtered.filter(f => extractShareClass(f.n) === filterSC.value)
       // 场内（ETF不含联接/LOF/REITs → 是；其余含ETF联接 → 否）
       if (filterCN.value === '1') filtered = filtered.filter(f => isExchangeListed(f.n))
       if (filterCN.value === '0') filtered = filtered.filter(f => !isExchangeListed(f.n))
-      // ETF/LOF/FOF（产品类型名称匹配）
-      if (filterETF.value === '1') filtered = filtered.filter(f => /ETF/i.test(f.n))
-      if (filterETF.value === '0') filtered = filtered.filter(f => !/ETF/i.test(f.n))
-      if (filterLOF.value === '1') filtered = filtered.filter(f => /LOF/i.test(f.n))
-      if (filterLOF.value === '0') filtered = filtered.filter(f => !/LOF/i.test(f.n))
-      // 定开（名称含"定开"或"定期开放"）
-      if (filterDK.value === '1') filtered = filtered.filter(f => /定开|定期开放/.test(f.n))
-      if (filterDK.value === '0') filtered = filtered.filter(f => !/定开|定期开放/.test(f.n))
-      // FOF（使用DB分类 t0 列，更准确）
-      if (filterFOF.value === '1') filtered = filtered.filter(f => f.t0 === 'FOF')
-      if (filterFOF.value === '0') filtered = filtered.filter(f => f.t0 !== 'FOF')
-      // 申购状态（天天基金数据 f[18]：1=可申购, 0/null=暂停）
-      if (filterSG.value === '1') filtered = filtered.filter(f => f.sg === 1)
-      if (filterSG.value === '0') filtered = filtered.filter(f => f.sg !== 1)
-      // 单日涨跌≥±20%（天天基金数据 f[17]）
-      if (filterDailyLimit.value === '1') filtered = filtered.filter(f => f.daily_change != null && Math.abs(parseFloat(f.daily_change)) >= 20)
-      if (filterDailyLimit.value === '0') filtered = filtered.filter(f => f.daily_change == null || Math.abs(parseFloat(f.daily_change)) < 20)
-      // 持有期（基于天天基金赎回规则，当前数据暂不可用）
-      if (filterHP.value === 'no') filtered = filtered.filter(f => !f.hp)
-      if (filterHP.value && filterHP.value !== 'no') {
-        const hp = parseInt(filterHP.value)
-        filtered = filtered.filter(f => f.hp && parseInt(f.hp) >= hp)
-      }
 
       funds.value = reset ? filtered : funds.value.concat(filtered)
       hasMore.value = result.data.length >= pageSize
@@ -1022,12 +934,14 @@ async function loadMeta() {
   }
 }
 
-function refreshData() {
+async function refreshData() {
   if (refreshing.value) return
   refreshing.value = true
-  loadData(true)
-  loadMeta()
-  setTimeout(() => { refreshing.value = false }, 2000)
+  try {
+    await Promise.all([loadData(true), loadMeta()])
+  } finally {
+    refreshing.value = false
+  }
 }
 
 // ========== 交互 ==========
@@ -1068,14 +982,8 @@ function clearMoreFilters() {
   filterLOF.value = ''
   filterFOF.value = ''
   filterDK.value = ''
-  filterHP.value = ''
   filterDailyLimit.value = ''
   filterSG.value = ''
-}
-
-function setHP(val) {
-  filterHP.value = val
-  loadData(true)
 }
 
 function setDailyLimit(val) {
@@ -1150,13 +1058,11 @@ function openDetail(fund) {
 }
 
 onMounted(() => {
-  document.title = '靠谱指数工具-评分 | ALLFUND.CN'
   window.addEventListener('resize', onResize)
   loadData()
   loadMeta()
 })
 onUnmounted(() => {
-  document.title = 'ALLFUND.CN | 靠谱指数评分工具'
   window.removeEventListener('resize', onResize)
 })
 </script>
