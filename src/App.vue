@@ -145,6 +145,7 @@ const showBack  = computed(() => {
   color: #ffffff;
   font-size: 16px;
   line-height: 1.25;
+  width: 100%;
 }
 .govuk-header__container {
   max-width: 1400px;
@@ -215,6 +216,7 @@ const showBack  = computed(() => {
   padding: var(--space-sm) 15px;
   border-bottom: 1px solid var(--border);
   background: #ffffff;
+  width: 100%;
 }
 @media (min-width: 769px) {
   .govuk-phase-banner { padding: var(--space-sm) 30px; }

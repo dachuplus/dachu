@@ -311,11 +311,8 @@
 
     <!-- 底部说明 -->
     <div class="bottom-info">
-      <p class="bottom-line" v-if="meta.tsq">
-        <span>更新时间：{{ fmtUpdateTime(meta.tsq) }}</span>
-      </p>
-      <p class="bottom-line" v-else-if="dataLoaded">
-        <span>更新时间：加载中...</span>
+      <p class="bottom-line">
+        <span>更新时间：{{ meta.tsq ? fmtUpdateTime(meta.tsq) : (dataLoaded ? '暂无' : '加载中...') }}</span>
       </p>
       <p class="bottom-line">数据来源：公募基金公开数据</p>
       <p class="bottom-line">评分说明：靠谱指数评分为综合收益率、最大回撤、夏普比率、卡玛比率，信息比率，跟踪误差等指标，在全市场排名后加权计算。满分100分，分值越高表现越优秀。</p>
@@ -857,6 +854,15 @@ function extractShareClass(name) {
 const shareClassOptions = VALID_SHARE_CLASSES
 
 // ========== 数据加载 ==========
+const LOAD_TIMEOUT_MS = 20000 // 20 秒超时
+
+function withTimeout(promise, ms) {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => setTimeout(() => reject(new Error('请求超时（' + ms / 1000 + 's）')), ms))
+  ])
+}
+
 async function loadData(reset = true) {
   if (loading.value) return
   loading.value = true
@@ -880,7 +886,7 @@ async function loadData(reset = true) {
       }
     }
 
-    const result = await fetchFundScores({
+    const result = await withTimeout(fetchFundScores({
       t0: t0Filter,
       t1: filterT1.value || undefined,
       t1In,
@@ -895,7 +901,7 @@ async function loadData(reset = true) {
       dk: filterDK.value || undefined,
       sg: filterSG.value || undefined,
       dailyLimit: filterDailyLimit.value || undefined,
-    })
+    }))
 
     if (result.data) {
       // 服务端过滤后的真实总数（已含 t0/t1/search 及下推的 ETF/LOF/定开/申购状态/±20%）
