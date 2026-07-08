@@ -16,7 +16,7 @@ fetch_index_eva.py — 抓取蛋卷指数估值 → 测试表 → 校验 → 原
 
 用法：
   python3 scripts/fetch_index_eva.py
-（需 SUPABASE_MGMT_TOKEN / SUPABASE_PAT 环境变量）
+（优先 SUPABASE_PAT，回退 SUPABASE_MGMT_TOKEN；旧过期 MGMT_TOKEN 已弃用）
 """
 import os
 import sys
@@ -26,9 +26,24 @@ import subprocess
 import urllib.request
 from datetime import datetime
 
-MGMT_TOKEN = os.environ.get('SUPABASE_MGMT_TOKEN') or os.environ.get('SUPABASE_PAT')
+def _load_env_local():
+    """从项目根目录 .env.local 载入变量，确保使用有效 SUPABASE_PAT，避开可能过期的 SUPABASE_MGMT_TOKEN 环境变量。"""
+    p = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), '.env.local')
+    try:
+        with open(p) as f:
+            for line in f:
+                line = line.strip()
+                if not line or line.startswith('#') or '=' not in line:
+                    continue
+                k, v = line.split('=', 1)
+                os.environ.setdefault(k.strip(), v.strip())
+    except FileNotFoundError:
+        pass
+_load_env_local()
+
+MGMT_TOKEN = os.environ.get('SUPABASE_PAT') or os.environ.get('SUPABASE_MGMT_TOKEN')
 if not MGMT_TOKEN:
-    sys.exit('请设置环境变量 SUPABASE_MGMT_TOKEN（Supabase Personal Access Token）')
+    sys.exit('请设置环境变量 SUPABASE_PAT（Supabase Personal Access Token）')
 MGMT_API = 'https://api.supabase.com/v1/projects/tqhtegazxykkqfcpejky/database/query'
 
 API_URL = 'https://danjuanfunds.com/djapi/index_eva/dj'
