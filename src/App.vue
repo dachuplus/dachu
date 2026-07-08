@@ -300,16 +300,16 @@ const showBack  = computed(() => {
   padding-bottom: calc(var(--tab-height) + var(--space-md));
 }
 .pc-main {
-  padding: var(--space-xl) 15px;
+  padding: var(--space-xl) 30px;
   padding-bottom: var(--space-2xl);
   max-width: 1400px;
   margin: 0 auto;
   width: 100%;
 }
-@media (min-width: 769px) {
-  .pc-main {
-    padding: var(--space-xl) 30px;
-  }
+/* pc-main 模式下抵消 app-main 的基础水平 padding，确保与 header 对齐 */
+.app-main.pc-main {
+  padding-left: 0;
+  padding-right: 0;
 }
 @media (max-width: 768px) {
   .mobile-header { display: flex; }

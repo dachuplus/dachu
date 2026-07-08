@@ -854,7 +854,8 @@ function extractShareClass(name) {
 const shareClassOptions = VALID_SHARE_CLASSES
 
 // ========== 数据加载 ==========
-const LOAD_TIMEOUT_MS = 20000 // 20 秒超时
+const LOAD_TIMEOUT_MS = 30000 // 30 秒超时
+const MAX_RETRIES = 1           // 失败后自动重试 1 次
 
 function withTimeout(promise, ms) {
   return Promise.race([
@@ -863,7 +864,7 @@ function withTimeout(promise, ms) {
   ])
 }
 
-async function loadData(reset = true) {
+async function loadData(reset = true, _retryCount = 0) {
   if (loading.value) return
   loading.value = true
   loadError.value = false
@@ -919,6 +920,11 @@ async function loadData(reset = true) {
     }
   } catch (e) {
     console.error('[fund-rank] load error', e)
+    if (_retryCount < MAX_RETRIES) {
+      // 自动重试一次（网络抖动 / DNS / 限流等瞬时问题）
+      console.warn('[fund-rank] retrying...', _retryCount + 1, '/', MAX_RETRIES)
+      return loadData(reset, _retryCount + 1)
+    }
     loadError.value = true
   } finally {
     loading.value = false
