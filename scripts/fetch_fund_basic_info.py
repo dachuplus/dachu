@@ -300,34 +300,44 @@ def main():
         print('无需抓取，退出')
         return
 
-    # 并发抓取
-    results = {}
+    # 断点续传：跳过已写入输出文件的代码（避免超时丢失已抓数据）
+    done_set = set()
+    if os.path.exists(args.output):
+        with open(args.output, 'r', encoding='utf-8') as f:
+            for line in f:
+                line = line.strip()
+                if line:
+                    try:
+                        done_set.add(json.loads(line).get('c'))
+                    except Exception:
+                        pass
+    if done_set:
+        print(f'  断点续传：已抓取 {len(done_set)} 只，本次跳过', flush=True)
+    codes = [c for c in codes if c not in done_set]
+    if not codes:
+        print('全部已完成，退出')
+        return
+
+    # 并发抓取，逐条增量写入（append + flush，超时也不丢数据）
     errors = 0
     t0 = time.time()
     done = 0
-    with ThreadPoolExecutor(max_workers=args.workers) as ex:
-        futures = {ex.submit(fetch_one, c): c for c in codes}
-        for fut in as_completed(futures):
-            code, parsed, err = fut.result()
-            done += 1
-            if parsed:
-                results[code] = parsed
-            else:
-                errors += 1
-            if done % 500 == 0:
-                print(f'  进度 {done}/{len(codes)} | 成功 {len(results)} | 失败 {errors} | {time.time()-t0:.0f}s', flush=True)
-            time.sleep(args.delay)
-
-    print(f'✅ 抓取完成：成功 {len(results)} / {len(codes)}，失败 {errors}（{time.time()-t0:.0f}s）', flush=True)
-
-    # 写入 NDJSON
-    count = 0
-    with open(args.output, 'w', encoding='utf-8') as f:
-        for code, parsed in results.items():
-            out = {'c': code, **parsed}
-            f.write(json.dumps(out, ensure_ascii=False) + '\n')
-            count += 1
-    print(f'✅ 写入 {count} 条 → {args.output}', flush=True)
+    with open(args.output, 'a', encoding='utf-8') as out:
+        with ThreadPoolExecutor(max_workers=args.workers) as ex:
+            futures = {ex.submit(fetch_one, c): c for c in codes}
+            for fut in as_completed(futures):
+                code, parsed, err = fut.result()
+                done += 1
+                if parsed:
+                    out.write(json.dumps({'c': code, **parsed}, ensure_ascii=False) + '\n')
+                    out.flush()
+                else:
+                    errors += 1
+                if done % 500 == 0:
+                    print(f'  进度 {done}/{len(codes)} | 成功 {done - errors} | 失败 {errors} | {time.time()-t0:.0f}s', flush=True)
+                time.sleep(args.delay)
+    print(f'✅ 抓取完成：成功 {done - errors} / {len(codes)}，失败 {errors}（{time.time()-t0:.0f}s）', flush=True)
+    print(f'✅ 累计写入 → {args.output}', flush=True)
 
 
 if __name__ == '__main__':

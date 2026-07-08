@@ -3,7 +3,7 @@
 通过 Supabase REST API 批量导入基金数据（anon key，RLS 允许 INSERT）。
 比 Management API 逐条 INSERT 快很多。
 """
-import json, time, sys, os, subprocess
+import json, time, sys, os, subprocess, argparse
 
 SUPABASE_URL = 'https://tqhtegazxykkqfcpejky.supabase.co'
 ANON_KEY    = 'sb_publishable_iFtMcvav774gqF28gGYQVw_QMmuS-z3'
@@ -132,7 +132,17 @@ def row_to_rest(r):
 
 # ── 主流程 ──────────────────────────────────────────────────────────────
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-print('开始导入 fund_scores（REST API 批量模式）', flush=True)
+
+# 命令行参数
+parser = argparse.ArgumentParser(description='合并风险指标 + 重算靠谱分 + 导入 Supabase')
+parser.add_argument('--staging', action='store_true',
+                    help='写入临时表 fund_scores_staging（不触碰生产 fund_scores），'
+                         '并额外种子货币型 + 合并货币基金阶段收益')
+args = parser.parse_args()
+STAGING = args.staging
+TARGET_TABLE = 'fund_scores_staging' if STAGING else 'fund_scores'
+
+print(f'开始导入 {"[STAGING] " if STAGING else ""}fund_scores（REST API 批量模式）', flush=True)
 
 # 1. 加载基金数据
 t0 = time.time()
@@ -230,11 +240,12 @@ if os.path.exists(basic_info_path):
                 c = b.get('c', '').replace('.OF', '')
                 if c:
                     basic_map[c] = b
-    # 仅填补 null/空值（不覆盖已有好数据）：基金经理/管理人/分类/规模/费率
+    # 仅填补 null/空值（不覆盖已有好数据）：管理人/分类/规模/费率
     # 注：t0/t1 分类当前已 100% 完整，且 FundGuideapi 为既有权威来源，不覆盖
-    fill_if_empty = ['fund_manager', 'company', 't0', 't1', 'fund_scale', 'manage_fee']
-    # 始终取 jbgk（天天基金官方档案，数据最权威且一致）：4 个新增列（原先为 null）
-    always_take = ['share_scale', 'custody_fee', 'sale_fee', 'found_date']
+    fill_if_empty = ['company', 't0', 't1', 'fund_scale', 'manage_fee']
+    # 始终取 jbgk（天天基金官方档案，数据最权威且一致）：基金经理 + 4 个新增列
+    # 基金经理以 jbgk 为准（覆盖风险指标里不可靠的净值的基金经理提取）
+    always_take = ['fund_manager', 'share_scale', 'custody_fee', 'sale_fee', 'found_date']
     merged = 0
     for fund in funds:
         c = fund.get('c', '').replace('.OF', '')
@@ -256,6 +267,68 @@ if os.path.exists(basic_info_path):
     print(f'  ✓ 合并基金基本概况(jbgk) {merged}/{len(funds)} ({time.time()-t0:.1f}s)', flush=True)
 else:
     print('  ⚠ 无基金基本概况文件，跳过', flush=True)
+
+# 2e. [STAGING] 种子货币型（主管道 fetch_and_import_funds 仅含 5 大类，不含 hb）
+#     从 fund_combined 取货币型基础信息（c/name/t0/t1/company/scale/fee/manager），
+#     阶段收益在 2f 由 currency_output.ndjson 填充。
+if STAGING:
+    t0e = time.time()
+    try:
+        hb_rows = pg("SELECT c, name, t0, t1, company, fund_scale, manage_fee, fund_manager "
+                     "FROM fund_combined WHERE t0 = '货币型'")
+    except Exception as e:
+        hb_rows = []
+        print(f'  [WARN] 读取 fund_combined 货币型失败: {str(e)[:160]}', flush=True)
+    seeded = 0
+    if hb_rows:
+        existing_codes = {f.get('c', '').replace('.OF', '') for f in funds}
+        for r in hb_rows:
+            c = (r.get('c') or '').replace('.OF', '')
+            if c in existing_codes:
+                continue
+            funds.append({
+                'c': f'{c}.OF',
+                'n': r.get('name') or '',
+                't0': r.get('t0') or '货币型',
+                't1': r.get('t1') or '货币型-普通货币',
+                'company': r.get('company'),
+                'fund_scale': r.get('fund_scale'),
+                'manage_fee': r.get('manage_fee'),
+                'fund_manager': r.get('fund_manager'),
+            })
+            seeded += 1
+    print(f'  ✓ 种子货币型 {seeded} 只（来自 fund_combined）({time.time()-t0e:.1f}s)', flush=True)
+
+# 2f. [STAGING] 合并货币基金阶段收益（currency_output.ndjson，hb rankhandler）
+#     填充 r0w~r3y / ytd / return_all；r5y 在 hb 排名页不存在，保持 NULL。
+if STAGING:
+    cur_path = os.path.join(SCRIPT_DIR, 'currency_output.ndjson')
+    if os.path.exists(cur_path):
+        t0f = time.time()
+        cur_map = {}
+        with open(cur_path, 'r') as f:
+            for line in f:
+                line = line.strip()
+                if line:
+                    r = json.loads(line)
+                    c = r.get('c', '')
+                    if c:
+                        cur_map[c] = r
+        merged = 0
+        for fund in funds:
+            c = fund.get('c', '').replace('.OF', '')
+            if c in cur_map:
+                r = cur_map[c]
+                for k in ['r0w', 'r1m', 'r3m', 'r6m', 'r1y', 'r2y', 'r3y', 'r5y', 'ytd', 'return_all']:
+                    v = r.get(k)
+                    if v is not None:
+                        fund[k] = v
+                if r.get('t1'):
+                    fund['t1'] = r['t1']
+                merged += 1
+        print(f'  ✓ 合并货币基金阶段收益 {merged}/{len(funds)} ({time.time()-t0f:.1f}s)', flush=True)
+    else:
+        print('  ⚠ 无 currency_output.ndjson，货币型将缺阶段收益（请先运行 fetch_currency_funds.py）', flush=True)
 
 # 2d. 合并基金经理（已内嵌在 risk_indicators.ndjson 的 fund_manager 字段中）
 # fund_manager 已在步骤 2 通过 risk_indicators 合并，此处无需额外处理
@@ -351,11 +424,27 @@ print(f'  ✓ k_all 计算完成: {k_all_cnt}/{len(funds)} 只有分 ({time.time
 print(f'    grade分布: green={grades.get("green",0)}, blue={grades.get("blue",0)}, orange={grades.get("orange",0)}, gray={grades.get("gray",0)}', flush=True)
 
 # 4. 通过 Management API 批量 SQL INSERT（比 REST API 快且更可靠）
-# 先清空旧数据
 t0 = time.time()
-print('  清空旧数据...', flush=True)
-pg('TRUNCATE TABLE fund_scores')
-print(f'  ✓ 已清空', flush=True)
+if STAGING:
+    # 临时表：CREATE LIKE + TRUNCATE，不触碰生产 fund_scores
+    print(f'  创建/清空临时表 {TARGET_TABLE}（LIKE fund_scores）...', flush=True)
+    pg(f'CREATE TABLE IF NOT EXISTS {TARGET_TABLE} (LIKE fund_scores INCLUDING DEFAULTS)')
+    pg(f'TRUNCATE TABLE {TARGET_TABLE}')
+    print(f'  ✓ {TARGET_TABLE} 已清空', flush=True)
+else:
+    # 先快照已有基金经理/管理人（兜底：防止基本概况抓取失败时清空）
+    print('  快照已有基金经理(兜底)...', flush=True)
+    pg('CREATE TABLE IF NOT EXISTS _mgr_snapshot (c text primary key, fund_manager text, company text)')
+    pg('TRUNCATE TABLE _mgr_snapshot')
+    pg("INSERT INTO _mgr_snapshot (c, fund_manager, company) SELECT c, fund_manager, company FROM fund_scores WHERE fund_manager IS NOT NULL OR company IS NOT NULL")
+    try:
+        snap_n = pg('SELECT count(*) as cnt FROM _mgr_snapshot')[0]['cnt']
+    except Exception:
+        snap_n = '?'
+    print(f'  ✓ 快照 {snap_n} 条', flush=True)
+    print('  清空旧数据...', flush=True)
+    pg('TRUNCATE TABLE fund_scores')
+    print(f'  ✓ 已清空', flush=True)
 
 # SQL 值转义
 def sql_val(v):
@@ -388,7 +477,7 @@ def build_insert_sql(batch):
         d = row_to_rest(r)
         vals = ', '.join(sql_val(d.get(col)) for col in INSERT_COLS)
         parts.append(f'({vals})')
-    return f'INSERT INTO fund_scores ({COLS_STR}) VALUES {", ".join(parts)}'
+    return f'INSERT INTO {TARGET_TABLE} ({COLS_STR}) VALUES {", ".join(parts)}'
 
 imported = 0
 failed = 0
@@ -421,28 +510,45 @@ for i in range(0, len(funds), BATCH):
 
 print(f'  ✓ 导入完成: 成功={imported}/{len(funds)}, 失败={failed} ({time.time()-t0:.1f}s)', flush=True)
 
-# 5. 写入 meta（UPSERT id=8）
-nav_date = funds[0].get('date','') if funds else ''
-scored_count = k_all_cnt  # 使用 k_all 计分统计
-result = pg("SELECT nav_date, tsq FROM fund_scores_meta WHERE id = 8")
-existing_nav = ''
-if result and len(result) > 0:
-    existing_nav = result[0].get('nav_date', '') or ''
-# 合并 nav_date：保留已有的（来自 fetch 阶段），如果当前有新的则覆盖
-final_nav = nav_date or existing_nav
-pg(f"""UPDATE fund_scores_meta
-    SET total_count = {len(funds)}, scored_count = {scored_count},
-        nav_date = '{final_nav}', tsq = NOW()
-    WHERE id = 8""")
-if not result or len(result) == 0:
-    pg(f"""INSERT INTO fund_scores_meta (id, total_count, scored_count, nav_date, tsq)
-        VALUES (8, {len(funds)}, {scored_count}, '{final_nav}', NOW())""")
-print(f'  ✓ meta 已更新 (id=8, total={len(funds)}, scored={scored_count}, date={final_nav})', flush=True)
+# 4b. 恢复快照里的基金经理/管理人（兜底：仅填 NULL，不覆盖本次已合并的值）
+if not STAGING:
+    print('  恢复快照基金经理(兜底)...', flush=True)
+    pg("""UPDATE fund_scores fs
+    SET fund_manager = s.fund_manager,
+        company = COALESCE(fs.company, s.company)
+    FROM _mgr_snapshot s
+    WHERE fs.c = s.c AND (fs.fund_manager IS NULL OR fs.fund_manager = '')""")
+    try:
+        restored_n = pg('SELECT count(*) as cnt FROM fund_scores WHERE fund_manager IS NOT NULL')[0]['cnt']
+    except Exception:
+        restored_n = '?'
+    print(f'  ✓ 恢复后 fund_manager 非空: {restored_n}', flush=True)
+
+# 5. 写入 meta（UPSERT id=8）—— 仅生产模式；staging 不篡改生产 meta
+if not STAGING:
+    nav_date = funds[0].get('date','') if funds else ''
+    scored_count = k_all_cnt  # 使用 k_all 计分统计
+    result = pg("SELECT nav_date, tsq FROM fund_scores_meta WHERE id = 8")
+    existing_nav = ''
+    if result and len(result) > 0:
+        existing_nav = result[0].get('nav_date', '') or ''
+    # 合并 nav_date：保留已有的（来自 fetch 阶段），如果当前有新的则覆盖
+    final_nav = nav_date or existing_nav
+    pg(f"""UPDATE fund_scores_meta
+        SET total_count = {len(funds)}, scored_count = {scored_count},
+            nav_date = '{final_nav}', tsq = NOW()
+        WHERE id = 8""")
+    if not result or len(result) == 0:
+        pg(f"""INSERT INTO fund_scores_meta (id, total_count, scored_count, nav_date, tsq)
+            VALUES (8, {len(funds)}, {scored_count}, '{final_nav}', NOW())""")
+    print(f'  ✓ meta 已更新 (id=8, total={len(funds)}, scored={scored_count}, date={final_nav})', flush=True)
+else:
+    print(f'  [STAGING] 已写入临时表 {TARGET_TABLE}，生产 fund_scores / meta 未改动', flush=True)
 
 # 6. 验证
-result = pg('SELECT count(*) as cnt FROM fund_scores')
-print(f'  验证: fund_scores 有 {result[0]["cnt"]} 条', flush=True)
-result = pg("SELECT t0, count(*) as cnt FROM fund_scores WHERE t0 IS NOT NULL GROUP BY t0 ORDER BY cnt DESC")
+result = pg(f'SELECT count(*) as cnt FROM {TARGET_TABLE}')
+print(f'  验证: {TARGET_TABLE} 有 {result[0]["cnt"]} 条', flush=True)
+result = pg(f"SELECT t0, count(*) as cnt FROM {TARGET_TABLE} WHERE t0 IS NOT NULL GROUP BY t0 ORDER BY cnt DESC")
 print('  t0 分布:', flush=True)
 for row in result:
     print(f'    {row["t0"]}: {row["cnt"]} 只', flush=True)

@@ -74,6 +74,11 @@ def main():
     print(" Sync fund_scores → fund_combined", flush=True)
     print("=" * 60, flush=True)
 
+    # ── Phase 0: 确保 fund_combined 含 fund_manager 列 ──
+    print("\n[Phase 0] Ensure fund_manager column on fund_combined...", flush=True)
+    mgmt_query("ALTER TABLE fund_combined ADD COLUMN IF NOT EXISTS fund_manager text;")
+    print("  Phase 0 DONE", flush=True)
+
     # ── Phase 1: Bulk UPDATE all matching funds (single SQL) ──
     print("\n[Phase 1] Bulk UPDATE existing funds...", flush=True)
     
@@ -91,7 +96,8 @@ def main():
         k1 = fs.k1,
         k2 = fs.k2,
         k3 = fs.k3,
-        k5 = fs.k5
+        k5 = fs.k5,
+        fund_manager = fs.fund_manager
     FROM fund_scores fs
     WHERE fund_combined.c = REPLACE(fs.c, '.OF', '');
     """
@@ -164,9 +170,10 @@ def main():
         columns = [
             "c", "name", "t0", "t1", "company", "fund_scale", "risk_level", "manage_fee",
             "ytd", "r1y", "r3y", "r5y", "dd1y", "sr1y", "holders_count", "total_manage_scale",
-            "k_all", "score_grade", "k0w", "k1m", "k3m", "k6m", "k1", "k2", "k3", "k5"
+            "k_all", "score_grade", "k0w", "k1m", "k3m", "k6m", "k1", "k2", "k3", "k5",
+            "fund_manager"
         ]
-        update_fields = ["k_all", "score_grade", "k0w", "k1m", "k3m", "k6m", "k1", "k2", "k3", "k5"]
+        update_fields = ["k_all", "score_grade", "k0w", "k1m", "k3m", "k6m", "k1", "k2", "k3", "k5", "fund_manager"]
 
         inserted = 0
         missing = 0
@@ -207,6 +214,7 @@ def main():
                 "k2": s.get("k2"),
                 "k3": s.get("k3"),
                 "k5": s.get("k5"),
+                "fund_manager": s.get("fund_manager"),
             }
 
             vals = [escape_sql(row[col]) for col in columns]
