@@ -1179,11 +1179,10 @@ onUnmounted(() => {
 
 /* 基金列表 - 横向滚动表格 */
 .fund-table-wrap {
-  overflow-x: auto; overflow-y: auto;
+  overflow-x: auto;
   -webkit-overflow-scrolling: touch;
   border-top: 1px solid var(--border);
   position: relative;
-  max-height: calc(100vh - 380px);
 }
 .fund-table-wrap::-webkit-scrollbar {
   height: 8px; width: 8px;
@@ -1197,22 +1196,22 @@ onUnmounted(() => {
 }
 .fund-table {
   width: 100%; border-collapse: collapse; font-size: 14px; white-space: nowrap;
-  min-width: 1040px;
+  min-width: 900px;
 }
 .fund-table thead { background: #f3f2f1; }
 .fund-table th {
-  padding: var(--space-sm) 8px; text-align: left;
+  padding: var(--space-xs) 6px; text-align: left;
   font-size: 13px; font-weight: 700; color: var(--text-primary);
   border-bottom: 2px solid var(--border);
   position: sticky; top: 0; background: #f3f2f1; z-index: 1;
 }
 .fund-table td {
-  padding: 6px 8px; border-bottom: 1px solid var(--border);
+  padding: 5px 6px; border-bottom: 1px solid var(--border);
   vertical-align: middle;
 }
 .fund-row:hover { background: #f8f8f8; }
 
-.col-code { width: 80px; font-weight: 700; color: var(--text-primary); font-family: monospace; font-size: 13px; }
+.col-code { width: 72px; font-weight: 700; color: var(--text-primary); font-family: monospace; font-size: 13px; }
 .col-code a { color: var(--text-primary); text-decoration: none; }
 .col-code a:hover { color: var(--link); text-decoration: underline; }
 /* 固定首列 */
@@ -1225,10 +1224,10 @@ onUnmounted(() => {
 .fund-row:hover td.col-code {
   background: #f8f8f8;
 }
-.col-name { max-width: 180px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.col-name { max-width: 160px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .col-name a { color: var(--text-primary); text-decoration: none; }
 .col-name a:hover { color: var(--link); text-decoration: underline; }
-.col-manager { max-width: 140px; color: var(--text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.col-manager { max-width: 80px; color: var(--text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .col-manager.sortable { cursor: pointer; user-select: none; }
 .col-manager.sortable:hover { background: #e0e7ef; }
 .col-num { width: 80px; text-align: right; color: var(--text-secondary); }
