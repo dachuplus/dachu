@@ -33,7 +33,7 @@
             </td>
             <td class="col-desc">{{ t.desc }}</td>
             <td class="col-rows">{{ formatNum(t.rows) }}</td>
-            <td class="col-size">{{ t.size || '—' }}</td>
+            <td class="col-size">{{ formatSizeMB(t.size) }}</td>
             <td class="col-action">
               <a
                 v-if="t.downloadable"
@@ -659,7 +659,7 @@ const visibleTables = computed(() => {
     ...t,
     downloadable: isLoggedIn.value,
     downloadUrl: `/downloads/${t.key}.xlsx`,
-    size: tableData.value[t.key]?.size || null,
+    size: tableData.value[t.key]?.size_mb || null,
   }))
 })
 
@@ -667,6 +667,13 @@ function formatNum(n) {
   if (n === 0) return '0'
   if (n == null) return '—'
   return n.toLocaleString('zh-CN')
+}
+
+function formatSizeMB(mb) {
+  if (mb == null) return '—'
+  if (mb === 0) return '0 MB'
+  if (mb >= 1) return mb.toFixed(2) + ' MB'
+  return (mb * 1024).toFixed(0) + ' KB'
 }
 
 async function loadIndex() {
