@@ -854,7 +854,7 @@ function extractShareClass(name) {
 const shareClassOptions = VALID_SHARE_CLASSES
 
 // ========== 数据加载 ==========
-const LOAD_TIMEOUT_MS = 30000 // 30 秒超时
+const LOAD_TIMEOUT_MS = 60000 // 60 秒超时（Supabase 免费档偶尔响应偏慢，给足时间避免误报 0 只）
 const MAX_RETRIES = 1           // 失败后自动重试 1 次
 
 function withTimeout(promise, ms) {
