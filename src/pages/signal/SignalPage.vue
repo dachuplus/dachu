@@ -198,18 +198,21 @@
           <div class="radar-wrap" ref="radarRef" v-show="factorFactors.length > 0"></div>
           <div class="empty-hint" v-if="factorFactors.length === 0">风格因子数据建设中，暂未提供真实数据（宁空不假）</div>
         </div>
-        <div class="card">
-          <div class="card-title">因子百分位详情</div>
+          <div class="card">
+          <div class="card-title">因子评分详情（估值分高=贵·性价比低；性价比分高=便宜·性价比高）</div>
           <div class="factor-grid">
-            <div class="factor-item" v-for="f in factorFactors" :key="f.name">
-              <div class="factor-name">{{ f.name }}</div>
+            <div class="factor-item" v-for="f in factorFactors" :key="f.key">
+              <div class="factor-head">
+                <span class="factor-name">{{ f.name }}</span>
+                <span class="factor-signal" :class="f.signal">{{ f.signalLabel }}</span>
+              </div>
               <div class="factor-bar-wrap">
                 <div class="factor-bar">
                   <div class="factor-fill" :style="{ width: f.percentile + '%', background: f.color }"></div>
                 </div>
-                <span class="factor-val">{{ f.percentile }}%</span>
+                <span class="factor-val">估值分 {{ f.percentile }}</span>
               </div>
-              <div class="factor-signal" :class="f.signal">{{ f.signalLabel }}</div>
+              <div class="factor-scores">性价比分 <b>{{ f.cost_score }}</b>（高 = 便宜 · 性价比高）</div>
             </div>
           </div>
         </div>
@@ -286,7 +289,7 @@ import { useRoute } from 'vue-router'
 import echarts from '../../utils/echarts-setup'
 import { getIndexQuotes, buildMarketData, parseValue500Data } from '../../utils/market-data'
 import { calcAllExpectedReturns, calcEnhancedRiskParityWeights, calcMarketSharpe, calcRiskPremium } from '../../utils/calc'
-import { fetchValue500All, fetchConfig } from '../../utils/api'
+import { fetchValue500All, fetchConfig, fetchIndexEva, fetchFactorScores } from '../../utils/api'
 import { COLORS } from '../../utils/echarts-theme'
 import { supabase } from '../../api/supabase'
 
@@ -572,8 +575,6 @@ async function loadAll() {
       color: ASSET_META[key].color
     }))
 
-    // 风格因子：暂未接入真实因子数据，显示"建设中"空状态（宁空不假）
-
     // 债券利差
     bondSpreads.value = bondData.spread != null
       ? [{ label: '10Y-1Y期限利差', bp: bondData.spread }]
@@ -600,6 +601,10 @@ async function loadAll() {
     await nextTick()
     drawGauge()
     drawMacroCharts()
+
+    // 风格因子 + 行业估值（读生产表，异步不阻塞主流程）
+    loadFactorScores()
+    loadIndustry()
 
   } catch (err) {
     let msg = '数据加载失败'
@@ -633,7 +638,7 @@ function drawRadar() {
     },
     series: [{
       type: 'radar',
-      data: [{ value: values, name: '因子百分位',
+      data: [{ value: values, name: '估值分（高=贵）',
         areaStyle: { color: 'rgba(29,112,184,0.15)' },
         lineStyle: { color: COLORS[0], width: 2 },
         itemStyle: { color: COLORS[0] }, symbol: 'circle', symbolSize: 6
@@ -1235,26 +1240,57 @@ function buildSignalOverview() {
   signalOverview.value = cards
 }
 
-// ===== 加载行业估值（读 config 快照，来源：蛋卷估值中心，由后台脚本定时抓取） =====
+// ===== 加载行业估值（读 index_eva 生产表，来源：蛋卷估值中心，由后台脚本定时抓取） =====
 async function loadIndustry() {
   try {
-    const raw = await fetchConfig('industry_valuation')
-    if (!raw) {
-      console.warn('industry_valuation 快照未找到，等待后台抓取')
+    const rows = await fetchIndexEva()
+    if (!rows || rows.length === 0) {
+      console.warn('index_eva 无数据，等待后台抓取')
       return
     }
-    let parsed = typeof raw === 'string' ? JSON.parse(raw) : raw
-    const items = Array.isArray(parsed) ? parsed : (parsed.items || [])
-    const CAT_FALLBACK = { '1': 'broad', '2': 'strategy', '3': 'sector' }
-    industryRaw.value = items.map(r => ({
-      ...r,
-      cat: r.cat || CAT_FALLBACK[String(r.ttype)] || 'other',
-      div_yield: r.div_yield != null ? r.div_yield : r.dividend_yield,
+    industryRaw.value = rows.map(r => ({
+      code: r.index_code,
+      name: r.name,
+      cat: r.cat || 'other',
+      ttype: r.ttype,
+      pe: r.pe != null ? r.pe : null,
       pe_pct: r.pe_percentile != null ? parseFloat(r.pe_percentile) : null,
+      pb: r.pb != null ? r.pb : null,
       pb_pct: r.pb_percentile != null ? parseFloat(r.pb_percentile) : null,
+      div_yield: r.dividend_yield != null ? parseFloat(r.dividend_yield) : null,
+      roe: r.roe != null ? parseFloat(r.roe) : null,
     }))
   } catch (e) {
     console.error('行业估值加载失败', e)
+  }
+}
+
+// ===== 加载风格因子评分（读 factor_scores 生产表，Barra 六因子性价比评分） =====
+async function loadFactorScores() {
+  try {
+    const rows = await fetchFactorScores()
+    if (!rows || rows.length === 0) {
+      factorFactors.value = []
+      return
+    }
+    factorFactors.value = rows.map(r => ({
+      key: r.factor_key,
+      name: r.name,
+      // percentile：雷达图与进度条沿用"估值分"(0-100, 高=贵)
+      percentile: r.value_score != null ? parseFloat(r.value_score)
+        : (r.percentile != null ? parseFloat(r.percentile) : 0),
+      value_score: r.value_score != null ? parseFloat(r.value_score) : null,
+      cost_score: r.cost_score != null ? parseFloat(r.cost_score) : null,
+      signal: r.signal || 'neutral',
+      signalLabel: r.signal_label || '',
+      color: r.color || '#1d70b8',
+    }))
+    // 刷新信号总览中的"风格(价值)"卡片
+    if (signalOverview.value.length) buildSignalOverview()
+    if (factorSub.value === 'stock') nextTick(drawRadar)
+  } catch (e) {
+    console.error('风格因子加载失败', e)
+    factorFactors.value = []
   }
 }
 
@@ -1285,6 +1321,7 @@ watch(activeTab, (tab) => {
     else if (tab === 'compare') drawCompareIdxChart()
     else if (tab === 'allocate') drawPie()
     else if (tab === 'factor') {
+      if (factorFactors.value.length === 0) loadFactorScores()
       if (factorSub.value === 'stock') drawRadar()
       else if (factorSub.value === 'bond') drawBondCurve()
     }
@@ -1417,16 +1454,20 @@ function handleResize() {
 .empty-hint { text-align: center; color: var(--text-secondary); padding: var(--space-xl); }
 
 /* 因子 */
-.factor-grid { display: flex; flex-direction: column; gap: var(--space-sm); }
-.factor-item { display: flex; align-items: center; gap: var(--space-sm); padding: var(--space-xs) 0; border-bottom: 1px solid var(--border); }
-.factor-name { width: 50px; font-size: 14px; font-weight: 700; color: var(--text-primary); }
+.factor-grid { display: flex; flex-direction: column; gap: var(--space-md); }
+.factor-item { display: flex; flex-direction: column; gap: 6px; padding: var(--space-xs) 0; border-bottom: 1px solid var(--border); }
+.factor-head { display: flex; align-items: center; justify-content: space-between; }
+.factor-name { font-size: 14px; font-weight: 700; color: var(--text-primary); }
 .factor-bar-wrap { flex: 1; display: flex; align-items: center; gap: var(--space-sm); }
 .factor-bar { flex: 1; height: 16px; background: #f3f2f1; }
 .factor-fill { height: 100%; transition: width 0.5s ease; }
-.factor-val { width: 40px; font-size: 13px; text-align: right; font-weight: 700; }
-.factor-signal { width: 40px; font-size: 12px; text-align: center; padding: 1px 4px; }
-.factor-signal.hot { color: var(--color-up); }
-.factor-signal.cold { color: var(--color-down); }
+.factor-val { width: 76px; font-size: 12px; text-align: right; font-weight: 700; white-space: nowrap; }
+.factor-scores { font-size: 12px; color: var(--text-secondary); }
+.factor-scores b { color: var(--text-primary); }
+.factor-signal { font-size: 12px; text-align: center; padding: 1px 6px; border-radius: 3px; white-space: nowrap; }
+.factor-signal.cheap { color: var(--color-down); }
+.factor-signal.neutral { color: #1d70b8; }
+.factor-signal.expensive { color: var(--color-up); }
 
 /* 利差 */
 .spread-item { display: flex; justify-content: space-between; padding: var(--space-sm) 0; border-bottom: 1px solid var(--border); font-size: 16px; }

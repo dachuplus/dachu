@@ -238,3 +238,30 @@ export async function fetchConfig(type) {
   if (error) return null
   return data?.value || data?.v || null
 }
+
+/**
+ * 查询指数估值生产表（index_eva，来源：蛋卷估值中心）
+ * 返回行：index_code, name, ttype, cat, pe, pe_percentile, pb, pb_percentile, dividend_yield, roe, eva_type, date
+ */
+export async function fetchIndexEva() {
+  const { data, error } = await supabase
+    .from('index_eva')
+    .select('index_code,name,ttype,cat,pe,pe_percentile,pb,pb_percentile,dividend_yield,roe,eva_type,date')
+    .order('cat')
+    .order('pe_percentile', { ascending: false })
+  if (error) throw error
+  return data || []
+}
+
+/**
+ * 查询风格因子评分生产表（factor_scores，Barra 六因子性价比评分）
+ * 返回行：factor_key, name, percentile, value_score, value_label, cost_score, cost_label, signal, signal_label, color
+ */
+export async function fetchFactorScores() {
+  const { data, error } = await supabase
+    .from('factor_scores')
+    .select('factor_key,name,percentile,value_score,value_label,cost_score,cost_label,signal,signal_label,color')
+    .order('factor_key')
+  if (error) throw error
+  return data || []
+}
