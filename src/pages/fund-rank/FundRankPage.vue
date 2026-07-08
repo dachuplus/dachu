@@ -902,7 +902,7 @@ async function loadData(reset = true, _retryCount = 0) {
       dk: filterDK.value || undefined,
       sg: filterSG.value || undefined,
       dailyLimit: filterDailyLimit.value || undefined,
-    }))
+    }), LOAD_TIMEOUT_MS)
 
     if (result.data) {
       // 服务端过滤后的真实总数（已含 t0/t1/search 及下推的 ETF/LOF/定开/申购状态/±20%）
