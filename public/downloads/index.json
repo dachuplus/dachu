@@ -1,49 +1,54 @@
 {
-  "updated_at": "2026-07-05T10:47:01.764051",
+  "updated_at": "2026-07-08T21:29:51.080179",
   "tables": {
     "config": {
-      "rows": 3,
-      "size_mb": 0.00748443603515625,
+      "rows": 4,
+      "size_mb": 0.012183189392089844,
       "path": "/downloads/config.xlsx"
     },
     "fund_combined": {
-      "rows": 20844,
-      "size_mb": 3.5565338134765625,
+      "rows": 20868,
+      "size_mb": 3.9216413497924805,
       "path": "/downloads/fund_combined.xlsx"
     },
     "fund_quarterly_scores": {
       "rows": 18584,
-      "size_mb": 4.138149261474609,
+      "size_mb": 4.138148307800293,
       "path": "/downloads/fund_quarterly_scores.xlsx"
     },
     "fund_scores": {
-      "rows": 20844,
-      "size_mb": 4.103310585021973,
+      "rows": 20868,
+      "size_mb": 5.656816482543945,
       "path": "/downloads/fund_scores.xlsx"
     },
     "fund_scores_meta": {
       "rows": 2,
-      "size_mb": 0.006146430969238281,
+      "size_mb": 0.006145477294921875,
       "path": "/downloads/fund_scores_meta.xlsx"
+    },
+    "fund_scores_test": {
+      "rows": 0,
+      "size_mb": 0.006839752197265625,
+      "path": "/downloads/fund_scores_test.xlsx"
     },
     "index_pe_history": {
       "rows": 0,
-      "size_mb": 0.0059566497802734375,
+      "size_mb": 0.005951881408691406,
       "path": "/downloads/index_pe_history.xlsx"
     },
     "macro_history": {
       "rows": 24109,
-      "size_mb": 0.6591253280639648,
+      "size_mb": 0.6591243743896484,
       "path": "/downloads/macro_history.xlsx"
     },
     "site_stats": {
       "rows": 1,
-      "size_mb": 0.006005287170410156,
+      "size_mb": 0.0060062408447265625,
       "path": "/downloads/site_stats.xlsx"
     },
     "tougu_products": {
       "rows": 103,
-      "size_mb": 0.027396202087402344,
+      "size_mb": 0.02739429473876953,
       "path": "/downloads/tougu_products.xlsx"
     },
     "user_portfolios": {

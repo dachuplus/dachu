@@ -58,6 +58,13 @@ TABLES = {
         'update': '每日通过 GitHub Actions CI 自动更新（北京时间 21:30）',
         'scoring': True,
     },
+    'fund_scores_test': {
+        'name': '基金评分测试表',
+        'desc': 'fund_scores 的测试副本，结构与 fund_scores 完全一致。新抓取数据先写入此表验证无误后，再通过 staging 管道导入 fund_scores 生产环境。',
+        'source': 'CI 抓取流程写入（验证用）',
+        'update': '每次抓取数据时先写入此表',
+        'scoring': True,
+    },
     'fund_quarterly_scores': {
         'name': '季度评分表',
         'desc': '基于季报数据的各时间窗口评分（score_3m/6m/1y/2y/3y/5y/7y/10y），含原始 quarterly_data JSON',
@@ -126,21 +133,38 @@ TABLES = {
 # 敏感表 / 含用户数据 — 仅在"我的"页面已登录时可见下载
 SENSITIVE_TABLES = {'user_portfolios', 'user_profiles'}
 
+import time
+
 # ===== 导出 =====
 def get_table_data(table_name):
-    """分页获取表数据"""
+    """分页获取表数据，带重试和超时处理"""
     all_rows = []
     offset = 0
     limit = 1000  # Supabase REST API default max rows per request
-    
+    max_retries = 5
+
     while True:
-        resp = requests.get(
-            f'{SUPABASE_URL}/rest/v1/{table_name}?select=*&limit={limit}&offset={offset}',
-            headers=HEADERS, timeout=60
-        )
-        if resp.status_code != 200:
-            print(f'  ⚠️ {table_name}: HTTP {resp.status_code}')
+        success = False
+        for attempt in range(max_retries):
+            try:
+                resp = requests.get(
+                    f'{SUPABASE_URL}/rest/v1/{table_name}?select=*&limit={limit}&offset={offset}',
+                    headers=HEADERS, timeout=120
+                )
+                if resp.status_code == 200:
+                    success = True
+                    break
+                else:
+                    print(f'  ⚠️ {table_name}: HTTP {resp.status_code} (attempt {attempt+1}/{max_retries})')
+            except Exception as e:
+                print(f'  ⚠️ {table_name}: {type(e).__name__} (attempt {attempt+1}/{max_retries})')
+            if attempt < max_retries - 1:
+                time.sleep(3 * (attempt + 1))
+        
+        if not success:
+            print(f'  ❌ {table_name}: Failed after {max_retries} retries at offset {offset}')
             break
+        
         rows = resp.json()
         if not rows:
             break
@@ -149,6 +173,7 @@ def get_table_data(table_name):
         print(f'  📥 {table_name}: {offset} rows...')
         if len(rows) < limit:
             break
+        time.sleep(0.3)  # Small delay to avoid rate limiting
     
     return all_rows
 
@@ -162,6 +187,7 @@ FUND_SCORES_COL_ORDER = [
 ]
 COLUMN_ORDER = {
     'fund_scores': FUND_SCORES_COL_ORDER,
+    'fund_scores_test': FUND_SCORES_COL_ORDER,
 }
 
 # 列名中英文映射（Excel 表头用中文）
