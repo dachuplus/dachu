@@ -865,7 +865,7 @@ function withTimeout(promise, ms) {
 }
 
 async function loadData(reset = true, _retryCount = 0) {
-  if (loading.value) return
+  if (loading.value && _retryCount === 0) return
   loading.value = true
   loadError.value = false
   if (reset) page.value = 1
