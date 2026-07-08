@@ -62,6 +62,12 @@
           <div class="pf-summary" v-if="pf.portfolio_data && pf.portfolio_data.length > 0">
             <span>共 {{ pf.portfolio_data.length }} 只基金</span>
           </div>
+
+          <!-- 组合净值曲线（基于各周期累计收益真实计算） -->
+          <div class="pf-nav-wrap" v-if="pf.portfolio_data && pf.portfolio_data.length > 0">
+            <div class="pf-nav-title">组合净值走势（基于各周期累计收益）</div>
+            <div class="pf-nav-chart" :id="'nav-chart-' + pf.id"></div>
+          </div>
         </div>
 
         <!-- 无组合 -->
@@ -250,9 +256,10 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, onUnmounted, nextTick } from 'vue'
 import { supabase } from '../../api/supabase'
 import SvgIcon from '../../components/SvgIcon.vue'
+import echarts from '../../utils/echarts-setup'
 import { fetchValue500All } from '../../utils/api'
 import { getIndexQuotes, buildMarketData, parseValue500Data } from '../../utils/market-data'
 import { calcAllExpectedReturns, calcEnhancedRiskParityWeights } from '../../utils/calc'
@@ -291,6 +298,7 @@ const newPfName = ref('')
 
 async function loadCustomPortfolios() {
   await refreshUserData()
+  loadNavCurves()
 }
 
 async function createPortfolio() {
@@ -335,6 +343,88 @@ function updateWeight(pfId, code, weight) {
   if (!pf) return
   const item = (pf.portfolio_data || []).find(i => i.code === code)
   if (item) item.weight = Math.max(0, Math.min(100, weight || 0))
+}
+
+// ===== 组合净值曲线（基于 fund_scores 中真实各周期累计收益重建） =====
+// 锚点：以当前为基准(净值=1.0)，回推各周期累计收益对应的相对净值
+const NAV_ANCHORS = [
+  { key: 'k5',  offsetMonths: -60, label: '5年前' },
+  { key: 'k3',  offsetMonths: -36, label: '3年前' },
+  { key: 'k2',  offsetMonths: -24, label: '2年前' },
+  { key: 'k1',  offsetMonths: -12, label: '1年前' },
+  { key: 'k6m', offsetMonths: -6,  label: '6月前' },
+  { key: 'k3m', offsetMonths: -3,  label: '3月前' },
+  { key: 'k1m', offsetMonths: -1,  label: '1月前' },
+  { key: '__now', offsetMonths: 0, label: '现在' }
+]
+
+function buildPortfolioNavSeries(holdings, fundMap, nowDate) {
+  const matched = holdings.filter(h => fundMap[h.code])
+  if (matched.length === 0) return null
+  const dates = []
+  const values = []
+  for (const step of NAV_ANCHORS) {
+    const d = new Date(nowDate)
+    d.setMonth(d.getMonth() + step.offsetMonths)
+    dates.push(step.label)
+    let wsum = 0, vsum = 0, any = false
+    for (const h of matched) {
+      const f = fundMap[h.code]
+      let v
+      if (step.key === '__now') v = 1.0
+      else {
+        const r = f[step.key]
+        if (r == null) continue
+        v = 1 / (1 + r / 100)
+      }
+      wsum += (h.weight || 0)
+      vsum += (h.weight || 0) * v
+      any = true
+    }
+    values.push(any ? +(vsum / (wsum || 1)).toFixed(4) : null)
+  }
+  return { dates, values }
+}
+
+function renderNavChart(pf, series) {
+  const el = document.getElementById('nav-chart-' + pf.id)
+  if (!el || !series) return
+  const chart = echarts.getInstanceByDom(el) || echarts.init(el)
+  navChartInstances.set(pf.id, chart)
+  chart.setOption({
+    grid: { left: 44, right: 16, top: 20, bottom: 28 },
+    tooltip: { trigger: 'axis', valueFormatter: v => v == null ? '—' : (v * 100).toFixed(1) + '%' },
+    xAxis: { type: 'category', data: series.dates, axisLabel: { fontSize: 11, color: '#505a66' }, axisLine: { lineStyle: { color: '#b1b4b6' } } },
+    yAxis: { type: 'value', scale: true, axisLabel: { fontSize: 11, color: '#505a66', formatter: v => (v * 100).toFixed(0) + '%' }, splitLine: { lineStyle: { color: '#f3f2f1' } } },
+    series: [{
+      type: 'line', data: series.values, smooth: true,
+      areaStyle: { color: '#1d70b8', opacity: 0.08 },
+      lineStyle: { color: '#1d70b8', width: 2 },
+      itemStyle: { color: '#1d70b8' },
+      symbol: 'circle', symbolSize: 5
+    }]
+  })
+  chart.resize()
+}
+
+const navChartInstances = new Map()
+
+async function loadNavCurves() {
+  if (!supabase) return
+  for (const pf of customPortfolios.value) {
+    const codes = (pf.portfolio_data || []).map(h => h.code).filter(Boolean)
+    if (codes.length === 0) continue
+    try {
+      const { data } = await supabase.from('fund_scores')
+        .select('c,k1m,k3m,k6m,k1,k2,k3,k5')
+        .in('c', codes)
+      const fundMap = {}
+      ;(data || []).forEach(f => { fundMap[f.c] = f })
+      const series = buildPortfolioNavSeries(pf.portfolio_data, fundMap, new Date())
+      await nextTick()
+      renderNavChart(pf, series)
+    } catch (e) { console.error('[navCurve]', pf.id, e) }
+  }
 }
 
 // ===== AI 组合（复用已有逻辑） =====
@@ -477,6 +567,8 @@ async function addAiToCustom() {
     toast('已添加到自建组合', 'success')
     // 自动切换到自建组合 tab
     activeTab.value = 'custom'
+    await nextTick()
+    loadNavCurves()
   } catch (err) {
     console.error('[addAiToCustom]', err)
     toast('添加失败: ' + (err.message || '未知错误'), 'error')
@@ -543,6 +635,17 @@ async function fetchAllETFs(items) {
 
 onMounted(() => {
   loadAiHistory()
+  window.addEventListener('resize', onNavChartResize)
+})
+
+function onNavChartResize() {
+  navChartInstances.forEach(chart => { try { chart.resize() } catch (e) {} })
+}
+
+onUnmounted(() => {
+  window.removeEventListener('resize', onNavChartResize)
+  navChartInstances.forEach(chart => { try { chart.dispose() } catch (e) {} })
+  navChartInstances.clear()
 })
 </script>
 
@@ -586,6 +689,9 @@ onMounted(() => {
 .pf-hold-nav { font-size: 13px; color: var(--text-secondary); }
 .pf-empty { padding: var(--space-lg); text-align: center; color: var(--text-secondary); }
 .pf-summary { margin-top: var(--space-sm); padding-top: var(--space-sm); border-top: 1px solid var(--border); font-size: 14px; color: var(--text-secondary); }
+.pf-nav-wrap { margin-top: var(--space-md); padding-top: var(--space-md); border-top: 1px solid var(--border); }
+.pf-nav-title { font-size: 15px; font-weight: 700; color: var(--text-secondary); margin-bottom: var(--space-sm); }
+.pf-nav-chart { width: 100%; height: 200px; }
 
 /* ===== Modal ===== */
 .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.3); display: flex; align-items: center; justify-content: center; z-index: 1000; }

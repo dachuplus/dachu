@@ -4,6 +4,15 @@
     <h1 class="page-title">数据中心</h1>
     <p class="page-desc">ALLFUND.CN 数据库全部表一览。选择需要下载的数据表，点击下载 Excel 文件。数据每日 21:30（北京时间）自动更新。</p>
 
+    <!-- 未登录提示横幅 -->
+    <div class="login-banner" v-if="!isLoggedIn">
+      <div class="login-banner-text">
+        <strong>注册并登录后可下载全部数据</strong>
+        <span>ALLFUND.CN 数据库每日自动更新，登录后即可导出每张表的 Excel 文件。</span>
+      </div>
+      <button class="btn-login" @click="showLogin()">登录 / 注册</button>
+    </div>
+
     <!-- 数据库表列表 -->
     <div class="card">
       <div class="card-title">数据库表 ({{ tables.length }} 张)</div>
@@ -625,7 +634,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { useAuth } from '../../composables/useAuth'
 
-const { isLoggedIn } = useAuth()
+const { isLoggedIn, showLogin } = useAuth()
 
 const updateTime = ref('')
 const tableData = ref({})
@@ -648,7 +657,7 @@ const tables = [
 const visibleTables = computed(() => {
   return tables.map(t => ({
     ...t,
-    downloadable: t.sensitive ? isLoggedIn.value : true,
+    downloadable: isLoggedIn.value,
     downloadUrl: `/downloads/${t.key}.xlsx`,
     size: tableData.value[t.key]?.size || null,
   }))
@@ -687,6 +696,22 @@ onMounted(loadIndex)
   font-size: 16px; color: var(--text-secondary); margin: 0 0 var(--space-xl);
   line-height: 1.6;
 }
+
+/* 登录提示横幅 */
+.login-banner {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: var(--space-md); flex-wrap: wrap;
+  background: #f3f8fc; border: 1px solid #1d70b8; border-left: 4px solid #1d70b8;
+  padding: var(--space-md) var(--space-lg); margin-bottom: var(--space-xl);
+}
+.login-banner-text { display: flex; flex-direction: column; gap: 2px; }
+.login-banner-text strong { font-size: 15px; color: #1d70b8; }
+.login-banner-text span { font-size: 13px; color: var(--text-secondary); }
+.btn-login {
+  flex: 0 0 auto; padding: 8px 20px; background: #1d70b8; color: #fff;
+  border: none; font-size: 14px; font-weight: 700; cursor: pointer; white-space: nowrap;
+}
+.btn-login:hover { background: #003078; }
 
 /* Card */
 .card {

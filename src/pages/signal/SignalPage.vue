@@ -196,7 +196,7 @@
         <div class="card">
           <div class="card-title">Barra 六因子雷达图</div>
           <div class="radar-wrap" ref="radarRef" v-show="factorFactors.length > 0"></div>
-          <div class="empty-hint" v-if="factorFactors.length === 0">数据加载中...</div>
+          <div class="empty-hint" v-if="factorFactors.length === 0">风格因子数据建设中，暂未提供真实数据（宁空不假）</div>
         </div>
         <div class="card">
           <div class="card-title">因子百分位详情</div>
@@ -286,7 +286,7 @@ import { useRoute } from 'vue-router'
 import echarts from '../../utils/echarts-setup'
 import { getIndexQuotes, buildMarketData, parseValue500Data } from '../../utils/market-data'
 import { calcAllExpectedReturns, calcEnhancedRiskParityWeights, calcMarketSharpe, calcRiskPremium } from '../../utils/calc'
-import { fetchValue500All, fetchDanjuanEva } from '../../utils/api'
+import { fetchValue500All, fetchConfig } from '../../utils/api'
 import { COLORS } from '../../utils/echarts-theme'
 import { supabase } from '../../api/supabase'
 
@@ -389,8 +389,9 @@ let compareIdxChart = null
 // ===== 行业估值 =====
 const industryFilters = [
   { key: 'all', label: '全部' },
-  { key: 'a_stock', label: 'A股' },
-  { key: 'hk_us', label: '港股/海外' }
+  { key: 'broad', label: '宽基' },
+  { key: 'strategy', label: '策略' },
+  { key: 'sector', label: '行业主题' }
 ]
 const industryFilter = ref('all')
 const industryRaw = ref([])
@@ -398,10 +399,12 @@ const industrySort = reactive({ field: 'pe_pct', asc: true })
 
 const filteredIndustry = computed(() => {
   let list = [...industryRaw.value]
-  if (industryFilter.value === 'a_stock') {
-    list = list.filter(r => r.ttype === 'a_stock')
-  } else if (industryFilter.value === 'hk_us') {
-    list = list.filter(r => r.ttype === 'hk_us' || r.ttype === 'us')
+  if (industryFilter.value === 'broad') {
+    list = list.filter(r => r.cat === 'broad')
+  } else if (industryFilter.value === 'strategy') {
+    list = list.filter(r => r.cat === 'strategy')
+  } else if (industryFilter.value === 'sector') {
+    list = list.filter(r => r.cat === 'sector')
   }
   const f = industrySort.field
   list.sort((a, b) => {
@@ -569,8 +572,7 @@ async function loadAll() {
       color: ASSET_META[key].color
     }))
 
-    // 风格因子
-    calcStyleFactors(quotes, v300Pct, pe300Data)
+    // 风格因子：暂未接入真实因子数据，显示"建设中"空状态（宁空不假）
 
     // 债券利差
     bondSpreads.value = bondData.spread != null
@@ -608,78 +610,15 @@ async function loadAll() {
   }
 }
 
-// ===== 风格因子计算 =====
-function calcStyleFactors(quotes, v300Pct, pe300Data) {
-  const hs300 = quotes['沪深300'] || quotes['sh000300'] || {}
-  const sz50 = quotes['上证50'] || quotes['sh000016'] || {}
-  const zz500 = quotes['中证500'] || quotes['sh000905'] || {}
-  const cyb = quotes['创业板指'] || quotes['sz399006'] || {}
-  const zzhl = quotes['中证红利'] || quotes['sh000922'] || {}
-
-  const hs300PE = hs300.pe || 0
-  const hs300Pct = v300Pct != null ? v300Pct : 50
-
-  // Helper: estimate percentile from index PE relative to 沪深300 PE, anchored on hs300Pct
-  function peToPercentile(idxPE, normalRatio = 1.0) {
-    if (!idxPE || idxPE <= 0 || !hs300PE || hs300PE <= 0) return hs300Pct
-    // Ratio vs normal: >1 means more expensive relative to normal, so higher percentile
-    const currentRatio = idxPE / hs300PE
-    const deviation = currentRatio / normalRatio
-    // Sigmoid-like mapping: deviation 1.0 → hs300Pct, deviation >1 shifts upward
-    let pct = hs300Pct + (deviation - 1) * 80
-    return Math.max(5, Math.min(95, Math.round(pct)))
-  }
-
-  // Typical PE ratios relative to 沪深300
-  const TYPICAL_RATIOS = {
-    value:     0.75,  // 中证红利 usually trades at lower PE
-    size:      1.30,  // 中证500 usually higher PE
-    growth:    1.80,  // 创业板 usually much higher PE
-    quality:   0.85,  // 上证50 similar or slightly lower
-  }
-
-  const valuePE = zzhl.pe || sz50.pe || 0
-  const sizePE = zz500.pe || 0
-  const growthPE = cyb.pe || 0
-  const qualityPE = sz50.pe || 0
-
-  // Momentum: map changePct to 0-100 scale (typical daily range -3% to +3%)
-  const momentumPct = hs300.changePct || 0
-  const momentumPercentile = Math.max(5, Math.min(95, Math.round(50 + momentumPct * 15)))
-
-  // Low vol: proxy using 中证500 changePct inverse (less volatile → lower change)
-  const zz500Change = zz500.changePct || 0
-  const volPercentile = Math.max(5, Math.min(95, Math.round(50 - zz500Change * 10)))
-
-  const factors = [
-    { key: 'value',    name: '价值',   percentile: peToPercentile(valuePE, TYPICAL_RATIOS.value) },
-    { key: 'size',     name: '规模',   percentile: peToPercentile(sizePE, TYPICAL_RATIOS.size) },
-    { key: 'growth',   name: '成长',   percentile: peToPercentile(growthPE, TYPICAL_RATIOS.growth) },
-    { key: 'momentum', name: '动量',   percentile: momentumPercentile },
-    { key: 'quality',  name: '质量',   percentile: peToPercentile(qualityPE, TYPICAL_RATIOS.quality) },
-    { key: 'vol',      name: '低波',   percentile: volPercentile },
-  ]
-
-  const results = factors.map(f => {
-    const p = f.percentile
-    let signal = 'neutral', signalLabel = '中性'
-    if (p > 70) { signal = 'hot'; signalLabel = '偏高' }
-    else if (p < 30) { signal = 'cold'; signalLabel = '偏低' }
-    return {
-      name: f.name,
-      percentile: p,
-      signal, signalLabel,
-      color: p > 70 ? 'var(--color-up)' : p < 30 ? 'var(--color-down)' : '#505a5f'
-    }
-  })
-  factorFactors.value = results
-  nextTick(() => { drawRadar() })
-}
-
+// ===== 风格因子（暂未接入真实因子数据源，宁空不假） =====
+// 原先的 calcStyleFactors 以指数 PE 比值估算各 Barra 因子百分位，属于启发式伪造数据，
+// 已移除。等待接入真实多因子模型数据后再填充 factorFactors，当前展示"建设中"空状态。
 function drawRadar() {
   const el = radarRef()
   if (!el) return
   if (radarChart) radarChart.dispose()
+  if (!factorFactors.value || factorFactors.value.length === 0) return
+
   const indicator = factorFactors.value.map(f => ({ name: f.name, max: 100 }))
   const values = factorFactors.value.map(f => f.percentile)
   radarChart = echarts.init(el)
@@ -1296,17 +1235,24 @@ function buildSignalOverview() {
   signalOverview.value = cards
 }
 
-// ===== 加载行业估值 =====
+// ===== 加载行业估值（读 config 快照，来源：蛋卷估值中心，由后台脚本定时抓取） =====
 async function loadIndustry() {
   try {
-    const result = await fetchDanjuanEva()
-    if (result?.code === 0 && Array.isArray(result.data)) {
-      industryRaw.value = result.data.map(r => ({
-        ...r,
-        pe_pct: r.pe_percentile != null ? parseFloat(r.pe_percentile) : null,
-        pb_pct: r.pb_percentile != null ? parseFloat(r.pb_percentile) : null,
-      }))
+    const raw = await fetchConfig('industry_valuation')
+    if (!raw) {
+      console.warn('industry_valuation 快照未找到，等待后台抓取')
+      return
     }
+    let parsed = typeof raw === 'string' ? JSON.parse(raw) : raw
+    const items = Array.isArray(parsed) ? parsed : (parsed.items || [])
+    const CAT_FALLBACK = { '1': 'broad', '2': 'strategy', '3': 'sector' }
+    industryRaw.value = items.map(r => ({
+      ...r,
+      cat: r.cat || CAT_FALLBACK[String(r.ttype)] || 'other',
+      div_yield: r.div_yield != null ? r.div_yield : r.dividend_yield,
+      pe_pct: r.pe_percentile != null ? parseFloat(r.pe_percentile) : null,
+      pb_pct: r.pb_percentile != null ? parseFloat(r.pb_percentile) : null,
+    }))
   } catch (e) {
     console.error('行业估值加载失败', e)
   }
