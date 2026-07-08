@@ -147,7 +147,7 @@ const showBack  = computed(() => {
   line-height: 1.25;
 }
 .govuk-header__container {
-  max-width: 960px;
+  max-width: 1400px;
   margin: 0 auto;
   padding: 0 15px;
   display: flex;
@@ -210,7 +210,7 @@ const showBack  = computed(() => {
 
 /* ========== Phase banner ========== */
 .govuk-phase-banner {
-  max-width: 960px;
+  max-width: 1400px;
   margin: 0 auto;
   padding: var(--space-sm) 15px;
   border-bottom: 1px solid var(--border);
@@ -239,7 +239,7 @@ const showBack  = computed(() => {
 
 /* ========== 全局金刚区导航 ========== */
 .quick-nav {
-  max-width: 960px; margin: 0 auto; padding: 0 30px;
+  max-width: 1400px; margin: 0 auto; padding: 0 30px;
   background: #fff; border-bottom: 1px solid var(--border);
 }
 .quick-nav__inner { display: flex; gap: 0; justify-content: center; }
@@ -300,7 +300,7 @@ const showBack  = computed(() => {
 .pc-main {
   padding: var(--space-xl) 15px;
   padding-bottom: var(--space-2xl);
-  max-width: 960px;
+  max-width: 1400px;
   margin: 0 auto;
   width: 100%;
 }

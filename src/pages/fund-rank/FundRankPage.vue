@@ -721,7 +721,7 @@ function setClassSource(key) {
 
 // 搜索/周期/分页/排序
 const searchText = ref('')
-const currentPeriod = ref('k_all')   // 默认用综合评分（覆盖面最广），用户可切换到 k1/k3m 等单周期
+const currentPeriod = ref('k1')     // 默认按 1 年排序（用户可切换到 k3/k5/k_all 等）
 const sortAsc = ref(false)        // 靠谱指数排序方向（false=降序，true=升序）
 const sortField = ref('')          // 客户端排序列（非评分列）：'c'|'n'|'equityPct'|'bondPct'
 const sortDir = ref('desc')        // 客户端排序方向
@@ -1179,16 +1179,19 @@ onUnmounted(() => {
 
 /* 基金列表 - 横向滚动表格 */
 .fund-table-wrap {
-  overflow-x: auto; -webkit-overflow-scrolling: touch;
+  overflow-x: auto; overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
   border-top: 1px solid var(--border);
   position: relative;
+  max-height: calc(100vh - 380px);
 }
 .fund-table-wrap::-webkit-scrollbar {
-  height: 6px;
+  height: 8px; width: 8px;
 }
 .fund-table-wrap::-webkit-scrollbar-thumb {
-  background: #b1b4b6; border-radius: 3px;
+  background: #b1b4b6; border-radius: 4px;
 }
+.fund-table-wrap::-webkit-scrollbar-thumb:hover { background: #808185; }
 .fund-table-wrap::-webkit-scrollbar-track {
   background: #f3f2f1;
 }

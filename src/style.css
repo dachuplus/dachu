@@ -38,7 +38,7 @@
   --header-height: 60px;
   --tab-height:    56px;
   --max-width:     480px;
-  --pc-max-width:  960px;    /* gov.uk 标准内容宽 960px */
+  --pc-max-width:  1400px;    /* 宽屏适配：原 gov.uk 标准 960px → 1400px */
 
   /* 圆角 — gov.uk = 无圆角 */
   --radius-sm: 0;
@@ -71,7 +71,7 @@
 }
 @media (min-width: 769px) {  /* desktop */
   :root {
-    --max-width: 960px;
+    --max-width: 1400px;
     --header-height: 60px;
     --tab-height: 0px;
   }
