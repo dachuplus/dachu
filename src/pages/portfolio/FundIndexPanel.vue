@@ -13,8 +13,8 @@
       </div>
     </div>
 
-    <div class="fi-note" v-if="sub !== 'basic' && !hasRealData">
-      数据说明：指数数据来源于东方财富（akshare），包含宽基、策略及行业主题等14只核心市场指数的行情表现与历史收益。
+    <div class="fi-note">
+      数据说明：基金指数来源于腾讯证券（akshare），覆盖上证基金指数、国证基金、深证ETF指数、深证基金指数等交易所基金指数（跟踪场内上市基金整体表现，非股票指数）。深证基金指数已于 2017 年停止更新，仅保留历史数据。
     </div>
 
     <div class="fi-loading" v-if="loading">加载中…</div>

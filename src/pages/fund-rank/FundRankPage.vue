@@ -210,6 +210,7 @@
             <th class="col-scale sortable" @click="toggleColumnSort('fund_scale')">
               基金规模（亿）<span class="th-arrow" v-if="sortField === 'fund_scale'">{{ sortDir === 'asc' ? '▲' : '▼' }}</span>
             </th>
+            <th class="col-fee">管理费率</th>
             <th class="col-t1">二级分类</th>
             <th v-for="p in displayPeriods" :key="p.key" class="col-score sortable" :class="{ 'col-sort': currentPeriod === p.key }" @click="switchPeriod(p.key)">
               {{ p.label }}<span class="th-arrow" v-if="currentPeriod === p.key">{{ sortAsc ? '▲' : '▼' }}</span>
@@ -227,6 +228,7 @@
             <td class="col-name"><a :href="eastMoneyUrl(fund.c)" target="_blank" @click.stop>{{ fund.n || '基金' + fund.c }}</a></td>
             <td class="col-manager" :title="fund.fund_manager">{{ fund.fund_manager || '--' }}</td>
             <td class="col-scale">{{ fmtFundScale(fund.fund_scale) }}</td>
+            <td class="col-fee">{{ fmtManageFee(fund.manage_fee) }}</td>
             <td class="col-t1" :title="fund.t1_tt || fund.t1">{{ fund.t1_tt || fund.t1 || '--' }}</td>
             <td v-for="p in displayPeriods" :key="p.key" class="col-score" :class="{ 'col-sort': currentPeriod === p.key }">
               <span class="score-val" :style="scoreColor(fund[p.key])">{{ fmtScore(fund[p.key]) }}</span>
@@ -272,7 +274,7 @@
           </span>
         </div>
         <div class="fund-card-mgr" v-if="fund.fund_manager">{{ fund.fund_manager }}</div>
-        <div class="fund-card-scale" v-if="fund.fund_scale != null">规模（亿）：{{ fmtFundScale(fund.fund_scale) }}</div>
+        <div class="fund-card-scale" v-if="fund.fund_scale != null">规模（亿）：{{ fmtFundScale(fund.fund_scale) }} · 管理费：{{ fmtManageFee(fund.manage_fee) }}</div>
         <div class="fund-card-scores">
           <span
             v-for="p in displayPeriods"
@@ -555,7 +557,7 @@
 <script setup>
 import { ref, computed, reactive, onMounted, onUnmounted, onActivated } from 'vue'
 import { fetchFundScores, fetchFundMeta, fetchFundCategories } from '../../api/data.js'
-import { fmtScore, fmtRet, fmtDD, fmtSR, fmtScale, fmtFundScale, scoreColor } from '../../utils/format.js'
+import { fmtScore, fmtRet, fmtDD, fmtSR, fmtScale, fmtFundScale, fmtManageFee, scoreColor } from '../../utils/format.js'
 import { addFundToPortfolio } from '../../api/user-data'
 import { useAuth } from '../../composables/useAuth.js'
 import { toast } from '../../composables/useToast.js'
@@ -1271,6 +1273,7 @@ onUnmounted(() => {
 .col-score .score-val { font-weight: 700; font-size: 13px; }
 .col-sort { background: #e8f0fe; }
 .col-actions { width: 90px; text-align: center; }
+.col-fee { width: 80px; text-align: right; color: var(--text-secondary); font-variant-numeric: tabular-nums; }
 .col-t1 { width: 120px; color: var(--text-secondary); font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* ===== 移动端卡片布局 ===== */

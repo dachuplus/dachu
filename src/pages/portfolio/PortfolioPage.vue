@@ -442,13 +442,11 @@ const RETURN_COLS = [
   { key: 'r3m', label: '近3月' },
   { key: 'r6m', label: '近6月' },
   { key: 'r1y', label: '近1年' },
-  { key: 'r2y', label: '近2年' },
   { key: 'r3y', label: '近3年' },
-  { key: 'r5y', label: '近5年' },
-  { key: 'r10y', label: '近10年' }
+  { key: 'r5y', label: '近5年' }
 ]
 // 严格列：组合内任一成分基金该周期数据缺失（即基金成立不满该周期），整列显示 --
-const STRICT_COLS = { r3y: true, r5y: true, r10y: true }
+const STRICT_COLS = { r3y: true, r5y: true }
 
 // 按持仓权重加权计算组合各周期收益率
 // 返回 { key: number | null }，null 表示应显示 --
@@ -458,8 +456,6 @@ function buildPortfolioReturns(holdings, fundMap) {
   const items = matched.map(h => ({ weight: Number(h.weight) || 0, fund: fundMap[h.code] }))
   const result = {}
   for (const col of RETURN_COLS) {
-    // 近10年全市场数据缺失，恒为 --
-    if (col.key === 'r10y') { result[col.key] = null; continue }
     const vals = items.map(it => ({ w: it.weight, v: it.fund[col.key] }))
     // 严格列：任一成分缺失 → 整列 --
     if (STRICT_COLS[col.key] && vals.some(x => x.v == null)) { result[col.key] = null; continue }
@@ -488,17 +484,29 @@ function retClass(v) {
 }
 
 // 拉取组合内成分基金的区间收益字段，并计算组合加权收益
+// 说明：场外基金(.OF)取自 fund_scores；场内基金(ETF/LOF，无 .OF 后缀)取自 etf_returns
+//       （fund_scores/fund_combined 均不含场内基金，需单独数据源）
 async function loadPortfolioReturns() {
   if (!supabase) return
   for (const pf of customPortfolios.value) {
     const codes = (pf.portfolio_data || []).map(h => h.code).filter(Boolean)
     if (codes.length === 0) { pf._returns = null; pf._fundReturns = {}; continue }
+    const ofCodes = codes.filter(c => c.includes('.'))   // 场外 .OF
+    const etfCodes = codes.filter(c => !c.includes('.'))  // 场内 ETF/LOF
     try {
-      const { data } = await supabase.from('fund_scores')
-        .select('c,r0w,r1m,r3m,r6m,r1y,r2y,r3y,r5y,r10y,daily_change')
-        .in('c', codes)
       const fundMap = {}
-      ;(data || []).forEach(f => { fundMap[f.c] = f })
+      if (ofCodes.length > 0) {
+        const { data } = await supabase.from('fund_scores')
+          .select('c,r0w,r1m,r3m,r6m,r1y,r3y,r5y,daily_change')
+          .in('c', ofCodes)
+        ;(data || []).forEach(f => { fundMap[f.c] = f })
+      }
+      if (etfCodes.length > 0) {
+        const { data } = await supabase.from('etf_returns')
+          .select('c,r0w,r1m,r3m,r6m,r1y,r3y,r5y,daily_change')
+          .in('c', etfCodes)
+        ;(data || []).forEach(f => { fundMap[f.c] = f })
+      }
       pf._fundReturns = fundMap
       pf._returns = buildPortfolioReturns(pf.portfolio_data, fundMap)
     } catch (e) {

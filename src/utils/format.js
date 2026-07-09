@@ -62,6 +62,20 @@ export function fmtFundScale(v) {
   return n.toFixed(4)
 }
 
+// 管理费率展示：原始值格式不一（"0.25%" / "0.6" / HTML占位符 / null）
+// "0.25%"→"0.25%"；纯数字"0.6"→"0.60%"；HTML占位或空→"--"
+export function fmtManageFee(v) {
+  if (v == null || v === '') return '--'
+  const s = String(v).trim()
+  if (s.includes('<') || s.includes('href')) return '--'   // HTML 占位符视为无效
+  if (s.endsWith('%')) {
+    const n = parseFloat(s)
+    return isNaN(n) ? '--' : n.toFixed(2) + '%'
+  }
+  const n = parseFloat(s)
+  return isNaN(n) ? '--' : n.toFixed(2) + '%'
+}
+
 /**
  * 百分比展示
  * @param {number|string|null} v

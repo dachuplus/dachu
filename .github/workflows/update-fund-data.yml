@@ -259,6 +259,30 @@ jobs:
           python scripts/fetch_jqr_indicators.py
           echo "特色指标计算完成: $(date '+%Y-%m-%d %H:%M:%S')"
 
+      - name: 步骤5d — 拉取基金指数（腾讯源，写入 fund_indices 表）
+        timeout-minutes: 10
+        continue-on-error: true
+        run: |
+          echo "============================================"
+          echo "  步骤5d: 拉取基金指数（上证/深证/国证基金指数等，腾讯源）"
+          echo "  开始时间: $(date '+%Y-%m-%d %H:%M:%S')"
+          echo "============================================"
+          pip install akshare requests
+          python scripts/fetch_fund_indices_em.py
+          echo "基金指数更新完成: $(date '+%Y-%m-%d %H:%M:%S')"
+
+      - name: 步骤5e — 拉取自建组合场内基金区间收益（腾讯K线，写入 etf_returns 表）
+        timeout-minutes: 10
+        continue-on-error: true
+        run: |
+          echo "============================================"
+          echo "  步骤5e: 拉取自建组合 ETF/LOF 区间收益（腾讯K线）"
+          echo "  开始时间: $(date '+%Y-%m-%d %H:%M:%S')"
+          echo "============================================"
+          pip install requests
+          python scripts/fetch_etf_returns.py
+          echo "场内基金区间收益更新完成: $(date '+%Y-%m-%d %H:%M:%S')"
+
       - name: 步骤6 — 安装 Node.js
         uses: actions/setup-node@v4
         with:
