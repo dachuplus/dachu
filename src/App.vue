@@ -65,7 +65,7 @@
     <!-- 主内容区 -->
     <main class="app-main" :class="{ 'pc-main': !isMobile }">
       <router-view v-slot="{ Component }">
-        <keep-alive :include="['HomePage']">
+        <keep-alive :include="['FundRankPage']">
           <component :is="Component" />
         </keep-alive>
       </router-view>

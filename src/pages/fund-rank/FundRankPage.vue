@@ -550,7 +550,7 @@
 </template>
 
 <script setup>
-import { ref, computed, reactive, onMounted, onUnmounted } from 'vue'
+import { ref, computed, reactive, onMounted, onUnmounted, onActivated } from 'vue'
 import { fetchFundScores, fetchFundMeta, fetchFundCategories } from '../../api/data.js'
 import { fmtScore, fmtRet, fmtDD, fmtSR, fmtScale, fmtFundScale, scoreColor } from '../../utils/format.js'
 import { addFundToPortfolio } from '../../api/user-data'
@@ -986,9 +986,11 @@ function clearMoreFilters() {
   filterScaleMax.value = ''
 }
 
-/** 规模区间输入变化（防抖已在 loadData 内，这里直接重查） */
+/** 规模区间输入变化：防抖 400ms，避免逐字符触发中间态查询（如敲"100"时 scaleMax=1 卡出 0 条） */
+let scaleInputTimer = null
 function onScaleInput() {
-  loadData(true)
+  if (scaleInputTimer) clearTimeout(scaleInputTimer)
+  scaleInputTimer = setTimeout(() => { loadData(true) }, 400)
 }
 
 function setDailyLimit(val) {
@@ -1066,6 +1068,10 @@ onMounted(() => {
   window.addEventListener('resize', onResize)
   fetchCategories()
   loadData()
+  loadMeta()
+})
+onActivated(() => {
+  // keep-alive 缓存激活时：数据已存在（秒开），仅刷新 meta（更新时间）
   loadMeta()
 })
 onUnmounted(() => {
