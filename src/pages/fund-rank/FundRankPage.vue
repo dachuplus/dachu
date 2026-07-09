@@ -123,14 +123,15 @@
           </div>
         </div>
 
-        <!-- 基金规模区间（亿元） -->
+        <!-- 基金规模区间（亿元）：输入完点「确认」再查询 -->
         <div class="filter-row">
           <span class="filter-label">规模</span>
           <div class="filter-scale-range">
-            <input type="number" class="scale-input" v-model="filterScaleMin" placeholder="最小" @input="onScaleInput" />
+            <input type="number" class="scale-input" v-model="filterScaleMin" placeholder="最小" @keyup.enter="onScaleConfirm" />
             <span class="scale-dash">—</span>
-            <input type="number" class="scale-input" v-model="filterScaleMax" placeholder="最大" @input="onScaleInput" />
+            <input type="number" class="scale-input" v-model="filterScaleMax" placeholder="最大" @keyup.enter="onScaleConfirm" />
             <span class="scale-unit">亿</span>
+            <button class="scale-confirm-btn" @click="onScaleConfirm">确认</button>
           </div>
         </div>
 
@@ -986,11 +987,9 @@ function clearMoreFilters() {
   filterScaleMax.value = ''
 }
 
-/** 规模区间输入变化：防抖 400ms，避免逐字符触发中间态查询（如敲"100"时 scaleMax=1 卡出 0 条） */
-let scaleInputTimer = null
-function onScaleInput() {
-  if (scaleInputTimer) clearTimeout(scaleInputTimer)
-  scaleInputTimer = setTimeout(() => { loadData(true) }, 400)
+/** 规模区间「确认」按钮：输入完成点确认才查询，避免中间态误查（如敲"100"时 scaleMax=1 卡出 0 条） */
+function onScaleConfirm() {
+  loadData(true)
 }
 
 function setDailyLimit(val) {
@@ -1188,6 +1187,11 @@ onUnmounted(() => {
 .scale-input:focus { outline: 3px solid #ffdd00; outline-offset: 0; }
 .scale-dash { color: var(--text-secondary); }
 .scale-unit { font-size: 14px; color: var(--text-secondary); }
+.scale-confirm-btn {
+  padding: 4px 14px; font-size: 14px; font-weight: 700;
+  color: #fff; background: #1d70b8; border: none; cursor: pointer;
+}
+.scale-confirm-btn:hover { background: #003078; }
 .filter-tip { padding: var(--space-sm) var(--space-md); font-size: 14px; color: var(--text-secondary); }
 
 /* 周期Tab - 已移除 toolbar 行，周期选择通过表头点击完成 */
