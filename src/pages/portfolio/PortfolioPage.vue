@@ -41,7 +41,12 @@
                 <span class="pf-hold-idx">{{ idx + 1 }}</span>
                 <span class="pf-hold-name">{{ h.name }}</span>
                 <span class="pf-hold-code">{{ h.code }}</span>
-                <span class="pf-hold-cat" v-if="fmtCatRank(catRankMap[h.code])">{{ fmtCatRank(catRankMap[h.code]) }}</span>
+                <span class="pf-hold-cat" v-if="holdMetaMap[h.code]">
+                  <span class="pf-meta-cat">{{ holdMetaMap[h.code].cat }}</span>
+                  <span class="pf-meta-score">1年评分 {{ fmtScore2(holdMetaMap[h.code].score) }}</span>
+                  <span class="pf-meta-rank" v-if="holdMetaMap[h.code].rank != null">排名 {{ holdMetaMap[h.code].rank }}|{{ holdMetaMap[h.code].total }}</span>
+                  <span class="pf-meta-rank pf-meta-na" v-else>排名 --</span>
+                </span>
               </div>
               <div class="pf-hold-right">
                 <input
@@ -62,10 +67,21 @@
             <span>共 {{ pf.portfolio_data.length }} 只基金</span>
           </div>
 
-          <!-- 组合净值曲线（基于各周期累计收益真实计算） -->
-          <div class="pf-nav-wrap" v-if="pf.portfolio_data && pf.portfolio_data.length > 0">
-            <div class="pf-nav-title">组合净值走势（基于各周期累计收益）</div>
-            <div class="pf-nav-chart" :id="'nav-chart-' + pf.id"></div>
+          <!-- 组合区间收益 -->
+          <div class="pf-returns" v-if="pf.portfolio_data && pf.portfolio_data.length > 0 && pf._returns">
+            <div class="pf-returns-title">组合区间收益</div>
+            <div class="pf-returns-grid">
+              <div
+                class="pf-ret-cell"
+                v-for="col in RETURN_COLS"
+                :key="col.key"
+              >
+                <div class="pf-ret-label">{{ col.label }}</div>
+                <div class="pf-ret-value" :class="retClass(pf._returns[col.key])">
+                  {{ fmtRet(pf._returns[col.key]) }}
+                </div>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -176,7 +192,12 @@
               <div class="ai-fund-left">
                 <span class="ai-fund-name">{{ f.name }}</span>
                 <span class="ai-fund-code">{{ f.code }}</span>
-                <span class="ai-fund-cat" v-if="fmtCatRank(catRankMap[f.code])">{{ fmtCatRank(catRankMap[f.code]) }}</span>
+                <span class="ai-fund-cat" v-if="holdMetaMap[f.code]">
+                  <span class="pf-meta-cat">{{ holdMetaMap[f.code].cat }}</span>
+                  <span class="pf-meta-score">1年评分 {{ fmtScore2(holdMetaMap[f.code].score) }}</span>
+                  <span class="pf-meta-rank" v-if="holdMetaMap[f.code].rank != null">排名 {{ holdMetaMap[f.code].rank }}|{{ holdMetaMap[f.code].total }}</span>
+                  <span class="pf-meta-rank pf-meta-na" v-else>排名 --</span>
+                </span>
               </div>
               <div class="ai-fund-right">
                 <span class="ai-fund-weight">{{ f.weight }}%</span>
@@ -291,9 +312,8 @@
 import { ref, onMounted, onUnmounted, nextTick } from 'vue'
 import { supabase } from '../../api/supabase'
 import SvgIcon from '../../components/SvgIcon.vue'
-import echarts from '../../utils/echarts-setup'
 import { fetchValue500All } from '../../utils/api'
-import { getCategoryRankInfo } from '../../api/data.js'
+import { getCategoryRankInfo, getCategoryRankInfoByScore } from '../../api/data.js'
 import { getIndexQuotes, buildMarketData, parseValue500Data } from '../../utils/market-data'
 import { calcAllExpectedReturns, calcEnhancedRiskParityWeights } from '../../utils/calc'
 import { useAuth } from '../../composables/useAuth'
@@ -327,12 +347,25 @@ function fmtCatRank(info) {
   if (info.rank == null) return info.cat
   return `${info.cat} ${info.rank}|${info.total}`
 }
+
+// 持仓基金的「分类 + 1年评分(k1) + 细分品类排名」映射（按 k1 降序排名）
+const holdMetaMap = ref({})
+function fmtScore2(v) {
+  if (v == null) return '--'
+  return Number(v).toFixed(1)
+}
 async function enrichRanks() {
   const codes = new Set()
   customPortfolios.value.forEach(pf => (pf.portfolio_data || []).forEach(h => h.code && codes.add(h.code)))
   if (aiPortfolio.value?.funds) aiPortfolio.value.funds.forEach(f => f.code && codes.add(f.code))
-  if (codes.size === 0) { catRankMap.value = {}; return }
-  try { catRankMap.value = await getCategoryRankInfo([...codes]) } catch (e) { catRankMap.value = {} }
+  if (codes.size === 0) { catRankMap.value = {}; holdMetaMap.value = {}; return }
+  try {
+    catRankMap.value = await getCategoryRankInfo([...codes])
+    holdMetaMap.value = await getCategoryRankInfoByScore([...codes], 'k1')
+  } catch (e) {
+    catRankMap.value = {}
+    holdMetaMap.value = {}
+  }
 }
 
 // ===== 自建组合 =====
@@ -342,7 +375,7 @@ const newPfName = ref('')
 async function loadCustomPortfolios() {
   await refreshUserData()
   await enrichRanks()
-  loadNavCurves()
+  loadPortfolioReturns()
 }
 
 async function createPortfolio() {
@@ -386,88 +419,85 @@ function updateWeight(pfId, code, weight) {
   const pf = customPortfolios.value.find(p => p.id === pfId)
   if (!pf) return
   const item = (pf.portfolio_data || []).find(i => i.code === code)
-  if (item) item.weight = Math.max(0, Math.min(100, weight || 0))
+  if (item) {
+    item.weight = Math.max(0, Math.min(100, weight || 0))
+    // 权重变更后实时重算组合区间收益（无需重新请求）
+    if (pf._fundReturns) pf._returns = buildPortfolioReturns(pf.portfolio_data, pf._fundReturns)
+  }
 }
 
-// ===== 组合净值曲线（基于 fund_scores 中真实各周期累计收益重建） =====
-// 锚点：以当前为基准(净值=1.0)，回推各周期累计收益对应的相对净值
-const NAV_ANCHORS = [
-  { key: 'k5',  offsetMonths: -60, label: '5年前' },
-  { key: 'k3',  offsetMonths: -36, label: '3年前' },
-  { key: 'k2',  offsetMonths: -24, label: '2年前' },
-  { key: 'k1',  offsetMonths: -12, label: '1年前' },
-  { key: 'k6m', offsetMonths: -6,  label: '6月前' },
-  { key: 'k3m', offsetMonths: -3,  label: '3月前' },
-  { key: 'k1m', offsetMonths: -1,  label: '1月前' },
-  { key: '__now', offsetMonths: 0, label: '现在' }
+// ===== 组合区间收益（基于持仓基金真实区间收益率按权重加权） =====
+// 列定义：key 对应 fund_scores 字段；label 为展示名
+const RETURN_COLS = [
+  { key: 'daily_change', label: '当日' },
+  { key: 'r0w', label: '近1周' },
+  { key: 'r1m', label: '近1月' },
+  { key: 'r3m', label: '近3月' },
+  { key: 'r6m', label: '近6月' },
+  { key: 'r1y', label: '近1年' },
+  { key: 'r2y', label: '近2年' },
+  { key: 'r3y', label: '近3年' },
+  { key: 'r5y', label: '近5年' },
+  { key: 'r10y', label: '近10年' }
 ]
+// 严格列：组合内任一成分基金该周期数据缺失（即基金成立不满该周期），整列显示 --
+const STRICT_COLS = { r3y: true, r5y: true, r10y: true }
 
-function buildPortfolioNavSeries(holdings, fundMap, nowDate) {
+// 按持仓权重加权计算组合各周期收益率
+// 返回 { key: number | null }，null 表示应显示 --
+function buildPortfolioReturns(holdings, fundMap) {
   const matched = holdings.filter(h => fundMap[h.code])
   if (matched.length === 0) return null
-  const dates = []
-  const values = []
-  for (const step of NAV_ANCHORS) {
-    const d = new Date(nowDate)
-    d.setMonth(d.getMonth() + step.offsetMonths)
-    dates.push(step.label)
-    let wsum = 0, vsum = 0, any = false
-    for (const h of matched) {
-      const f = fundMap[h.code]
-      let v
-      if (step.key === '__now') v = 1.0
-      else {
-        const r = f[step.key]
-        if (r == null) continue
-        v = 1 / (1 + r / 100)
-      }
-      wsum += (h.weight || 0)
-      vsum += (h.weight || 0) * v
-      any = true
+  const items = matched.map(h => ({ weight: Number(h.weight) || 0, fund: fundMap[h.code] }))
+  const result = {}
+  for (const col of RETURN_COLS) {
+    // 近10年全市场数据缺失，恒为 --
+    if (col.key === 'r10y') { result[col.key] = null; continue }
+    const vals = items.map(it => ({ w: it.weight, v: it.fund[col.key] }))
+    // 严格列：任一成分缺失 → 整列 --
+    if (STRICT_COLS[col.key] && vals.some(x => x.v == null)) { result[col.key] = null; continue }
+    // 其余列：按有权值的成分加权（缺失成分忽略，权重归一化）
+    let wsum = 0, vsum = 0, has = false
+    for (const x of vals) {
+      if (x.v == null) continue
+      wsum += x.w
+      vsum += x.w * x.v
+      has = true
     }
-    values.push(any ? +(vsum / (wsum || 1)).toFixed(4) : null)
+    result[col.key] = has && wsum > 0 ? +(vsum / wsum).toFixed(2) : null
   }
-  return { dates, values }
+  return result
 }
 
-function renderNavChart(pf, series) {
-  const el = document.getElementById('nav-chart-' + pf.id)
-  if (!el || !series) return
-  const chart = echarts.getInstanceByDom(el) || echarts.init(el)
-  navChartInstances.set(pf.id, chart)
-  chart.setOption({
-    grid: { left: 44, right: 16, top: 20, bottom: 28 },
-    tooltip: { trigger: 'axis', valueFormatter: v => v == null ? '—' : (v * 100).toFixed(1) + '%' },
-    xAxis: { type: 'category', data: series.dates, axisLabel: { fontSize: 11, color: '#505a66' }, axisLine: { lineStyle: { color: '#b1b4b6' } } },
-    yAxis: { type: 'value', scale: true, axisLabel: { fontSize: 11, color: '#505a66', formatter: v => (v * 100).toFixed(0) + '%' }, splitLine: { lineStyle: { color: '#f3f2f1' } } },
-    series: [{
-      type: 'line', data: series.values, smooth: true,
-      areaStyle: { color: '#1d70b8', opacity: 0.08 },
-      lineStyle: { color: '#1d70b8', width: 2 },
-      itemStyle: { color: '#1d70b8' },
-      symbol: 'circle', symbolSize: 5
-    }]
-  })
-  chart.resize()
+// 区间收益展示格式：null → '--'，否则带符号百分比
+function fmtRet(v) {
+  if (v == null) return '--'
+  return (v > 0 ? '+' : '') + v.toFixed(2) + '%'
+}
+// 涨跌配色：涨=红，跌=绿，缺失=灰（A股习惯）
+function retClass(v) {
+  if (v == null) return 'ret-na'
+  return v > 0 ? 'ret-pos' : (v < 0 ? 'ret-neg' : 'ret-flat')
 }
 
-const navChartInstances = new Map()
-
-async function loadNavCurves() {
+// 拉取组合内成分基金的区间收益字段，并计算组合加权收益
+async function loadPortfolioReturns() {
   if (!supabase) return
   for (const pf of customPortfolios.value) {
     const codes = (pf.portfolio_data || []).map(h => h.code).filter(Boolean)
-    if (codes.length === 0) continue
+    if (codes.length === 0) { pf._returns = null; pf._fundReturns = {}; continue }
     try {
       const { data } = await supabase.from('fund_scores')
-        .select('c,k1m,k3m,k6m,k1,k2,k3,k5')
+        .select('c,r0w,r1m,r3m,r6m,r1y,r2y,r3y,r5y,r10y,daily_change')
         .in('c', codes)
       const fundMap = {}
       ;(data || []).forEach(f => { fundMap[f.c] = f })
-      const series = buildPortfolioNavSeries(pf.portfolio_data, fundMap, new Date())
-      await nextTick()
-      renderNavChart(pf, series)
-    } catch (e) { console.error('[navCurve]', pf.id, e) }
+      pf._fundReturns = fundMap
+      pf._returns = buildPortfolioReturns(pf.portfolio_data, fundMap)
+    } catch (e) {
+      console.error('[portfolioReturns]', pf.id, e)
+      pf._returns = null
+    }
   }
 }
 
@@ -672,7 +702,7 @@ async function addAiToCustom() {
     // 自动切换到自建组合 tab
     activeTab.value = 'custom'
     await nextTick()
-    loadNavCurves()
+    loadPortfolioReturns()
   } catch (err) {
     console.error('[addAiToCustom]', err)
     toast('添加失败: ' + (err.message || '未知错误'), 'error')
@@ -739,17 +769,6 @@ async function fetchAllETFs(items) {
 
 onMounted(() => {
   loadAiHistory()
-  window.addEventListener('resize', onNavChartResize)
-})
-
-function onNavChartResize() {
-  navChartInstances.forEach(chart => { try { chart.resize() } catch (e) {} })
-}
-
-onUnmounted(() => {
-  window.removeEventListener('resize', onNavChartResize)
-  navChartInstances.forEach(chart => { try { chart.dispose() } catch (e) {} })
-  navChartInstances.clear()
 })
 </script>
 
@@ -781,19 +800,30 @@ onUnmounted(() => {
 .pf-card-del { padding: 2px var(--space-sm); border: 1px solid #d4351c; color: #d4351c; background: #fff; font-size: 13px; cursor: pointer; }
 .pf-holdings { display: flex; flex-direction: column; gap: var(--space-sm); }
 .pf-holding-item { display: flex; justify-content: space-between; align-items: center; padding: var(--space-sm); border: 1px solid var(--border); border-left: 4px solid #1d70b8; }
-.pf-hold-left { display: flex; align-items: center; gap: var(--space-sm); }
+.pf-hold-left { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-sm); }
 .pf-hold-idx { width: 22px; height: 22px; line-height: 22px; text-align: center; background: #1d70b8; color: #fff; font-size: 13px; font-weight: 700; }
 .pf-hold-name { font-size: 16px; font-weight: 700; }
 .pf-hold-code { font-size: 13px; color: var(--text-secondary); }
 .pf-hold-right { display: flex; align-items: center; gap: var(--space-sm); }
 .pf-weight-input { width: 50px; padding: 2px var(--space-sm); border: 1px solid var(--border); font-size: 14px; text-align: center; }
 .pf-hold-nav { font-size: 13px; color: var(--text-secondary); }
-.pf-hold-cat { font-size: 12px; color: #1d70b8; background: #eaf2fb; padding: 1px 6px; white-space: nowrap; }
+.pf-hold-cat { display: inline-flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+.pf-meta-cat { font-size: 12px; color: #1d70b8; background: #eaf2fb; padding: 1px 6px; white-space: nowrap; }
+.pf-meta-score { font-size: 12px; color: #505a66; background: #f3f2f1; padding: 1px 6px; white-space: nowrap; }
+.pf-meta-rank { font-size: 12px; color: #943c0c; background: #fff4e0; padding: 1px 6px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.pf-meta-na { color: #b1b4b6; background: #f3f2f1; }
 .pf-empty { padding: var(--space-lg); text-align: center; color: var(--text-secondary); }
 .pf-summary { margin-top: var(--space-sm); padding-top: var(--space-sm); border-top: 1px solid var(--border); font-size: 14px; color: var(--text-secondary); }
-.pf-nav-wrap { margin-top: var(--space-md); padding-top: var(--space-md); border-top: 1px solid var(--border); }
-.pf-nav-title { font-size: 15px; font-weight: 700; color: var(--text-secondary); margin-bottom: var(--space-sm); }
-.pf-nav-chart { width: 100%; height: 200px; }
+.pf-returns { margin-top: var(--space-md); padding-top: var(--space-md); border-top: 1px solid var(--border); }
+.pf-returns-title { font-size: 15px; font-weight: 700; color: var(--text-secondary); margin-bottom: var(--space-sm); }
+.pf-returns-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 1px; background: var(--border); border: 1px solid var(--border); }
+.pf-ret-cell { background: #fff; padding: 8px 4px; text-align: center; }
+.pf-ret-label { font-size: 12px; color: var(--text-secondary); margin-bottom: 4px; }
+.pf-ret-value { font-size: 14px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.pf-ret-value.ret-pos { color: #d4351c; }   /* 涨=红 */
+.pf-ret-value.ret-neg { color: #00703c; }   /* 跌=绿 */
+.pf-ret-value.ret-flat { color: #505a66; }
+.pf-ret-value.ret-na { color: #b1b4b6; font-weight: 400; }
 
 /* ===== Modal ===== */
 .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.3); display: flex; align-items: center; justify-content: center; z-index: 1000; }

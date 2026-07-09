@@ -108,6 +108,71 @@ export async function getCategoryRankInfo(codes) {
   }
 }
 
+// 按指定评分列（默认 k1=1年评分）在「细分品类(t1_tt)」内排名
+// 返回 { [code]: { cat, score, rank, total } }：
+//   - cat: 细分品类名（t1_tt）
+//   - score: 该基金在 scoreCol 上的评分（如 k1）
+//   - rank: 该品类内按 scoreCol 降序的名次（1 起），total 为该品类基金总数
+// 用于在组合成份基金后展示「分类 + 1年评分 + 排名 153|1480」
+export async function getCategoryRankInfoByScore(codes, scoreCol = 'k1') {
+  if (!supabase || !codes || codes.length === 0) return {}
+  const unique = [...new Set(codes.filter(Boolean))]
+  try {
+    const { data, error } = await supabase
+      .from('fund_scores')
+      .select(`c,t1_tt,${scoreCol}`)
+      .in('c', unique)
+    if (error || !data) return {}
+    const info = {}
+    const cats = []
+    const catSet = new Set()
+    for (const f of data) {
+      const k = f[scoreCol] == null ? null : Number(f[scoreCol])
+      info[f.c] = { cat: f.t1_tt || null, score: k }
+      if (f.t1_tt && !catSet.has(f.t1_tt)) { catSet.add(f.t1_tt); cats.push(f.t1_tt) }
+    }
+    if (cats.length === 0) {
+      const result = {}
+      for (const f of data) result[f.c] = { cat: info[f.c].cat, score: info[f.c].score, rank: null, total: 0 }
+      return result
+    }
+    const { data: all, error: e2 } = await supabase
+      .from('fund_scores')
+      .select(`t1_tt,${scoreCol}`)
+      .in('t1_tt', cats)
+    if (e2 || !all) return {}
+    // 按品类聚合 scoreCol（升序），用于二分查找排名
+    const byCat = {}
+    for (const f of all) {
+      const k = f[scoreCol] == null ? null : Number(f[scoreCol])
+      if (k == null) continue
+      if (!byCat[f.t1_tt]) byCat[f.t1_tt] = []
+      byCat[f.t1_tt].push(k)
+    }
+    const totals = {}
+    for (const cat of Object.keys(byCat)) {
+      byCat[cat].sort((a, b) => a - b)
+      totals[cat] = byCat[cat].length
+    }
+    // 计算每只基金排名：品类内 scoreCol 严格大于本基金的数量 + 1
+    const result = {}
+    for (const f of data) {
+      const r = info[f.c]
+      if (!r.cat || r.score == null) {
+        result[f.c] = { cat: r.cat, score: r.score, rank: null, total: r.cat ? (totals[r.cat] || 0) : 0 }
+        continue
+      }
+      const total = totals[r.cat] || 0
+      const rank = total - bisectRight(byCat[r.cat] || [], r.score) + 1
+      result[f.c] = { cat: r.cat, score: r.score, rank, total }
+    }
+    return result
+  } catch (e) {
+    console.error('[getCategoryRankInfoByScore]', e)
+    return {}
+  }
+}
+
 async function fetchFundScoresImpl(params = {}) {
   const { t0, t1, search, kKey = 'k1', page = 1, pageSize = 100, sortAsc, etf, lof, dk, sg, dailyLimit, scaleMin, scaleMax } = params
   if (supabase) {
