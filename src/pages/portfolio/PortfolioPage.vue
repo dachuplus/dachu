@@ -23,9 +23,7 @@
       <!-- 已登录：组合列表 -->
       <template v-else>
         <div class="pf-actions">
-          <span class="user-badge">{{ user?.email || '已登录' }}</span>
           <button class="btn-primary" @click="showCreateModal = true">+ 新建组合</button>
-          <button class="btn-signout" @click="doLogout">退出</button>
         </div>
 
         <!-- 组合列表 -->
@@ -43,6 +41,7 @@
                 <span class="pf-hold-idx">{{ idx + 1 }}</span>
                 <span class="pf-hold-name">{{ h.name }}</span>
                 <span class="pf-hold-code">{{ h.code }}</span>
+                <span class="pf-hold-cat" v-if="fmtCatRank(catRankMap[h.code])">{{ fmtCatRank(catRankMap[h.code]) }}</span>
               </div>
               <div class="pf-hold-right">
                 <input
@@ -113,6 +112,15 @@
           </button>
         </div>
 
+        <div class="ai-cat-row">
+          <span class="ai-cat-label">基金分类：</span>
+          <select v-model="aiCategory" class="ai-cat-select" :disabled="aiGenerating">
+            <option value="">全部分类</option>
+            <option v-for="cat in AI_CATEGORY_OPTIONS" :key="cat" :value="cat">{{ cat }}</option>
+          </select>
+          <span class="ai-cat-hint" v-if="aiCategory">将仅从「{{ aiCategory }}」品类内挑选高分基金</span>
+        </div>
+
         <div class="ai-action">
           <button class="ai-generate-btn" :disabled="aiGenerating" @click="generateAiPortfolio">
             <span v-if="aiGenerating">AI 分析中...</span>
@@ -145,6 +153,7 @@
               <div class="ai-fund-left">
                 <span class="ai-fund-name">{{ f.name }}</span>
                 <span class="ai-fund-code">{{ f.code }}</span>
+                <span class="ai-fund-cat" v-if="fmtCatRank(catRankMap[f.code])">{{ fmtCatRank(catRankMap[f.code]) }}</span>
               </div>
               <div class="ai-fund-right">
                 <span class="ai-fund-weight">{{ f.weight }}%</span>
@@ -261,6 +270,7 @@ import { supabase } from '../../api/supabase'
 import SvgIcon from '../../components/SvgIcon.vue'
 import echarts from '../../utils/echarts-setup'
 import { fetchValue500All } from '../../utils/api'
+import { getCategoryRankInfo } from '../../api/data.js'
 import { getIndexQuotes, buildMarketData, parseValue500Data } from '../../utils/market-data'
 import { calcAllExpectedReturns, calcEnhancedRiskParityWeights } from '../../utils/calc'
 import { useAuth } from '../../composables/useAuth'
@@ -270,7 +280,7 @@ import { createPortfolio as savePortfolioToDb, deletePortfolio } from '../../api
 const {
   user, isLoggedIn,
   portfolios: customPortfolios,
-  signOut, refreshUserData, showLogin
+  refreshUserData, showLogin
 } = useAuth()
 
 // ===== Tab =====
@@ -287,9 +297,19 @@ function switchTab(key) {
   if (key === 'custom' && isLoggedIn.value) loadCustomPortfolios()
 }
 
-// ===== 退出 =====
-async function doLogout() {
-  await signOut()
+// ===== 组合成份基金的细分品类内排名 =====
+const catRankMap = ref({})
+function fmtCatRank(info) {
+  if (!info || !info.cat) return ''
+  if (info.rank == null) return info.cat
+  return `${info.cat} ${info.rank}|${info.total}`
+}
+async function enrichRanks() {
+  const codes = new Set()
+  customPortfolios.value.forEach(pf => (pf.portfolio_data || []).forEach(h => h.code && codes.add(h.code)))
+  if (aiPortfolio.value?.funds) aiPortfolio.value.funds.forEach(f => f.code && codes.add(f.code))
+  if (codes.size === 0) { catRankMap.value = {}; return }
+  try { catRankMap.value = await getCategoryRankInfo([...codes]) } catch (e) { catRankMap.value = {} }
 }
 
 // ===== 自建组合 =====
@@ -298,6 +318,7 @@ const newPfName = ref('')
 
 async function loadCustomPortfolios() {
   await refreshUserData()
+  await enrichRanks()
   loadNavCurves()
 }
 
@@ -446,6 +467,14 @@ const AI_STRATEGIES = [
   { key: 'technology',     label: '科技主题',    desc: '聚焦半导体/AI/新能源' },
   { key: 'consumption',    label: '消费主题',    desc: '必选+可选消费龙头' },
 ]
+// 所有二级分类（细分品类，对应 fund_scores.t1_tt），用于 AI 组合的「基金分类」筛选
+const AI_CATEGORY_OPTIONS = [
+  '混合型-偏股', '指数型-股票', '混合型-灵活', '债券型-长债', '债券型-混合二级', '混合型-偏债', '股票型',
+  '债券型-中短债', '债券型-混合一级', 'FOF-稳健型', '指数型-固收', 'FOF-均衡型', 'FOF-进取型',
+  '指数型-海外股票', '债券型-利率债', '债券型-信用债', 'QDII-混合偏股', '混合型-平衡', 'QDII-普通股票',
+  '指数型-其他', 'QDII-纯债', '混合型-绝对收益', 'QDII-混合灵活', 'QDII-混合债', 'QDII-商品', 'QDII-FOF', 'QDII-REITs', 'QDII-混合平衡'
+]
+const aiCategory = ref('')
 const aiStrategy = ref('balanced')
 const aiGenerating = ref(false)
 const aiStatusText = ref('')
@@ -460,7 +489,7 @@ function saveAiToHistory(pf) {
   const h = [...aiHistory.value]; h.unshift(pf); if (h.length > 10) h.length = 10
   aiHistory.value = h; localStorage.setItem(AI_STORAGE_KEY, JSON.stringify(h))
 }
-function loadAiFromHistory(pf) { aiPortfolio.value = pf }
+function loadAiFromHistory(pf) { aiPortfolio.value = pf; enrichRanks() }
 
 // ==== 自定义弹窗 ====
 const showCustomDialog = ref(false)
@@ -471,13 +500,15 @@ async function generateAiPortfolio() {
   aiGenerating.value = true
   aiStatusText.value = '正在查询高分靠谱基金...'
   try {
-    // 1. 从 Supabase 获取高分靠谱基金（k_all >= 70）
+    // 1. 从 Supabase 获取高分靠谱基金（按「基金分类」筛选 + k_all 降序）
     let fundPool = []
     if (supabase) {
-      const { data } = await supabase.from('fund_scores')
-        .select('c,n,t0,k_all,score_grade')
-        .not('k_all','is',null).gte('k_all', 70)
-        .order('k_all', { ascending: false }).limit(30)
+      let q = supabase.from('fund_scores')
+        .select('c,n,t0,k_all,score_grade,t1_tt')
+        .not('k_all','is',null)
+      if (aiCategory.value) q = q.eq('t1_tt', aiCategory.value)
+      else q = q.gte('k_all', 70)
+      const { data } = await q.order('k_all', { ascending: false }).limit(30)
       fundPool = (data || []).map(f => `${f.c} ${f.n || '基金'+f.c} (靠谱${f.k_all?.toFixed(0)})`)
     }
     if (fundPool.length === 0) {
@@ -488,11 +519,12 @@ async function generateAiPortfolio() {
     const strategyName = strategy?.label || '均衡配置'
     const customReq = customRequirement.value.trim()
     const reqHint = customReq ? `\n用户额外要求：${customReq}` : ''
+    const catHint = aiCategory.value ? `\n基金池已限定在「${aiCategory.value}」细分品类内，请从该品类的高分基金中挑选。` : ''
 
     const prompt = `你是一位专业基金投顾。从以下高分靠谱基金池中，为"${strategyName}"策略选出10只基金构建组合。
 基金池（代码 名称 靠谱分）：
 ${fundPool.join('\n')}
-${reqHint}
+${reqHint}${catHint}
 请返回纯JSON（不要markdown）：
 { "strategyName": "${strategyName}", "summary": "一句话概述（50字内）",
   "funds": [{"code":"基金代码","name":"基金名称","weight":10,"reason":"推荐理由（15字内）"}],
@@ -522,6 +554,7 @@ ${reqHint}
     }
     saveAiToHistory(aiPortfolio.value)
     aiStatusText.value = 'AI 组合生成完成'
+    await enrichRanks()
     customRequirement.value = ''
     showCustomDialog.value = false
   } catch (err) { console.error(err); aiStatusText.value = '生成失败: ' + err.message; aiPortfolio.value = null }
@@ -668,9 +701,6 @@ onUnmounted(() => {
 
 /* ===== 自建组合 ===== */
 .pf-actions { margin-bottom: var(--space-md); display: flex; align-items: center; gap: var(--space-md); }
-.user-badge { font-size: 14px; color: var(--text-secondary); }
-.btn-signout { background: none; border: 1px solid var(--border); color: var(--text-secondary); padding: var(--space-xs) var(--space-md); font-size: 14px; cursor: pointer; }
-.btn-signout:hover { background: #f3f2f1; }
 .btn-primary { padding: var(--space-sm) var(--space-lg); background: #1d70b8; color: #fff; border: none; font-size: 16px; cursor: pointer; }
 .btn-primary:disabled { opacity: 0.5; }
 .btn-secondary { padding: var(--space-sm) var(--space-lg); background: #f3f2f1; color: var(--text-primary); border: 1px solid var(--border); font-size: 16px; cursor: pointer; }
@@ -687,6 +717,7 @@ onUnmounted(() => {
 .pf-hold-right { display: flex; align-items: center; gap: var(--space-sm); }
 .pf-weight-input { width: 50px; padding: 2px var(--space-sm); border: 1px solid var(--border); font-size: 14px; text-align: center; }
 .pf-hold-nav { font-size: 13px; color: var(--text-secondary); }
+.pf-hold-cat { font-size: 12px; color: #1d70b8; background: #eaf2fb; padding: 1px 6px; white-space: nowrap; }
 .pf-empty { padding: var(--space-lg); text-align: center; color: var(--text-secondary); }
 .pf-summary { margin-top: var(--space-sm); padding-top: var(--space-sm); border-top: 1px solid var(--border); font-size: 14px; color: var(--text-secondary); }
 .pf-nav-wrap { margin-top: var(--space-md); padding-top: var(--space-md); border-top: 1px solid var(--border); }
@@ -758,6 +789,11 @@ onUnmounted(() => {
 .ai-fund-right { text-align: right; }
 .ai-fund-weight { font-size: 19px; font-weight: 700; display: block; }
 .ai-fund-reason { font-size: 13px; color: var(--text-secondary); }
+.ai-fund-cat { font-size: 12px; color: #1d70b8; background: #eaf2fb; padding: 1px 6px; margin-top: 2px; align-self: flex-start; }
+.ai-cat-row { display: flex; align-items: center; gap: var(--space-sm); margin-bottom: var(--space-lg); flex-wrap: wrap; }
+.ai-cat-label { font-size: 15px; font-weight: 700; }
+.ai-cat-select { padding: var(--space-xs) var(--space-sm); border: 1px solid var(--border); font-size: 15px; background: #fff; min-width: 200px; }
+.ai-cat-hint { font-size: 13px; color: var(--text-secondary); }
 .ai-backtest { padding: var(--space-md); background: #f3f2f1; }
 .ai-bt-title { font-size: 16px; font-weight: 700; margin-bottom: var(--space-sm); }
 .ai-bt-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--space-sm); }

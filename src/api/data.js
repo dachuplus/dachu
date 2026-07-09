@@ -30,6 +30,53 @@ export function fetchFundScores(params = {}) {
   return withCache(key, 60000, () => fetchFundScoresImpl(params))
 }
 
+// 计算基金在「细分品类(t1_tt)」内的靠谱分排名
+// 返回 { [code]: { cat, rank, total } }：rank 为该品类内按 k_all 降序的名次（1 起），total 为该品类基金总数
+// 用于在组合成份基金后展示「债券型-混合二级 1|1480」这样的细分品类排名
+export async function getCategoryRankInfo(codes) {
+  if (!supabase || !codes || codes.length === 0) return {}
+  const unique = [...new Set(codes.filter(Boolean))]
+  try {
+    const { data, error } = await supabase
+      .from('fund_scores')
+      .select('c,t1_tt,k_all')
+      .in('c', unique)
+    if (error || !data) return {}
+    const info = {}
+    const cats = new Set()
+    for (const f of data) {
+      const k = f.k_all == null ? null : Number(f.k_all)
+      info[f.c] = { cat: f.t1_tt || null, kAll: k }
+      if (f.t1_tt) cats.add(f.t1_tt)
+    }
+    // 各细分品类基金总数
+    const totals = {}
+    await Promise.all([...cats].map(async (cat) => {
+      const { count, error: e2 } = await supabase
+        .from('fund_scores').select('*', { count: 'exact', head: true })
+        .eq('t1_tt', cat)
+      totals[cat] = e2 ? 0 : (count || 0)
+    }))
+    // 各基金在品类内的排名
+    const result = {}
+    await Promise.all(data.map(async (f) => {
+      const r = info[f.c]
+      if (!r.cat || r.kAll == null) {
+        result[f.c] = { cat: r.cat, rank: null, total: r.cat ? (totals[r.cat] || 0) : 0 }
+        return
+      }
+      const { count, error: e3 } = await supabase
+        .from('fund_scores').select('*', { count: 'exact', head: true })
+        .eq('t1_tt', r.cat).gt('k_all', r.kAll)
+      result[f.c] = { cat: r.cat, rank: (count || 0) + 1, total: totals[r.cat] || 0 }
+    }))
+    return result
+  } catch (e) {
+    console.error('[getCategoryRankInfo]', e)
+    return {}
+  }
+}
+
 async function fetchFundScoresImpl(params = {}) {
   const { t0, t1, t1In, search, kKey = 'k1', page = 1, pageSize = 100, sortAsc, classSource, etf, lof, dk, sg, dailyLimit } = params
   if (supabase) {

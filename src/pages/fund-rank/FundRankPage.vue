@@ -20,7 +20,6 @@
         <span class="filter-label">分类：</span>
         <div class="filter-chips">
           <div class="filter-chip" :class="{ active: classSource === 'tt' }" @click="setClassSource('tt')">天天</div>
-          <div class="filter-chip" :class="{ active: classSource === 'hspj' }" @click="setClassSource('hspj')">聚源</div>
           <div class="filter-chip more-chip" @click="showMoreSources = !showMoreSources">
             更多 ▾
             <div class="source-dropdown" v-if="showMoreSources" @click.stop>
@@ -604,6 +603,11 @@ const CAT_TREE_TT = {
     '指数型-股票': ['指数型-股票'],
     '股票型': ['股票型'],
   },
+  '指数型': {
+    '指数型-股票': ['指数型-股票'],
+    '指数型-固收': ['指数型-固收'],
+    '指数型-其他': ['指数型-其他'],
+  },
   '混合型': {
     '混合型-偏股': ['混合型-偏股'],
     '混合型-灵活': ['混合型-灵活'],
@@ -673,7 +677,7 @@ const filterDailyLimit = ref('')
 const filterSG = ref('')       // 申购状态：''全部 '1'可申购 '0'暂停申购
 const classSource = ref('tt')       // 分类数据源：tt=天天分类，hspj=恒生聚源，choice/ifind/wind/mstar/jajx/yhfl
 const classSources = [
-  { key: 'hspj',   label: '恒生聚源', available: true },
+  { key: 'hspj',   label: '恒生聚源', available: false },
   { key: 'tt',     label: '天天分类', available: true },
   { key: 'choice', label: 'Choice',   available: false },
   { key: 'ifind',  label: 'iFinD',    available: false },
@@ -683,7 +687,7 @@ const classSources = [
   { key: 'yhfl',   label: '银河分类', available: false },
 ]
 const showMoreSources = ref(false)
-const otherSources = classSources.filter(s => s.key !== 'hspj' && s.key !== 'tt')
+const otherSources = classSources.filter(s => s.key !== 'tt')
 
 // 自定义指标权重（6项）
 const showWeightPanel = ref(false)
