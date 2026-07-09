@@ -15,39 +15,25 @@
 
     <!-- 筛选区 -->
     <div class="filter-section">
-      <!-- 分类数据源 -->
-      <div class="filter-row">
-        <span class="filter-label">分类：</span>
-        <div class="filter-chips">
-          <div class="filter-chip" :class="{ active: classSource === 'tt' }" @click="setClassSource('tt')">天天</div>
-          <div class="filter-chip more-chip" @click="showMoreSources = !showMoreSources">
-            更多 ▾
-            <div class="source-dropdown" v-if="showMoreSources" @click.stop>
-              <div v-for="src in otherSources" :key="src.key" class="source-drop-item"
-                :class="{ disabled: !src.available }"
-                @click="setClassSource(src.key); showMoreSources = false">
-                {{ src.label }}{{ src.available ? '' : '（接入中）' }}
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- 一级分类 -->
+      <!-- 一级分类（动态，来自 fund_scores.t0） -->
       <div class="filter-row">
         <span class="filter-label">一级分类</span>
         <div class="filter-chips">
           <div class="filter-chip" :class="{ active: filterT0 === '' }" @click="setT0('')">全部</div>
-          <div v-for="t0 in t0List" :key="t0" class="filter-chip" :class="{ active: filterT0 === t0 }" @click="setT0(t0)">{{ t0 }}</div>
+          <div v-for="item in t0List" :key="item.value" class="filter-chip" :class="{ active: filterT0 === item.value }" @click="setT0(item.value)">
+            {{ item.label }}<span class="chip-cnt" v-if="item.cnt">{{ item.cnt }}</span>
+          </div>
         </div>
       </div>
 
-      <!-- 二级分类（依赖一级） -->
-      <div class="filter-row" v-if="t1List.length > 0">
+      <!-- 二级分类（依赖一级，来自 fund_scores.t1_tt） -->
+      <div class="filter-row" v-if="filterT0 && t1List.length > 0">
         <span class="filter-label">二级分类</span>
         <div class="filter-chips">
-          <div class="filter-chip" :class="{ active: filterT1 === '' }" @click="setT1('')">全部</div>
-          <div v-for="t1 in t1List" :key="t1" class="filter-chip" :class="{ active: filterT1 === t1 }" @click="setT1(t1)">{{ t1 }}</div>
+          <div class="filter-chip" v-if="filterT0 !== '货币型'" :class="{ active: filterT1 === '' }" @click="setT1('')">全部</div>
+          <div v-for="item in t1List" :key="item.value" class="filter-chip" :class="{ active: filterT1 === item.value }" @click="setT1(item.value)">
+            {{ item.label }}<span class="chip-cnt" v-if="item.cnt">{{ item.cnt }}</span>
+          </div>
         </div>
       </div>
 
@@ -554,7 +540,7 @@
 
 <script setup>
 import { ref, computed, reactive, onMounted, onUnmounted } from 'vue'
-import { fetchFundScores, fetchFundMeta } from '../../api/data.js'
+import { fetchFundScores, fetchFundMeta, fetchFundCategories } from '../../api/data.js'
 import { fmtScore, fmtRet, fmtDD, fmtSR, fmtScale, fmtFundScale, scoreColor } from '../../utils/format.js'
 import { addFundToPortfolio } from '../../api/user-data'
 import { useAuth } from '../../composables/useAuth.js'
@@ -599,95 +585,33 @@ const riskPeriods = [
   { label: '近5年', dd: 'dd5y', sr: 'sr5y' },
 ]
 
-// 恒生聚源分类树（基于聚源基金分类标准Excel + DB 实际数据兜底）
-// 每个 t0 下：Excel 精确分类在前，"未细分"兜底在后（匹配 DB 中 t1=t0 的通用记录）
-const CAT_TREE_HSPJ = {
-  'FOF': {
-    '混合型FOF': ['混合型FOF'],
-    '养老目标FOF': ['养老目标FOF'],
-    '债券型FOF': ['债券型FOF'],
-    '未细分': ['FOF'],
-  },
-  'QDII基金': {
-    'QDII混合型基金': ['QDII混合型基金'],
-    'QDII股票型基金': ['QDII股票型基金'],
-    '未细分': ['QDII基金'],
-  },
-  '债券型基金': {
-    '纯债型基金': ['纯债型基金'],
-    '混合债券型基金': ['混合债券型基金'],
-    '指数型债券基金': ['指数型债券基金'],
-    '未细分': ['债券型基金'],
-  },
-  '混合型基金': {
-    '偏股混合型基金': ['偏股混合型基金'],
-    '偏债混合型基金': ['偏债混合型基金'],
-    '灵活配置型基金': ['灵活配置型基金'],
-    '平衡混合型基金': ['平衡混合型基金'],
-    '未细分': ['混合型基金'],
-  },
-  '股票型基金': {
-    '指数型股票基金': ['指数型股票基金'],
-    '普通股票型基金': ['普通股票型基金'],
-    '未细分': ['股票型基金'],
-  },
-}
+// 分类数据源：动态取自 fund_scores 的 t0（一级分类）与 t1_tt（二级分类）
+// 通过 Supabase RPC get_fund_categories() 聚合，保证筛选项与数据完全一致
+const catLoading = ref(false)
+const t0List = ref([])   // [{ value, label, cnt }]
+const t1Map = ref({})    // { [t0]: [{ value, label, cnt }] }
 
-// 天天基金分类树（基于 FundGuideapi 实际返回的 dt/gp/zq/hh/fof/qdii 分类 t2 值）
-// 分类值严格匹配 API 返回的 f[3] 字段，存储在数据库 t1_tt 列
-const CAT_TREE_TT = {
-  '股票型': {
-    '指数型-股票': ['指数型-股票'],
-    '股票型': ['股票型'],
-  },
-  '指数型': {
-    '指数型-股票': ['指数型-股票'],
-    '指数型-固收': ['指数型-固收'],
-    '指数型-其他': ['指数型-其他'],
-  },
-  '混合型': {
-    '混合型-偏股': ['混合型-偏股'],
-    '混合型-灵活': ['混合型-灵活'],
-    '混合型-偏债': ['混合型-偏债'],
-    '混合型-平衡': ['混合型-平衡'],
-    '混合型-绝对收益': ['混合型-绝对收益'],
-    '指数型-固收': ['指数型-固收'],
-    '指数型-其他': ['指数型-其他'],
-    'FOF-稳健型': ['FOF-稳健型'],
-    'FOF-均衡型': ['FOF-均衡型'],
-    'FOF-进取型': ['FOF-进取型'],
-  },
-  '债券型': {
-    '债券型-长债': ['债券型-长债'],
-    '债券型-混合二级': ['债券型-混合二级'],
-    '债券型-中短债': ['债券型-中短债'],
-    '债券型-混合一级': ['债券型-混合一级'],
-    '指数型-固收': ['指数型-固收'],
-    '债券型-利率债': ['债券型-利率债'],
-    '债券型-信用债': ['债券型-信用债'],
-  },
-  'QDII': {
-    '指数型-海外股票': ['指数型-海外股票'],
-    'QDII-混合偏股': ['QDII-混合偏股'],
-    'QDII-普通股票': ['QDII-普通股票'],
-    'QDII-纯债': ['QDII-纯债'],
-    'QDII-混合灵活': ['QDII-混合灵活'],
-    'QDII-混合债': ['QDII-混合债'],
-    'QDII-商品': ['QDII-商品'],
-    'QDII-REITs': ['QDII-REITs'],
-    'QDII-FOF': ['QDII-FOF'],
-    'QDII-混合平衡': ['QDII-混合平衡'],
-    '指数型-股票': ['指数型-股票'],
-  },
-  'FOF': {
-    'FOF-稳健型': ['FOF-稳健型'],
-    'FOF-均衡型': ['FOF-均衡型'],
-    'FOF-进取型': ['FOF-进取型'],
-  },
-  // 货币型：天天无 t1_tt 二级分类，按聚源 t0='货币型' 过滤
-  '货币型': {
-    '货币基金': [],
-  },
+async function fetchCategories() {
+  catLoading.value = true
+  try {
+    const data = await fetchFundCategories()
+    const t0Arr = (data && data.t0) || []
+    const t1Arr = (data && data.t1) || []
+    // 一级分类
+    t0List.value = t0Arr.map(x => ({ value: x.t0, label: x.t0, cnt: x.cnt }))
+    // 二级分类按 t0 分组
+    const map = {}
+    for (const x of t1Arr) {
+      if (!x.t1_tt) continue
+      if (!map[x.t0]) map[x.t0] = []
+      map[x.t0].push({ value: x.t1_tt, label: x.t1_tt, cnt: x.cnt })
+    }
+    t1Map.value = map
+  } catch (e) {
+    console.error('[fund-rank] fetchCategories error', e)
+  } finally {
+    catLoading.value = false
+  }
 }
 
 // ========== 响应式断点 ==========
@@ -712,19 +636,6 @@ const filterCN = ref('')       // 场内：''全部 '1'是(ETF/LOF/REITs不计�
 const filterDK = ref('')
 const filterDailyLimit = ref('')
 const filterSG = ref('')       // 申购状态：''全部 '1'可申购 '0'暂停申购
-const classSource = ref('tt')       // 分类数据源：tt=天天分类，hspj=恒生聚源，choice/ifind/wind/mstar/jajx/yhfl
-const classSources = [
-  { key: 'hspj',   label: '恒生聚源', available: false },
-  { key: 'tt',     label: '天天分类', available: true },
-  { key: 'choice', label: 'Choice',   available: false },
-  { key: 'ifind',  label: 'iFinD',    available: false },
-  { key: 'wind',   label: 'Wind',     available: false },
-  { key: 'mstar',  label: 'Morningstar', available: false },
-  { key: 'jajx',   label: '济安金信', available: false },
-  { key: 'yhfl',   label: '银河分类', available: false },
-]
-const showMoreSources = ref(false)
-const otherSources = classSources.filter(s => s.key !== 'tt')
 
 // 自定义指标权重（6项）
 const showWeightPanel = ref(false)
@@ -750,18 +661,6 @@ function applyCustomWeights() {
   loadData(true)
 }
 
-function setClassSource(key) {
-  const src = classSources.find(s => s.key === key)
-  if (!src || !src.available) return
-  if (classSource.value === key) return
-  classSource.value = key
-  // 切换数据源时重置分类筛选和更多筛选（不同来源的分类体系不同）
-  filterT0.value = ''
-  filterT1.value = ''
-  clearMoreFilters()
-  loadData(true)
-}
-
 // 搜索/周期/分页/排序
 const searchText = ref('')
 const currentPeriod = ref('k1')     // 默认按 1 年排序（用户可切换到 k3/k5/k_all 等）
@@ -781,16 +680,15 @@ const totalCount = ref(null)      // 当前筛选条件下后端总数（来自 
 const detailFund = ref(null)
 const showScoreHelp = ref(false)
 
-// ========== 计算属性：分类联动 ==========
-const currentCatTree = computed(() => classSource.value === 'tt' ? CAT_TREE_TT : CAT_TREE_HSPJ)
-
-const t0List = computed(() => Object.keys(currentCatTree.value))
-
+// ========== 计算属性：分类联动（数据来自 RPC，已存 t0List / t1Map ref）==========
 const t1List = computed(() => {
-  if (!filterT0.value || !currentCatTree.value[filterT0.value]) return []
-  // 货币型无二级分类（t1_tt 为 null），不展示二级筛选
-  if (filterT0.value === '货币型') return []
-  return Object.keys(currentCatTree.value[filterT0.value])
+  if (!filterT0.value) return []
+  // 货币型无 t1_tt，二级分类用自身「货币基金」表示（点击等同于按 t0='货币型' 过滤）
+  if (filterT0.value === '货币型') {
+    const cnt = (t0List.value.find(x => x.value === '货币型') || {}).cnt || 0
+    return [{ value: '', label: '货币基金', cnt }]
+  }
+  return t1Map.value[filterT0.value] || []
 })
 
 
@@ -961,22 +859,10 @@ async function loadData(reset = true, _retryCount = 0) {
     if (filterFOF.value === '1') t0Filter = 'FOF'
     if (filterFOF.value === '0' && !filterT0.value) t0Filter = undefined
 
-    // 天天分类源：计算该一级分类下所有 t1_tt 取值集合，用于 in() 过滤
-    // （t1_tt 覆盖 ~95%，二级债基等不再因 t0 为空而返回 0）
-    let t1In
-    if (classSource.value === 'tt' && filterT0.value && !filterT1.value) {
-      const group = currentCatTree.value[filterT0.value]
-      if (group) {
-        t1In = []
-        for (const vals of Object.values(group)) t1In.push(...vals)
-      }
-    }
-
+    // t0（一级分类）/ t1（二级分类 t1_tt）直接来自 fund_scores，服务端按总表过滤
     const result = await withTimeout(fetchFundScores({
       t0: t0Filter,
       t1: filterT1.value || undefined,
-      t1In,
-      classSource: classSource.value,
       search: buildSearchText(),
       kKey: currentPeriod.value,
       sortAsc: sortAsc.value,
@@ -1156,6 +1042,7 @@ function openDetail(fund) {
 
 onMounted(() => {
   window.addEventListener('resize', onResize)
+  fetchCategories()
   loadData()
   loadMeta()
 })
@@ -1238,6 +1125,11 @@ onUnmounted(() => {
   color: #1d70b8; font-weight: 700; text-decoration: none;
   border-bottom: 4px solid #1d70b8; padding-bottom: 0;
 }
+.chip-cnt {
+  font-size: 12px; font-weight: 400; color: var(--text-secondary);
+  margin-left: 4px; font-variant-numeric: tabular-nums;
+}
+.filter-chip.active .chip-cnt { color: #1d70b8; }
 .more-chip { position: relative; }
 .source-dropdown {
   position: absolute; top: 100%; left: 0; z-index: 100;

@@ -109,24 +109,17 @@ export async function getCategoryRankInfo(codes) {
 }
 
 async function fetchFundScoresImpl(params = {}) {
-  const { t0, t1, t1In, search, kKey = 'k1', page = 1, pageSize = 100, sortAsc, classSource, etf, lof, dk, sg, dailyLimit } = params
+  const { t0, t1, search, kKey = 'k1', page = 1, pageSize = 100, sortAsc, etf, lof, dk, sg, dailyLimit } = params
   if (supabase) {
     let query = supabase.from('fund_scores').select(FUND_SCORES_COLS, { count: 'exact', head: false })
-    if (classSource === 'tt') {
-      // 天天分类：t1_tt 已填充（覆盖 ~95%），直接按 t1_tt 过滤，避免依赖 t0（聚源列，部分为空）
-      if (t1) {
-        query = query.eq('t1_tt', t1)
-      } else if (t0 === '货币型') {
-        // 货币型无 t1_tt，按聚源 t0 过滤
-        query = query.eq('t0', '货币型')
-      } else if (t1In && t1In.length) {
-        query = query.in('t1_tt', t1In)
-      }
-      // 注：tt 源不再用 t0 列过滤
-    } else {
-      // 恒生聚源分类：t0/t1 列全覆盖
-      if (t0) query = query.eq('t0', t0)
-      if (t1) query = query.eq('t1', t1)
+    // 分类筛选：直接采用 fund_scores 的「一级分类 t0」与「二级分类 t1_tt」
+    // （从总表服务端过滤，而非客户端对前 100 条再筛）
+    if (t1) {
+      // 二级分类：按天天分类 t1_tt 精确过滤
+      query = query.eq('t1_tt', t1)
+    } else if (t0) {
+      // 一级分类：按聚源 t0 过滤（货币型 t1_tt 为 NULL，也走此分支）
+      query = query.eq('t0', t0)
     }
     if (search) query = query.or(`n.ilike.%${search}%,c.ilike.%${search}%`)
     // 服务端下推：产品类型/状态筛选（避免前端只过滤首页导致计数与展示不一致）
@@ -161,6 +154,23 @@ async function fetchFundScoresImpl(params = {}) {
   }
   // Mock fallback
   return { data: MOCK_FUNDS, count: MOCK_FUNDS.length }
+}
+
+// ========== 基金分类（动态，来自 fund_scores 的 t0/t1_tt）==========
+// 调用 Supabase RPC get_fund_categories()，返回：
+//   { t0: [{t0, cnt}], t1: [{t0, t1_tt, cnt}] }
+// 一级分类用 t0，二级分类用 t1_tt（货币型 t1_tt 为 NULL，前端单独处理）
+export function fetchFundCategories() {
+  return withCache('fundCategories', 86400000, fetchFundCategoriesImpl)
+}
+
+async function fetchFundCategoriesImpl() {
+  if (supabase) {
+    const { data, error } = await supabase.rpc('get_fund_categories')
+    if (error) throw error
+    return data
+  }
+  return { t0: [], t1: [] }
 }
 
 // ========== 基金元信息 ==========
