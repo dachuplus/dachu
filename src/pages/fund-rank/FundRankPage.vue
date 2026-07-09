@@ -210,7 +210,7 @@
               基金经理<span class="th-arrow" v-if="sortField === 'fund_manager'">{{ sortDir === 'asc' ? '▲' : '▼' }}</span>
             </th>
             <th class="col-scale sortable" @click="toggleColumnSort('fund_scale')">
-              基金规模<span class="th-arrow" v-if="sortField === 'fund_scale'">{{ sortDir === 'asc' ? '▲' : '▼' }}</span>
+              基金规模（亿）<span class="th-arrow" v-if="sortField === 'fund_scale'">{{ sortDir === 'asc' ? '▲' : '▼' }}</span>
             </th>
             <th v-for="p in displayPeriods" :key="p.key" class="col-score sortable" :class="{ 'col-sort': currentPeriod === p.key }" @click="switchPeriod(p.key)">
               {{ p.label }}<span class="th-arrow" v-if="currentPeriod === p.key">{{ sortAsc ? '▲' : '▼' }}</span>
@@ -232,13 +232,14 @@
               <span class="score-val" :style="scoreColor(fund[p.key])">{{ fmtScore(fund[p.key]) }}</span>
             </td>
             <td class="col-actions">
-              <span class="action-btn" title="点赞" @click.stop="thumbUp(fund)">
+              <span class="action-btn" :class="{ active: likesMap[fund.c] > 0 }" title="点赞" @click.stop="thumbUp(fund)">
                 <SvgIcon name="thumbs-up" :size="16" />
+                <span class="action-count" v-if="likesMap[fund.c] > 0">{{ likesMap[fund.c] }}</span>
               </span>
-              <span class="action-btn" title="吐槽" @click.stop="thumbDown(fund)">
+              <span class="action-btn" :class="{ active: dislikedSet.has(fund.c) }" title="吐槽" @click.stop="thumbDown(fund)">
                 <SvgIcon name="thumbs-down" :size="16" />
               </span>
-              <span class="action-btn action-add" title="加入组合" @click.stop="addToPortfolio(fund)">
+              <span class="action-btn action-add" title="加入组合" @click.stop="openPortfolioPicker(fund)">
                 <SvgIcon name="plus-circle" :size="16" />
               </span>
             </td>
@@ -258,19 +259,20 @@
           <a class="fund-code" :href="eastMoneyUrl(fund.c)" target="_blank" @click.stop>{{ fund.c }}</a>
           <a class="fund-name" :href="eastMoneyUrl(fund.c)" target="_blank" @click.stop>{{ fund.n || '基金' + fund.c }}</a>
           <span class="fund-card-actions" @click.stop>
-            <span class="action-icon" title="点赞" @click="thumbUp(fund)">
+            <span class="action-icon" :class="{ active: likesMap[fund.c] > 0 }" title="点赞" @click="thumbUp(fund)">
               <SvgIcon name="thumbs-up" :size="16" />
+              <span class="action-count-sm" v-if="likesMap[fund.c] > 0">{{ likesMap[fund.c] }}</span>
             </span>
-            <span class="action-icon" title="吐槽" @click="thumbDown(fund)">
+            <span class="action-icon" :class="{ active: dislikedSet.has(fund.c) }" title="吐槽" @click="thumbDown(fund)">
               <SvgIcon name="thumbs-down" :size="16" />
             </span>
-            <span class="action-icon" title="加入组合" @click="addToPortfolio(fund)">
+            <span class="action-icon" title="加入组合" @click="openPortfolioPicker(fund)">
               <SvgIcon name="plus-circle" :size="16" />
             </span>
           </span>
         </div>
         <div class="fund-card-mgr" v-if="fund.fund_manager">{{ fund.fund_manager }}</div>
-        <div class="fund-card-scale" v-if="fund.fund_scale != null">规模：{{ fmtFundScale(fund.fund_scale) }}</div>
+        <div class="fund-card-scale" v-if="fund.fund_scale != null">规模（亿）：{{ fmtFundScale(fund.fund_scale) }}</div>
         <div class="fund-card-scores">
           <span
             v-for="p in displayPeriods"
@@ -514,6 +516,39 @@
         </div>
       </template>
     </Teleport>
+
+    <!-- 加入组合选择器 -->
+    <Teleport to="body">
+      <template v-if="pickerFund">
+        <div class="mask" @click="pickerFund = null"></div>
+        <div class="picker-panel">
+          <div class="picker-header">
+            <span class="picker-title">加入组合</span>
+            <span class="picker-close" @click="pickerFund = null">&#x2715;</span>
+          </div>
+          <div class="picker-body">
+            <p class="picker-fund-name">{{ pickerFund.name }}（{{ pickerFund.code }}）</p>
+            <p class="picker-hint">请选择要加入的自建组合：</p>
+            <div class="picker-list" v-if="portfolios && portfolios.length > 0">
+              <button
+                v-for="p in portfolios"
+                :key="p.id"
+                class="picker-item"
+                @click="confirmAddToPortfolio(p.id)"
+              >
+                <SvgIcon name="portfolio" :size="18" />
+                <span class="picker-item-name">{{ p.name }}</span>
+                <span class="picker-item-count">{{ (p.portfolio_data || []).length }} 只基金</span>
+              </button>
+            </div>
+            <div class="picker-empty" v-else>
+              <p>暂无自建组合</p>
+              <p class="picker-empty-hint">请先在「基金组合」页面创建一个组合</p>
+            </div>
+          </div>
+        </div>
+      </template>
+    </Teleport>
   </div>
 </template>
 
@@ -522,8 +557,10 @@ import { ref, computed, reactive, onMounted, onUnmounted } from 'vue'
 import { fetchFundScores, fetchFundMeta } from '../../api/data.js'
 import { fmtScore, fmtRet, fmtDD, fmtSR, fmtScale, fmtFundScale, scoreColor } from '../../utils/format.js'
 import { addFundToPortfolio } from '../../api/user-data'
+import { useAuth } from '../../composables/useAuth.js'
 import { toast } from '../../composables/useToast.js'
 import SvgIcon from '../../components/SvgIcon.vue'
+const { isLoggedIn, portfolios } = useAuth()
 
 // ========== 常量 ==========
 const periods = [
@@ -538,7 +575,7 @@ const periods = [
 ]
 
 // 默认显示周期 + 可选额外周期
-const defaultPeriodKeys = ['k1', 'k3', 'k5']   // 始终显示：1年/3年/5年
+const defaultPeriodKeys = ['k1', 'k2', 'k3', 'k5']   // 默认显示：1年/2年/3年/5年
 const extraPeriod = ref('')                      // 用户自选的第4列周期
 
 const displayPeriods = computed(() => {
@@ -757,37 +794,76 @@ const t1List = computed(() => {
 })
 
 
-// 点赞/吐槽
-const thumbedFunds = ref(new Set())
-const dislikedFunds = ref(new Set())
+// ========== 点赞 / 吐槽（localStorage 持久化） ==========
+const LS_LIKES_KEY = 'af_fund_likes'
+const LS_DISLIKES_KEY = 'af_fund_dislikes'
+
+function loadLikes() {
+  try { return JSON.parse(localStorage.getItem(LS_LIKES_KEY) || '{}') } catch { return {} }
+}
+function loadDislikes() {
+  try { return JSON.parse(localStorage.getItem(LS_DISLIKES_KEY) || '{}') } catch { return {} }
+}
+function saveLikes(m) { localStorage.setItem(LS_LIKES_KEY, JSON.stringify(m)) }
+function saveDislikes(m) { localStorage.setItem(LS_DISLIKES_KEY, JSON.stringify(m)) }
+
+const likesMap = ref(loadLikes())       // { [code]: count }
+const dislikedSet = ref(new Set(Object.keys(loadDislikes())))
+
+function persistLikes() { saveLikes(likesMap.value) }
+function persistDislikes() { saveDislikes(Object.fromEntries([...dislikedSet.value].map(c => [c, 1]))) }
 
 function thumbUp(fund) {
-  if (dislikedFunds.value.has(fund.c)) dislikedFunds.value.delete(fund.c)
-  if (thumbedFunds.value.has(fund.c)) {
-    thumbedFunds.value.delete(fund.c)
+  const c = fund.c
+  if (dislikedSet.value.has(c)) dislikedSet.value.delete(c)
+  const cur = (likesMap.value[c] || 0)
+  if (cur > 0) {
+    // 已点赞：取消
+    delete likesMap.value[c]
   } else {
-    thumbedFunds.value.add(fund.c)
+    // 未点赞：+1
+    likesMap.value[c] = cur + 1
   }
-  thumbedFunds.value = new Set(thumbedFunds.value)
+  likesMap.value = { ...likesMap.value }
+  dislikedSet.value = new Set(dislikedSet.value)
+  persistLikes()
+  persistDislikes()
 }
 
 function thumbDown(fund) {
-  if (thumbedFunds.value.has(fund.c)) thumbedFunds.value.delete(fund.c)
-  if (dislikedFunds.value.has(fund.c)) {
-    dislikedFunds.value.delete(fund.c)
+  const c = fund.c
+  if (likesMap.value[c]) delete likesMap.value[c]
+  if (dislikedSet.value.has(c)) {
+    dislikedSet.value.delete(c)
   } else {
-    dislikedFunds.value.add(fund.c)
+    dislikedSet.value.add(c)
   }
-  dislikedFunds.value = new Set(dislikedFunds.value)
+  likesMap.value = { ...likesMap.value }
+  dislikedSet.value = new Set(dislikedSet.value)
+  persistLikes()
+  persistDislikes()
 }
 
-async function addToPortfolio(fund) {
-  const result = await addFundToPortfolio(fund.c, fund.n)
+// ========== 加入组合选择器 ==========
+const pickerFund = ref(null)        // 当前要添加的基金 { code, name }
+
+function openPortfolioPicker(fund) {
+  if (!isLoggedIn.value) {
+    toast('请先登录', 'error')
+    return
+  }
+  pickerFund.value = { code: fund.c, name: fund.n || ('基金' + fund.c) }
+}
+async function confirmAddToPortfolio(portfolioId) {
+  if (!pickerFund.value) return
+  const f = pickerFund.value
+  const result = await addFundToPortfolio(f.code, f.name, portfolioId)
   if (result.success) {
     toast(result.message, 'success')
   } else {
     toast(result.message || result.error || '添加失败', 'error')
   }
+  pickerFund.value = null
 }
 
 function retCls(v) {
@@ -1308,7 +1384,7 @@ onUnmounted(() => {
   display: inline-flex; align-items: center; justify-content: center;
   width: 28px; height: 28px; cursor: pointer; color: var(--text-muted);
 }
-.action-icon:active { color: var(--brand); }
+.action-icon:active, .action-icon.active { color: #d4351c; }
 
 .fund-card-scores {
   display: flex; gap: var(--space-sm); margin-top: 8px;
@@ -1359,10 +1435,20 @@ onUnmounted(() => {
 .action-btn {
   display: inline-flex; align-items: center; justify-content: center;
   width: 28px; height: 28px; cursor: pointer; color: var(--text-muted);
-  vertical-align: middle; margin: 0 2px;
+  vertical-align: middle; margin: 0 2px; position: relative;
 }
 .action-btn:hover { color: var(--brand); }
+.action-btn.active { color: #d4351c; }
 .action-add:hover { color: #00703c; }
+.action-count {
+  position: absolute; top: -6px; right: -8px;
+  font-size: 10px; line-height: 14px; padding: 0 3px;
+  background: #d4351c; color: #fff; border-radius: 7px;
+  font-weight: 700; min-width: 14px; text-align: center;
+}
+.action-count-sm {
+  font-size: 9px; margin-left: 1px; color: #d4351c; font-weight: 700;
+}
 
 /* 加载更多 */
 .load-more {
@@ -1559,4 +1645,36 @@ onUnmounted(() => {
 
 /* 分类源禁用 */
 .filter-chip.disabled { color: var(--text-secondary); opacity: 0.5; cursor: not-allowed; }
+
+/* ===== 组合选择器弹窗 ===== */
+.picker-panel {
+  position: fixed; bottom: 0; left: 50%; transform: translateX(-50%);
+  width: 100%; max-width: 440px; max-height: 70vh;
+  background: #ffffff; border: 2px solid #1d70b8;
+  overflow: hidden; display: flex; flex-direction: column; z-index: 101;
+}
+.picker-header {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: var(--space-md) var(--space-lg); border-bottom: 2px solid var(--border);
+  background: #f3f2f1; flex-shrink: 0;
+}
+.picker-title { font-size: 18px; font-weight: 700; color: var(--text-primary); }
+.picker-close { font-size: 24px; color: var(--text-primary); cursor: pointer; padding: 4px; line-height: 1; }
+.picker-body { flex: 1; overflow-y: auto; padding: var(--space-lg); }
+.picker-fund-name { font-size: 16px; font-weight: 700; color: var(--text-primary); margin-bottom: var(--space-sm); }
+.picker-hint { font-size: 14px; color: var(--text-secondary); margin-bottom: var(--space-md); }
+.picker-list { display: flex; flex-direction: column; gap: var(--space-sm); }
+.picker-item {
+  display: flex; align-items: center; gap: var(--space-sm);
+  width: 100%; padding: var(--space-sm) var(--space-md);
+  border: 2px solid var(--border); background: #fff;
+  cursor: pointer; text-align: left; font-size: 15px;
+  color: var(--text-primary); font-weight: 600;
+}
+.picker-item:hover { border-color: #1d70b8; background: #e8f0fe; }
+.picker-item-name { flex: 1; }
+.picker-item-count { font-size: 13px; font-weight: 400; color: var(--text-secondary); }
+.picker-empty { text-align: center; padding: var(--space-xl) 0; }
+.picker-empty p { font-size: 16px; color: var(--text-secondary); margin: var(--space-xs) 0; }
+.picker-empty-hint { font-size: 14px; color: var(--link); }
 </style>

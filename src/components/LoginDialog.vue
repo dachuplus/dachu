@@ -122,9 +122,7 @@ async function submit() {
         toast('注册成功', 'success')
         emit('logged-in')
       } else {
-        success.value = isPhone
-          ? '注册成功！如已开启短信验证，请查收验证码完成验证后即可登录。'
-          : '注册成功！请检查邮箱中的确认链接，点击后即可登录。'
+        success.value = '注册成功！请直接登录。'
       }
     } else {
       const creds = isPhone
@@ -148,8 +146,8 @@ function translateError(msg) {
   if (!msg) return '未知错误'
   const map = {
     'Invalid login credentials': '账号或密码错误',
-    'Email not confirmed': '邮箱尚未确认，请检查邮箱中的确认链接',
-    'Phone not confirmed': '手机号尚未验证，请查收短信验证码完成验证',
+    'Email not confirmed': '邮箱尚未确认，请直接尝试登录',
+    'Phone not confirmed': '手机号尚未验证，请直接尝试登录',
     'User already registered': '该账号已注册，请直接登录',
     'Password should be at least 6 characters': '密码长度至少 6 位',
     'Unable to validate email address: invalid format': '邮箱格式不正确',

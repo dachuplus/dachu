@@ -53,13 +53,13 @@ export function fmtScale(v) {
   return (n * 10000).toFixed(0) + '万份'
 }
 
-// 基金净值规模展示（单位：亿元）：402.21 → '402.21亿' / 15000 → '1.50万亿'
+// 基金净值规模展示（单位：亿元，调用方表头加"（亿）"）：402.21 → '402.21' / 15000 → '1.50万'
 export function fmtFundScale(v) {
   if (v == null) return '--'
   const n = parseFloat(v)
   if (isNaN(n)) return '--'
   if (n >= 10000) return (n / 10000).toFixed(2) + '万亿'
-  if (n >= 1) return n.toFixed(2) + '亿'
+  if (n >= 1) return n.toFixed(2)
   return (n * 10000).toFixed(0) + '万'
 }
 

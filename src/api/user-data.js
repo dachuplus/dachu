@@ -83,16 +83,42 @@ export async function getMyPortfolios() {
 }
 
 /**
- * 添加基金到默认组合
+ * 添加基金到组合（可指定 portfolioId，否则默认第一个/新建）
  */
-export async function addFundToPortfolio(code, name) {
+export async function addFundToPortfolio(code, name, portfolioId) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) {
-    // 未登录：回退到 localStorage
     return addToLocalPortfolio(code, name)
   }
 
-  // 先查是否已有组合
+  // 如果指定了 portfolioId，直接用该组合
+  if (portfolioId) {
+    const { data: target } = await supabase
+      .from('user_portfolios')
+      .select('id,name,portfolio_data')
+      .eq('id', portfolioId)
+      .eq('user_id', user.id)
+      .single()
+    if (!target) {
+      return { success: false, error: '组合不存在' }
+    }
+    const items = target.portfolio_data || []
+    if (items.find(i => i.code === code)) {
+      return { success: false, message: `${name} 已在「${target.name}」中` }
+    }
+    items.push({ code, name, weight: 0, addedAt: new Date().toISOString() })
+    const { error: updateErr } = await supabase
+      .from('user_portfolios')
+      .update({ portfolio_data: items, updated_at: new Date().toISOString() })
+      .eq('id', portfolioId)
+    if (updateErr) {
+      console.error('[user-data] update portfolio error:', updateErr)
+      return { success: false, error: updateErr.message }
+    }
+    return { success: true, message: `已将 ${name} 添加到「${target.name}」` }
+  }
+
+  // 未指定：查默认组合（第一个）
   let { data: portfolios } = await supabase
     .from('user_portfolios')
     .select('*')
