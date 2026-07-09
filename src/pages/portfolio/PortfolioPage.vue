@@ -101,15 +101,38 @@
             class="ai-st-btn"
             :class="{ active: aiStrategy === st.key }"
             :disabled="aiGenerating"
-            @click="aiStrategy = st.key"
+            @click="selectStrategy(st.key)"
           >
             {{ st.label }}
             <span class="ai-st-desc">{{ st.desc }}</span>
           </button>
-          <button class="ai-st-btn ai-custom-st-btn" @click="showCustomDialog = true" :disabled="aiGenerating">
+          <button
+            class="ai-st-btn"
+            :class="{ active: showCategoryPicker }"
+            :disabled="aiGenerating"
+            @click="toggleCategoryPicker"
+          >
+            分类组合
+            <span class="ai-st-desc">按品类智能选基</span>
+          </button>
+          <button class="ai-st-btn ai-custom-st-btn" @click="openCustom" :disabled="aiGenerating">
             自定义
             <span class="ai-st-desc">输入你的要求</span>
           </button>
+        </div>
+
+        <!-- 分类组合：选择二级分类（含货币型） -->
+        <div class="ai-cat-picker" v-if="showCategoryPicker">
+          <div class="ai-cat-picker-hd">选择二级分类（含货币型），AI 将自动生成该品类组合</div>
+          <div class="ai-cat-grid">
+            <button
+              v-for="cat in AI_ALL_CATEGORIES"
+              :key="cat"
+              class="ai-cat-chip"
+              :disabled="aiGenerating"
+              @click="pickCategory(cat)"
+            >{{ cat }}</button>
+          </div>
         </div>
 
         <div class="ai-cat-row">
@@ -476,6 +499,39 @@ const AI_CATEGORY_OPTIONS = [
 ]
 const aiCategory = ref('')
 const aiStrategy = ref('balanced')
+
+// 全部二级分类（含货币型），用于「分类组合」选择器
+const AI_ALL_CATEGORIES = [
+  '混合型-偏股', '混合型-灵活', '混合型-偏债', '混合型-平衡', '混合型-绝对收益',
+  '指数型-股票', '指数型-固收', '指数型-海外股票', '指数型-其他',
+  '债券型-长债', '债券型-混合二级', '债券型-混合一级', '债券型-中短债', '债券型-利率债', '债券型-信用债',
+  '股票型',
+  'FOF-稳健型', 'FOF-均衡型', 'FOF-进取型',
+  'QDII-混合偏股', 'QDII-普通股票', 'QDII-纯债', 'QDII-混合灵活', 'QDII-混合债', 'QDII-商品', 'QDII-FOF', 'QDII-REITs', 'QDII-混合平衡',
+  '货币型'
+]
+const showCategoryPicker = ref(false)
+const aiCategoryMode = ref(false)
+function selectStrategy(key) {
+  aiStrategy.value = key
+  aiCategory.value = ''
+  aiCategoryMode.value = false
+}
+function toggleCategoryPicker() {
+  showCategoryPicker.value = !showCategoryPicker.value
+  if (showCategoryPicker.value) aiCategoryMode.value = false
+}
+function openCustom() {
+  aiCategoryMode.value = false
+  showCustomDialog.value = true
+}
+function pickCategory(cat) {
+  aiCategory.value = cat
+  aiCategoryMode.value = true
+  showCategoryPicker.value = false
+  generateAiPortfolio()
+}
+
 const aiGenerating = ref(false)
 const aiStatusText = ref('')
 const aiPortfolio = ref(null)
@@ -500,29 +556,44 @@ async function generateAiPortfolio() {
   aiGenerating.value = true
   aiStatusText.value = '正在查询高分靠谱基金...'
   try {
-    // 1. 从 Supabase 获取高分靠谱基金（按「基金分类」筛选 + k_all 降序）
+    // 1. 从 Supabase 获取高分靠谱基金（规模>2亿；可按「二级分类」筛选；k_all 降序）
     let fundPool = []
     if (supabase) {
-      let q = supabase.from('fund_scores')
-        .select('c,n,t0,k_all,score_grade,t1_tt')
-        .not('k_all','is',null)
-      if (aiCategory.value) q = q.eq('t1_tt', aiCategory.value)
-      else q = q.gte('k_all', 70)
-      const { data } = await q.order('k_all', { ascending: false }).limit(30)
-      fundPool = (data || []).map(f => `${f.c} ${f.n || '基金'+f.c} (靠谱${f.k_all?.toFixed(0)})`)
+      const buildQ = (withScale) => {
+        let q = supabase.from('fund_scores')
+          .select('c,n,t0,k_all,score_grade,t1_tt,fund_scale')
+        if (withScale) q = q.gt('fund_scale', 2)   // 规模 > 2亿
+        if (aiCategory.value) {
+          q = (aiCategory.value === '货币型') ? q.eq('t0', '货币型') : q.eq('t1_tt', aiCategory.value)
+        } else {
+          q = q.not('k_all','is',null).gte('k_all', 70)
+        }
+        return q
+      }
+      let { data } = await buildQ(true).order('k_all', { ascending: false }).limit(30)
+      // 分类模式下若该品类规模>2亿的基金不足，放宽规模限制兜底
+      if ((!data || data.length === 0) && aiCategory.value) {
+        const r2 = await buildQ(false).order('k_all', { ascending: false }).limit(30)
+        data = r2.data || []
+      }
+      fundPool = (data || []).map(f => `${f.c} ${f.n || '基金'+f.c} (靠谱${f.k_all?.toFixed(0)} 规模${f.fund_scale != null ? f.fund_scale.toFixed(0)+'亿' : '—'})`)
     }
     if (fundPool.length === 0) {
       fundPool = ['510300 沪深300ETF', '159915 创业板ETF', '511260 10年国债ETF', '518880 黄金ETF', '512100 中证1000ETF', '510500 中证500ETF', '512880 证券ETF', '512010 医药ETF', '159928 消费ETF', '512480 半导体ETF', '512660 军工ETF', '512800 银行ETF', '515030 新能源ETF', '512980 传媒ETF', '159985 豆粕ETF']
     }
 
+    const isCatMode = aiCategoryMode.value && aiCategory.value
     const strategy = AI_STRATEGIES.find(s => s.key === aiStrategy.value)
-    const strategyName = strategy?.label || '均衡配置'
+    const strategyName = isCatMode ? `分类组合·${aiCategory.value}` : (strategy?.label || '均衡配置')
     const customReq = customRequirement.value.trim()
     const reqHint = customReq ? `\n用户额外要求：${customReq}` : ''
-    const catHint = aiCategory.value ? `\n基金池已限定在「${aiCategory.value}」细分品类内，请从该品类的高分基金中挑选。` : ''
+    const catHint = aiCategory.value ? `\n基金池已限定在「${aiCategory.value}」细分品类内（规模>2亿），请从该品类的高分基金中挑选。` : ''
+    const intro = isCatMode
+      ? `从以下「${aiCategory.value}」品类的基金池中，构建一份${aiCategory.value}主题组合。`
+      : `从以下高分靠谱基金池中，为"${strategyName}"策略选出10只基金构建组合。`
 
-    const prompt = `你是一位专业基金投顾。从以下高分靠谱基金池中，为"${strategyName}"策略选出10只基金构建组合。
-基金池（代码 名称 靠谱分）：
+    const prompt = `你是一位专业基金投顾。${intro}
+基金池（代码 名称 靠谱分 规模）：
 ${fundPool.join('\n')}
 ${reqHint}${catHint}
 请返回纯JSON（不要markdown）：
@@ -806,6 +877,14 @@ onUnmounted(() => {
 .ai-hist-name { font-size: 16px; font-weight: 700; flex: 1; }
 .ai-hist-date { font-size: 14px; color: var(--text-secondary); }
 .ai-hist-count { font-size: 14px; color: var(--text-secondary); }
+
+/* 分类组合选择器 */
+.ai-cat-picker { margin-bottom: var(--space-lg); padding: var(--space-md); border: 1px dashed #6c5ce7; background: #faf9ff; }
+.ai-cat-picker-hd { font-size: 15px; font-weight: 700; color: #4a3db5; margin-bottom: var(--space-sm); }
+.ai-cat-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: var(--space-sm); }
+.ai-cat-chip { padding: var(--space-sm); border: 1px solid var(--border); background: #fff; cursor: pointer; font-size: 14px; transition: all 0.15s; text-align: center; }
+.ai-cat-chip:hover { border-color: #6c5ce7; background: #f0edff; }
+.ai-cat-chip:disabled { opacity: 0.5; }
 
 /* ===== Utils ===== */
 .text-up { color: var(--color-up); }

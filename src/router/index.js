@@ -3,12 +3,12 @@ import { createRouter, createWebHistory } from 'vue-router'
 const routes = [
   {
     path: '/',
-    component: () => import('../pages/home/HomePage.vue'),
+    component: () => import('../pages/fund-rank/FundRankPage.vue'),
     meta: {
-      tab: 'home',
-      title: '首页',
-      description: 'ALLFUND.CN 基金投资助手：实时行情、全市场性价比、股债利差、大类资产预期收益、指数估值与靠谱基金指数排名，用数据辅助基金投资决策。',
-      keywords: '基金,基金投资,靠谱基金,基金排名,基金指数,股债性价比,大类资产,指数估值'
+      tab: 'tools',
+      title: '靠谱基金指数',
+      description: '靠谱基金指数评分工具：覆盖全市场近2万只公募基金，按收益率、最大回撤、夏普比率综合排名，支持分类、份额、ETF/LOF 等多维筛选。',
+      keywords: '靠谱基金指数,基金评分,基金排名,基金筛选,基金靠谱指数'
     }
   },
   {
