@@ -210,6 +210,7 @@
             <th class="col-scale sortable" @click="toggleColumnSort('fund_scale')">
               基金规模（亿）<span class="th-arrow" v-if="sortField === 'fund_scale'">{{ sortDir === 'asc' ? '▲' : '▼' }}</span>
             </th>
+            <th class="col-t1">二级分类</th>
             <th v-for="p in displayPeriods" :key="p.key" class="col-score sortable" :class="{ 'col-sort': currentPeriod === p.key }" @click="switchPeriod(p.key)">
               {{ p.label }}<span class="th-arrow" v-if="currentPeriod === p.key">{{ sortAsc ? '▲' : '▼' }}</span>
             </th>
@@ -226,6 +227,7 @@
             <td class="col-name"><a :href="eastMoneyUrl(fund.c)" target="_blank" @click.stop>{{ fund.n || '基金' + fund.c }}</a></td>
             <td class="col-manager" :title="fund.fund_manager">{{ fund.fund_manager || '--' }}</td>
             <td class="col-scale">{{ fmtFundScale(fund.fund_scale) }}</td>
+            <td class="col-t1" :title="fund.t1_tt || fund.t1">{{ fund.t1_tt || fund.t1 || '--' }}</td>
             <td v-for="p in displayPeriods" :key="p.key" class="col-score" :class="{ 'col-sort': currentPeriod === p.key }">
               <span class="score-val" :style="scoreColor(fund[p.key])">{{ fmtScore(fund[p.key]) }}</span>
             </td>
@@ -1254,7 +1256,7 @@ onUnmounted(() => {
 .fund-row:hover td.col-code {
   background: #f8f8f8;
 }
-.col-name { width: 128px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.col-name { width: 260px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .col-name a { color: var(--text-primary); text-decoration: none; }
 .col-name a:hover { color: var(--link); text-decoration: underline; }
 .col-manager { width: 96px; color: var(--text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -1265,10 +1267,11 @@ onUnmounted(() => {
 .col-scale.sortable:hover { background: #e0e7ef; }
 .col-num { width: 80px; text-align: right; color: var(--text-secondary); }
 .col-pct { width: 60px; text-align: right; color: var(--text-secondary); }
-.col-score { width: auto; text-align: center; }
+.col-score { width: 52px; text-align: center; }
 .col-score .score-val { font-weight: 700; font-size: 13px; }
 .col-sort { background: #e8f0fe; }
 .col-actions { width: 90px; text-align: center; }
+.col-t1 { width: 120px; color: var(--text-secondary); font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* ===== 移动端卡片布局 ===== */
 .mobile-fund-list {

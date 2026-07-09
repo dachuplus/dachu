@@ -281,16 +281,17 @@
       </div>
     </div>
 
-    <!-- ==================== 7. 韭圈特色指标 ==================== -->
+    <!-- ==================== 7. 特色指标 ==================== -->
     <div v-if="activeTab === 'jqr'">
       <div class="card">
-        <div class="card-title">韭圈特色指标<span class="card-subtitle">参考韭圈儿思路 · 自建复合算法 · 每日更新</span></div>
+        <div class="card-title">特色指标<span class="card-subtitle">自建复合算法 · 每日更新</span></div>
         <p class="card-desc">恐贪指数衡量市场短期情绪，市场温度反映估值冷热，基金发行热度体现权益基金募集景气——三者互补，辅助判断市场所处阶段。</p>
         <div class="jqr-grid">
           <div class="jqr-card" v-for="c in jqrCards" :key="c.key">
             <div class="jqr-card-name">{{ c.name }}</div>
             <div class="jqr-value" :style="{ color: c.color }">{{ c.valueLabel }}</div>
             <div class="jqr-signal" :class="c.signalClass">{{ c.signalLabel }}</div>
+            <div class="jqr-range">取值范围：{{ c.range }}</div>
             <div class="jqr-date">数据日期：{{ c.date }}</div>
             <div class="jqr-sub" v-if="c.subLines.length">
               <div class="jqr-sub-row" v-for="s in c.subLines" :key="s.k"><span>{{ s.k }}</span><span>{{ s.v }}</span></div>
@@ -326,7 +327,7 @@ const tabs = [
   { key: 'allocate', label: '资产配比' },
   { key: 'factor',   label: '风格因子' },
   { key: 'industry', label: '行业估值' },
-  { key: 'jqr',      label: '韭圈特色' },
+  { key: 'jqr',      label: '特色指标' },
 ]
 const activeTab = ref('overview')
 
@@ -627,7 +628,7 @@ async function loadAll() {
     drawGauge()
     drawMacroCharts()
 
-    // 风格因子 + 行业估值 + 韭圈特色（读生产表，异步不阻塞主流程）
+    // 风格因子 + 行业估值 + 特色指标（读生产表，异步不阻塞主流程）
     loadFactorScores()
     loadIndustry()
     loadJqr()
@@ -1336,16 +1337,16 @@ async function loadFactorScores() {
   }
 }
 
-// ===== 韭圈特色指标（自建复合算法，数据存 jqr_indicators 表） =====
+// ===== 特色指标（自建复合算法，数据存 jqr_indicators 表） =====
 const jqrCards = ref([])
 const jqrSeries = reactive({})
 const jqrChartRefs = {}
 function setJqrChartRef(key, el) { if (el) jqrChartRefs[key] = el }
 
 const JQR_META = {
-  fear_greed:    { name: '恐惧贪婪指数', desc: '短期情绪', color: '#d4351c' },
-  market_temp:   { name: '市场温度',     desc: '估值冷热', color: '#1d70b8' },
-  fund_issuance: { name: '基金发行热度', desc: '募集景气', color: '#00703c' },
+  fear_greed:    { name: '恐惧贪婪指数', desc: '短期情绪', color: '#d4351c', range: '0 - 100' },
+  market_temp:   { name: '市场温度',     desc: '估值冷热', color: '#1d70b8', range: '0 - 100' },
+  fund_issuance: { name: '基金发行热度', desc: '募集景气', color: '#00703c', range: '0 - 100' },
 }
 
 function buildJqrCard(metric, row) {
@@ -1391,7 +1392,7 @@ function buildJqrCard(metric, row) {
   }
   return {
     key: metric, name: meta.name, desc: meta.desc,
-    valueLabel: v != null ? v : '--', color: meta.color,
+    valueLabel: v != null ? v : '--', color: meta.color, range: meta.range,
     signalLabel, signalClass, date: row.date || '--', subLines,
   }
 }
@@ -1417,7 +1418,7 @@ async function loadJqr() {
     await nextTick()
     drawJqrCharts()
   } catch (e) {
-    console.error('韭圈特色指标加载失败', e)
+    console.error('特色指标加载失败', e)
   }
 }
 
@@ -1646,7 +1647,7 @@ function handleResize() {
 .text-up { color: var(--color-up) !important; }
 .text-down { color: var(--color-down) !important; }
 
-/* 韭圈特色指标 */
+/* 特色指标 */
 .jqr-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--space-md); }
 .jqr-card { border: 1px solid var(--border); padding: var(--space-lg); text-align: center; background: #fff; }
 .jqr-card-name { font-size: 14px; font-weight: 700; color: var(--text-primary); margin-bottom: var(--space-xs); }
@@ -1656,6 +1657,7 @@ function handleResize() {
 .jqr-signal.cold { color: #fff; background: var(--color-down); }
 .jqr-signal.neutral { color: #fff; background: #505a5f; }
 .jqr-date { font-size: 12px; color: var(--text-secondary); margin: var(--space-xs) 0; }
+.jqr-range { font-size: 12px; color: var(--text-muted); margin: 2px 0; }
 .jqr-sub { margin-top: var(--space-sm); border-top: 1px solid var(--border); padding-top: var(--space-sm); text-align: left; }
 .jqr-sub-row { display: flex; justify-content: space-between; font-size: 12px; padding: 2px 0; }
 .jqr-sub-row span:first-child { color: var(--text-secondary); }

@@ -13,9 +13,8 @@
       </div>
     </div>
 
-    <div class="fi-note" v-if="sub !== 'basic'">
-      数据说明：万得基金指数公共接口对逐指数数据有会话态限制，当前展示的为已入库指数清单与列结构；
-      明细数据将在接入浏览器会话 / 切换可抓取后端后自动填充。
+    <div class="fi-note" v-if="sub !== 'basic' && !hasRealData">
+      数据说明：指数数据来源于东方财富（akshare），包含宽基、策略及行业主题等14只核心市场指数的行情表现与历史收益。
     </div>
 
     <div class="fi-loading" v-if="loading">加载中…</div>
@@ -128,6 +127,7 @@ const subTabs = [
 const sub = ref('basic')
 const rows = ref([])
 const loading = ref(true)
+const hasRealData = ref(false)
 
 // 历年表现展示绝对年份（与 Wind 截图一致：2026→2017）
 const annualYears = [2026, 2025, 2024, 2023, 2022, 2021, 2020, 2019, 2018, 2017]
@@ -174,7 +174,11 @@ onMounted(async () => {
         .select('*')
         .order('category')
         .order('name_cn')
-      if (!error && data) rows.value = data
+      if (!error && data) {
+        rows.value = data
+        // 有真实行情数据时隐藏提示
+        hasRealData.value = data.some(r => r.market_perf && Object.keys(r.market_perf).length > 0)
+      }
     }
   } catch (e) {
     console.error('[FundIndexPanel]', e)
