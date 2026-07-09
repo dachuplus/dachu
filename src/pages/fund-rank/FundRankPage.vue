@@ -123,6 +123,17 @@
           </div>
         </div>
 
+        <!-- 基金规模区间（亿元） -->
+        <div class="filter-row">
+          <span class="filter-label">规模</span>
+          <div class="filter-scale-range">
+            <input type="number" class="scale-input" v-model="filterScaleMin" placeholder="最小" @input="onScaleInput" />
+            <span class="scale-dash">—</span>
+            <input type="number" class="scale-input" v-model="filterScaleMax" placeholder="最大" @input="onScaleInput" />
+            <span class="scale-unit">亿</span>
+          </div>
+        </div>
+
         <!-- 筛选说明 -->
         <div class="filter-tip">
           注：ETF/LOF/定开/申购状态/单日涨跌基于数据库字段精确筛选；场内/份额类别基于基金名称识别，可能存在少量误判。<br>
@@ -636,6 +647,8 @@ const filterCN = ref('')       // 场内：''全部 '1'是(ETF/LOF/REITs不计�
 const filterDK = ref('')
 const filterDailyLimit = ref('')
 const filterSG = ref('')       // 申购状态：''全部 '1'可申购 '0'暂停申购
+const filterScaleMin = ref('')  // 基金规模区间（亿元）最小值
+const filterScaleMax = ref('')  // 基金规模区间（亿元）最大值
 
 // 自定义指标权重（6项）
 const showWeightPanel = ref(false)
@@ -798,7 +811,7 @@ function fmtUpdateTime(tsq) {
   if (!tsq) return ''
   try {
     const d = new Date(tsq)
-    return d.toLocaleDateString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit' })
+    return d.toLocaleString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false })
   } catch { return '' }
 }
 
@@ -873,6 +886,8 @@ async function loadData(reset = true, _retryCount = 0) {
       dk: filterDK.value || undefined,
       sg: filterSG.value || undefined,
       dailyLimit: filterDailyLimit.value || undefined,
+      scaleMin: filterScaleMin.value !== '' ? parseFloat(filterScaleMin.value) : undefined,
+      scaleMax: filterScaleMax.value !== '' ? parseFloat(filterScaleMax.value) : undefined,
     }), LOAD_TIMEOUT_MS)
 
     if (result.data) {
@@ -967,6 +982,13 @@ function clearMoreFilters() {
   filterDK.value = ''
   filterDailyLimit.value = ''
   filterSG.value = ''
+  filterScaleMin.value = ''
+  filterScaleMax.value = ''
+}
+
+/** 规模区间输入变化（防抖已在 loadData 内，这里直接重查） */
+function onScaleInput() {
+  loadData(true)
 }
 
 function setDailyLimit(val) {
@@ -1151,6 +1173,15 @@ onUnmounted(() => {
 .toggle-arrow { display: inline-block; transition: transform 0.2s; font-size: 16px; }
 .toggle-arrow.open { transform: rotate(180deg); }
 .more-filter-body { border-top: 1px solid var(--border); padding-bottom: var(--space-sm); }
+.filter-scale-range { display: flex; align-items: center; gap: 6px; flex: 1; }
+.scale-input {
+  width: 80px; padding: 4px 8px; font-size: 14px;
+  border: 1px solid var(--border); background: #fff; color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}
+.scale-input:focus { outline: 3px solid #ffdd00; outline-offset: 0; }
+.scale-dash { color: var(--text-secondary); }
+.scale-unit { font-size: 14px; color: var(--text-secondary); }
 .filter-tip { padding: var(--space-sm) var(--space-md); font-size: 14px; color: var(--text-secondary); }
 
 /* 周期Tab - 已移除 toolbar 行，周期选择通过表头点击完成 */
@@ -1219,7 +1250,7 @@ onUnmounted(() => {
 .col-manager { max-width: 80px; color: var(--text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .col-manager.sortable { cursor: pointer; user-select: none; }
 .col-manager.sortable:hover { background: #e0e7ef; }
-.col-scale { width: 90px; text-align: right; color: var(--text-secondary); font-variant-numeric: tabular-nums; }
+.col-scale { width: 115px; text-align: right; color: var(--text-secondary); font-variant-numeric: tabular-nums; }
 .col-scale.sortable { cursor: pointer; user-select: none; }
 .col-scale.sortable:hover { background: #e0e7ef; }
 .col-num { width: 80px; text-align: right; color: var(--text-secondary); }

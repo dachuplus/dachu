@@ -109,7 +109,7 @@ export async function getCategoryRankInfo(codes) {
 }
 
 async function fetchFundScoresImpl(params = {}) {
-  const { t0, t1, search, kKey = 'k1', page = 1, pageSize = 100, sortAsc, etf, lof, dk, sg, dailyLimit } = params
+  const { t0, t1, search, kKey = 'k1', page = 1, pageSize = 100, sortAsc, etf, lof, dk, sg, dailyLimit, scaleMin, scaleMax } = params
   if (supabase) {
     let query = supabase.from('fund_scores').select(FUND_SCORES_COLS, { count: 'exact', head: false })
     // 分类筛选：直接采用 fund_scores 的「一级分类 t0」与「二级分类 t1_tt」
@@ -143,6 +143,9 @@ async function fetchFundScoresImpl(params = {}) {
       if (dailyLimit === '1') query = query.gte('daily_change', 20)
       else if (dailyLimit === '0') query = query.or('daily_change.lt.20,daily_change.is.null')
     }
+    // 基金规模区间（亿元）：服务端下推，避免前端只过滤首页
+    if (scaleMin != null) query = query.gte('fund_scale', scaleMin)
+    if (scaleMax != null) query = query.lte('fund_scale', scaleMax)
     // 不再过滤 null 评分（否则债券型-混合二级等数据源未覆盖的分类会显示为空）
     // 改用 nullsFirst: false 让 null 排到最后
     const from = (page - 1) * pageSize
