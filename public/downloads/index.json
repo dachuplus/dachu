@@ -1,15 +1,20 @@
 {
-  "updated_at": "2026-07-09T09:35:56.328932",
+  "updated_at": "2026-07-09T23:07:35.395969",
   "tables": {
     "config": {
       "rows": 4,
-      "size_mb": 0.012183189392089844,
+      "size_mb": 0.01218414306640625,
       "path": "/downloads/config.xlsx"
     },
     "fund_combined": {
       "rows": 20878,
-      "size_mb": 4.065232276916504,
+      "size_mb": 4.065229415893555,
       "path": "/downloads/fund_combined.xlsx"
+    },
+    "fund_indices": {
+      "rows": 14,
+      "size_mb": 0.007091522216796875,
+      "path": "/downloads/fund_indices.xlsx"
     },
     "fund_quarterly_scores": {
       "rows": 18584,
@@ -18,7 +23,7 @@
     },
     "fund_scores": {
       "rows": 20814,
-      "size_mb": 5.504961013793945,
+      "size_mb": 5.526064872741699,
       "path": "/downloads/fund_scores.xlsx"
     },
     "fund_scores_meta": {
@@ -28,7 +33,7 @@
     },
     "fund_scores_test": {
       "rows": 0,
-      "size_mb": 0.006839752197265625,
+      "size_mb": 0.006838798522949219,
       "path": "/downloads/fund_scores_test.xlsx"
     },
     "index_eva": {

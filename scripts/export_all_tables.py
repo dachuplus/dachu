@@ -58,6 +58,13 @@ TABLES = {
         'update': '每日通过 GitHub Actions CI 自动更新（北京时间 21:30）',
         'scoring': True,
     },
+    'fund_indices': {
+        'name': '基金指数表（万得 Wind）',
+        'desc': '万得(Wind)基金指数：代码/名称/分类/类型 + 基本信息(发布日期/成分数量/加权方式/收益方式) + 市场表现(近1周~成立以来收益率) + 历年表现(年度收益) + 估值分析(总市值/流通市值/市盈率/净利率/股息率/Beta/波动率/换手率)',
+        'source': 'windindices.com（万得基金指数），通过 scripts/fetch_fund_indices.py 浏览器会话抓取（方案A）',
+        'update': '通过 scripts/fetch_fund_indices.py 抓取更新',
+        'scoring': False,
+    },
     'fund_scores_test': {
         'name': '基金评分测试表',
         'desc': 'fund_scores 的测试副本，结构与 fund_scores 完全一致。新抓取数据先写入此表验证无误后，再通过 staging 管道导入 fund_scores 生产环境。',

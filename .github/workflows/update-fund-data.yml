@@ -247,6 +247,18 @@ jobs:
           python scripts/export_all_tables.py --output-dir public/downloads
           echo "导出完成: $(date '+%Y-%m-%d %H:%M:%S')"
 
+      - name: 步骤5c — 计算韭圈特色指标（恐惧贪婪/市场温度/基金发行热度）
+        timeout-minutes: 15
+        continue-on-error: true
+        run: |
+          echo "============================================"
+          echo "  步骤5c: 计算韭圈特色指标（自建复合算法，写入 jqr_indicators 表）"
+          echo "  开始时间: $(date '+%Y-%m-%d %H:%M:%S')"
+          echo "============================================"
+          pip install akshare
+          python scripts/fetch_jqr_indicators.py
+          echo "韭圈特色指标计算完成: $(date '+%Y-%m-%d %H:%M:%S')"
+
       - name: 步骤6 — 安装 Node.js
         uses: actions/setup-node@v4
         with:

@@ -1226,7 +1226,7 @@ onUnmounted(() => {
 }
 .fund-table {
   width: 100%; border-collapse: collapse; font-size: 14px; white-space: nowrap;
-  min-width: 900px;
+  min-width: 860px; table-layout: fixed;
 }
 .fund-table thead { background: #f3f2f1; }
 .fund-table th {
@@ -1241,7 +1241,7 @@ onUnmounted(() => {
 }
 .fund-row:hover { background: #f8f8f8; }
 
-.col-code { width: 72px; font-weight: 700; color: var(--text-primary); font-family: monospace; font-size: 13px; }
+.col-code { width: 84px; font-weight: 700; color: var(--text-primary); font-family: monospace; font-size: 13px; }
 .col-code a { color: var(--text-primary); text-decoration: none; }
 .col-code a:hover { color: var(--link); text-decoration: underline; }
 /* 固定首列 */
@@ -1254,10 +1254,10 @@ onUnmounted(() => {
 .fund-row:hover td.col-code {
   background: #f8f8f8;
 }
-.col-name { max-width: 160px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.col-name { width: 128px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .col-name a { color: var(--text-primary); text-decoration: none; }
 .col-name a:hover { color: var(--link); text-decoration: underline; }
-.col-manager { max-width: 80px; color: var(--text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.col-manager { width: 96px; color: var(--text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .col-manager.sortable { cursor: pointer; user-select: none; }
 .col-manager.sortable:hover { background: #e0e7ef; }
 .col-scale { width: 115px; text-align: right; color: var(--text-secondary); font-variant-numeric: tabular-nums; }
@@ -1265,7 +1265,7 @@ onUnmounted(() => {
 .col-scale.sortable:hover { background: #e0e7ef; }
 .col-num { width: 80px; text-align: right; color: var(--text-secondary); }
 .col-pct { width: 60px; text-align: right; color: var(--text-secondary); }
-.col-score { width: 50px; text-align: center; }
+.col-score { width: auto; text-align: center; }
 .col-score .score-val { font-weight: 700; font-size: 13px; }
 .col-sort { background: #e8f0fe; }
 .col-actions { width: 90px; text-align: center; }

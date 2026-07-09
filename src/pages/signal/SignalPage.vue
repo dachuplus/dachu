@@ -280,6 +280,30 @@
         <p class="data-source">数据来源：蛋卷基金估值中心</p>
       </div>
     </div>
+
+    <!-- ==================== 7. 韭圈特色指标 ==================== -->
+    <div v-if="activeTab === 'jqr'">
+      <div class="card">
+        <div class="card-title">韭圈特色指标<span class="card-subtitle">参考韭圈儿思路 · 自建复合算法 · 每日更新</span></div>
+        <p class="card-desc">恐贪指数衡量市场短期情绪，市场温度反映估值冷热，基金发行热度体现权益基金募集景气——三者互补，辅助判断市场所处阶段。</p>
+        <div class="jqr-grid">
+          <div class="jqr-card" v-for="c in jqrCards" :key="c.key">
+            <div class="jqr-card-name">{{ c.name }}</div>
+            <div class="jqr-value" :style="{ color: c.color }">{{ c.valueLabel }}</div>
+            <div class="jqr-signal" :class="c.signalClass">{{ c.signalLabel }}</div>
+            <div class="jqr-date">数据日期：{{ c.date }}</div>
+            <div class="jqr-sub" v-if="c.subLines.length">
+              <div class="jqr-sub-row" v-for="s in c.subLines" :key="s.k"><span>{{ s.k }}</span><span>{{ s.v }}</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="card" v-for="c in jqrCards" :key="'chart-' + c.key">
+        <div class="card-title">{{ c.name }} · 历史走势</div>
+        <div class="jqr-chart" :ref="el => setJqrChartRef(c.key, el)"></div>
+      </div>
+      <p class="data-source">数据来源：akshare（沪深300日线 / 全市场市盈率 / 新发基金），自建复合算法，仅供参考研究，不构成投资建议。</p>
+    </div>
   </div>
 </template>
 
@@ -302,6 +326,7 @@ const tabs = [
   { key: 'allocate', label: '资产配比' },
   { key: 'factor',   label: '风格因子' },
   { key: 'industry', label: '行业估值' },
+  { key: 'jqr',      label: '韭圈特色' },
 ]
 const activeTab = ref('overview')
 
@@ -602,9 +627,10 @@ async function loadAll() {
     drawGauge()
     drawMacroCharts()
 
-    // 风格因子 + 行业估值（读生产表，异步不阻塞主流程）
+    // 风格因子 + 行业估值 + 韭圈特色（读生产表，异步不阻塞主流程）
     loadFactorScores()
     loadIndustry()
+    loadJqr()
 
   } catch (err) {
     let msg = '数据加载失败'
@@ -1310,6 +1336,116 @@ async function loadFactorScores() {
   }
 }
 
+// ===== 韭圈特色指标（自建复合算法，数据存 jqr_indicators 表） =====
+const jqrCards = ref([])
+const jqrSeries = reactive({})
+const jqrChartRefs = {}
+function setJqrChartRef(key, el) { if (el) jqrChartRefs[key] = el }
+
+const JQR_META = {
+  fear_greed:    { name: '恐惧贪婪指数', desc: '短期情绪', color: '#d4351c' },
+  market_temp:   { name: '市场温度',     desc: '估值冷热', color: '#1d70b8' },
+  fund_issuance: { name: '基金发行热度', desc: '募集景气', color: '#00703c' },
+}
+
+function buildJqrCard(metric, row) {
+  const meta = JQR_META[metric]
+  const detail = row.detail || {}
+  const v = row.value
+  let signalLabel = '中性', signalClass = 'neutral'
+  if (metric === 'fear_greed') {
+    if (v < 25) { signalLabel = '极度恐惧'; signalClass = 'cold' }
+    else if (v < 45) { signalLabel = '恐惧'; signalClass = 'cold' }
+    else if (v < 55) { signalLabel = '中性'; signalClass = 'neutral' }
+    else if (v < 75) { signalLabel = '贪婪'; signalClass = 'hot' }
+    else { signalLabel = '极度贪婪'; signalClass = 'hot' }
+  } else if (metric === 'market_temp') {
+    if (v < 30) { signalLabel = '低估偏冷'; signalClass = 'cold' }
+    else if (v < 70) { signalLabel = '适中'; signalClass = 'neutral' }
+    else { signalLabel = '高估偏热'; signalClass = 'hot' }
+  } else if (metric === 'fund_issuance') {
+    if (v < 25) { signalLabel = '冰点'; signalClass = 'cold' }
+    else if (v < 45) { signalLabel = '偏冷'; signalClass = 'cold' }
+    else if (v < 55) { signalLabel = '中性'; signalClass = 'neutral' }
+    else if (v < 75) { signalLabel = '偏热'; signalClass = 'hot' }
+    else { signalLabel = '狂热'; signalClass = 'hot' }
+  }
+  const subLines = []
+  if (metric === 'fear_greed') {
+    const sub = detail.sub || {}
+    if (sub.momentum_3m != null) subLines.push({ k: '动量(3月收益分位)', v: sub.momentum_3m })
+    if (sub.volatility_inv != null) subLines.push({ k: '波动(反向)', v: sub.volatility_inv })
+    if (sub.valuation_inv != null) subLines.push({ k: '估值(反向)', v: sub.valuation_inv })
+    if (sub.amount != null) subLines.push({ k: '量能', v: sub.amount })
+    if (detail.pe_percentile != null) subLines.push({ k: '全市场PE分位', v: detail.pe_percentile + '%' })
+  } else if (metric === 'market_temp') {
+    if (detail.pe != null) subLines.push({ k: '全市场PE(TTM)', v: detail.pe })
+    if (detail.pe_percentile != null) subLines.push({ k: 'PE历史分位', v: detail.pe_percentile + '%' })
+    if (detail.history_min != null) subLines.push({ k: '历史最低PE', v: detail.history_min })
+    if (detail.history_max != null) subLines.push({ k: '历史最高PE', v: detail.history_max })
+    if (detail.label) subLines.push({ k: '估值状态', v: detail.label })
+  } else if (metric === 'fund_issuance') {
+    if (detail.recent_90d_count != null) subLines.push({ k: '近90日新发数', v: detail.recent_90d_count })
+    if (detail.recent_90d_share_sum != null) subLines.push({ k: '近90日募集份额(亿)', v: detail.recent_90d_share_sum })
+    if (detail.heat_percentile != null) subLines.push({ k: '发行热度分位', v: detail.heat_percentile + '%' })
+  }
+  return {
+    key: metric, name: meta.name, desc: meta.desc,
+    valueLabel: v != null ? v : '--', color: meta.color,
+    signalLabel, signalClass, date: row.date || '--', subLines,
+  }
+}
+
+async function loadJqr() {
+  if (!supabase) return
+  try {
+    const metrics = ['fear_greed', 'market_temp', 'fund_issuance']
+    const res = await Promise.all(metrics.map(m =>
+      supabase.from('jqr_indicators').select('date,value,detail').eq('metric', m).order('date', { ascending: true }).limit(3000)
+    ))
+    const cards = []
+    const series = {}
+    for (let i = 0; i < metrics.length; i++) {
+      const { data, error } = res[i]
+      if (error || !data || !data.length) continue
+      const latest = data[data.length - 1]
+      series[metrics[i]] = data.map(d => ({ date: d.date, value: d.value }))
+      cards.push(buildJqrCard(metrics[i], latest))
+    }
+    jqrCards.value = cards
+    Object.assign(jqrSeries, series)
+    await nextTick()
+    drawJqrCharts()
+  } catch (e) {
+    console.error('韭圈特色指标加载失败', e)
+  }
+}
+
+function drawJqrCharts() {
+  if (!jqrCards.value.length) return
+  jqrCards.value.forEach(c => {
+    const el = jqrChartRefs[c.key]
+    if (!el) return
+    const chart = echarts.getInstanceByDom(el) || echarts.init(el)
+    const hist = (jqrSeries[c.key] || []).slice(-500)
+    const dates = hist.map(d => d.date)
+    const values = hist.map(d => d.value)
+    const total = dates.length
+    const useDataZoom = total > 250
+    const startPct = useDataZoom ? Math.max(0, Math.round((1 - 500 / total) * 100)) : 0
+    const labelStep = Math.max(1, Math.floor(total / 8))
+    chart.setOption({
+      grid: { left: 45, right: 15, top: 20, bottom: useDataZoom ? 35 : 20 },
+      xAxis: { type: 'category', data: dates, axisLine: { lineStyle: { color: '#b1b4b6' } }, axisTick: { show: false }, axisLabel: { fontSize: 9, color: '#505a5f', interval: labelStep - 1 } },
+      yAxis: { type: 'value', min: 0, max: 100, splitLine: { lineStyle: { color: '#f3f2f1' } }, axisLine: { show: false }, axisLabel: { fontSize: 9, color: '#505a5f' } },
+      dataZoom: useDataZoom ? [{ type: 'slider', show: true, xAxisIndex: 0, start: startPct, end: 100, height: 18, bottom: 0, borderColor: '#b1b4b6', fillerColor: 'rgba(29,112,184,0.12)', handleStyle: { color: '#1d70b8' }, textStyle: { fontSize: 9, color: '#505a5f' } }] : [],
+      series: [{ type: 'line', data: values, lineStyle: { width: 2, color: c.color }, symbol: 'none', areaStyle: { color: c.color + '1a' }, smooth: false }],
+      tooltip: { trigger: 'axis', formatter: p => `${p[0].axisValue}<br/>${c.name}: ${p[0].value}` }
+    }, true)
+    chart.resize()
+  })
+}
+
 // ===== 资产配比饼图 =====
 function drawPie() {
   const el = pieRef()
@@ -1343,6 +1479,10 @@ watch(activeTab, (tab) => {
     }
     else if (tab === 'industry') {
       if (industryRaw.value.length === 0) loadIndustry()
+    }
+    else if (tab === 'jqr') {
+      if (jqrCards.value.length === 0) loadJqr()
+      else nextTick(drawJqrCharts)
     }
   })
 })
@@ -1506,6 +1646,22 @@ function handleResize() {
 .text-up { color: var(--color-up) !important; }
 .text-down { color: var(--color-down) !important; }
 
+/* 韭圈特色指标 */
+.jqr-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--space-md); }
+.jqr-card { border: 1px solid var(--border); padding: var(--space-lg); text-align: center; background: #fff; }
+.jqr-card-name { font-size: 14px; font-weight: 700; color: var(--text-primary); margin-bottom: var(--space-xs); }
+.jqr-value { font-size: 40px; font-weight: 700; line-height: 1.1; margin: var(--space-xs) 0; }
+.jqr-signal { display: inline-block; font-size: 14px; font-weight: 700; padding: 2px 12px; border-radius: 3px; }
+.jqr-signal.hot { color: #fff; background: var(--color-up); }
+.jqr-signal.cold { color: #fff; background: var(--color-down); }
+.jqr-signal.neutral { color: #fff; background: #505a5f; }
+.jqr-date { font-size: 12px; color: var(--text-secondary); margin: var(--space-xs) 0; }
+.jqr-sub { margin-top: var(--space-sm); border-top: 1px solid var(--border); padding-top: var(--space-sm); text-align: left; }
+.jqr-sub-row { display: flex; justify-content: space-between; font-size: 12px; padding: 2px 0; }
+.jqr-sub-row span:first-child { color: var(--text-secondary); }
+.jqr-sub-row span:last-child { font-weight: 700; color: var(--text-primary); }
+.jqr-chart { width: 100%; height: 240px; }
+
 /* ===== 移动端适配 ===== */
 /* 信号总览 */
 .overview-banner { background: #1d70b8; color: #fff; border-color: #1d70b8; }
@@ -1527,6 +1683,7 @@ function handleResize() {
 .ov-hint { font-size: 12px; color: var(--text-secondary); }
 
 @media (max-width: 768px) {
+  .jqr-grid { grid-template-columns: 1fr; }
   .ov-grid { grid-template-columns: repeat(2, 1fr); }
   .fed-grid { grid-template-columns: repeat(1, 1fr); }
   .comm-grid { grid-template-columns: repeat(1, 1fr); }

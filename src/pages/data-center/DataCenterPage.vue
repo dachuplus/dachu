@@ -643,6 +643,7 @@ const tableData = ref({})
 const tables = [
   { key: 'fund_combined', name: '基金综合数据表', desc: '基金分类(t0/t1)、详情(公司/规模/费率)、收益(ytd~r5y)、风险(dd1y/sr1y)、评分(k_all/score_grade/k0w~k10) — 核心合并表，20,860条', rows: 20860 },
   { key: 'fund_scores', name: '基金评分表（完整版）', desc: '每日更新：基金代码/名称/基金经理/管理人/分类(一级+二级)/净值规模/份额规模/管理费率/托管费率/销售服务费率/成立日期 → 阶段收益(ytd~r10y/成立以来) → 阶段回撤(dd1y~dd5y) → 阶段夏普(sr1y~sr5y) → 基金评分(k0w~k_all/score_grade)，46列完整数据', rows: 20860 },
+  { key: 'fund_indices', name: '基金指数表（万得 Wind）', desc: '万得(Wind)基金指数：代码/名称/分类/类型 + 基本信息(发布日期/成分数量/加权方式/收益方式) + 市场表现(近1周~成立以来收益率) + 历年表现(年度收益) + 估值分析(总市值/流通市值/市盈率/净利率/股息率/Beta/波动率/换手率)，14条', rows: 14 },
   { key: 'fund_scores_test', name: '基金评分测试表', desc: 'fund_scores 的测试副本，结构与生产表一致。新抓取数据先写入此表验证无误后再导入生产环境', rows: 0 },
   { key: 'index_eva', name: '行业估值表（生产）', desc: '蛋卷指数估值数据：指数代码/名称/类型(宽基/策略/行业主题)/PE/PB/股息率/ROE/PE历史分位/PB历史分位/估值评级，网页指标信号页行业估值与生产表一致，63条', rows: 63 },
   { key: 'index_eva_test', name: '行业估值表（测试）', desc: 'index_eva 的测试副本，结构与生产表一致。每次抓取数据先以增量断点续传方式写入此表验证无误后再同步到生产环境', rows: 63 },
