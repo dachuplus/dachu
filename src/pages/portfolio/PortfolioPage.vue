@@ -1,7 +1,7 @@
 <template>
   <div class="page-portfolio">
 
-    <!-- 三 Tab 导航 -->
+    <!-- 四 Tab 导航 -->
     <div class="pf-tabs">
       <div
         v-for="tab in tabs" :key="tab.key"
@@ -305,6 +305,11 @@
       </div>
     </div>
 
+    <!-- ==================== 4. 基金指数 ==================== -->
+    <div v-if="activeTab === 'index'">
+      <FundIndexPanel />
+    </div>
+
   </div>
 </template>
 
@@ -319,6 +324,7 @@ import { calcAllExpectedReturns, calcEnhancedRiskParityWeights } from '../../uti
 import { useAuth } from '../../composables/useAuth'
 import { toast, confirm } from '../../composables/useToast.js'
 import { createPortfolio as savePortfolioToDb, deletePortfolio } from '../../api/user-data'
+import FundIndexPanel from './FundIndexPanel.vue'
 
 const {
   user, isLoggedIn,
@@ -330,7 +336,8 @@ const {
 const tabs = [
   { key: 'custom', label: '自建组合' },
   { key: 'ai', label: 'AI 组合' },
-  { key: 'model', label: '模型组合' }
+  { key: 'model', label: '模型组合' },
+  { key: 'index', label: '基金指数' }
 ]
 const activeTab = ref('custom')
 
