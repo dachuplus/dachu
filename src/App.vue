@@ -10,7 +10,7 @@
           <div class="govuk-header__auth">
             <!-- 已登录 -->
             <template v-if="isLoggedIn">
-              <span class="auth-user-email">{{ user?.email }}</span>
+              <span class="auth-user-email">{{ displayName }}</span>
               <button class="auth-btn auth-btn--logout" @click="handleLogout">退出</button>
             </template>
             <!-- 未登录 -->
@@ -92,7 +92,7 @@ import { useAuth } from './composables/useAuth'
 
 const route   = useRoute()
 const router  = useRouter()
-const { user, isLoggedIn, loading: authLoading, init, signOut, showLoginDialog, showLogin, hideLogin } = useAuth()
+const { user, isLoggedIn, loading: authLoading, displayName, init, signOut, showLoginDialog, showLogin, hideLogin } = useAuth()
 
 /* ---- 响应式断点 ---- */
 const isMobile = ref(window.innerWidth < 769)

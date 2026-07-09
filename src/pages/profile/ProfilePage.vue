@@ -7,9 +7,9 @@
       <!-- 已登录 -->
       <div v-if="isLoggedIn" class="auth-section">
         <div class="user-info">
-          <div class="user-avatar">{{ (user?.email || '?')[0].toUpperCase() }}</div>
+          <div class="user-avatar">{{ displayInitial }}</div>
           <div class="user-detail">
-            <div class="user-email">{{ user?.email || '--' }}</div>
+            <div class="user-email">{{ displayName }}</div>
             <div class="user-meta">
               <span>注册：{{ profile?.created_at ? fmtDate(profile.created_at) : '--' }}</span>
               <span>登录次数：{{ profile?.login_count || 0 }}</span>
@@ -79,6 +79,7 @@ import { removeFundFromPortfolio } from '../../api/user-data'
 
 const {
   user, loading: authLoading, isLoggedIn,
+  displayName, displayInitial,
   portfolios, profile,
   signOut, refreshUserData, showLogin
 } = useAuth()

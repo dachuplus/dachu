@@ -30,46 +30,77 @@ export function fetchFundScores(params = {}) {
   return withCache(key, 60000, () => fetchFundScoresImpl(params))
 }
 
+// 升序数组中 ≤ v 的元素个数（bisect_right），用于计算「严格大于 v」的数量
+function bisectRight(arr, v) {
+  let lo = 0, hi = arr.length
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1
+    if (arr[mid] <= v) lo = mid + 1
+    else hi = mid
+  }
+  return lo
+}
+
 // 计算基金在「细分品类(t1_tt)」内的靠谱分排名
 // 返回 { [code]: { cat, rank, total } }：rank 为该品类内按 k_all 降序的名次（1 起），total 为该品类基金总数
 // 用于在组合成份基金后展示「债券型-混合二级 1|1480」这样的细分品类排名
+// 优化：仅 2 次查询 —— ①取给定基金自身(1次) ②一次性拉取涉及品类的全量 k_all 在内存排序算排名(1次)，
+//       彻底消除原来「每只基金 2 次 count」的 N+1 隐患（列表放大到 300 只时原需 600+ 次请求）
 export async function getCategoryRankInfo(codes) {
   if (!supabase || !codes || codes.length === 0) return {}
   const unique = [...new Set(codes.filter(Boolean))]
   try {
+    // ① 取给定基金自身的 (code, 品类, k_all)
     const { data, error } = await supabase
       .from('fund_scores')
       .select('c,t1_tt,k_all')
       .in('c', unique)
     if (error || !data) return {}
     const info = {}
-    const cats = new Set()
+    const cats = []
+    const catSet = new Set()
     for (const f of data) {
       const k = f.k_all == null ? null : Number(f.k_all)
       info[f.c] = { cat: f.t1_tt || null, kAll: k }
-      if (f.t1_tt) cats.add(f.t1_tt)
+      if (f.t1_tt && !catSet.has(f.t1_tt)) { catSet.add(f.t1_tt); cats.push(f.t1_tt) }
     }
-    // 各细分品类基金总数
+    if (cats.length === 0) {
+      // 所有基金都无细分品类，直接返回空排名
+      const result = {}
+      for (const f of data) result[f.c] = { cat: info[f.c].cat, rank: null, total: 0 }
+      return result
+    }
+    // ② 一次性拉取这些品类下的全部 (t1_tt, k_all)
+    const { data: all, error: e2 } = await supabase
+      .from('fund_scores')
+      .select('t1_tt,k_all')
+      .in('t1_tt', cats)
+    if (e2 || !all) return {}
+    // 按品类聚合 k_all（升序），用于二分查找排名
+    const byCat = {}
+    for (const f of all) {
+      const k = f.k_all == null ? null : Number(f.k_all)
+      if (k == null) continue
+      if (!byCat[f.t1_tt]) byCat[f.t1_tt] = []
+      byCat[f.t1_tt].push(k)
+    }
     const totals = {}
-    await Promise.all([...cats].map(async (cat) => {
-      const { count, error: e2 } = await supabase
-        .from('fund_scores').select('*', { count: 'exact', head: true })
-        .eq('t1_tt', cat)
-      totals[cat] = e2 ? 0 : (count || 0)
-    }))
-    // 各基金在品类内的排名
+    for (const cat of Object.keys(byCat)) {
+      byCat[cat].sort((a, b) => a - b)
+      totals[cat] = byCat[cat].length
+    }
+    // ③ 计算每只基金排名：品类内 k_all 严格大于本基金的数量 + 1
     const result = {}
-    await Promise.all(data.map(async (f) => {
+    for (const f of data) {
       const r = info[f.c]
       if (!r.cat || r.kAll == null) {
         result[f.c] = { cat: r.cat, rank: null, total: r.cat ? (totals[r.cat] || 0) : 0 }
-        return
+        continue
       }
-      const { count, error: e3 } = await supabase
-        .from('fund_scores').select('*', { count: 'exact', head: true })
-        .eq('t1_tt', r.cat).gt('k_all', r.kAll)
-      result[f.c] = { cat: r.cat, rank: (count || 0) + 1, total: totals[r.cat] || 0 }
-    }))
+      const total = totals[r.cat] || 0
+      const rank = total - bisectRight(byCat[r.cat] || [], r.kAll) + 1
+      result[f.c] = { cat: r.cat, rank, total }
+    }
     return result
   } catch (e) {
     console.error('[getCategoryRankInfo]', e)

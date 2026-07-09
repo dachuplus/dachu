@@ -6,7 +6,12 @@
  */
 import { ref, computed } from 'vue'
 import { supabase } from '../api/supabase'
+import { toast } from './useToast.js'
 import { upsertUserProfile, getMyPortfolios } from '../api/user-data'
+
+// 会话最长有效期：1 周（用户要求从默认 30 天缩短）
+const SESSION_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000
+const LS_LOGIN_AT = 'allfund_auth_login_at'
 
 // ---- 全局单例状态 ----
 const user = ref(null)
@@ -30,20 +35,30 @@ export function useAuth() {
       const { data } = await supabase.auth.getSession()
       const u = data?.session?.user || null
       user.value = u
-      if (u) await refreshUserData()
+      if (u) {
+        if (checkSessionExpiry()) {
+          // 已超 1 周，内部已强制登出
+        } else {
+          await refreshUserData()
+        }
+      }
     } catch (e) {
       console.error('[auth] init session error:', e)
     } finally {
       loading.value = false
     }
     // 监听全局状态变更
-    supabase.auth.onAuthStateChange(async (_event, session) => {
+    supabase.auth.onAuthStateChange(async (event, session) => {
       const newUser = session?.user || null
-      const wasLoggedIn = !!user.value
+      // 真正的登录（非 token 刷新）才重置 1 周会话计时
+      if (event === 'SIGNED_IN') {
+        localStorage.setItem(LS_LOGIN_AT, String(Date.now()))
+      }
       user.value = newUser
       if (newUser) {
         await refreshUserData()
       } else {
+        localStorage.removeItem(LS_LOGIN_AT)
         portfolios.value = []
         profile.value = null
       }
@@ -62,6 +77,33 @@ export function useAuth() {
     }
   }
 
+  /** 显示名：优先邮箱，其次手机号，兼容两种注册方式 */
+  const displayName = computed(() => {
+    const u = user.value
+    if (!u) return ''
+    return u.email || u.phone || '用户'
+  })
+  const displayInitial = computed(() => {
+    const n = displayName.value
+    return n ? n[0].toUpperCase() : '?'
+  })
+
+  /** 记录本次登录起始时间（用于 1 周会话过期强制登出） */
+  function markLogin() {
+    localStorage.setItem(LS_LOGIN_AT, String(Date.now()))
+  }
+
+  /** 检查会话是否已超过 1 周，超过则强制登出。返回 true 表示已过期登出 */
+  function checkSessionExpiry() {
+    const at = Number(localStorage.getItem(LS_LOGIN_AT) || '0')
+    if (at && Date.now() - at > SESSION_MAX_AGE_MS) {
+      signOut()
+      toast('登录已过期（超过 7 天），请重新登录', 'info')
+      return true
+    }
+    return false
+  }
+
   /** 退出登录 */
   async function signOut() {
     try {
@@ -78,5 +120,5 @@ export function useAuth() {
   function showLogin() { showLoginDialog.value = true }
   function hideLogin() { showLoginDialog.value = false }
 
-  return { user, loading, isLoggedIn, portfolios, profile, init, signOut, refreshUserData, showLoginDialog, showLogin, hideLogin }
+  return { user, loading, isLoggedIn, displayName, displayInitial, portfolios, profile, init, signOut, refreshUserData, showLoginDialog, showLogin, hideLogin, markLogin }
 }

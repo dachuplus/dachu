@@ -11,15 +11,23 @@
         <span class="login-tab" :class="{ active: mode === 'signup' }" @click="mode = 'signup'">注册</span>
       </div>
 
+      <!-- 账号类型切换：邮箱 / 手机号 -->
+      <div class="login-acctype">
+        <button type="button" class="acctype-btn" :class="{ active: accType === 'email' }" @click="accType = 'email'">邮箱</button>
+        <button type="button" class="acctype-btn" :class="{ active: accType === 'phone' }" @click="accType = 'phone'">手机号</button>
+      </div>
+
       <!-- 表单 -->
       <div class="login-form">
-        <label class="login-label" for="login-email">邮箱地址</label>
+        <label class="login-label" :for="accType === 'email' ? 'login-email' : 'login-phone'">
+          {{ accType === 'email' ? '邮箱地址' : '手机号' }}
+        </label>
         <input
-          id="login-email"
+          :id="accType === 'email' ? 'login-email' : 'login-phone'"
           class="login-input"
-          type="email"
-          v-model="email"
-          placeholder="you@example.com"
+          :type="accType === 'email' ? 'email' : 'tel'"
+          v-model="account"
+          :placeholder="accType === 'email' ? 'you@example.com' : '11 位手机号'"
           @keyup.enter="submit"
         />
 
@@ -29,7 +37,7 @@
           class="login-input"
           type="password"
           v-model="password"
-          placeholder="至少 6 位字符"
+          placeholder="至少 6 位字符（注册时自设）"
           @keyup.enter="submit"
         />
 
@@ -48,23 +56,48 @@
 import { ref } from 'vue'
 import { supabase } from '../api/supabase'
 import { toast } from '../composables/useToast.js'
+import { useAuth } from '../composables/useAuth.js'
 
 const emit = defineEmits(['close', 'logged-in'])
+const { markLogin } = useAuth()
 
-const mode = ref('signin')
-const email = ref('')
+const mode = ref('signin')      // 'signin' | 'signup'
+const accType = ref('email')    // 'email' | 'phone'
+const account = ref('')
 const password = ref('')
 const loading = ref(false)
 const error = ref('')
 const success = ref('')
 
+// 手机号规范化：11 位大陆号补 +86；已带 + 的保留
+function normalizePhone(v) {
+  v = (v || '').replace(/[\s-]/g, '')
+  if (v.startsWith('+')) return v
+  if (v.startsWith('86') && v.length === 13) return '+' + v
+  if (/^1\d{10}$/.test(v)) return '+86' + v
+  return v
+}
+
 async function submit() {
   error.value = ''
   success.value = ''
+  const isPhone = accType.value === 'phone'
+  const identifier = isPhone ? normalizePhone(account.value) : (account.value || '').trim()
 
-  if (!email.value || !password.value) {
-    error.value = '请填写邮箱和密码'
+  if (!identifier || !password.value) {
+    error.value = isPhone ? '请填写手机号和密码' : '请填写邮箱和密码'
     return
+  }
+  if (isPhone) {
+    if (!/^\+861\d{10}$/.test(identifier)) {
+      error.value = '请输入有效的 11 位手机号'
+      return
+    }
+  } else {
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(identifier)) {
+      error.value = '邮箱格式不正确'
+      return
+    }
   }
   if (password.value.length < 6) {
     error.value = '密码长度至少 6 位'
@@ -72,38 +105,34 @@ async function submit() {
   }
 
   loading.value = true
-
   try {
     if (mode.value === 'signup') {
-      const { data, error: err } = await supabase.auth.signUp({
-        email: email.value,
-        password: password.value,
-      })
-      if (err) {
-        error.value = translateError(err.message)
-        return
-      }
+      const creds = isPhone
+        ? { phone: identifier, password: password.value }
+        : { email: identifier, password: password.value }
+      const { data, error: err } = await supabase.auth.signUp(creds)
+      if (err) { error.value = translateError(err.message); return }
       if (data?.user?.identities?.length === 0) {
-        error.value = '该邮箱已注册，请直接登录'
+        error.value = isPhone ? '该手机号已注册，请直接登录' : '该邮箱已注册，请直接登录'
         mode.value = 'signin'
         return
       }
-      // 如果邮箱确认开启，提示用户检查邮箱；否则自动已登录
+      markLogin()
       if (data?.session) {
         toast('注册成功', 'success')
         emit('logged-in')
       } else {
-        success.value = '注册成功！请检查邮箱中的确认链接，点击后即可登录。'
+        success.value = isPhone
+          ? '注册成功！如已开启短信验证，请查收验证码完成验证后即可登录。'
+          : '注册成功！请检查邮箱中的确认链接，点击后即可登录。'
       }
     } else {
-      const { error: err } = await supabase.auth.signInWithPassword({
-        email: email.value,
-        password: password.value,
-      })
-      if (err) {
-        error.value = translateError(err.message)
-        return
-      }
+      const creds = isPhone
+        ? { phone: identifier, password: password.value }
+        : { email: identifier, password: password.value }
+      const { error: err } = await supabase.auth.signInWithPassword(creds)
+      if (err) { error.value = translateError(err.message); return }
+      markLogin()
       toast('登录成功', 'success')
       emit('logged-in')
     }
@@ -118,11 +147,15 @@ async function submit() {
 function translateError(msg) {
   if (!msg) return '未知错误'
   const map = {
-    'Invalid login credentials': '邮箱或密码错误',
+    'Invalid login credentials': '账号或密码错误',
     'Email not confirmed': '邮箱尚未确认，请检查邮箱中的确认链接',
-    'User already registered': '该邮箱已注册，请直接登录',
+    'Phone not confirmed': '手机号尚未验证，请查收短信验证码完成验证',
+    'User already registered': '该账号已注册，请直接登录',
     'Password should be at least 6 characters': '密码长度至少 6 位',
     'Unable to validate email address: invalid format': '邮箱格式不正确',
+    'Unable to validate phone number: invalid format': '手机号格式不正确',
+    'Phone auth is not enabled': '手机号注册未启用，请改用邮箱或联系管理员',
+    'Signups not allowed for this method': '该注册方式未开启',
   }
   return map[msg] || msg
 }
@@ -164,6 +197,19 @@ function translateError(msg) {
 }
 .login-tab.active {
   color: #1d70b8; border-bottom-color: #1d70b8;
+}
+
+/* 账号类型切换 */
+.login-acctype {
+  display: flex; gap: var(--space-sm); margin-bottom: var(--space-md);
+}
+.acctype-btn {
+  flex: 1; padding: var(--space-xs) var(--space-sm);
+  font-size: 15px; font-weight: 700; color: var(--text-secondary);
+  background: #f3f3f3; border: 1px solid var(--border); cursor: pointer;
+}
+.acctype-btn.active {
+  color: #ffffff; background: #1d70b8; border-color: #1d70b8;
 }
 
 /* Form */
