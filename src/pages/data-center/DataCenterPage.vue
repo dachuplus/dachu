@@ -644,6 +644,8 @@ const tables = [
   { key: 'fund_combined', name: '基金综合数据表', desc: '基金分类(t0/t1)、详情(公司/规模/费率)、收益(ytd~r5y)、风险(dd1y/sr1y)、评分(k_all/score_grade/k0w~k10) — 核心合并表，20,860条', rows: 20860 },
   { key: 'fund_scores', name: '基金评分表（完整版）', desc: '每日更新：基金代码/名称/基金经理/管理人/分类(一级+二级)/净值规模/份额规模/管理费率/托管费率/销售服务费率/成立日期 → 阶段收益(ytd~r10y/成立以来) → 阶段回撤(dd1y~dd5y) → 阶段夏普(sr1y~sr5y) → 基金评分(k0w~k_all/score_grade)，46列完整数据', rows: 20860 },
   { key: 'fund_scores_test', name: '基金评分测试表', desc: 'fund_scores 的测试副本，结构与生产表一致。新抓取数据先写入此表验证无误后再导入生产环境', rows: 0 },
+  { key: 'index_eva', name: '行业估值表（生产）', desc: '蛋卷指数估值数据：指数代码/名称/类型(宽基/策略/行业主题)/PE/PB/股息率/ROE/PE历史分位/PB历史分位/估值评级，网页指标信号页行业估值与生产表一致，63条', rows: 63 },
+  { key: 'index_eva_test', name: '行业估值表（测试）', desc: 'index_eva 的测试副本，结构与生产表一致。每次抓取数据先以增量断点续传方式写入此表验证无误后再同步到生产环境', rows: 63 },
   { key: 'fund_quarterly_scores', name: '季度评分表', desc: '基于季报数据的各时间窗口评分（3m/6m/1y/2y/3y/5y/7y/10y）+ 原始季度数据JSON', rows: 18584 },
   { key: 'macro_history', name: '宏观历史数据表', desc: '中国10年国债(cn10y)、美国10年国债(us10y)、Shibor、CPI、M2历史数据，覆盖1996-至今', rows: 24109 },
   { key: 'tougu_products', name: '投顾产品表', desc: '天天基金/华宝/盈米/新浪仓石四来源基金投顾产品，含收益率、最大回撤、标签分类', rows: 103 },

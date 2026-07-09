@@ -94,10 +94,43 @@ def main():
         print('  ✗ fund_scores_staging 不存在，请先运行 import_via_rest.py --staging', flush=True)
         sys.exit(1)
 
+    # 0a. 归一化 staging.t0 → 天天 7 大类命名
+    #     修复：(1) 聚源命名（股票型基金等）与历史生产（股票型等）不一致；
+    #           (2) 指数基金被并入「股票型基金」导致缺失独立的「指数型」大类。
+    #     规则优先级：QDII基金→QDII（先于指数型，因存在 QDII-指数型 交叉）；
+    #                t1_tt 以「指数型」开头→指数型；t1_tt 非空→取 t1_tt 前缀；
+    #                其余（如货币型 t1_tt 为空）保留原 t0。
+    print('\n[0a] 归一化 fund_scores_staging.t0 → 天天 7 大类命名', flush=True)
+    pg("""UPDATE fund_scores_staging
+        SET t0 = CASE
+            WHEN t0 = 'QDII基金' THEN 'QDII'
+            WHEN t1_tt LIKE '指数型%' THEN '指数型'
+            WHEN t1_tt IS NOT NULL THEN split_part(t1_tt, '-', 1)
+            ELSE t0 END
+        WHERE t0 IS DISTINCT FROM (
+            CASE WHEN t0 = 'QDII基金' THEN 'QDII'
+                 WHEN t1_tt LIKE '指数型%' THEN '指数型'
+                 WHEN t1_tt IS NOT NULL THEN split_part(t1_tt, '-', 1)
+                 ELSE t0 END
+        )""")
+    print('  ✓ staging.t0 已归一化', flush=True)
+
     staging_counts = get_t0_counts('fund_scores_staging')
     staging_total = sum(staging_counts.values())
     prod_counts = get_t0_counts('fund_scores')
     prod_total = sum(prod_counts.values())
+    # 折叠历史遗留聚源命名脏类（股票型基金等），丢弃空字符串/非规范类，
+    # 使后续校验仅比对 7 大类，避免陈旧脏类导致误判。
+    _CANON = {'股票型基金': '股票型', '混合型基金': '混合型', '债券型基金': '债券型'}
+    _merged = {}
+    for _t0, _c in prod_counts.items():
+        if not _t0:
+            continue
+        _key = _CANON.get(_t0, _t0)
+        if _key not in ('指数型', '混合型', '债券型', '股票型', 'FOF', '货币型', 'QDII'):
+            continue
+        _merged[_key] = _merged.get(_key, 0) + _c
+    prod_counts = _merged
 
     print(f'  staging 总数: {staging_total}，生产总数: {prod_total}', flush=True)
     print(f'  staging t0 分布: {staging_counts}', flush=True)

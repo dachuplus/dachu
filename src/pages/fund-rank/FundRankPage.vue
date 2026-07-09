@@ -141,7 +141,7 @@
         <!-- 筛选说明 -->
         <div class="filter-tip">
           注：ETF/LOF/定开/申购状态/单日涨跌基于数据库字段精确筛选；场内/份额类别基于基金名称识别，可能存在少量误判。<br>
-          基金规模、机构占比、股票占比数据暂未收录，后续版本更新。
+          机构占比、股票占比数据暂未收录，后续版本更新。
         </div>
       </div>
 
@@ -210,6 +210,9 @@
             <th class="col-manager sortable" @click="toggleColumnSort('fund_manager')">
               基金经理<span class="th-arrow" v-if="sortField === 'fund_manager'">{{ sortDir === 'asc' ? '▲' : '▼' }}</span>
             </th>
+            <th class="col-scale sortable" @click="toggleColumnSort('fund_scale')">
+              基金规模<span class="th-arrow" v-if="sortField === 'fund_scale'">{{ sortDir === 'asc' ? '▲' : '▼' }}</span>
+            </th>
             <th v-for="p in displayPeriods" :key="p.key" class="col-score sortable" :class="{ 'col-sort': currentPeriod === p.key }" @click="switchPeriod(p.key)">
               {{ p.label }}<span class="th-arrow" v-if="currentPeriod === p.key">{{ sortAsc ? '▲' : '▼' }}</span>
             </th>
@@ -225,6 +228,7 @@
             <td class="col-code"><a :href="eastMoneyUrl(fund.c)" target="_blank" @click.stop>{{ fund.c }}</a></td>
             <td class="col-name"><a :href="eastMoneyUrl(fund.c)" target="_blank" @click.stop>{{ fund.n || '基金' + fund.c }}</a></td>
             <td class="col-manager" :title="fund.fund_manager">{{ fund.fund_manager || '--' }}</td>
+            <td class="col-scale">{{ fmtFundScale(fund.fund_scale) }}</td>
             <td v-for="p in displayPeriods" :key="p.key" class="col-score" :class="{ 'col-sort': currentPeriod === p.key }">
               <span class="score-val" :style="scoreColor(fund[p.key])">{{ fmtScore(fund[p.key]) }}</span>
             </td>
@@ -267,6 +271,7 @@
           </span>
         </div>
         <div class="fund-card-mgr" v-if="fund.fund_manager">{{ fund.fund_manager }}</div>
+        <div class="fund-card-scale" v-if="fund.fund_scale != null">规模：{{ fmtFundScale(fund.fund_scale) }}</div>
         <div class="fund-card-scores">
           <span
             v-for="p in displayPeriods"
@@ -516,7 +521,7 @@
 <script setup>
 import { ref, computed, reactive, onMounted, onUnmounted } from 'vue'
 import { fetchFundScores, fetchFundMeta } from '../../api/data.js'
-import { fmtScore, fmtRet, fmtDD, fmtSR, fmtScale, scoreColor } from '../../utils/format.js'
+import { fmtScore, fmtRet, fmtDD, fmtSR, fmtScale, fmtFundScale, scoreColor } from '../../utils/format.js'
 import { addFundToPortfolio } from '../../api/user-data'
 import { toast } from '../../composables/useToast.js'
 import SvgIcon from '../../components/SvgIcon.vue'
@@ -824,7 +829,7 @@ function fmtUpdateTime(tsq) {
 // 按长关键词优先顺序排列，避免 ETF联接 被误剥离为 ETF
 const PRODUCT_TYPE_KEYWORDS = ['ETF联接', 'ETF', 'LOF', 'FOF', 'QDII', 'REITs', 'REIT']
 // 有效份额类别字母
-const VALID_SHARE_CLASSES = ['A', 'B', 'C', 'D', 'E', 'F', 'H', 'I', 'R', 'Y']
+const VALID_SHARE_CLASSES = ['A', 'B', 'C', 'D', 'E', 'F', 'H', 'I', 'R', 'T', 'Y']
 
 /** 判断名称是否为场内产品（ETF不含联接/LOF/REITs） */
 function isExchangeListed(name) {
@@ -1242,6 +1247,9 @@ onUnmounted(() => {
 .col-manager { max-width: 80px; color: var(--text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .col-manager.sortable { cursor: pointer; user-select: none; }
 .col-manager.sortable:hover { background: #e0e7ef; }
+.col-scale { width: 90px; text-align: right; color: var(--text-secondary); font-variant-numeric: tabular-nums; }
+.col-scale.sortable { cursor: pointer; user-select: none; }
+.col-scale.sortable:hover { background: #e0e7ef; }
 .col-num { width: 80px; text-align: right; color: var(--text-secondary); }
 .col-pct { width: 60px; text-align: right; color: var(--text-secondary); }
 .col-score { width: 50px; text-align: center; }
@@ -1281,6 +1289,11 @@ onUnmounted(() => {
 .fund-card-mgr {
   font-size: 13px; color: var(--text-secondary);
   margin-top: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+
+.fund-card-scale {
+  font-size: 13px; color: var(--text-secondary);
+  margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 
 .fund-card-actions {

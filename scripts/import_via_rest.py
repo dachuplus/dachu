@@ -333,6 +333,27 @@ if STAGING:
 # 2d. 合并基金经理（已内嵌在 risk_indicators.ndjson 的 fund_manager 字段中）
 # fund_manager 已在步骤 2 通过 risk_indicators 合并，此处无需额外处理
 
+# 2g. 归一化 t0 → 天天 7 大类命名（与生产表/前端默认视图一致）
+#     修复：聚源命名（股票型基金）与历史生产（股票型）不一致；指数基金此前被并入
+#     「股票型基金」导致缺失独立的「指数型」大类，promote 校验会整批拒绝。
+#     优先级：QDII基金→QDII（先于指数型，覆盖 QDII-指数型 交叉）；
+#           t1_tt 以「指数型」开头→指数型；t1_tt 非空→取 t1_tt 前缀；否则保留原 t0。
+_t0_fixed = 0
+for _f in funds:
+    _t0 = _f.get('t0')
+    _t1tt = _f.get('t1_tt')
+    _new = None
+    if _t0 == 'QDII基金':
+        _new = 'QDII'
+    elif isinstance(_t1tt, str) and _t1tt.startswith('指数型'):
+        _new = '指数型'
+    elif _t1tt:
+        _new = _t1tt.split('-')[0]
+    if _new and _new != _t0:
+        _f['t0'] = _new
+        _t0_fixed += 1
+print(f'  ✓ t0 归一化: {_t0_fixed} 只调整为天天 7 大类命名', flush=True)
+
 # 3. 重新计算靠谱分 v7（权重 50/25/25）
 t0 = time.time()
 W_RET, W_DD, W_SR = 0.50, 0.25, 0.25

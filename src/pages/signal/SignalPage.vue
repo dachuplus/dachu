@@ -194,7 +194,7 @@
       </div>
       <div v-if="factorSub === 'stock'">
         <div class="card">
-          <div class="card-title">Barra 六因子雷达图</div>
+          <div class="card-title">Barra 六因子蛛网图（估值分 vs 性价比分）</div>
           <div class="radar-wrap" ref="radarRef" v-show="factorFactors.length > 0"></div>
           <div class="empty-hint" v-if="factorFactors.length === 0">风格因子数据建设中，暂未提供真实数据（宁空不假）</div>
         </div>
@@ -625,12 +625,19 @@ function drawRadar() {
   if (!factorFactors.value || factorFactors.value.length === 0) return
 
   const indicator = factorFactors.value.map(f => ({ name: f.name, max: 100 }))
-  const values = factorFactors.value.map(f => f.percentile)
+  const valValues = factorFactors.value.map(f => f.percentile)   // 估值分 高=贵
+  const costValues = factorFactors.value.map(f => f.cost_score)  // 性价比分 高=便宜
   radarChart = echarts.init(el)
   radarChart.setOption({
-    color: [COLORS[0]],
+    color: ['#d4351c', '#00703c'],
+    tooltip: { trigger: 'item' },
+    legend: {
+      data: ['估值分（高=贵）', '性价比分（高=便宜）'],
+      bottom: 0, textStyle: { color: '#505a5f', fontSize: 12 }, itemGap: 18
+    },
     radar: {
       indicator, shape: 'polygon', splitNumber: 4,
+      center: ['50%', '47%'], radius: '62%',
       axisName: { color: '#505a5f', fontSize: 12 },
       splitLine: { lineStyle: { color: '#f3f2f1' } },
       splitArea: { areaStyle: { color: ['#ffffff', '#f8f8f8'] } },
@@ -638,11 +645,20 @@ function drawRadar() {
     },
     series: [{
       type: 'radar',
-      data: [{ value: values, name: '估值分（高=贵）',
-        areaStyle: { color: 'rgba(29,112,184,0.15)' },
-        lineStyle: { color: COLORS[0], width: 2 },
-        itemStyle: { color: COLORS[0] }, symbol: 'circle', symbolSize: 6
-      }]
+      data: [
+        {
+          value: valValues, name: '估值分（高=贵）',
+          areaStyle: { color: 'rgba(212,53,28,0.15)' },
+          lineStyle: { color: '#d4351c', width: 2 },
+          itemStyle: { color: '#d4351c' }, symbol: 'circle', symbolSize: 5
+        },
+        {
+          value: costValues, name: '性价比分（高=便宜）',
+          areaStyle: { color: 'rgba(0,112,60,0.12)' },
+          lineStyle: { color: '#00703c', width: 2, type: 'dashed' },
+          itemStyle: { color: '#00703c' }, symbol: 'circle', symbolSize: 5
+        }
+      ]
     }]
   })
 }

@@ -65,6 +65,20 @@ TABLES = {
         'update': '每次抓取数据时先写入此表',
         'scoring': True,
     },
+    'index_eva': {
+        'name': '行业估值表（生产）',
+        'desc': '蛋卷指数估值数据：指数代码/名称/类型(宽基/策略/行业主题)/PE/PB/股息率/ROE/PE历史分位/PB历史分位/估值评级。网页指标信号页行业估值与生产表一致。',
+        'source': '蛋卷基金 danjuanfunds.com（index_eva/dj 接口）',
+        'update': '每日通过 GitHub Actions CI 自动更新（北京时间 21:30），先增量写入 index_eva_test 验证再同步生产',
+        'scoring': False,
+    },
+    'index_eva_test': {
+        'name': '行业估值表（测试）',
+        'desc': 'index_eva 的测试副本，结构与生产表一致。每次抓取数据先以增量断点续传方式写入此表验证无误后再同步到 index_eva 生产环境。',
+        'source': 'CI 抓取流程写入（验证用）',
+        'update': '每次抓取数据时先写入此表',
+        'scoring': False,
+    },
     'fund_quarterly_scores': {
         'name': '季度评分表',
         'desc': '基于季报数据的各时间窗口评分（score_3m/6m/1y/2y/3y/5y/7y/10y），含原始 quarterly_data JSON',

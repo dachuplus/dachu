@@ -11,11 +11,16 @@ fetch_index_eva.py — 抓取蛋卷指数估值 → 测试表 → 校验 → 原
   date("07-08") → 当前年前缀 "2026-07-08"
 
 管道：
-  fetch → 写 index_eva_test(TRUNCATE+INSERT) → 校验 → 备份 index_eva → 原子切 → 校验 → 清理备份
+  fetch → 增量断点续传写 index_eva_test(按 index_code 幂等 upsert + 进度文件) → 校验
+       → 校验通过则备份 index_eva → 原子切 → 校验 → 清理备份与进度
 失败则回滚备份，绝不产生空生产表。
 
+断点续传：每次抓取按 index_code 逐条 upsert 到测试表，并写入 index_eva_progress.json
+记录已完成项；进程中断后重跑会从断点继续（已写入项跳过），无需重抓全部。
+
 用法：
-  python3 scripts/fetch_index_eva.py
+  python3 scripts/fetch_index_eva.py            # 增量续传（检测到进度则继续）
+  python3 scripts/fetch_index_eva.py --reset    # 强制清空测试表与进度，重新全量抓取
 （优先 SUPABASE_PAT，回退 SUPABASE_MGMT_TOKEN；旧过期 MGMT_TOKEN 已弃用）
 """
 import os
@@ -51,6 +56,11 @@ CAT_MAP = {'1': 'broad', '2': 'strategy', '3': 'sector'}
 EVA_COLS = ('index_code', 'name', 'ttype', 'cat', 'pe', 'pe_percentile',
             'pb', 'pb_percentile', 'dividend_yield', 'roe', 'eva_type', 'date')
 BACKUP_TABLE = '_index_eva_backup'
+# 断点续传进度文件（记录已写入测试表的 index_code，崩溃后可从此处恢复）
+PROGRESS_FILE = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+    'index_eva_progress.json'
+)
 
 
 def pg(sql, timeout=300):
@@ -177,17 +187,72 @@ def validate(table, rows_expected):
     return n
 
 
+# ===== 断点续传进度 =====
+def load_progress():
+    try:
+        with open(PROGRESS_FILE) as f:
+            return json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        return None
+
+
+def save_progress(done):
+    tmp = PROGRESS_FILE + '.tmp'
+    with open(tmp, 'w') as f:
+        json.dump({'done': done, 'updated_at': datetime.now().isoformat()},
+                  f, ensure_ascii=False)
+    os.replace(tmp, PROGRESS_FILE)
+
+
+def clear_progress():
+    try:
+        os.remove(PROGRESS_FILE)
+    except FileNotFoundError:
+        pass
+
+
+def upsert_row(table, row):
+    """按 index_code 幂等写入（先删后插），单条独立，支持断点续传。"""
+    code = sql_val(row['index_code'])
+    pg(f'DELETE FROM {table} WHERE index_code = {code};')
+    pg(build_insert(table, [row]))
+
+
 def main():
-    print('== 抓取蛋卷指数估值 ==')
+    print('== 抓取蛋卷指数估值（增量断点续传 → 测试表 → 校验 → 同步生产） ==')
+    reset = '--reset' in sys.argv
+
+    progress = None if reset else load_progress()
+    fresh = reset or not progress
+
+    if fresh:
+        print('  初始化：清空测试表与续传进度')
+        pg('TRUNCATE TABLE index_eva_test;')
+        clear_progress()
+        done = []
+    else:
+        print(f'  发现断点续传进度：已完成 {len(progress.get("done", []))} 个指数，继续写入剩余项')
+        done = list(progress.get('done', []))
+
+    done_set = set(done)
+
     items = fetch_danjuan()
     print(f'  抓到 {len(items)} 个指数')
-    rows = normalize(items)
 
-    # 1) 写测试表
-    print('  写入 index_eva_test ...')
-    pg(f'TRUNCATE TABLE index_eva_test;')
-    pg(build_insert('index_eva_test', rows))
-    n_test = validate('index_eva_test', len(rows))
+    # 1) 增量写入测试表（每个指数独立 upsert，写入后立即记录进度，崩溃后可恢复）
+    for it in items:
+        code = str(it.get('index_code') or '')
+        if code in done_set:
+            continue
+        row = normalize([it])[0]
+        upsert_row('index_eva_test', row)
+        done.append(code)
+        done_set.add(code)
+        save_progress(done)
+        print(f'    + 写入 {code} {row["name"]}')
+
+    print('  测试表写入完成，开始校验...')
+    n_test = validate('index_eva_test', len(items))
 
     # 2) 备份生产表
     print('  备份 index_eva → ' + BACKUP_TABLE)
@@ -196,7 +261,7 @@ def main():
     pg(f'INSERT INTO {BACKUP_TABLE} OVERRIDING SYSTEM VALUE SELECT * FROM index_eva;')
     print('  备份完成')
 
-    # 3) 原子切换
+    # 3) 原子切换（测试表校验通过后同步生产；失败回滚，绝不产生空生产表）
     try:
         pg(f'TRUNCATE TABLE index_eva;')
         cols = ', '.join(EVA_COLS)
@@ -208,11 +273,13 @@ def main():
         print(f'  切换失败，回滚: {e}')
         pg(f'TRUNCATE TABLE index_eva;')
         pg(f'INSERT INTO index_eva OVERRIDING SYSTEM VALUE SELECT * FROM {BACKUP_TABLE};')
+        clear_progress()  # 清理进度，下次运行重新抓取
         sys.exit(f'已回滚 index_eva，未切换。错误: {e}')
 
-    # 4) 清理备份
+    # 4) 清理备份 + 进度
     pg(f'DROP TABLE IF EXISTS {BACKUP_TABLE};')
-    print(f'== 完成：index_eva 已更新为 {n_prod} 个指数（来自测试表校验）==')
+    clear_progress()
+    print(f'== 完成：index_eva 已同步 {n_prod} 个指数（测试表校验通过）==')
 
 
 if __name__ == '__main__':

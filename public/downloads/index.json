@@ -1,5 +1,5 @@
 {
-  "updated_at": "2026-07-08T21:29:51.080179",
+  "updated_at": "2026-07-09T09:35:56.328932",
   "tables": {
     "config": {
       "rows": 4,
@@ -7,23 +7,23 @@
       "path": "/downloads/config.xlsx"
     },
     "fund_combined": {
-      "rows": 20868,
-      "size_mb": 3.9216413497924805,
+      "rows": 20878,
+      "size_mb": 4.065232276916504,
       "path": "/downloads/fund_combined.xlsx"
     },
     "fund_quarterly_scores": {
       "rows": 18584,
-      "size_mb": 4.138148307800293,
+      "size_mb": 4.138149261474609,
       "path": "/downloads/fund_quarterly_scores.xlsx"
     },
     "fund_scores": {
-      "rows": 20868,
-      "size_mb": 5.656816482543945,
+      "rows": 20814,
+      "size_mb": 5.504961013793945,
       "path": "/downloads/fund_scores.xlsx"
     },
     "fund_scores_meta": {
       "rows": 2,
-      "size_mb": 0.006145477294921875,
+      "size_mb": 0.006146430969238281,
       "path": "/downloads/fund_scores_meta.xlsx"
     },
     "fund_scores_test": {
@@ -31,24 +31,34 @@
       "size_mb": 0.006839752197265625,
       "path": "/downloads/fund_scores_test.xlsx"
     },
+    "index_eva": {
+      "rows": 63,
+      "size_mb": 0.011750221252441406,
+      "path": "/downloads/index_eva.xlsx"
+    },
+    "index_eva_test": {
+      "rows": 63,
+      "size_mb": 0.011685371398925781,
+      "path": "/downloads/index_eva_test.xlsx"
+    },
     "index_pe_history": {
       "rows": 0,
-      "size_mb": 0.005951881408691406,
+      "size_mb": 0.005953788757324219,
       "path": "/downloads/index_pe_history.xlsx"
     },
     "macro_history": {
       "rows": 24109,
-      "size_mb": 0.6591243743896484,
+      "size_mb": 0.6591253280639648,
       "path": "/downloads/macro_history.xlsx"
     },
     "site_stats": {
       "rows": 1,
-      "size_mb": 0.0060062408447265625,
+      "size_mb": 0.006005287170410156,
       "path": "/downloads/site_stats.xlsx"
     },
     "tougu_products": {
       "rows": 103,
-      "size_mb": 0.02739429473876953,
+      "size_mb": 0.027396202087402344,
       "path": "/downloads/tougu_products.xlsx"
     },
     "user_portfolios": {
