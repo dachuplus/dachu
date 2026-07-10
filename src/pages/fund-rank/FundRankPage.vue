@@ -1368,23 +1368,23 @@ onUnmounted(() => {
   padding: var(--space-xs) 6px; text-align: center;
   font-size: 13px; font-weight: 700; color: var(--text-primary);
   border-bottom: 2px solid var(--border);
-  border-right: 1px solid var(--border);
+  border-right: 0.5px solid #eaeaea;
   position: sticky; top: 0; background: #f3f2f1; z-index: 1;
 }
 .fund-table td {
   padding: 5px 6px; border-bottom: 1px solid var(--border);
-  border-right: 1px solid var(--border);
+  border-right: 0.5px solid #eaeaea;
   vertical-align: middle;
 }
 /* 最右列去掉右边框，避免外缘出现多余竖线 */
 .fund-table th:last-child,
 .fund-table td:last-child { border-right: none; }
-/* 斑马纹：偶数行浅灰底，提升可读性（gov.uk 风格 #f7f8f9） */
-.fund-table tbody tr:nth-child(even) { background: #f7f8f9; }
-.fund-table tbody tr:nth-child(even) td.col-code { background: #f7f8f9; }
-/* 悬停高亮：品牌蓝浅色，覆盖斑马纹 */
-.fund-row:hover { background: #eef3f8; }
-.fund-row:hover td.col-code { background: #eef3f8; }
+/* 斑马纹：偶数行极浅灰底（参考天天基金/东财风格，似有若无） */
+.fund-table tbody tr:nth-child(even) { background: #fafbfc; }
+.fund-table tbody tr:nth-child(even) td.col-code { background: #fafbfc; }
+/* 悬停高亮：极浅蓝灰，覆盖斑马纹 */
+.fund-row:hover { background: #f5f7fa; }
+.fund-row:hover td.col-code { background: #f5f7fa; }
 
 .col-code { width: 80px; font-weight: 700; color: var(--text-primary); font-family: monospace; font-size: 12px; }
 .col-code a { color: var(--text-primary); text-decoration: none; }
@@ -1397,7 +1397,7 @@ onUnmounted(() => {
   position: sticky; left: 0; z-index: 1; background: #fff;
 }
 .fund-row:hover td.col-code {
-  background: #eef3f8;
+  background: #f5f7fa;
 }
 .col-name { width: 156px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .col-name a { color: var(--text-primary); text-decoration: none; }
