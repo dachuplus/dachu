@@ -106,6 +106,14 @@
 
     <!-- ==================== 2. AI 组合 ==================== -->
     <div v-if="activeTab === 'ai'">
+      <!-- AI 组合子标签 -->
+      <div class="ai-subtabs">
+        <div class="ai-subtab" :class="{ active: aiSubTab === 'strategy' }" @click="aiSubTab = 'strategy'">AI 策略</div>
+        <div class="ai-subtab" :class="{ active: aiSubTab === 'riskparity' }" @click="aiSubTab = 'riskparity'">风险平价</div>
+      </div>
+
+      <!-- 2a. AI 策略 -->
+      <div v-if="aiSubTab === 'strategy'">
       <div class="card ai-card">
         <div class="card-title">DeepSeek AI 自动建组合</div>
         <p class="card-desc">选择投资策略，AI 分析当前市场并生成定制化智能组合</p>
@@ -234,55 +242,87 @@
           </div>
         </div>
       </div>
-    </div>
-
-    <!-- ==================== 3. 专家组合 ==================== -->
-    <div v-if="activeTab === 'model'">
-      <div class="data-status" v-if="loading">
-        <span>正在计算权重...</span>
-      </div>
-      <div class="data-status" v-else-if="dataDate">
-        <span>数据截止：{{ dataDate }}</span>
-        <span class="weight-source">{{ weightSource }}</span>
       </div>
 
-      <div class="card" v-if="!loading && portfolioItems.length > 0">
-        <div class="card-title">Kan &amp; Zhou 增强型风险平价</div>
-        <div ref="pieChartRef" class="risk-pie"></div>
-      </div>
+      <!-- 2b. 风险平价 -->
+      <div v-if="aiSubTab === 'riskparity'" class="card ai-card rp-card">
+        <div class="card-title">Kan &amp; Zhou 增强型风险平价组合</div>
+        <p class="card-desc">基于 Kan &amp; Zhou (2007) 增强型风险平价模型计算各大类资产目标权重，由 DeepSeek 在每类高分靠谱基金中精选并分配权重。</p>
 
-      <div class="card" v-for="group in portfolioItems" :key="group.assetKey">
-        <div class="card-title">{{ group.category }}（{{ group.weight }}%）</div>
-        <div class="etf-list">
-          <div class="etf-loading" v-if="group.loading"><span>正在筛选靠谱ETF...</span></div>
-          <div class="etf-empty" v-else-if="group.noEtf"><span>建议配置货币基金或活期存款</span></div>
-          <div class="etf-empty" v-else-if="group.etfs.length === 0"><span>该分类暂无ETF数据</span></div>
-          <template v-else>
-            <div class="etf-item" v-for="etf in group.etfs" :key="etf.code">
-              <div class="etf-header">
-                <div class="etf-name-wrap">
-                  <span class="etf-name">{{ etf.name }}</span>
-                  <span class="etf-code">{{ etf.code }}</span>
-                </div>
-                <div class="etf-weight-wrap">
-                  <span class="etf-weight">{{ etf.weight }}%</span>
-                  <span class="etf-score">靠谱 {{ fmtScore(etf.k1) }}</span>
-                </div>
-              </div>
-              <div class="etf-reason">
-                <span>{{ etf.reason }}</span>
-                <span v-if="etf.r3y" class="etf-return" :class="etf.r3y > 0 ? 'text-up' : 'text-down'">
-                  近3年 {{ etf.r3y > 0 ? '+' : '' }}{{ etf.r3y.toFixed(2) }}%
+        <div class="rp-weights" v-if="rpAssetWeights && rpAssetWeights.weights">
+          <div class="rp-w-title">模型目标资产配置（数据截止 {{ rpAssetWeights.date || '—' }}）</div>
+          <div class="rp-w-grid">
+            <div class="rp-w-cell" v-for="(w, k) in rpAssetWeights.weights" :key="k" v-show="w > 0">
+              <span class="rp-w-asset">{{ assetLabel(k) }}</span>
+              <span class="rp-w-val">{{ w }}%</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="ai-action">
+          <button class="ai-generate-btn" :disabled="rpGenerating" @click="generateRiskParityPortfolio">
+            <span v-if="rpGenerating">AI 分析中...</span>
+            <span v-else>生成风险平价组合</span>
+          </button>
+          <span class="ai-status" v-if="rpStatusText">{{ rpStatusText }}</span>
+        </div>
+
+        <div class="ai-result" v-if="rpPortfolio && rpPortfolio.funds">
+          <div class="ai-result-hd">
+            <span class="ai-result-title">AI 推荐组合 — {{ rpPortfolio.strategyName }}</span>
+            <span class="ai-result-date">{{ rpPortfolio.createdAt }}</span>
+          </div>
+          <p class="ai-summary">{{ rpPortfolio.summary }}</p>
+
+          <div class="ai-funds">
+            <div class="ai-fund-item" v-for="f in rpPortfolio.funds" :key="f.code">
+              <div class="ai-fund-left">
+                <span class="ai-fund-name">{{ f.name }}</span>
+                <span class="ai-fund-code">{{ f.code }}</span>
+                <span class="ai-fund-asset" v-if="f.asset">{{ f.asset }}</span>
+                <span class="ai-fund-cat" v-if="holdMetaMap[f.code]">
+                  <span class="pf-meta-cat" :title="'基金二级分类'">{{ holdMetaMap[f.code].cat }}</span>
+                  <span class="pf-meta-score">1年评分 {{ fmtScore2(holdMetaMap[f.code].score) }}</span>
+                  <span class="pf-meta-rank" v-if="holdMetaMap[f.code].rank != null">1年评分排名 {{ holdMetaMap[f.code].rank }}/{{ holdMetaMap[f.code].total }}</span>
+                  <span class="pf-meta-rank pf-meta-na" v-else>1年评分排名 --</span>
                 </span>
               </div>
+              <div class="ai-fund-right">
+                <span class="ai-fund-weight">{{ f.weight }}%</span>
+                <span class="ai-fund-reason">{{ f.reason }}</span>
+              </div>
             </div>
-          </template>
+          </div>
+
+          <div class="ai-backtest" v-if="rpPortfolio.backtest">
+            <div class="ai-bt-title">历史回测</div>
+            <div class="ai-bt-grid">
+              <div class="ai-bt-item">
+                <span class="ai-bt-label">年化收益</span>
+                <span class="ai-bt-val" :class="rpPortfolio.backtest.annualReturn > 0 ? 'text-up' : 'text-down'">
+                  {{ rpPortfolio.backtest.annualReturn > 0 ? '+' : '' }}{{ rpPortfolio.backtest.annualReturn }}%
+                </span>
+              </div>
+              <div class="ai-bt-item">
+                <span class="ai-bt-label">最大回撤</span>
+                <span class="ai-bt-val text-down">{{ rpPortfolio.backtest.maxDrawdown }}%</span>
+              </div>
+              <div class="ai-bt-item">
+                <span class="ai-bt-label">夏普比率</span>
+                <span class="ai-bt-val">{{ rpPortfolio.backtest.sharpe }}</span>
+              </div>
+              <div class="ai-bt-item">
+                <span class="ai-bt-label">胜率</span>
+                <span class="ai-bt-val">{{ rpPortfolio.backtest.winRate }}%</span>
+              </div>
+            </div>
+          </div>
+          <div class="ai-add-row">
+            <button class="btn-primary" @click="addRpToCustom">+ 添加到自建组合</button>
+          </div>
         </div>
       </div>
 
-      <div class="footer-note">
-        <span>权重由 Kan & Zhou 增强型风险平价模型实时计算 | ETF按靠谱指数精选 | 仅供学习，不构成投资建议</span>
-      </div>
     </div>
 
     <!-- ==================== 4. 基金指数 ==================== -->
@@ -294,7 +334,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted, onBeforeUnmount, nextTick, watch } from 'vue'
+import { ref, onMounted, nextTick } from 'vue'
 import { supabase } from '../../api/supabase'
 import { fetchValue500All } from '../../utils/api'
 import { getCategoryRankInfo, getCategoryRankInfoByScore } from '../../api/data.js'
@@ -304,8 +344,6 @@ import { useAuth } from '../../composables/useAuth'
 import { toast, confirm } from '../../composables/useToast.js'
 import { createPortfolio as savePortfolioToDb, deletePortfolio } from '../../api/user-data'
 import FundIndexPanel from './FundIndexPanel.vue'
-import echarts from '../../utils/echarts-setup'
-import { COLORS } from '../../utils/echarts-theme'
 
 const {
   user, isLoggedIn,
@@ -317,14 +355,13 @@ const {
 const tabs = [
   { key: 'custom', label: '自建组合' },
   { key: 'ai', label: 'AI 组合' },
-  { key: 'model', label: '专家组合' },
   { key: 'index', label: '基金指数' }
 ]
 const activeTab = ref('custom')
+const aiSubTab = ref('strategy')
 
 function switchTab(key) {
   activeTab.value = key
-  if (key === 'model' && portfolioItems.value.length === 0) buildPortfolio()
   if (key === 'custom' && isLoggedIn.value) loadCustomPortfolios()
 }
 
@@ -346,6 +383,7 @@ async function enrichRanks() {
   const codes = new Set()
   customPortfolios.value.forEach(pf => (pf.portfolio_data || []).forEach(h => h.code && codes.add(h.code)))
   if (aiPortfolio.value?.funds) aiPortfolio.value.funds.forEach(f => f.code && codes.add(f.code))
+  if (rpPortfolio.value?.funds) rpPortfolio.value.funds.forEach(f => f.code && codes.add(f.code))
   if (codes.size === 0) { catRankMap.value = {}; holdMetaMap.value = {}; return }
   try {
     catRankMap.value = await getCategoryRankInfo([...codes])
@@ -653,10 +691,10 @@ ${reqHint}${catHint}
   finally { aiGenerating.value = false }
 }
 
-// 添加到自建组合
-async function addAiToCustom() {
-  if (!aiPortfolio.value?.funds) {
-    toast('暂无 AI 组合数据', 'warning')
+// 通用：将指定组合（AI 策略 / 风险平价）添加到自建组合
+async function addPortfolioToCustom(pf) {
+  if (!pf?.funds) {
+    toast('暂无组合数据', 'warning')
     return
   }
   if (!isLoggedIn.value) {
@@ -664,8 +702,8 @@ async function addAiToCustom() {
     return
   }
 
-  const pfName = aiPortfolio.value.strategyName || 'AI组合'
-  const portfolioData = aiPortfolio.value.funds.map(f => ({
+  const pfName = pf.strategyName || 'AI组合'
+  const portfolioData = pf.funds.map(f => ({
     code: f.code,
     name: f.name,
     weight: f.weight || 10,
@@ -673,14 +711,12 @@ async function addAiToCustom() {
   }))
 
   try {
-    // 持久化到 Supabase
     const result = await savePortfolioToDb(pfName, portfolioData)
     if (!result.success) {
       toast('保存失败: ' + (result.error || '未知错误'), 'error')
       return
     }
 
-    // 同步到本地状态（使用 DB 返回的真实 ID）
     customPortfolios.value.unshift(result.data || {
       id: Date.now().toString(),
       name: pfName,
@@ -690,17 +726,19 @@ async function addAiToCustom() {
     })
 
     toast('已添加到自建组合', 'success')
-    // 自动切换到自建组合 tab
     activeTab.value = 'custom'
     await nextTick()
     loadPortfolioReturns()
   } catch (err) {
-    console.error('[addAiToCustom]', err)
+    console.error('[addPortfolioToCustom]', err)
     toast('添加失败: ' + (err.message || '未知错误'), 'error')
   }
 }
 
-// ===== 专家组合（Kan & Zhou 风险平价） =====
+async function addAiToCustom() { await addPortfolioToCustom(aiPortfolio.value) }
+async function addRpToCustom() { await addPortfolioToCustom(rpPortfolio.value) }
+
+// ===== 资产大类配置（用于风险平价候选基金池构建） =====
 // 每个资产大类按「一级分类 t0」筛选；无 t0 的品类（商品/黄金/REIT）用名称关键字识别
 // 选基优先级：ETF > 指数型产品 > 主动管理型（同品类内按 k1 降序取 top 10）
 const ASSET_ETF_CONFIG = {
@@ -713,46 +751,23 @@ const ASSET_ETF_CONFIG = {
   reit: { category: 'REITs', t0: null, nameKeyword: 'REIT', fallbackKeywords: ['REIT', '不动产', '基础设施', 'reits'] },
   cash: { category: '现金', t0: '货币型', nameKeyword: null, noEtf: true }
 }
-// 每个资产大类精选的基金数量
-const ETF_SELECT_TOP = 10
-const loading = ref(false)
-const dataDate = ref('')
-const weightSource = ref('')
-const portfolioItems = ref([])
-const pieChartRef = ref(null)
-let pieChart = null
+// ===== 风险平价：DeepSeek 生成组合 =====
+const RP_ASSET_ORDER = ['stock', 'bond', 'commodity', 'gold', 'reit', 'cash']
+const RP_ASSET_LABELS = { stock: '股票', bond: '债券', commodity: '商品', gold: '黄金', reit: 'REITs', cash: '现金' }
+function assetLabel(k) { return RP_ASSET_LABELS[k] || k }
 
-// 风险平价总览：各大类权重占比饼图（gov.uk 品牌色系）
-function renderPieChart() {
-  const el = pieChartRef.value
-  if (!el || portfolioItems.value.length === 0) return
-  if (pieChart) pieChart.dispose()
-  pieChart = echarts.init(el)
-  const palette = ['#1d70b8', '#5694ca', '#003078', '#f47738', '#4c2c92', '#28a197']
-  pieChart.setOption({
-    color: COLORS,
-    tooltip: { trigger: 'item', formatter: p => `${p.name}: ${p.percent}%` },
-    legend: { bottom: 0, textStyle: { fontFamily: 'inherit', fontSize: 13 } },
-    series: [{
-      type: 'pie',
-      radius: ['42%', '70%'],
-      center: ['50%', '46%'],
-      itemStyle: { borderColor: '#fff', borderWidth: 2 },
-      label: { show: true, formatter: '{b} {c}%', fontSize: 12, color: '#0b0c0c' },
-      labelLine: { length: 8, length2: 8 },
-      data: portfolioItems.value.map((it, i) => ({
-        name: it.category,
-        value: it.weight,
-        itemStyle: { color: palette[i % palette.length] }
-      }))
-    }]
-  })
-}
+const rpGenerating = ref(false)
+const rpStatusText = ref('')
+const rpPortfolio = ref(null)
+const rpAssetWeights = ref(null)
 
-function fmtScore(val) { return val != null ? val.toFixed(1) : '--' }
-
-async function buildPortfolio() {
-  loading.value = true
+// 让 DeepSeek 基于 Kan & Zhou 增强型风险平价模型自动生成组合：
+// 1) 计算各大类资产目标权重；2) 为每个大类构建高分靠谱基金候选池；
+// 3) 由 DeepSeek 在候选池内精选基金并按目标权重分配。
+async function generateRiskParityPortfolio() {
+  if (rpGenerating.value) return
+  rpGenerating.value = true
+  rpStatusText.value = '正在计算 Kan & Zhou 增强型风险平价权重...'
   try {
     const [quotes, v500] = await Promise.all([getIndexQuotes(), fetchValue500All()])
     const { bond: bondData, shibor: shiborData, cpi: cpiData, pe300: pe300Data, rf } = parseValue500Data(v500)
@@ -761,16 +776,70 @@ async function buildPortfolio() {
     const er = calcAllExpectedReturns({ stock: { pe: marketData.stock?.pe || null, pePercentile: marketData.stock?.pePercentile || null }, bond: { yield10y: rf }, cash: { shiborOn: marketData.cash?.shiborOn || 0 }, gold: { yield10y: rf, cpi: cpiData.cpi } })
     const rpResult = calcEnhancedRiskParityWeights(er, rf, 0.5)
     const weights = rpResult.weights
-    const assetKeys = ['stock', 'bond', 'commodity', 'gold', 'reit', 'cash']
-    const items = []
-    for (const key of assetKeys) {
-      const cfg = ASSET_ETF_CONFIG[key]; const w = weights[key] || 0
-      if (w > 0) items.push({ assetKey: key, category: cfg.category, weight: w, etfs: [], loading: !cfg.noEtf, noEtf: !!cfg.noEtf })
+    rpAssetWeights.value = { date, weights }
+
+    // 构建各大类候选基金池（高分靠谱基金）
+    rpStatusText.value = '正在筛选各大类高分靠谱基金...'
+    const pools = {}
+    for (const key of RP_ASSET_ORDER) {
+      const w = weights[key] || 0
+      if (w <= 0) continue
+      const cfg = ASSET_ETF_CONFIG[key]
+      if (!cfg) continue
+      const funds = await fetchCategoryFunds(cfg, 8)
+      pools[key] = (funds || []).map(f => `${f.c} ${f.n || ''} (靠谱${f.k1 != null ? f.k1.toFixed(0) : '—'})`)
     }
-    dataDate.value = date; weightSource.value = 'Kan & Zhou 增强型风险平价'; portfolioItems.value = items; loading.value = false
-    console.log(`[buildPortfolio] portfolioItems set with ${items.length} items, calling fetchAllETFs`)
-    fetchAllETFs(items)
-  } catch (err) { console.error('[buildPortfolio] error:', err); loading.value = false }
+
+    const activeClasses = RP_ASSET_ORDER.filter(k => weights[k] > 0 && pools[k] && pools[k].length > 0)
+    let poolText = ''
+    for (const key of activeClasses) {
+      poolText += `\n【${RP_ASSET_LABELS[key]}】（目标权重 ${weights[key]}%）：\n` + pools[key].join('\n')
+    }
+    const weightSummary = activeClasses.map(k => `${RP_ASSET_LABELS[k]}: ${weights[k]}%`).join('，')
+
+    const prompt = `你是一位专业基金投顾，精通风险平价配置。
+我已用 Kan & Zhou (2007) 增强型风险平价模型计算出各大类资产的目标权重，并为你准备好了每个大类下的高分靠谱基金池（已按1年靠谱指数降序）。
+请严格按以下规则生成组合：
+1. 对每一个目标权重>0的大类，从该大类的基金池中精选 2~3 只基金；
+2. 大类内部按风险平价思想分配权重（可参考基金靠谱指数高低微调），使该大类内基金权重之和 ≈ 该大类目标权重；
+3. 所有基金权重之和 = 100%；
+4. 必须只从给定基金池中选择，不得自行编造代码或超出清单。
+
+各大类目标权重：${weightSummary}
+
+各大类基金池：${poolText}
+
+请返回纯JSON（不要markdown）：
+{ "strategyName": "风险平价组合", "summary": "一句话概述（50字内）",
+  "funds": [{"code":"基金代码","name":"基金名称","weight":数值,"assetClass":"大类名(股票/债券/商品/黄金/REITs/现金)","reason":"推荐理由（15字内）"}],
+  "backtest": {"annualReturn":预估年化收益率,"maxDrawdown":预估最大回撤,"sharpe":预估夏普比率,"winRate":预估月度胜率} }
+要求：权重和为100%，每个大类基金权重之和尽量接近其目标权重。`
+
+    rpStatusText.value = 'AI 正在生成风险平价组合...'
+    const response = await fetch('https://api.deepseek.com/v1/chat/completions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${import.meta.env.VITE_DEEPSEEK_API_KEY || ''}` },
+      body: JSON.stringify({ model: 'deepseek-chat', messages: [{ role: 'system', content: '你是专业基金投顾，只从给定基金池选择，只返回JSON。' }, { role: 'user', content: prompt }], temperature: 0.7, max_tokens: 2000 })
+    })
+    if (!response.ok) throw new Error(`API调用失败: ${response.status}`)
+    const result = await response.json()
+    const content = result.choices?.[0]?.message?.content || ''
+    let parsed
+    try { parsed = JSON.parse(content.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim()) }
+    catch { throw new Error('AI返回格式异常，请重试') }
+    const now = new Date()
+    rpPortfolio.value = {
+      id: Date.now().toString(),
+      strategyName: parsed.strategyName || '风险平价组合',
+      summary: parsed.summary || '',
+      funds: (parsed.funds || []).map(f => ({ code: f.code, name: f.name, weight: Number(f.weight) || 0, reason: f.reason || '', asset: f.assetClass || '' })),
+      backtest: parsed.backtest ? { annualReturn: Number(parsed.backtest.annualReturn) || 0, maxDrawdown: Number(parsed.backtest.maxDrawdown) || 0, sharpe: Number(parsed.backtest.sharpe) || 0, winRate: Number(parsed.backtest.winRate) || 0 } : null,
+      createdAt: `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`
+    }
+    rpStatusText.value = '风险平价组合生成完成'
+    await enrichRanks()
+  } catch (err) { console.error('[generateRiskParityPortfolio]', err); rpStatusText.value = '生成失败: ' + err.message; rpPortfolio.value = null }
+  finally { rpGenerating.value = false }
 }
 
 // 按品类精选高分基金：优先级 ETF > 指数型产品 > 主动管理型，同品类内按 k1（1年评分）降序取 top N
@@ -855,54 +924,8 @@ async function fetchCategoryFunds(cfg, limit) {
   return funds.slice(0, limit)
 }
 
-async function fetchAllETFs(items) {
-  if (!supabase) { console.warn('[fetchAllETFs] supabase null, setting empty etfs'); portfolioItems.value = items.map(i => ({ ...i, loading: false, etfs: [] })); return }
-  console.log(`[fetchAllETFs] starting for ${items.length} items:`, items.map(i => i.assetKey))
-  const results = await Promise.all(items.map(async item => {
-    if (item.noEtf) return { ...item, loading: false }
-    const cfg = ASSET_ETF_CONFIG[item.assetKey]
-    const topN = cfg.topN || ETF_SELECT_TOP
-    try {
-      const funds = await fetchCategoryFunds(cfg, topN)
-      console.log(`[fetchAllETFs] ${item.assetKey}: got ${funds.length} funds`)
-      const etfs = []
-      if (funds.length > 0) {
-        // 在品类权重内按最大余数法分配整数权重，保证各基金权重之和 = 品类权重
-        const N = funds.length
-        const baseW = Math.floor(item.weight / N)
-        let rem = item.weight - baseW * N
-        funds.forEach((f, idx) => etfs.push({
-          code: f.c,
-          name: f.n || '基金' + f.c,
-          weight: baseW + (idx < rem ? 1 : 0),
-          k1: f.k1,
-          r3y: f.r3y,
-          reason: '靠谱指数(1年) ' + (f.k1 || 0).toFixed(1)
-        }))
-      }
-      return { ...item, etfs, loading: false }
-    } catch { return { ...item, etfs: [], loading: false } }
-  }))
-  portfolioItems.value = results
-}
-
 onMounted(() => {
   loadAiHistory()
-  window.addEventListener('resize', handlePieResize)
-})
-
-function handlePieResize() {
-  if (pieChart) pieChart.resize()
-}
-
-// 切换到专家组合 tab 或权重数据就绪后渲染/重渲染饼图
-watch([activeTab, portfolioItems], () => {
-  if (activeTab.value === 'model') nextTick(renderPieChart)
-})
-
-onBeforeUnmount(() => {
-  window.removeEventListener('resize', handlePieResize)
-  if (pieChart) { pieChart.dispose(); pieChart = null }
 })
 </script>
 
@@ -966,7 +989,7 @@ onBeforeUnmount(() => {
 .modal-input { width: 100%; padding: var(--space-sm); border: 1px solid var(--border); font-size: 16px; margin-bottom: var(--space-md); }
 .modal-btns { display: flex; gap: var(--space-sm); justify-content: flex-end; }
 
-/* ===== 专家组合 ===== */
+/* ===== 风险平价 / AI 组合 ===== */
 .data-status { display: flex; align-items: center; gap: var(--space-sm); padding: var(--space-sm) 0; font-size: 14px; color: var(--text-secondary); }
 .weight-source { font-weight: 700; }
 .risk-pie { width: 100%; height: 340px; }
@@ -1042,6 +1065,20 @@ onBeforeUnmount(() => {
 .ai-cat-chip { padding: var(--space-sm); border: 1px solid var(--border); background: #fff; cursor: pointer; font-size: 14px; transition: all 0.15s; text-align: center; }
 .ai-cat-chip:hover { border-color: #6c5ce7; background: #f0edff; }
 .ai-cat-chip:disabled { opacity: 0.5; }
+
+/* ===== AI 组合子标签（AI 策略 / 风险平价） ===== */
+.ai-subtabs { display: flex; gap: var(--space-sm); margin-bottom: var(--space-lg); border-bottom: 1px solid var(--border); }
+.ai-subtab { padding: var(--space-sm) var(--space-lg); font-size: 16px; font-weight: 700; color: var(--text-secondary); cursor: pointer; border-bottom: 3px solid transparent; margin-bottom: -1px; transition: all 0.15s; }
+.ai-subtab:hover { color: var(--text-primary); }
+.ai-subtab.active { color: #6c5ce7; border-bottom-color: #6c5ce7; }
+.rp-card { background: #f4f9ff; border-left: 5px solid #1d70b8; }
+.rp-weights { margin-bottom: var(--space-lg); padding: var(--space-md); background: #fff; border: 1px solid var(--border); }
+.rp-w-title { font-size: 15px; font-weight: 700; color: var(--text-secondary); margin-bottom: var(--space-sm); }
+.rp-w-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: var(--space-sm); }
+.rp-w-cell { display: flex; flex-direction: column; align-items: center; padding: var(--space-sm); background: #eaf2fb; }
+.rp-w-asset { font-size: 14px; color: var(--text-primary); }
+.rp-w-val { font-size: 19px; font-weight: 700; color: #1d70b8; }
+.ai-fund-asset { font-size: 12px; color: #fff; background: #1d70b8; padding: 1px 6px; margin-top: 2px; align-self: flex-start; }
 
 /* ===== Utils ===== */
 .text-up { color: var(--color-up); }

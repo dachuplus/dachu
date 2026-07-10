@@ -57,7 +57,7 @@ const routes = [
     meta: {
       tab: 'tools',
       title: '智能组合',
-      description: '智能组合构建：自建组合、DeepSeek AI 推荐组合（16 策略）与 Kan&Zhou 增强型风险平价专家组合，辅助资产配置。',
+      description: '智能组合构建：自建组合、DeepSeek AI 推荐组合（16 策略）与基于 Kan&Zhou 增强型风险平价的风险平价组合，辅助资产配置。',
       keywords: '智能组合,资产配置,风险平价,AI组合'
     }
   },
