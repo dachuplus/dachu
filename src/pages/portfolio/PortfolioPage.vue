@@ -151,15 +151,6 @@
           </div>
         </div>
 
-        <div class="ai-cat-row">
-          <span class="ai-cat-label">基金分类：</span>
-          <select v-model="aiCategory" class="ai-cat-select" :disabled="aiGenerating">
-            <option value="">全部分类</option>
-            <option v-for="cat in AI_CATEGORY_OPTIONS" :key="cat" :value="cat">{{ cat }}</option>
-          </select>
-          <span class="ai-cat-hint" v-if="aiCategory">将仅从「{{ aiCategory }}」品类内挑选高分基金</span>
-        </div>
-
         <div class="ai-action">
           <button class="ai-generate-btn" :disabled="aiGenerating" @click="generateAiPortfolio">
             <span v-if="aiGenerating">AI 分析中...</span>
@@ -245,7 +236,7 @@
       </div>
     </div>
 
-    <!-- ==================== 3. 模型组合 ==================== -->
+    <!-- ==================== 3. 专家组合 ==================== -->
     <div v-if="activeTab === 'model'">
       <div class="data-status" v-if="loading">
         <span>正在计算权重...</span>
@@ -286,7 +277,7 @@
                 </div>
                 <div class="etf-weight-wrap">
                   <span class="etf-weight">{{ etf.weight }}%</span>
-                  <span class="etf-score">靠谱 {{ fmtScore(etf.k3) }}</span>
+                  <span class="etf-score">靠谱 {{ fmtScore(etf.k1) }}</span>
                 </div>
               </div>
               <div class="etf-reason">
@@ -336,7 +327,7 @@ const {
 const tabs = [
   { key: 'custom', label: '自建组合' },
   { key: 'ai', label: 'AI 组合' },
-  { key: 'model', label: '模型组合' },
+  { key: 'model', label: '专家组合' },
   { key: 'index', label: '基金指数' }
 ]
 const activeTab = ref('custom')
@@ -535,13 +526,6 @@ const AI_STRATEGIES = [
   { key: 'technology',     label: '科技主题',    desc: '聚焦半导体/AI/新能源' },
   { key: 'consumption',    label: '消费主题',    desc: '必选+可选消费龙头' },
 ]
-// 所有二级分类（细分品类，对应 fund_scores.t1_tt），用于 AI 组合的「基金分类」筛选
-const AI_CATEGORY_OPTIONS = [
-  '混合型-偏股', '指数型-股票', '混合型-灵活', '债券型-长债', '债券型-混合二级', '混合型-偏债', '股票型',
-  '债券型-中短债', '债券型-混合一级', 'FOF-稳健型', '指数型-固收', 'FOF-均衡型', 'FOF-进取型',
-  '指数型-海外股票', '债券型-利率债', '债券型-信用债', 'QDII-混合偏股', '混合型-平衡', 'QDII-普通股票',
-  '指数型-其他', 'QDII-纯债', '混合型-绝对收益', 'QDII-混合灵活', 'QDII-混合债', 'QDII-商品', 'QDII-FOF', 'QDII-REITs', 'QDII-混合平衡'
-]
 const aiCategory = ref('')
 const aiStrategy = ref('balanced')
 
@@ -724,16 +708,20 @@ async function addAiToCustom() {
   }
 }
 
-// ===== 模型组合（Kan & Zhou 风险平价） =====
+// ===== 专家组合（Kan & Zhou 风险平价） =====
 const ASSET_ICONS = { stock: 'signal', bond: 'shield', commodity: 'gear', gold: 'medal', reit: 'portfolio', cash: 'dashboard' }
+// 每个资产大类按「一级分类 t0」筛选；无 t0 的品类（商品/黄金/REIT）用名称关键字识别
+// 选基优先级：ETF > 指数型产品 > 主动管理型（同品类内按 k1 降序取 top 10）
 const ASSET_ETF_CONFIG = {
-  stock: { category: '股票', t0: 'gp', period: 'k3', count: 3, keyword: 'ETF' },
-  bond: { category: '债券', t0: 'zq', period: 'k3', count: 2, keyword: 'ETF' },
-  commodity: { category: '商品', t0: null, period: 'k3', count: 1, keyword: '商品ETF' },
-  gold: { category: '黄金', t0: null, period: 'k3', count: 1, keyword: '黄金' },
-  reit: { category: 'REITs', t0: null, period: 'k3', count: 1, keyword: 'REIT' },
-  cash: { category: '现金', t0: 'hb', period: 'k3', count: 0, noEtf: true }
+  stock: { category: '股票', t0: 'gp', nameKeyword: null },
+  bond: { category: '债券', t0: 'zq', nameKeyword: null },
+  commodity: { category: '商品', t0: null, nameKeyword: '商品ETF' },
+  gold: { category: '黄金', t0: null, nameKeyword: '黄金' },
+  reit: { category: 'REITs', t0: null, nameKeyword: 'REIT' },
+  cash: { category: '现金', t0: 'hb', nameKeyword: null, noEtf: true }
 }
+// 每个资产大类精选的基金数量
+const ETF_SELECT_TOP = 10
 const loading = ref(false)
 const dataDate = ref('')
 const weightSource = ref('')
@@ -762,19 +750,67 @@ async function buildPortfolio() {
   } catch (err) { console.error(err); loading.value = false }
 }
 
+// 按品类精选高分基金：优先级 ETF > 指数型产品 > 主动管理型，同品类内按 k1（1年评分）降序取 top N
+async function fetchCategoryFunds(cfg, limit) {
+  if (!supabase) return []
+  // 基础查询：按 t0（一级分类）或名称关键字定位品类，按 k1 降序
+  const base = () => {
+    let q = supabase.from('fund_scores').select('c,n,t0,t2,k1,k3,r3y').not('k1', 'is', null)
+    if (cfg.t0) q = q.eq('t0', cfg.t0)
+    else if (cfg.nameKeyword) q = q.ilike('n', `%${cfg.nameKeyword}%`)
+    return q
+  }
+  const uniq = (list, have = new Set()) => {
+    const out = []
+    list.forEach(f => { if (!have.has(f.c)) { have.add(f.c); out.push(f) } })
+    return out
+  }
+  let funds = []
+  try {
+    if (cfg.t0) {
+      // 1) ETF 优先
+      const { data: etf } = await base().ilike('n', '%ETF%').order('k1', { ascending: false }).limit(limit)
+      funds = uniq(etf || [])
+      // 2) 指数型产品降级补充
+      if (funds.length < limit) {
+        const { data: idx } = await base().ilike('n', '%指数%').order('k1', { ascending: false }).limit(limit)
+        funds = funds.concat(uniq(idx || [], new Set(funds.map(f => f.c))))
+      }
+      // 3) 主动管理型兜底
+      if (funds.length < limit) {
+        const { data: act } = await base().order('k1', { ascending: false }).limit(limit)
+        funds = funds.concat(uniq(act || [], new Set(funds.map(f => f.c))))
+      }
+    } else if (cfg.nameKeyword) {
+      // 商品/黄金/REIT 等以名称关键字识别的品类，直接按 k1 取 top N
+      const { data } = await base().order('k1', { ascending: false }).limit(limit)
+      funds = data || []
+    }
+  } catch (e) { console.error('[fetchCategoryFunds]', cfg.category, e) }
+  return funds.slice(0, limit)
+}
+
 async function fetchAllETFs(items) {
   if (!supabase) { portfolioItems.value = items.map(i => ({ ...i, loading: false, etfs: [] })); return }
   const results = await Promise.all(items.map(async item => {
     if (item.noEtf) return { ...item, loading: false }
-    const cfg = ASSET_ETF_CONFIG[item.assetKey]; let query = supabase.from('fund_scores').select('c,n,t0,t2,k3,r3y').not('k3','is',null).gte('k3',0)
-    if (cfg.t0) query = query.eq('t0', cfg.t0).ilike('n', `%${cfg.keyword}%`)
-    else query = query.ilike('n', `%${cfg.keyword}%`)
+    const cfg = ASSET_ETF_CONFIG[item.assetKey]
     try {
-      const { data } = await query.order('k3', { ascending: false }).limit(cfg.count)
-      const funds = data || []; const etfs = []
+      const funds = await fetchCategoryFunds(cfg, ETF_SELECT_TOP)
+      const etfs = []
       if (funds.length > 0) {
-        const pw = Math.round(item.weight / funds.length); const used = pw * (funds.length - 1)
-        funds.forEach((f, idx) => etfs.push({ code: f.c, name: f.n || '基金'+f.c, weight: idx === funds.length - 1 ? item.weight - used : pw, k3: f.k3, r3y: f.r3y, reason: '靠谱指数(3年) ' + (f.k3||0).toFixed(1) }))
+        // 在品类权重内按最大余数法分配整数权重，保证各基金权重之和 = 品类权重
+        const N = funds.length
+        const baseW = Math.floor(item.weight / N)
+        let rem = item.weight - baseW * N
+        funds.forEach((f, idx) => etfs.push({
+          code: f.c,
+          name: f.n || '基金' + f.c,
+          weight: baseW + (idx < rem ? 1 : 0),
+          k1: f.k1,
+          r3y: f.r3y,
+          reason: '靠谱指数(1年) ' + (f.k1 || 0).toFixed(1)
+        }))
       }
       return { ...item, etfs, loading: false }
     } catch { return { ...item, etfs: [], loading: false } }
@@ -847,7 +883,7 @@ onMounted(() => {
 .modal-input { width: 100%; padding: var(--space-sm); border: 1px solid var(--border); font-size: 16px; margin-bottom: var(--space-md); }
 .modal-btns { display: flex; gap: var(--space-sm); justify-content: flex-end; }
 
-/* ===== 模型组合 ===== */
+/* ===== 专家组合 ===== */
 .data-status { display: flex; align-items: center; gap: var(--space-sm); padding: var(--space-sm) 0; font-size: 14px; color: var(--text-secondary); }
 .weight-source { font-weight: 700; }
 .portfolio-overview { display: flex; flex-direction: column; gap: var(--space-sm); }

@@ -245,17 +245,7 @@
         </div>
       </div>
       <div v-if="factorSub === 'bond'" class="card">
-        <div class="card-title">国债收益率曲线</div>
-        <div class="chart-wrap" ref="bondCurveEl"></div>
-        <div class="card-title" style="margin-top:20px">10Y国债历史走势</div>
-        <div class="macro-chart" ref="bondHistEl" style="height:200px"></div>
-        <div class="card-title" style="margin-top:20px">期限利差</div>
-        <div class="spread-item" v-for="s in bondSpreads" :key="s.label">
-          <span>{{ s.label }}</span>
-          <span :class="s.bp > 0 ? 'text-up' : 'text-down'">{{ s.bp }}bp</span>
-        </div>
-
-        <div class="card-title" style="margin-top:24px">债券风格信号（久期 / 信用 / 杠杆）</div>
+        <div class="card-title">债券风格信号（久期 / 信用 / 杠杆）</div>
         <p class="card-desc">基于中证利率债、信用债指数近1月表现与资金面套息空间，给出明确信号结论与依据。</p>
         <div class="bond-signal-grid">
           <div class="bond-signal-card" v-for="b in bondSignals" :key="b.factor_key">
@@ -267,6 +257,16 @@
           </div>
         </div>
         <div class="empty-hint" v-if="bondSignals.length === 0">债券信号数据建设中…</div>
+
+        <div class="card-title" style="margin-top:24px">国债收益率曲线</div>
+        <div class="chart-wrap" ref="bondCurveEl"></div>
+        <div class="card-title" style="margin-top:20px">10Y国债历史走势</div>
+        <div class="macro-chart" ref="bondHistEl" style="height:200px"></div>
+        <div class="card-title" style="margin-top:20px">期限利差</div>
+        <div class="spread-item" v-for="s in bondSpreads" :key="s.label">
+          <span>{{ s.label }}</span>
+          <span :class="s.bp > 0 ? 'text-up' : 'text-down'">{{ s.bp }}bp</span>
+        </div>
       </div>
       <div v-if="factorSub === 'commodity'" class="card">
         <div class="card-title">大宗商品信号（十几种主流期货）</div>
@@ -494,7 +494,7 @@ const fedIndices = ref([
 // ===== 风格因子 =====
 const factorSubTabs = [
   { key: 'stock', label: '股票风格' },
-  { key: 'bond', label: '债券' },
+  { key: 'bond', label: '债券风格' },
   { key: 'commodity', label: '大宗商品' }
 ]
 const factorSub = ref('stock')
