@@ -160,6 +160,12 @@ def fetch_funds(ft):
                 code = f[0].strip() + '.OF'
                 name = (f[1] or '').strip()
                 t0, t1 = classify_hspj(code, name, ft)
+                # 天天基金 FundGuideapi 的 ft 是权威一级分类：QDII 类基金必须保留 QDII 一级，
+                # 不可被聚源映射/指数型子类覆盖（否则 QDII 数量骤降、promote 校验整批拒绝）。
+                # 仅当聚源已给出 QDII-* 子类时保留其细分，否则强制归一为 QDII。
+                if ft == 'qdii' and not str(t0).startswith('QDII'):
+                    t0 = 'QDII'
+                    t1 = 'QDII基金'
                 # 申购状态: f[18] (1=可申购, 0=暂停申购)
                 sg_val = None
                 if len(f) > 18 and f[18].strip():

@@ -371,6 +371,11 @@ for _f in funds:
         _new = _t1tt.split('-')[0]
     elif _t0:
         _new = _t0
+    # t1 同步为天天基金原始细分类型（t1_tt）：当其为带 '-' 的详细类型时直接采用，
+    # 使 t1 与天天基金展示一致（如 指数型-股票），避免沿用聚源粗分类（如 股票型基金）。
+    # t1_tt 为空时保留既有 t1（如 hspj 细分），不破坏 957 只无 t1_tt 的基金。
+    if isinstance(_t1tt, str) and '-' in _t1tt:
+        _f['t1'] = _t1tt
     if _new and _new != _t0:
         _f['t0'] = _new
         _t0_fixed += 1
