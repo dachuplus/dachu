@@ -39,14 +39,14 @@
 
       <!-- 更多筛选（弹窗入口） -->
       <div class="filter-actions-row">
-        <div class="more-filter-toggle" @click="openMoreFilter">
+        <div class="filter-action-btn" @click="openMoreFilter">
           <span>更多筛选</span>
           <span class="more-badge" v-if="activeMoreFilterCount">{{ activeMoreFilterCount }}</span>
           <span class="toggle-arrow">▾</span>
         </div>
 
         <!-- 评分指标（弹窗入口） -->
-        <div class="score-indicator-toggle" @click="showScoreIndicator = true">
+        <div class="filter-action-btn" @click="showScoreIndicator = true">
           <SvgIcon name="gear" :size="16" class="wt-icon" /> 评分指标
         </div>
       </div>
@@ -243,16 +243,16 @@
             </th>
             <th class="col-fee">管理费%</th>
             <th class="col-ret sortable" @click="toggleColumnSort('r1y')">
-              近1年收益<span class="th-arrow" v-if="sortField === 'r1y'">{{ sortDir === 'asc' ? '▲' : '▼' }}</span>
+              近1年收益%<span class="th-arrow" v-if="sortField === 'r1y'">{{ sortDir === 'asc' ? '▲' : '▼' }}</span>
             </th>
             <th class="col-ret sortable" @click="toggleColumnSort('r2y')">
-              近2年收益<span class="th-arrow" v-if="sortField === 'r2y'">{{ sortDir === 'asc' ? '▲' : '▼' }}</span>
+              近2年收益%<span class="th-arrow" v-if="sortField === 'r2y'">{{ sortDir === 'asc' ? '▲' : '▼' }}</span>
             </th>
             <th class="col-ret sortable" @click="toggleColumnSort('r3y')">
-              近3年收益<span class="th-arrow" v-if="sortField === 'r3y'">{{ sortDir === 'asc' ? '▲' : '▼' }}</span>
+              近3年收益%<span class="th-arrow" v-if="sortField === 'r3y'">{{ sortDir === 'asc' ? '▲' : '▼' }}</span>
             </th>
             <th class="col-ret sortable" @click="toggleColumnSort('r5y')">
-              近5年收益<span class="th-arrow" v-if="sortField === 'r5y'">{{ sortDir === 'asc' ? '▲' : '▼' }}</span>
+              近5年收益%<span class="th-arrow" v-if="sortField === 'r5y'">{{ sortDir === 'asc' ? '▲' : '▼' }}</span>
             </th>
             <th v-for="p in displayPeriods" :key="p.key" class="col-score sortable" :class="{ 'col-sort': currentPeriod === p.key }" @click="switchPeriod(p.key)">
               {{ p.label }}评分<span class="th-arrow" v-if="currentPeriod === p.key">{{ sortAsc ? '▲' : '▼' }}</span>
@@ -272,10 +272,10 @@
             <td class="col-t1" :title="fund.t1_tt || fund.t1">{{ fund.t1_tt || fund.t1 || '--' }}</td>
             <td class="col-scale">{{ fmtFundScale(fund.fund_scale) }}</td>
             <td class="col-fee">{{ fmtManageFee(fund.manage_fee) }}</td>
-            <td class="col-ret" :style="{ color: retColor(fund.r1y) }">{{ fmtRet(fund.r1y) }}</td>
-            <td class="col-ret" :style="{ color: retColor(fund.r2y) }">{{ fmtRet(fund.r2y) }}</td>
-            <td class="col-ret" :style="{ color: retColor(fund.r3y) }">{{ fmtRet(fund.r3y) }}</td>
-            <td class="col-ret" :style="{ color: retColor(fund.r5y) }">{{ fmtRet(fund.r5y) }}</td>
+            <td class="col-ret" :style="{ color: retColor(fund.r1y) }">{{ fmtRetPlain(fund.r1y) }}</td>
+            <td class="col-ret" :style="{ color: retColor(fund.r2y) }">{{ fmtRetPlain(fund.r2y) }}</td>
+            <td class="col-ret" :style="{ color: retColor(fund.r3y) }">{{ fmtRetPlain(fund.r3y) }}</td>
+            <td class="col-ret" :style="{ color: retColor(fund.r5y) }">{{ fmtRetPlain(fund.r5y) }}</td>
             <td v-for="p in displayPeriods" :key="p.key" class="col-score" :class="{ 'col-sort': currentPeriod === p.key }">
               <span class="score-val" :style="scoreColor(fund[p.key])">{{ fmtScore(fund[p.key]) }}</span>
             </td>
@@ -322,10 +322,10 @@
         <div class="fund-card-mgr" v-if="fund.fund_manager">{{ fund.fund_manager }}</div>
         <div class="fund-card-scale" v-if="fund.fund_scale != null">规模（亿）：{{ fmtFundScale(fund.fund_scale) }} · 管理费%：{{ fmtManageFee(fund.manage_fee) }}</div>
         <div class="fund-card-ret">
-          <span :style="{ color: retColor(fund.r1y) }">近1年收益 {{ fmtRet(fund.r1y) }}</span>
-          <span :style="{ color: retColor(fund.r2y) }">近2年收益 {{ fmtRet(fund.r2y) }}</span>
-          <span :style="{ color: retColor(fund.r3y) }">近3年收益 {{ fmtRet(fund.r3y) }}</span>
-          <span :style="{ color: retColor(fund.r5y) }">近5年收益 {{ fmtRet(fund.r5y) }}</span>
+          <span :style="{ color: retColor(fund.r1y) }">近1年收益 {{ fmtRetPlain(fund.r1y) }}</span>
+          <span :style="{ color: retColor(fund.r2y) }">近2年收益 {{ fmtRetPlain(fund.r2y) }}</span>
+          <span :style="{ color: retColor(fund.r3y) }">近3年收益 {{ fmtRetPlain(fund.r3y) }}</span>
+          <span :style="{ color: retColor(fund.r5y) }">近5年收益 {{ fmtRetPlain(fund.r5y) }}</span>
         </div>
         <div class="fund-card-scores">
           <span
@@ -609,7 +609,7 @@
 <script setup>
 import { ref, computed, reactive, onMounted, onUnmounted, onActivated } from 'vue'
 import { fetchFundScores, fetchFundMeta, fetchFundCategories } from '../../api/data.js'
-import { fmtScore, fmtRet, fmtDD, fmtSR, fmtScale, fmtFundScale, fmtManageFee, scoreColor } from '../../utils/format.js'
+import { fmtScore, fmtRet, fmtRetPlain, fmtDD, fmtSR, fmtScale, fmtFundScale, fmtManageFee, scoreColor } from '../../utils/format.js'
 import { addFundToPortfolio } from '../../api/user-data'
 import { useAuth } from '../../composables/useAuth.js'
 import { toast } from '../../composables/useToast.js'
@@ -1309,6 +1309,13 @@ onUnmounted(() => {
   padding: var(--space-sm) var(--space-md); font-size: 16px; color: var(--link);
   cursor: pointer; text-decoration: underline;
 }
+.filter-action-btn {
+  display: flex; align-items: center; gap: 4px;
+  padding: var(--space-sm) var(--space-md); font-size: 16px; color: var(--link);
+  cursor: pointer; text-decoration: underline; text-underline-offset: 4px;
+}
+.filter-action-btn:hover { color: #1d70b8; }
+.filter-action-btn .wt-icon { display: inline-flex; }
 .toggle-arrow { display: inline-block; transition: transform 0.2s; font-size: 16px; }
 .toggle-arrow.open { transform: rotate(180deg); }
 .filter-scale-range { display: flex; align-items: center; gap: 6px; flex: 1; }
@@ -1537,11 +1544,6 @@ onUnmounted(() => {
 /* 筛选操作行：更多筛选 + 评分指标 并列 */
 .filter-actions-row {
   display: flex; align-items: center; gap: var(--space-md);
-}
-.score-indicator-toggle {
-  display: flex; align-items: center; gap: 4px;
-  padding: var(--space-sm) var(--space-md); font-size: 16px; color: var(--link);
-  cursor: pointer; text-decoration: underline;
 }
 
 /* 显示周期选择器 */

@@ -23,6 +23,15 @@ export function fmtRet(v) {
   return (n > 0 ? '+' : '') + n.toFixed(2) + '%'
 }
 
+// 收益率展示（小数→百分比数值，不带%）：0.0823 → '+8.23'
+// 用于表头已标注「%」的场景，数据列只需数值，避免重复显示百分号
+export function fmtRetPlain(v) {
+  if (v == null) return '--'
+  const n = parseFloat(v)
+  if (isNaN(n)) return '--'
+  return (n > 0 ? '+' : '') + n.toFixed(2)
+}
+
 // 回撤展示（已是百分比数值）：-15.23 → '-15.23%'
 export function fmtDD(v) {
   if (v == null) return '--'

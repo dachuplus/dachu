@@ -51,7 +51,7 @@
         <div class="ov-card" v-for="c in signalOverview" :key="c.key">
           <div class="ov-card-head">
             <div class="ov-card-name">{{ c.name }}</div>
-            <span class="ov-help" :title="c.desc">?</span>
+            <HelpTip :text="c.help" />
           </div>
           <div class="ov-card-value">{{ c.valueLabel }}</div>
           <div class="ov-bar-wrap" v-if="c.pct != null">
@@ -71,9 +71,10 @@
     <div v-if="activeTab === 'macro'">
       <!-- 隐含夏普仪表盘 -->
       <div class="card" v-if="dashData">
-        <div class="card-title">全市场加权平均隐含夏普</div>
-        <p class="card-desc">基于风险平价权重加权平均，正值 = 整体有超额收益吸引力</p>
+        <div class="card-title">宏观信号<HelpTip :text="MACRO_SIGNAL_HELP" /></div>
+        <p class="card-desc">全市场风险平价加权隐含夏普，正值 = 整体有超额收益吸引力</p>
         <div class="gauge-wrap" ref="gaugeEl"></div>
+        <div class="gauge-range">取值范围：−1 ~ 1</div>
       </div>
 
       <!-- 宏观指标 6 个 + 10年历史 -->
@@ -81,7 +82,7 @@
         <div class="card-title">宏观指标（近10年）</div>
         <div class="macro-indicators">
           <div class="macro-item" v-for="m in macroList" :key="m.key">
-            <div class="macro-label">{{ m.label }}</div>
+            <div class="macro-label">{{ m.label }}<HelpTip v-if="m.help" :text="m.help" align="right" /></div>
             <div class="macro-value">{{ m.value }}</div>
             <div class="macro-date">{{ m.date }}</div>
             <div class="macro-chart-wrap" :class="{ 'macro-chart-expanded': macroExpand[m.key] }">
@@ -219,7 +220,7 @@
       </div>
       <div v-if="factorSub === 'stock'">
         <div class="card">
-          <div class="card-title">Barra 六因子蛛网图（估值分 vs 性价比分）</div>
+          <div class="card-title">Barra 六因子蛛网图（估值分，默认）</div>
           <div class="radar-wrap" ref="radarEl" v-show="factorFactors.length > 0"></div>
           <div class="empty-hint" v-if="factorFactors.length === 0">风格因子数据建设中，暂未提供真实数据（宁空不假）</div>
         </div>
@@ -342,6 +343,7 @@ import { calcAllExpectedReturns, calcEnhancedRiskParityWeights, calcMarketSharpe
 import { fetchValue500All, fetchConfig, fetchIndexEva, fetchFactorScores } from '../../utils/api'
 import { COLORS } from '../../utils/echarts-theme'
 import { supabase } from '../../api/supabase'
+import HelpTip from '../../components/HelpTip.vue'
 
 // ===== Tab 结构 =====
 const tabs = [
@@ -380,7 +382,7 @@ const marketNotice = computed(() => {
   return ''
 })
 function onPeriodChange() { updateMacroWindow(); redrawCurrentCharts() }
-function onMarketChange() { /* 港股/美股仅作建设中提示，数据仍为全市场 */ }
+function onMarketChange() { redrawCurrentCharts() }
 
 // ===== 通用状态 =====
 const dataDate = ref('--')
@@ -424,17 +426,27 @@ const weightList = ref([])
 
 // ===== Macro indicators =====
 const macroList = ref([
-  { key: 'cn10y',  label: '中国10Y国债', value: '--', date: '', series: [] },
-  { key: 'us10y',  label: '美国10Y国债', value: '--', date: '', series: [] },
-  { key: 'shibor', label: 'Shibor隔夜', value: '--', date: '', series: [] },
-  { key: 'cpi',    label: 'CPI同比', value: '--', date: '', series: [] },
-  { key: 'm2',     label: 'M2同比', value: '--', date: '', series: [] },
-  { key: 'ppi',    label: 'PPI同比', value: '--', date: '', series: [] }
+  { key: 'cn10y',  label: '中国10Y国债', value: '--', date: '', series: [], help: '中国10年期国债收益率\n含义：以中国10年期国债到期收益率为代表的无风险利率，是股债性价比与风险平价计算的核心输入。收益率越低，市场流动性越宽松、股票相对越便宜。\n数据来源：中债国债收益率曲线（经 akshare / value500 数据代理抓取）。\n更新时间：每个交易日收盘后更新（与页面顶部"数据截止"一致，每日 21:30 同步）。' },
+  { key: 'us10y',  label: '美国10Y国债', value: '--', date: '', series: [], help: '美国10年期国债收益率\n含义：全球资产定价的锚，影响跨境流动性与风险偏好。越高越偏紧，对新兴市场与权益估值压制越大。\n数据来源：美国国债收益率（经 value500 数据代理抓取）。\n更新时间：美债收盘较晚，每日 22:00 后同步更新。' },
+  { key: 'shibor', label: 'Shibor隔夜', value: '--', date: '', series: [], help: 'Shibor 隔夜利率\n含义：上海银行间同业拆放利率（隔夜），反映短端资金面松紧，是无风险利率 Rf 的近似。\n数据来源：上海银行间同业拆放利率（经 akshare / value500 抓取）。\n更新时间：每个交易日 11:00 左右公布，每日同步。' },
+  { key: 'cpi',    label: 'CPI同比', value: '--', date: '', series: [], help: 'CPI 同比\n含义：居民消费价格同比涨幅，衡量通胀水平。通胀上行通常伴随货币政策收紧预期。\n数据来源：国家统计局。\n更新时间：每月 9-10 日左右公布上月数据。' },
+  { key: 'm2',     label: 'M2同比', value: '--', date: '', series: [], help: 'M2 同比\n含义：广义货币供应量同比增速，反映货币投放与流动性总量。增速上行通常预示流动性宽松。\n数据来源：中国人民银行。\n更新时间：每月 10-15 日公布上月数据。' },
+  { key: 'ppi',    label: 'PPI同比', value: '--', date: '', series: [], help: 'PPI 同比\n含义：工业生产者出厂价格同比涨幅，衡量工业品通缩/通胀，领先于企业盈利。\n数据来源：国家统计局。\n更新时间：每月 9-10 日左右公布上月数据。' },
 ])
+
+// 「宏观信号」仪表盘详细说明（含义 / 取值范围 / 计算公式 / 数据来源 / 更新时间）
+const MACRO_SIGNAL_HELP = [
+  '宏观信号（原"全市场加权平均隐含夏普"）',
+  '含义：用风险平价权重对现金 / 债券 / 股票 / 商品 / 黄金 / REITs 六大类资产的隐含夏普比率做加权平均，衡量当前股债商整体性价比。数值越正，权益资产相对越有吸引力；越负，防御资产越占优。',
+  '取值范围：−1 ~ 1（仪表盘两端已标注）。',
+  '计算公式：单资产隐含夏普 SR_i = (E[R_i] − Rf) / σ_i；宏观信号 = Σ_i w_i^RP × SR_i，其中 w_i^RP 为风险平价权重，Rf 为无风险利率（取 Shibor 隔夜）。',
+  '数据来源：沪深300 / 中证500 / 中证1000 的 PE 与历史分位、中国10Y国债收益率、Shibor、CPI、黄金价格、PMI 等公开宏观与市场数据。',
+  '更新时间：每日 21:30 自动更新（与页面顶部"数据截止"一致）。'
+].join('\n\n')
 // "更多"展开状态
 const macroExpand = reactive({})
 const macroHistory = reactive({}) // 完整历史数据缓存
-const MACRO_DEFAULT_WINDOW = 1250 // dataZoom 默认窗口（随周期筛选动态变化，见 updateMacroWindow）
+let MACRO_DEFAULT_WINDOW = 1250 // dataZoom 默认窗口（随周期筛选动态变化，见 updateMacroWindow）
 function updateMacroWindow() {
   const p = periodOptions.find(x => x.key === selPeriod.value)
   MACRO_DEFAULT_WINDOW = p ? p.window : 1250
@@ -653,8 +665,8 @@ async function loadAll() {
     weightList.value = assetKeys.map(key => ({
       key,
       name: ASSET_META[key].name,
-      weight: rpResult.weights[key] ? Math.round(rpResult.weights[key] * 100) : 0,
-      baseWeight: baseWeights[key] ? Math.round(baseWeights[key] * 100) : 0,
+      weight: rpResult.weights[key] != null ? rpResult.weights[key] : 0,
+      baseWeight: baseWeights[key] != null ? Math.round(baseWeights[key] * 100) : 0,
       color: ASSET_META[key].color
     }))
 
@@ -710,13 +722,12 @@ function drawRadar() {
 
   const indicator = factorFactors.value.map(f => ({ name: f.name, max: 100 }))
   const valValues = factorFactors.value.map(f => f.percentile)   // 估值分 高=贵
-  const costValues = factorFactors.value.map(f => f.cost_score)  // 性价比分 高=便宜
   radarChart = echarts.init(el)
   radarChart.setOption({
-    color: ['#d4351c', '#00703c'],
+    color: ['#d4351c'],
     tooltip: { trigger: 'item' },
     legend: {
-      data: ['估值分（高=贵）', '性价比分（高=便宜）'],
+      data: ['估值分（高=贵）'],
       bottom: 0, textStyle: { color: '#505a5f', fontSize: 12 }, itemGap: 18
     },
     radar: {
@@ -735,12 +746,6 @@ function drawRadar() {
           areaStyle: { color: 'rgba(212,53,28,0.15)' },
           lineStyle: { color: '#d4351c', width: 2 },
           itemStyle: { color: '#d4351c' }, symbol: 'circle', symbolSize: 5
-        },
-        {
-          value: costValues, name: '性价比分（高=便宜）',
-          areaStyle: { color: 'rgba(0,112,60,0.12)' },
-          lineStyle: { color: '#00703c', width: 2, type: 'dashed' },
-          itemStyle: { color: '#00703c' }, symbol: 'circle', symbolSize: 5
         }
       ]
     }]
@@ -1289,7 +1294,13 @@ function adviceClass(advice) {
 
 function makeCard(key, name, valueLabel, pct, signal, signalLabel, advice, adviceLabel, desc = '', benchmark = '', hint = '') {
   const colorMap = { hot: 'var(--color-up)', cold: 'var(--color-down)', neutral: '#505a5f' }
-  return { key, name, valueLabel, pct, signal, signalLabel, advice, adviceLabel, desc, benchmark, hint, color: colorMap[signal] || '#505a5f' }
+  const help = [
+    desc,
+    benchmark ? '统计基准：' + benchmark : '',
+    hint,
+    '更新时间：每日 21:30 自动更新（与页面顶部"数据截止"一致）。'
+  ].filter(Boolean).join('\n\n')
+  return { key, name, valueLabel, pct, signal, signalLabel, advice, adviceLabel, desc, benchmark, hint, help, color: colorMap[signal] || '#505a5f' }
 }
 
 // 专业机构框架：6 大信号模块 → 指标值 + 历史分位 + 配置建议
@@ -1641,6 +1652,7 @@ function handleResize() {
 
 /* 仪表盘 */
 .gauge-wrap { width: 100%; height: 280px; }
+.gauge-range { text-align: center; font-size: 13px; color: var(--text-secondary); margin-top: 4px; }
 
 /* 宏观指标 */
 .macro-indicators { display: flex; flex-direction: column; gap: var(--space-lg); }
