@@ -231,6 +231,17 @@
           <div class="ai-add-row">
             <button class="btn-primary" @click="addAiToCustom">+ 添加到自建组合</button>
           </div>
+
+          <!-- AI 策略组合区间收益 -->
+          <div class="pf-returns" v-if="aiPortfolio._returns">
+            <div class="pf-returns-title">组合区间收益</div>
+            <div class="pf-returns-grid">
+              <div class="pf-ret-cell" v-for="col in RETURN_COLS" :key="col.key">
+                <div class="pf-ret-label">{{ col.label }}</div>
+                <div class="pf-ret-value" :class="retClass(aiPortfolio._returns[col.key])">{{ fmtRet(aiPortfolio._returns[col.key]) }}</div>
+              </div>
+            </div>
+          </div>
         </div>
 
         <div class="ai-history" v-if="aiHistory.length > 0">
@@ -319,6 +330,17 @@
           </div>
           <div class="ai-add-row">
             <button class="btn-primary" @click="addRpToCustom">+ 添加到自建组合</button>
+          </div>
+
+          <!-- 风险平价组合区间收益 -->
+          <div class="pf-returns" v-if="rpPortfolio._returns">
+            <div class="pf-returns-title">组合区间收益</div>
+            <div class="pf-returns-grid">
+              <div class="pf-ret-cell" v-for="col in RETURN_COLS" :key="col.key">
+                <div class="pf-ret-label">{{ col.label }}</div>
+                <div class="pf-ret-value" :class="retClass(rpPortfolio._returns[col.key])">{{ fmtRet(rpPortfolio._returns[col.key]) }}</div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -537,6 +559,34 @@ async function loadPortfolioReturns() {
   }
 }
 
+// 通用：为任意持仓列表（AI 组合 / 风险平价）拉取成分基金区间收益并计算加权收益
+async function loadReturnsForHoldings(holdings) {
+  if (!supabase || !holdings || holdings.length === 0) return { _returns: null, _fundReturns: {} }
+  const codes = holdings.map(h => h.code).filter(Boolean)
+  if (codes.length === 0) return { _returns: null, _fundReturns: {} }
+  const ofCodes = codes.filter(c => c.includes('.'))
+  const etfCodes = codes.filter(c => !c.includes('.'))
+  try {
+    const fundMap = {}
+    if (ofCodes.length > 0) {
+      const { data } = await supabase.from('fund_scores')
+        .select('c,r0w,r1m,r3m,r6m,r1y,r2y,r3y,r5y,r10y,daily_change')
+        .in('c', ofCodes)
+      ;(data || []).forEach(f => { fundMap[f.c] = f })
+    }
+    if (etfCodes.length > 0) {
+      const { data } = await supabase.from('etf_returns')
+        .select('c,r0w,r1m,r3m,r6m,r1y,r2y,r3y,r5y,r10y,daily_change')
+        .in('c', etfCodes)
+      ;(data || []).forEach(f => { fundMap[f.c] = f })
+    }
+    return { _returns: buildPortfolioReturns(holdings, fundMap), _fundReturns: fundMap }
+  } catch (e) {
+    console.error('[loadReturnsForHoldings]', e)
+    return { _returns: null, _fundReturns: {} }
+  }
+}
+
 // ===== AI 组合（复用已有逻辑） =====
 const AI_STRATEGIES = [
   { key: 'balanced',       label: '均衡配置',    desc: '股债平衡，风险可控' },
@@ -604,7 +654,7 @@ function saveAiToHistory(pf) {
   const h = [...aiHistory.value]; h.unshift(pf); if (h.length > 10) h.length = 10
   aiHistory.value = h; localStorage.setItem(AI_STORAGE_KEY, JSON.stringify(h))
 }
-function loadAiFromHistory(pf) { aiPortfolio.value = pf; enrichRanks() }
+function loadAiFromHistory(pf) { aiPortfolio.value = pf; enrichRanks(); if (pf.funds?.length) loadReturnsForHoldings(pf.funds).then(ret => { if (ret) { pf._returns = ret._returns; pf._fundReturns = ret._fundReturns } }) }
 
 // ==== 自定义弹窗 ====
 const showCustomDialog = ref(false)
@@ -714,6 +764,8 @@ ${reqHint}${catHint}
     saveAiToHistory(aiPortfolio.value)
     aiStatusText.value = 'AI 组合生成完成'
     await enrichRanks()
+    const aiRet = await loadReturnsForHoldings(aiPortfolio.value.funds)
+    if (aiRet) { aiPortfolio.value._returns = aiRet._returns; aiPortfolio.value._fundReturns = aiRet._fundReturns }
     customRequirement.value = ''
     showCustomDialog.value = false
   } catch (err) { console.error(err); aiStatusText.value = '生成失败: ' + err.message; aiPortfolio.value = null }
@@ -934,6 +986,8 @@ async function generateRiskParityPortfolio() {
     }
     rpStatusText.value = '风险平价组合生成完成'
     await enrichRanks()
+    const rpRet = await loadReturnsForHoldings(rpPortfolio.value.funds)
+    if (rpRet) { rpPortfolio.value._returns = rpRet._returns; rpPortfolio.value._fundReturns = rpRet._fundReturns }
   } catch (err) { console.error('[generateRiskParityPortfolio]', err); rpStatusText.value = '生成失败: ' + err.message; rpPortfolio.value = null }
   finally { rpGenerating.value = false }
 }
