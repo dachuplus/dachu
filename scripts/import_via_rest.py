@@ -2,6 +2,20 @@
 """
 通过 Supabase REST API 批量导入基金数据（anon key，RLS 允许 INSERT）。
 比 Management API 逐条 INSERT 快很多。
+
+=====================================================================
+  ⚠️ 数据模型规则护栏（详见 docs/data-model-rules.md）
+  fund_scores 的评分（k0w/k1m/k3m/k6m/k1/k2/k3/k5/k_all/score_grade）
+  必须由本脚本基于【基础数据】独立计算：
+      · 输入仅来自 funds_output.ndjson / risk_indicators.ndjson /
+        return_all.ndjson / fund_details.ndjson / fund_basic_info.ndjson
+        （即阶段收益 r* / 回撤 dd* / 夏普 sr* / 基金经理等）
+      · 日历对齐全市场百分位排名（收益50% + 回撤25% + 夏普25%）+ v7 加权
+  【禁止】读取 fund_quarterly_scores 的任何列来计算 fund_scores 评分。
+  fund_scores 与 fund_quarterly_scores 是两套独立引擎，不得耦合。
+  （fund_combined 的评分才应基于 fund_quarterly_scores，由
+   sync_fund_combined_scores.py 负责。）
+=====================================================================
 """
 import json, time, sys, os, subprocess, argparse
 

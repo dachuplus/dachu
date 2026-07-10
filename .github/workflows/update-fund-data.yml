@@ -197,6 +197,20 @@ jobs:
           echo "============================================"
           python scripts/import_via_rest.py --staging
 
+      - name: 步骤3b — 刷新 fund_quarterly_scores（季度引擎评分，供 fund_combined 派生）
+        timeout-minutes: 60
+        continue-on-error: true
+        run: |
+          echo "============================================"
+          echo "  步骤3b: 刷新 fund_quarterly_scores（季度引擎）"
+          echo "  开始时间: $(date '+%Y-%m-%d %H:%M:%S')"
+          echo "  说明: 该表是 fund_combined 评分的来源（见 docs/data-model-rules.md）"
+          echo "        联网抓取净值，若被限流失败不阻断整体流程，下一轮补齐。"
+          echo "============================================"
+          pip install requests
+          python scripts/compute_quarterly_scores.py --workers 5 --delay 0.3
+          echo "fund_quarterly_scores 刷新完成: $(date '+%Y-%m-%d %H:%M:%S')"
+
       - name: 步骤3c2 — 校验临时表并原子切换到 fund_scores（含重建 fund_combined）
         run: |
           echo "============================================"
