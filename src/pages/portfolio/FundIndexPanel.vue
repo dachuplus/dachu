@@ -55,7 +55,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { supabase } from '../../api/supabase'
 
 const subTabs = [
