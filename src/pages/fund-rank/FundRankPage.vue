@@ -229,7 +229,9 @@
             <th class="col-scale sortable" @click="toggleColumnSort('fund_scale')">
               基金规模（亿）<span class="th-arrow" v-if="sortField === 'fund_scale'">{{ sortDir === 'asc' ? '▲' : '▼' }}</span>
             </th>
-            <th class="col-fee">管理费%</th>
+            <th class="col-fee sortable" @click="toggleColumnSort('manage_fee')">
+              管理费%<span class="th-arrow" v-if="sortField === 'manage_fee'">{{ sortDir === 'asc' ? '▲' : '▼' }}</span>
+            </th>
             <th class="col-ret sortable" @click="toggleColumnSort('r1y')">
               近1年收益%<span class="th-arrow" v-if="sortField === 'r1y'">{{ sortDir === 'asc' ? '▲' : '▼' }}</span>
             </th>
@@ -616,24 +618,10 @@ const periods = [
   { key: 'k5',  label: '5年' },
 ]
 
-// 快捷按钮周期（1年/2年/3年），其余周期通过下拉选择
-const quickPeriodKeys = ['k1', 'k2', 'k3']
-const quickPeriods = computed(() =>
-  periods.filter(p => quickPeriodKeys.includes(p.key))
+// 表格固定展示的评分列：始终显示 1年/2年/3年/5年（点击表头排序不会改变展示列）
+const displayPeriods = computed(() =>
+  periods.filter(p => ['k1', 'k2', 'k3', 'k5'].includes(p.key))
 )
-
-// 全部可用周期（供下拉选择）
-const allPeriods = periods
-
-// 表格展示的周期列：快捷按钮 + 当前选中周期（若不在快捷按钮中，追加显示）
-const displayPeriods = computed(() => {
-  const result = quickPeriods.value.slice()
-  if (!quickPeriodKeys.includes(currentPeriod.value)) {
-    const cp = periods.find(p => p.key === currentPeriod.value)
-    if (cp) result.push(cp)
-  }
-  return result
-})
 
 const riskPeriods = [
   { label: '近1年', dd: 'dd1y', sr: 'sr1y' },
@@ -743,7 +731,7 @@ function applyScoreIndicator() {
 
 // 搜索/周期/分页/排序
 const searchText = ref('')
-const currentPeriod = ref('k5')     // 默认按 5 年排序（与下拉默认显示一致）
+const currentPeriod = ref('k1')     // 默认按 1 年评分排序
 const sortAsc = ref(false)        // 靠谱指数排序方向（false=降序，true=升序）
 const sortField = ref('')          // 客户端排序列（非评分列）：'c'|'n'|'equityPct'|'bondPct'
 const sortDir = ref('desc')        // 客户端排序方向
