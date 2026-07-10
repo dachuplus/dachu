@@ -613,32 +613,43 @@ const customRequirement = ref('')
 async function generateAiPortfolio() {
   if (aiGenerating.value) return
   aiGenerating.value = true
-  aiStatusText.value = '正在查询高分靠谱基金...'
+  aiStatusText.value = '正在查询靠谱指数产品...'
   try {
-    // 1. 从 Supabase 获取高分靠谱基金（规模>2亿；可按「二级分类」筛选；k_all 降序）
+    // 1. 真实基金池：fund_scores 中高分靠谱产品（规模>2亿；可按二级分类筛选；k_all 降序）
     let fundPool = []
     if (supabase) {
       const buildQ = (withScale) => {
         let q = supabase.from('fund_scores')
-          .select('c,n,t0,k_all,score_grade,t1_tt,fund_scale')
+          .select('c,n,t0,t1_tt,k_all,k1,score_grade')
         if (withScale) q = q.gt('fund_scale', 2)   // 规模 > 2亿
         if (aiCategory.value) {
           q = (aiCategory.value === '货币型') ? q.eq('t0', '货币型') : q.eq('t1_tt', aiCategory.value)
         } else {
-          q = q.not('k_all','is',null).gte('k_all', 70)
+          q = q.not('k_all', 'is', null).gte('k_all', 70)
         }
         return q
       }
-      let { data } = await buildQ(true).order('k_all', { ascending: false }).limit(30)
+      let { data } = await buildQ(true).order('k_all', { ascending: false }).limit(40)
       // 分类模式下若该品类规模>2亿的基金不足，放宽规模限制兜底
       if ((!data || data.length === 0) && aiCategory.value) {
-        const r2 = await buildQ(false).order('k_all', { ascending: false }).limit(30)
+        const r2 = await buildQ(false).order('k_all', { ascending: false }).limit(40)
         data = r2.data || []
       }
-      fundPool = (data || []).map(f => `${f.c} ${f.n || '基金'+f.c} (靠谱${f.k_all?.toFixed(0)} 规模${f.fund_scale != null ? f.fund_scale.toFixed(0)+'亿' : '—'})`)
+      // 兜底：仍为空则完全忽略规模限制，确保有真实产品可选
+      if (!data || data.length === 0) {
+        const r3 = await buildQ(false).order('k_all', { ascending: false }).limit(40)
+        data = r3.data || []
+      }
+      fundPool = (data || []).map(f => ({
+        c: f.c, n: f.n, t0: f.t0, t1tt: f.t1_tt, kall: f.k_all, k1: f.k1, grade: f.score_grade
+      }))
     }
+    // 没有真实产品数据时，明确提示，绝不退回示例基金
     if (fundPool.length === 0) {
-      fundPool = ['510300 沪深300ETF', '159915 创业板ETF', '511260 10年国债ETF', '518880 黄金ETF', '512100 中证1000ETF', '510500 中证500ETF', '512880 证券ETF', '512010 医药ETF', '159928 消费ETF', '512480 半导体ETF', '512660 军工ETF', '512800 银行ETF', '515030 新能源ETF', '512980 传媒ETF', '159985 豆粕ETF']
+      aiStatusText.value = '当前暂无足够的靠谱指数产品数据，无法生成组合'
+      aiPortfolio.value = null
+      aiGenerating.value = false
+      return
     }
 
     const isCatMode = aiCategoryMode.value && aiCategory.value
@@ -646,26 +657,39 @@ async function generateAiPortfolio() {
     const strategyName = isCatMode ? `分类组合·${aiCategory.value}` : (strategy?.label || '均衡配置')
     const customReq = customRequirement.value.trim()
     const reqHint = customReq ? `\n用户额外要求：${customReq}` : ''
-    const catHint = aiCategory.value ? `\n基金池已限定在「${aiCategory.value}」细分品类内（规模>2亿），请从该品类的高分基金中挑选。` : ''
+    const catHint = aiCategory.value ? `\n基金池已限定在「${aiCategory.value}」细分品类内（规模>2亿的高分靠谱产品），请从该品类挑选。` : ''
+
+    // 按二级分类分组展示，便于 DeepSeek 按分类挑选分散化组合
+    const catMap = {}
+    for (const f of fundPool) {
+      const cat = f.t1tt || f.t0 || '其他'
+      ;(catMap[cat] = catMap[cat] || []).push(f)
+    }
+    let poolText = ''
+    for (const [cat, list] of Object.entries(catMap)) {
+      poolText += `\n【${cat}】\n` + list.map(f => `${f.c} ${f.n} (靠谱${f.kall != null ? Math.round(f.kall) : '—'})`).join('\n')
+    }
+
+    const targetN = 10
     const intro = isCatMode
-      ? `从以下「${aiCategory.value}」品类的基金池中，构建一份${aiCategory.value}主题组合。`
-      : `从以下高分靠谱基金池中，为"${strategyName}"策略选出10只基金构建组合。`
+      ? `从以下「${aiCategory.value}」品类的靠谱基金池中，构建一份该品类主题组合。`
+      : `从以下按分类组织的靠谱基金池中，为"${strategyName}"策略挑选 ${targetN} 只基金，覆盖多个品类以分散风险。`
 
     const prompt = `你是一位专业基金投顾。${intro}
-基金池（代码 名称 靠谱分 规模）：
-${fundPool.join('\n')}
+以下均为真实存在的公募基金产品（来自靠谱指数数据库），按细分品类列出：
+${poolText}
 ${reqHint}${catHint}
 请返回纯JSON（不要markdown）：
 { "strategyName": "${strategyName}", "summary": "一句话概述（50字内）",
   "funds": [{"code":"基金代码","name":"基金名称","weight":10,"reason":"推荐理由（15字内）"}],
   "backtest": {"annualReturn":预估年化收益率,"maxDrawdown":预估最大回撤,"sharpe":预估夏普比率,"winRate":预估月度胜率} }
-要求：必须从基金池中选择，选出10只，每只权重10%，权重和=100%。`
+要求：必须从上述基金池中选择真实存在的产品，挑${targetN}只，每只权重${Math.round(100 / targetN)}%，权重和=100%。不得编造代码，只能从上述清单中选。`
 
     aiStatusText.value = 'AI 正在生成组合...'
     const response = await fetch('https://api.deepseek.com/v1/chat/completions', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${import.meta.env.VITE_DEEPSEEK_API_KEY || ''}` },
-      body: JSON.stringify({ model: 'deepseek-chat', messages: [{ role: 'system', content: '你是专业基金投顾，只从给定基金池选择，只返回JSON。' }, { role: 'user', content: prompt }], temperature: 0.7, max_tokens: 2000 })
+      body: JSON.stringify({ model: 'deepseek-chat', messages: [{ role: 'system', content: '你是专业基金投顾，只从给定基金池选择真实产品，只返回JSON，不得编造代码。' }, { role: 'user', content: prompt }], temperature: 0.3, max_tokens: 2000 })
     })
     if (!response.ok) throw new Error(`API调用失败: ${response.status}`)
     const result = await response.json()
@@ -673,14 +697,19 @@ ${reqHint}${catHint}
     let parsed
     try { parsed = JSON.parse(content.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim()) }
     catch { throw new Error('AI返回格式异常，请重试') }
+
+    // 2. 校验：只保留 fund_scores 中真实存在的产品，并回填真实名称；不足则按真实池补齐
+    const validated = await validateFunds(parsed.funds || [], fundPool, targetN)
+    if (validated.length === 0) throw new Error('AI返回的产品均不在靠谱指数库中，请重试')
+
     const now = new Date()
     aiPortfolio.value = {
       id: Date.now().toString(),
       strategyName: parsed.strategyName || strategyName,
       summary: parsed.summary || '',
-      funds: (parsed.funds || []).slice(0, 10).map(f => ({ code: f.code, name: f.name, weight: 10, reason: f.reason||'' })),
-      backtest: parsed.backtest ? { annualReturn: Number(parsed.backtest.annualReturn)||0, maxDrawdown: Number(parsed.backtest.maxDrawdown)||0, sharpe: Number(parsed.backtest.sharpe)||0, winRate: Number(parsed.backtest.winRate)||0 } : null,
-      createdAt: `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`
+      funds: validated,
+      backtest: parsed.backtest ? { annualReturn: Number(parsed.backtest.annualReturn) || 0, maxDrawdown: Number(parsed.backtest.maxDrawdown) || 0, sharpe: Number(parsed.backtest.sharpe) || 0, winRate: Number(parsed.backtest.winRate) || 0 } : null,
+      createdAt: `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`
     }
     saveAiToHistory(aiPortfolio.value)
     aiStatusText.value = 'AI 组合生成完成'
@@ -689,6 +718,65 @@ ${reqHint}${catHint}
     showCustomDialog.value = false
   } catch (err) { console.error(err); aiStatusText.value = '生成失败: ' + err.message; aiPortfolio.value = null }
   finally { aiGenerating.value = false }
+}
+
+// 校验 DeepSeek 返回的基金：只保留 fund_scores 中真实存在的产品，回填真实名称；
+// 若有效数量不足 targetN，则从真实基金池中补齐（不引入任何示例/虚构基金）。
+async function validateFunds(dsFunds, pool, targetN) {
+  const want = (dsFunds || [])
+    .map(f => ({
+      code: String(f.code || '').trim(),
+      weight: Number(f.weight) || 0,
+      reason: f.reason || '',
+      asset: f.assetClass || f.asset || ''
+    }))
+    .filter(x => x.code)
+  if (want.length === 0) return []
+
+  // 1) 与数据库核对，只认真实存在的产品
+  let realMap = {}
+  if (supabase) {
+    const codes = [...new Set(want.map(x => x.code))]
+    try {
+      const { data } = await supabase.from('fund_scores')
+        .select('c,n,t0,t1_tt,k_all,k1,score_grade')
+        .in('c', codes)
+      ;(data || []).forEach(f => { realMap[f.c] = f })
+    } catch (e) { console.error('[validateFunds]', e) }
+  }
+  const out = []
+  const seen = new Set()
+  for (const x of want) {
+    const real = realMap[x.code]
+    if (real && !seen.has(real.c)) {
+      seen.add(real.c)
+      out.push({ code: real.c, name: real.n || x.code, weight: x.weight, reason: x.reason, asset: x.asset })
+    }
+  }
+
+  // 2) 不足则从真实基金池补齐（权重暂置 0，稍后归一化）
+  if (out.length < targetN && pool && pool.length) {
+    for (const p of pool) {
+      if (out.length >= targetN) break
+      if (!seen.has(p.c)) {
+        seen.add(p.c)
+        out.push({ code: p.c, name: p.n, weight: 0, reason: '靠谱指数高分产品', asset: '' })
+      }
+    }
+  }
+
+  // 3) 权重归一化到 100
+  const total = out.reduce((s, f) => s + (f.weight || 0), 0)
+  if (total > 0) {
+    out.forEach(f => { f.weight = Math.max(0, Math.round((f.weight / total) * 100)) })
+    const diff = 100 - out.reduce((s, f) => s + f.weight, 0)
+    if (diff !== 0 && out.length) out[0].weight = Math.max(0, out[0].weight + diff)
+  } else if (out.length) {
+    const w = Math.floor(100 / out.length)
+    let rem = 100 - w * out.length
+    out.forEach((f, i) => { f.weight = w + (i < rem ? 1 : 0) })
+  }
+  return out
 }
 
 // 通用：将指定组合（AI 策略 / 风险平价）添加到自建组合
@@ -781,13 +869,16 @@ async function generateRiskParityPortfolio() {
     // 构建各大类候选基金池（高分靠谱基金）
     rpStatusText.value = '正在筛选各大类高分靠谱基金...'
     const pools = {}
+    const allPool = []   // 各大类真实基金扁平池，用于输出校验/补齐
     for (const key of RP_ASSET_ORDER) {
       const w = weights[key] || 0
       if (w <= 0) continue
       const cfg = ASSET_ETF_CONFIG[key]
       if (!cfg) continue
       const funds = await fetchCategoryFunds(cfg, 8)
-      pools[key] = (funds || []).map(f => `${f.c} ${f.n || ''} (靠谱${f.k1 != null ? f.k1.toFixed(0) : '—'})`)
+      const mapped = (funds || []).map(f => ({ c: f.c, n: f.n, k1: f.k1 }))
+      pools[key] = mapped.map(f => `${f.c} ${f.n || ''} (靠谱${f.k1 != null ? f.k1.toFixed(0) : '—'})`)
+      allPool.push(...mapped)
     }
 
     const activeClasses = RP_ASSET_ORDER.filter(k => weights[k] > 0 && pools[k] && pools[k].length > 0)
@@ -819,7 +910,7 @@ async function generateRiskParityPortfolio() {
     const response = await fetch('https://api.deepseek.com/v1/chat/completions', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${import.meta.env.VITE_DEEPSEEK_API_KEY || ''}` },
-      body: JSON.stringify({ model: 'deepseek-chat', messages: [{ role: 'system', content: '你是专业基金投顾，只从给定基金池选择，只返回JSON。' }, { role: 'user', content: prompt }], temperature: 0.7, max_tokens: 2000 })
+      body: JSON.stringify({ model: 'deepseek-chat', messages: [{ role: 'system', content: '你是专业基金投顾，只从给定基金池选择真实产品，只返回JSON，不得编造代码。' }, { role: 'user', content: prompt }], temperature: 0.3, max_tokens: 2000 })
     })
     if (!response.ok) throw new Error(`API调用失败: ${response.status}`)
     const result = await response.json()
@@ -827,12 +918,17 @@ async function generateRiskParityPortfolio() {
     let parsed
     try { parsed = JSON.parse(content.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim()) }
     catch { throw new Error('AI返回格式异常，请重试') }
+
+    // 校验：只保留 fund_scores 中真实存在的产品，并回填真实名称
+    const validated = await validateFunds(parsed.funds || [], allPool, 0)
+    if (validated.length === 0) throw new Error('AI返回的产品均不在靠谱指数库中，请重试')
+
     const now = new Date()
     rpPortfolio.value = {
       id: Date.now().toString(),
       strategyName: parsed.strategyName || '风险平价组合',
       summary: parsed.summary || '',
-      funds: (parsed.funds || []).map(f => ({ code: f.code, name: f.name, weight: Number(f.weight) || 0, reason: f.reason || '', asset: f.assetClass || '' })),
+      funds: validated,
       backtest: parsed.backtest ? { annualReturn: Number(parsed.backtest.annualReturn) || 0, maxDrawdown: Number(parsed.backtest.maxDrawdown) || 0, sharpe: Number(parsed.backtest.sharpe) || 0, winRate: Number(parsed.backtest.winRate) || 0 } : null,
       createdAt: `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`
     }
