@@ -114,57 +114,54 @@ export async function getCategoryRankInfo(codes) {
 //   - score: 该基金在 scoreCol 上的评分（如 k1）
 //   - rank: 该品类内按 scoreCol 降序的名次（1 起），total 为该品类基金总数
 // 用于在组合成份基金后展示「分类 + 1年评分 + 排名 153|1480」
+// 允许作为 scoreCol 的列名白名单（避免拼接进查询字符串时产生 SQL 注入）
+const SCORE_COLS = new Set(['k0w', 'k1m', 'k3m', 'k6m', 'k1', 'k2', 'k3', 'k5', 'k_all'])
+// 品类总数缓存：同一组合里多只基金常属同一品类，避免重复 COUNT
+const _catTotalCache = new Map()
+
 export async function getCategoryRankInfoByScore(codes, scoreCol = 'k1') {
   if (!supabase || !codes || codes.length === 0) return {}
+  if (!SCORE_COLS.has(scoreCol)) {
+    console.error('[getCategoryRankInfoByScore] 非法 scoreCol:', scoreCol)
+    return {}
+  }
   const unique = [...new Set(codes.filter(Boolean))]
+  const result = {}
   try {
-    const { data, error } = await supabase
-      .from('fund_scores')
-      .select(`c,t1_tt,${scoreCol}`)
-      .in('c', unique)
-    if (error || !data) return {}
-    const info = {}
-    const cats = []
-    const catSet = new Set()
-    for (const f of data) {
-      const k = f[scoreCol] == null ? null : Number(f[scoreCol])
-      info[f.c] = { cat: f.t1_tt || null, score: k }
-      if (f.t1_tt && !catSet.has(f.t1_tt)) { catSet.add(f.t1_tt); cats.push(f.t1_tt) }
-    }
-    if (cats.length === 0) {
-      const result = {}
-      for (const f of data) result[f.c] = { cat: info[f.c].cat, score: info[f.c].score, rank: null, total: 0 }
-      return result
-    }
-    const { data: all, error: e2 } = await supabase
-      .from('fund_scores')
-      .select(`t1_tt,${scoreCol}`)
-      .in('t1_tt', cats)
-    if (e2 || !all) return {}
-    // 按品类聚合 scoreCol（升序），用于二分查找排名
-    const byCat = {}
-    for (const f of all) {
-      const k = f[scoreCol] == null ? null : Number(f[scoreCol])
-      if (k == null) continue
-      if (!byCat[f.t1_tt]) byCat[f.t1_tt] = []
-      byCat[f.t1_tt].push(k)
-    }
-    const totals = {}
-    for (const cat of Object.keys(byCat)) {
-      byCat[cat].sort((a, b) => a - b)
-      totals[cat] = byCat[cat].length
-    }
-    // 计算每只基金排名：品类内 scoreCol 严格大于本基金的数量 + 1
-    const result = {}
-    for (const f of data) {
-      const r = info[f.c]
-      if (!r.cat || r.score == null) {
-        result[f.c] = { cat: r.cat, score: r.score, rank: null, total: r.cat ? (totals[r.cat] || 0) : 0 }
+    for (const code of unique) {
+      // ① 取该基金自身的 t1_tt（真实二级分类）与 scoreCol 评分
+      const { data: row, error } = await supabase
+        .from('fund_scores')
+        .select(`c,t1_tt,${scoreCol}`)
+        .eq('c', code)
+        .maybeSingle()
+      if (error) { console.error('[getCategoryRankInfoByScore] info', code, error); continue }
+      const cat = row?.t1_tt || null
+      const score = row?.[scoreCol] == null ? null : Number(row[scoreCol])
+      // 分类为空或评分缺失 → fallback：rank=null, total=0
+      if (!cat || score == null) {
+        result[code] = { cat, score, rank: null, total: 0 }
         continue
       }
-      const total = totals[r.cat] || 0
-      const rank = total - bisectRight(byCat[r.cat] || [], r.score) + 1
-      result[f.c] = { cat: r.cat, score: r.score, rank, total }
+      // ② 该品类基金总数（服务端 COUNT，按品类缓存）
+      let total = _catTotalCache.get(cat)
+      if (total == null) {
+        const { count, error: eT } = await supabase
+          .from('fund_scores')
+          .select('*', { count: 'exact', head: true })
+          .eq('t1_tt', cat)
+        if (eT) { console.error('[getCategoryRankInfoByScore] total', cat, eT); continue }
+        total = count || 0
+        _catTotalCache.set(cat, total)
+      }
+      // ③ 该品类内 scoreCol >= 自身评分的只数 = 降序排名（与 bisectRight 语义一致：>= 自身的数量）
+      const { count: rank, error: eR } = await supabase
+        .from('fund_scores')
+        .select('*', { count: 'exact', head: true })
+        .eq('t1_tt', cat)
+        .gte(scoreCol, score)
+      if (eR) { console.error('[getCategoryRankInfoByScore] rank', code, eR); continue }
+      result[code] = { cat, score, rank: rank || 0, total }
     }
     return result
   } catch (e) {

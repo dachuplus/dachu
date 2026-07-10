@@ -248,18 +248,7 @@
 
       <div class="card" v-if="!loading && portfolioItems.length > 0">
         <div class="card-title">Kan &amp; Zhou 增强型风险平价</div>
-        <div class="portfolio-overview">
-          <div class="po-item" v-for="item in portfolioItems" :key="item.assetKey">
-            <div class="po-left">
-              <SvgIcon :name="ASSET_ICONS[item.assetKey] || 'gear'" :size="20" class="po-icon" />
-              <span class="po-name">{{ item.category }}</span>
-            </div>
-            <div class="po-right">
-              <div class="po-bar"><div class="po-fill" :style="{ width: item.weight + '%' }"></div></div>
-              <span class="po-weight">{{ item.weight }}%</span>
-            </div>
-          </div>
-        </div>
+        <div ref="pieChartRef" class="risk-pie"></div>
       </div>
 
       <div class="card" v-for="group in portfolioItems" :key="group.assetKey">
@@ -305,9 +294,8 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted, nextTick } from 'vue'
+import { ref, onMounted, onUnmounted, onBeforeUnmount, nextTick, watch } from 'vue'
 import { supabase } from '../../api/supabase'
-import SvgIcon from '../../components/SvgIcon.vue'
 import { fetchValue500All } from '../../utils/api'
 import { getCategoryRankInfo, getCategoryRankInfoByScore } from '../../api/data.js'
 import { getIndexQuotes, buildMarketData, parseValue500Data } from '../../utils/market-data'
@@ -316,6 +304,8 @@ import { useAuth } from '../../composables/useAuth'
 import { toast, confirm } from '../../composables/useToast.js'
 import { createPortfolio as savePortfolioToDb, deletePortfolio } from '../../api/user-data'
 import FundIndexPanel from './FundIndexPanel.vue'
+import echarts from '../../utils/echarts-setup'
+import { COLORS } from '../../utils/echarts-theme'
 
 const {
   user, isLoggedIn,
@@ -433,8 +423,10 @@ const RETURN_COLS = [
   { key: 'r3m', label: '近3月' },
   { key: 'r6m', label: '近6月' },
   { key: 'r1y', label: '近1年' },
+  { key: 'r2y', label: '近2年' },
   { key: 'r3y', label: '近3年' },
-  { key: 'r5y', label: '近5年' }
+  { key: 'r5y', label: '近5年' },
+  { key: 'r10y', label: '近10年' }
 ]
 // 严格列：组合内任一成分基金该周期数据缺失（即基金成立不满该周期），整列显示 --
 const STRICT_COLS = { r3y: true, r5y: true }
@@ -488,13 +480,13 @@ async function loadPortfolioReturns() {
       const fundMap = {}
       if (ofCodes.length > 0) {
         const { data } = await supabase.from('fund_scores')
-          .select('c,r0w,r1m,r3m,r6m,r1y,r3y,r5y,daily_change')
+          .select('c,r0w,r1m,r3m,r6m,r1y,r2y,r3y,r5y,r10y,daily_change')
           .in('c', ofCodes)
         ;(data || []).forEach(f => { fundMap[f.c] = f })
       }
       if (etfCodes.length > 0) {
         const { data } = await supabase.from('etf_returns')
-          .select('c,r0w,r1m,r3m,r6m,r1y,r3y,r5y,daily_change')
+          .select('c,r0w,r1m,r3m,r6m,r1y,r2y,r3y,r5y,r10y,daily_change')
           .in('c', etfCodes)
         ;(data || []).forEach(f => { fundMap[f.c] = f })
       }
@@ -709,7 +701,6 @@ async function addAiToCustom() {
 }
 
 // ===== 专家组合（Kan & Zhou 风险平价） =====
-const ASSET_ICONS = { stock: 'signal', bond: 'shield', commodity: 'gear', gold: 'medal', reit: 'portfolio', cash: 'dashboard' }
 // 每个资产大类按「一级分类 t0」筛选；无 t0 的品类（商品/黄金/REIT）用名称关键字识别
 // 选基优先级：ETF > 指数型产品 > 主动管理型（同品类内按 k1 降序取 top 10）
 const ASSET_ETF_CONFIG = {
@@ -726,6 +717,35 @@ const loading = ref(false)
 const dataDate = ref('')
 const weightSource = ref('')
 const portfolioItems = ref([])
+const pieChartRef = ref(null)
+let pieChart = null
+
+// 风险平价总览：各大类权重占比饼图（gov.uk 品牌色系）
+function renderPieChart() {
+  const el = pieChartRef.value
+  if (!el || portfolioItems.value.length === 0) return
+  if (pieChart) pieChart.dispose()
+  pieChart = echarts.init(el)
+  const palette = ['#1d70b8', '#5694ca', '#003078', '#f47738', '#4c2c92', '#28a197']
+  pieChart.setOption({
+    color: COLORS,
+    tooltip: { trigger: 'item', formatter: p => `${p.name}: ${p.percent}%` },
+    legend: { bottom: 0, textStyle: { fontFamily: 'inherit', fontSize: 13 } },
+    series: [{
+      type: 'pie',
+      radius: ['42%', '70%'],
+      center: ['50%', '46%'],
+      itemStyle: { borderColor: '#fff', borderWidth: 2 },
+      label: { show: true, formatter: '{b} {c}%', fontSize: 12, color: '#0b0c0c' },
+      labelLine: { length: 8, length2: 8 },
+      data: portfolioItems.value.map((it, i) => ({
+        name: it.category,
+        value: it.weight,
+        itemStyle: { color: palette[i % palette.length] }
+      }))
+    }]
+  })
+}
 
 function fmtScore(val) { return val != null ? val.toFixed(1) : '--' }
 
@@ -820,6 +840,21 @@ async function fetchAllETFs(items) {
 
 onMounted(() => {
   loadAiHistory()
+  window.addEventListener('resize', handlePieResize)
+})
+
+function handlePieResize() {
+  if (pieChart) pieChart.resize()
+}
+
+// 切换到专家组合 tab 或权重数据就绪后渲染/重渲染饼图
+watch([activeTab, portfolioItems], () => {
+  if (activeTab.value === 'model') nextTick(renderPieChart)
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener('resize', handlePieResize)
+  if (pieChart) { pieChart.dispose(); pieChart = null }
 })
 </script>
 
@@ -886,14 +921,7 @@ onMounted(() => {
 /* ===== 专家组合 ===== */
 .data-status { display: flex; align-items: center; gap: var(--space-sm); padding: var(--space-sm) 0; font-size: 14px; color: var(--text-secondary); }
 .weight-source { font-weight: 700; }
-.portfolio-overview { display: flex; flex-direction: column; gap: var(--space-sm); }
-.po-item { display: flex; align-items: center; gap: var(--space-sm); }
-.po-left { display: flex; align-items: center; gap: 6px; min-width: 90px; }
-.po-name { font-size: 16px; font-weight: 700; }
-.po-right { flex: 1; display: flex; align-items: center; gap: var(--space-sm); }
-.po-bar { flex: 1; height: 24px; background: #f3f2f1; overflow: hidden; }
-.po-fill { height: 100%; background: #1d70b8; transition: width 0.6s; }
-.po-weight { font-size: 16px; font-weight: 700; min-width: 48px; text-align: right; }
+.risk-pie { width: 100%; height: 340px; }
 .etf-list { display: flex; flex-direction: column; gap: var(--space-sm); }
 .etf-loading, .etf-empty { padding: var(--space-md); text-align: center; color: var(--text-secondary); }
 .etf-item { padding: var(--space-md); border: 1px solid var(--border); border-left: 5px solid #1d70b8; }
