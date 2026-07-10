@@ -9,3 +9,6 @@ __pycache__/
 .DS_Store
 *.log
 *.ndjson
+# Vite 构建临时产物（node 重命名占位）
+vite.config.js.timestamp-*.mjs
+*.timestamp-*.mjs
