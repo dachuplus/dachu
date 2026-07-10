@@ -136,8 +136,43 @@
 
     <!-- ==================== 3+4. 资产配置（资产对比 + 资产配比 合并） ==================== -->
     <div v-if="activeTab === 'asset'">
-      <!-- 资产对比 -->
+      <!-- 资产配比（置顶） -->
       <div class="card">
+        <div class="card-title">资产配比 — Kan & Zhou 增强型风险平价</div>
+        <p class="card-desc">基础权重 × 夏普信号调整，限幅 [0%, 50%]</p>
+        <div class="allocate-layout">
+          <!-- 饼图 -->
+          <div class="pie-section">
+            <div class="pie-chart" ref="pieEl"></div>
+          </div>
+          <!-- 配置明细表 -->
+          <div class="table-wrap">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>资产</th>
+                  <th>基础权重</th>
+                  <th>调整权重</th>
+                  <th>变化</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="w in weightList" :key="w.key">
+                  <td class="td-name">{{ w.name }}</td>
+                  <td>{{ w.baseWeight }}%</td>
+                  <td class="text-brand">{{ w.weight }}%</td>
+                  <td :class="w.weight > w.baseWeight ? 'text-up' : 'text-down'">
+                    {{ w.weight > w.baseWeight ? '+' : '' }}{{ (w.weight - w.baseWeight).toFixed(0) }}%
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- 资产对比 -->
+      <div class="card" style="margin-top:20px">
         <div class="card-title">资产对比 — 隐含夏普 / 预期收益 / 风险溢价</div>
         <p class="card-desc">现金用Shibor，债券用YTM，股票用Gordon模型，黄金用实际利率模型</p>
         <div class="table-wrap">
@@ -173,41 +208,6 @@
         <!-- 上证指数历史走势 -->
         <div class="card-title" style="margin-top:20px">上证指数历史走势</div>
         <div ref="compareIdxEl" style="height:200px"></div>
-      </div>
-
-      <!-- 资产配比 -->
-      <div class="card" style="margin-top:20px">
-        <div class="card-title">资产配比 — Kan & Zhou 增强型风险平价</div>
-        <p class="card-desc">基础权重 × 夏普信号调整，限幅 [0%, 50%]</p>
-        <div class="allocate-layout">
-          <!-- 饼图 -->
-          <div class="pie-section">
-            <div class="pie-chart" ref="pieEl"></div>
-          </div>
-          <!-- 配置明细表 -->
-          <div class="table-wrap">
-            <table class="data-table">
-              <thead>
-                <tr>
-                  <th>资产</th>
-                  <th>基础权重</th>
-                  <th>调整权重</th>
-                  <th>变化</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr v-for="w in weightList" :key="w.key">
-                  <td class="td-name">{{ w.name }}</td>
-                  <td>{{ w.baseWeight }}%</td>
-                  <td class="text-brand">{{ w.weight }}%</td>
-                  <td :class="w.weight > w.baseWeight ? 'text-up' : 'text-down'">
-                    {{ w.weight > w.baseWeight ? '+' : '' }}{{ (w.weight - w.baseWeight).toFixed(0) }}%
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
       </div>
     </div>
 
