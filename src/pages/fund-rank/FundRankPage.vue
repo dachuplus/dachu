@@ -37,110 +37,132 @@
         </div>
       </div>
 
-      <!-- 更多筛选（展开/收起） -->
-      <div class="more-filter-toggle" @click="showMoreFilter = !showMoreFilter">
+      <!-- 更多筛选（弹窗入口） -->
+      <div class="more-filter-toggle" @click="openMoreFilter">
         <span>更多筛选</span>
-        <span class="toggle-arrow" :class="{ open: showMoreFilter }">▾</span>
+        <span class="more-badge" v-if="activeMoreFilterCount">{{ activeMoreFilterCount }}</span>
+        <span class="toggle-arrow">▾</span>
       </div>
 
-      <div class="more-filter-body" v-if="showMoreFilter">
-        <!-- 份额类别 -->
-        <div class="filter-row">
-          <span class="filter-label">份额</span>
-          <div class="filter-chips">
-            <div class="filter-chip" :class="{ active: filterSC === '' }" @click="setSC('')">全部</div>
-            <div v-for="sc in shareClassOptions" :key="sc" class="filter-chip" :class="{ active: filterSC === sc }" @click="setSC(sc)">{{ sc }}类</div>
-          </div>
-        </div>
+      <!-- 更多筛选弹窗 -->
+      <Teleport to="body">
+        <template v-if="showMoreFilter">
+          <div class="mask" @click="cancelMoreFilter"></div>
+          <div class="more-modal">
+            <div class="more-modal-header">
+              <span class="more-modal-title">更多筛选</span>
+              <span class="more-modal-close" @click="cancelMoreFilter">&#x2715;</span>
+            </div>
+            <div class="more-modal-body">
+              <!-- 份额类别 -->
+              <div class="filter-row">
+                <span class="filter-label">份额</span>
+                <div class="filter-chips">
+                  <div class="filter-chip" :class="{ active: filterSC === '' }" @click="mToggleSC('')">全部</div>
+                  <div v-for="sc in shareClassOptions" :key="sc" class="filter-chip" :class="{ active: filterSC === sc }" @click="mToggleSC(sc)">{{ sc }}类</div>
+                </div>
+              </div>
 
-        <!-- 是否场内 -->
-        <div class="filter-row">
-          <span class="filter-label">场内</span>
-          <div class="filter-chips">
-            <div class="filter-chip" :class="{ active: filterCN === '' }" @click="setCN('')">全部</div>
-            <div class="filter-chip" :class="{ active: filterCN === '1' }" @click="setCN('1')">是</div>
-            <div class="filter-chip" :class="{ active: filterCN === '0' }" @click="setCN('0')">否</div>
-          </div>
-        </div>
+              <!-- 是否场内 -->
+              <div class="filter-row">
+                <span class="filter-label">场内</span>
+                <div class="filter-chips">
+                  <div class="filter-chip" :class="{ active: filterCN === '' }" @click="mToggleCN('')">全部</div>
+                  <div class="filter-chip" :class="{ active: filterCN === '1' }" @click="mToggleCN('1')">是</div>
+                  <div class="filter-chip" :class="{ active: filterCN === '0' }" @click="mToggleCN('0')">否</div>
+                </div>
+              </div>
 
-        <!-- 是否ETF -->
-        <div class="filter-row">
-          <span class="filter-label">ETF</span>
-          <div class="filter-chips">
-            <div class="filter-chip" :class="{ active: filterETF === '' }" @click="setFlag('ETF', '')">全部</div>
-            <div class="filter-chip" :class="{ active: filterETF === '1' }" @click="setFlag('ETF', '1')">是</div>
-            <div class="filter-chip" :class="{ active: filterETF === '0' }" @click="setFlag('ETF', '0')">否</div>
-          </div>
-        </div>
+              <!-- 是否ETF -->
+              <div class="filter-row">
+                <span class="filter-label">ETF</span>
+                <div class="filter-chips">
+                  <div class="filter-chip" :class="{ active: filterETF === '' }" @click="mToggleFlag('ETF', '')">全部</div>
+                  <div class="filter-chip" :class="{ active: filterETF === '1' }" @click="mToggleFlag('ETF', '1')">是</div>
+                  <div class="filter-chip" :class="{ active: filterETF === '0' }" @click="mToggleFlag('ETF', '0')">否</div>
+                </div>
+              </div>
 
-        <!-- 是否LOF -->
-        <div class="filter-row">
-          <span class="filter-label">LOF</span>
-          <div class="filter-chips">
-            <div class="filter-chip" :class="{ active: filterLOF === '' }" @click="setFlag('LOF', '')">全部</div>
-            <div class="filter-chip" :class="{ active: filterLOF === '1' }" @click="setFlag('LOF', '1')">是</div>
-            <div class="filter-chip" :class="{ active: filterLOF === '0' }" @click="setFlag('LOF', '0')">否</div>
-          </div>
-        </div>
+              <!-- 是否LOF -->
+              <div class="filter-row">
+                <span class="filter-label">LOF</span>
+                <div class="filter-chips">
+                  <div class="filter-chip" :class="{ active: filterLOF === '' }" @click="mToggleFlag('LOF', '')">全部</div>
+                  <div class="filter-chip" :class="{ active: filterLOF === '1' }" @click="mToggleFlag('LOF', '1')">是</div>
+                  <div class="filter-chip" :class="{ active: filterLOF === '0' }" @click="mToggleFlag('LOF', '0')">否</div>
+                </div>
+              </div>
 
-        <!-- 是否FOF -->
-        <div class="filter-row">
-          <span class="filter-label">FOF</span>
-          <div class="filter-chips">
-            <div class="filter-chip" :class="{ active: filterFOF === '' }" @click="setFlag('FOF', '')">全部</div>
-            <div class="filter-chip" :class="{ active: filterFOF === '1' }" @click="setFlag('FOF', '1')">是</div>
-            <div class="filter-chip" :class="{ active: filterFOF === '0' }" @click="setFlag('FOF', '0')">否</div>
-          </div>
-        </div>
+              <!-- 是否FOF -->
+              <div class="filter-row">
+                <span class="filter-label">FOF</span>
+                <div class="filter-chips">
+                  <div class="filter-chip" :class="{ active: filterFOF === '' }" @click="mToggleFlag('FOF', '')">全部</div>
+                  <div class="filter-chip" :class="{ active: filterFOF === '1' }" @click="mToggleFlag('FOF', '1')">是</div>
+                  <div class="filter-chip" :class="{ active: filterFOF === '0' }" @click="mToggleFlag('FOF', '0')">否</div>
+                </div>
+              </div>
 
-        <!-- 是否定开（名称含"定开"或"定期开放"） -->
-        <div class="filter-row">
-          <span class="filter-label">定开</span>
-          <div class="filter-chips">
-            <div class="filter-chip" :class="{ active: filterDK === '' }" @click="setFlag('DK', '')">全部</div>
-            <div class="filter-chip" :class="{ active: filterDK === '1' }" @click="setFlag('DK', '1')">是</div>
-            <div class="filter-chip" :class="{ active: filterDK === '0' }" @click="setFlag('DK', '0')">否</div>
-          </div>
-        </div>
+              <!-- 是否定开 -->
+              <div class="filter-row">
+                <span class="filter-label">定开</span>
+                <div class="filter-chips">
+                  <div class="filter-chip" :class="{ active: filterDK === '' }" @click="mToggleFlag('DK', '')">全部</div>
+                  <div class="filter-chip" :class="{ active: filterDK === '1' }" @click="mToggleFlag('DK', '1')">是</div>
+                  <div class="filter-chip" :class="{ active: filterDK === '0' }" @click="mToggleFlag('DK', '0')">否</div>
+                </div>
+              </div>
 
-        <!-- 申购状态 -->
-        <div class="filter-row">
-          <span class="filter-label">状态</span>
-          <div class="filter-chips">
-            <div class="filter-chip" :class="{ active: filterSG === '' }" @click="setSG('')">全部</div>
-            <div class="filter-chip" :class="{ active: filterSG === '1' }" @click="setSG('1')">可申购</div>
-            <div class="filter-chip" :class="{ active: filterSG === '0' }" @click="setSG('0')">暂停申购</div>
-          </div>
-        </div>
+              <!-- 申购状态 -->
+              <div class="filter-row">
+                <span class="filter-label">状态</span>
+                <div class="filter-chips">
+                  <div class="filter-chip" :class="{ active: filterSG === '' }" @click="mToggleSG('')">全部</div>
+                  <div class="filter-chip" :class="{ active: filterSG === '1' }" @click="mToggleSG('1')">可申购</div>
+                  <div class="filter-chip" :class="{ active: filterSG === '0' }" @click="mToggleSG('0')">暂停申购</div>
+                </div>
+              </div>
 
-        <!-- 单日涨跌≥20%（涨停/跌停基金，如T+2） -->
-        <div class="filter-row">
-          <span class="filter-label">20%</span>
-          <div class="filter-chips">
-            <div class="filter-chip" :class="{ active: filterDailyLimit === '' }" @click="setDailyLimit('')">全部</div>
-            <div class="filter-chip" :class="{ active: filterDailyLimit === '0' }" @click="setDailyLimit('0')">否</div>
-            <div class="filter-chip" :class="{ active: filterDailyLimit === '1' }" @click="setDailyLimit('1')">是</div>
-          </div>
-        </div>
+              <!-- 单日涨跌≥20% -->
+              <div class="filter-row">
+                <span class="filter-label">20%</span>
+                <div class="filter-chips">
+                  <div class="filter-chip" :class="{ active: filterDailyLimit === '' }" @click="mToggleDailyLimit('')">全部</div>
+                  <div class="filter-chip" :class="{ active: filterDailyLimit === '0' }" @click="mToggleDailyLimit('0')">否</div>
+                  <div class="filter-chip" :class="{ active: filterDailyLimit === '1' }" @click="mToggleDailyLimit('1')">是</div>
+                </div>
+              </div>
 
-        <!-- 基金规模区间（亿元）：输入完点「确认」再查询 -->
-        <div class="filter-row">
-          <span class="filter-label">规模</span>
-          <div class="filter-scale-range">
-            <input type="number" class="scale-input" v-model="filterScaleMin" placeholder="最小" @keyup.enter="onScaleConfirm" />
-            <span class="scale-dash">—</span>
-            <input type="number" class="scale-input" v-model="filterScaleMax" placeholder="最大" @keyup.enter="onScaleConfirm" />
-            <span class="scale-unit">亿</span>
-            <button class="scale-confirm-btn" @click="onScaleConfirm">确认</button>
-          </div>
-        </div>
+              <!-- 基金规模区间（亿元）：预设选择或自定义 -->
+              <div class="filter-row">
+                <span class="filter-label">规模</span>
+                <div class="filter-scale-presets">
+                  <div v-for="p in SCALE_PRESETS" :key="p.key" class="filter-chip" :class="{ active: scalePreset === p.key }" @click="pickScalePreset(p.key)">{{ p.label }}</div>
+                </div>
+              </div>
+              <div class="filter-row" v-if="scalePreset === 'custom'">
+                <span class="filter-label">自定义</span>
+                <div class="filter-scale-range">
+                  <input type="number" class="scale-input" v-model="filterScaleMin" placeholder="最小" @input="onScaleInput" @keyup.enter="applyMoreFilters" />
+                  <span class="scale-dash">—</span>
+                  <input type="number" class="scale-input" v-model="filterScaleMax" placeholder="最大" @input="onScaleInput" @keyup.enter="applyMoreFilters" />
+                  <span class="scale-unit">亿</span>
+                </div>
+              </div>
 
-        <!-- 筛选说明 -->
-        <div class="filter-tip">
-          注：ETF/LOF/定开/申购状态/单日涨跌基于数据库字段精确筛选；场内/份额类别基于基金名称识别，可能存在少量误判。<br>
-          机构占比、股票占比数据暂未收录，后续版本更新。
-        </div>
-      </div>
+              <!-- 筛选说明 -->
+              <div class="filter-tip">
+                注：ETF/LOF/定开/申购状态/单日涨跌基于数据库字段精确筛选；场内/份额类别基于基金名称识别，可能存在少量误判。<br>
+                机构占比、股票占比数据暂未收录，后续版本更新。
+              </div>
+            </div>
+            <div class="more-modal-footer">
+              <button class="btn-reset" @click="resetMoreFilters">重置</button>
+              <button class="btn-confirm" @click="applyMoreFilters">确认</button>
+            </div>
+          </div>
+        </template>
+      </Teleport>
 
       <!-- 自定义指标入口 -->
       <div class="weight-entry-row">
@@ -676,6 +698,18 @@ const filterDailyLimit = ref('')
 const filterSG = ref('')       // 申购状态：''全部 '1'可申购 '0'暂停申购
 const filterScaleMin = ref('')  // 基金规模区间（亿元）最小值
 const filterScaleMax = ref('')  // 基金规模区间（亿元）最大值
+const scalePreset = ref('all')  // 规模预设：all/gt2/2to5/5to10/10to20/20to50/50to100/gt100/custom
+const SCALE_PRESETS = [
+  { key: 'all',     label: '全部',      min: '',   max: '' },
+  { key: 'gt2',     label: '大于2亿',   min: 2,    max: '' },
+  { key: '2to5',    label: '2-5亿',     min: 2,    max: 5 },
+  { key: '5to10',   label: '5-10亿',    min: 5,    max: 10 },
+  { key: '10to20',  label: '10-20亿',   min: 10,   max: 20 },
+  { key: '20to50',  label: '20-50亿',   min: 20,   max: 50 },
+  { key: '50to100', label: '50-100亿',  min: 50,   max: 100 },
+  { key: 'gt100',   label: '100亿以上', min: 100,  max: '' },
+  { key: 'custom',  label: '自定义',    min: null, max: null },
+]
 
 // 自定义指标权重（6项）
 const showWeightPanel = ref(false)
@@ -982,23 +1016,6 @@ function setT1(val) {
   loadData(true)
 }
 
-function setSC(val) {
-  filterSC.value = val
-  loadData(true)
-}
-
-function setFlag(type, val) {
-  if (type === 'ETF') {
-    filterETF.value = val
-  } else if (type === 'LOF') {
-    filterLOF.value = val
-  } else if (type === 'FOF') {
-    filterFOF.value = val
-    if (val === '1') { filterT0.value = ''; filterT1.value = '' }
-  } else if (type === 'DK') filterDK.value = val
-  loadData(true)
-}
-
 /** 清除所有更多筛选条件 */
 function clearMoreFilters() {
   filterSC.value = ''
@@ -1011,27 +1028,93 @@ function clearMoreFilters() {
   filterSG.value = ''
   filterScaleMin.value = ''
   filterScaleMax.value = ''
+  scalePreset.value = 'all'
 }
 
-/** 规模区间「确认」按钮：输入完成点确认才查询，避免中间态误查（如敲"100"时 scaleMax=1 卡出 0 条） */
-function onScaleConfirm() {
+// ========== 更多筛选弹窗（确认后才查询，取消恢复） ==========
+let moreFilterSnapshot = null
+
+function openMoreFilter() {
+  moreFilterSnapshot = {
+    sc: filterSC.value, etf: filterETF.value, lof: filterLOF.value, fof: filterFOF.value,
+    cn: filterCN.value, dk: filterDK.value, dl: filterDailyLimit.value, sg: filterSG.value,
+    smin: filterScaleMin.value, smax: filterScaleMax.value, t0: filterT0.value, t1: filterT1.value,
+    sp: scalePreset.value,
+  }
+  showMoreFilter.value = true
+}
+
+function cancelMoreFilter() {
+  if (moreFilterSnapshot) {
+    filterSC.value = moreFilterSnapshot.sc
+    filterETF.value = moreFilterSnapshot.etf
+    filterLOF.value = moreFilterSnapshot.lof
+    filterFOF.value = moreFilterSnapshot.fof
+    filterCN.value = moreFilterSnapshot.cn
+    filterDK.value = moreFilterSnapshot.dk
+    filterDailyLimit.value = moreFilterSnapshot.dl
+    filterSG.value = moreFilterSnapshot.sg
+    filterScaleMin.value = moreFilterSnapshot.smin
+    filterScaleMax.value = moreFilterSnapshot.smax
+    filterT0.value = moreFilterSnapshot.t0
+    filterT1.value = moreFilterSnapshot.t1
+    scalePreset.value = moreFilterSnapshot.sp
+  }
+  showMoreFilter.value = false
+}
+
+function applyMoreFilters() {
+  showMoreFilter.value = false
   loadData(true)
 }
 
-function setDailyLimit(val) {
-  filterDailyLimit.value = val
-  loadData(true)
+function resetMoreFilters() {
+  clearMoreFilters()
+  scalePreset.value = 'all'
 }
 
-function setSG(val) {
-  filterSG.value = val
-  loadData(true)
+// 弹窗内筛选只改本地状态，确认后才查询
+function mToggleSC(val) { filterSC.value = filterSC.value === val ? '' : val }
+function mToggleCN(val) { filterCN.value = filterCN.value === val ? '' : val }
+function mToggleSG(val) { filterSG.value = filterSG.value === val ? '' : val }
+function mToggleDailyLimit(val) { filterDailyLimit.value = filterDailyLimit.value === val ? '' : val }
+function mToggleFlag(type, val) {
+  const map = { ETF: filterETF, LOF: filterLOF, FOF: filterFOF, DK: filterDK }
+  const r = map[type]
+  if (!r) return
+  const next = r.value === val ? '' : val
+  r.value = next
+  if (type === 'FOF' && next === '1') { filterT0.value = ''; filterT1.value = '' }
 }
 
-function setCN(val) {
-  filterCN.value = val
-  loadData(true)
+function pickScalePreset(key) {
+  scalePreset.value = key
+  if (key === 'custom') return
+  const p = SCALE_PRESETS.find(x => x.key === key)
+  if (!p) return
+  filterScaleMin.value = p.min
+  filterScaleMax.value = p.max
 }
+
+function onScaleInput() {
+  // 手动修改规模输入框视为自定义
+  scalePreset.value = 'custom'
+}
+
+const activeMoreFilterCount = computed(() => {
+  let n = 0
+  if (filterSC.value) n++
+  if (filterETF.value) n++
+  if (filterLOF.value) n++
+  if (filterFOF.value) n++
+  if (filterCN.value) n++
+  if (filterDK.value) n++
+  if (filterDailyLimit.value) n++
+  if (filterSG.value) n++
+  if (filterScaleMin.value !== '' && filterScaleMin.value != null) n++
+  if (filterScaleMax.value !== '' && filterScaleMax.value != null) n++
+  return n
+})
 
 function switchPeriod(key) {
   sortField.value = ''  // 切换到服务端排序，清除客户端排序
@@ -1211,7 +1294,6 @@ onUnmounted(() => {
 }
 .toggle-arrow { display: inline-block; transition: transform 0.2s; font-size: 16px; }
 .toggle-arrow.open { transform: rotate(180deg); }
-.more-filter-body { border-top: 1px solid var(--border); padding-bottom: var(--space-sm); }
 .filter-scale-range { display: flex; align-items: center; gap: 6px; flex: 1; }
 .scale-input {
   width: 80px; padding: 4px 8px; font-size: 14px;
@@ -1221,11 +1303,6 @@ onUnmounted(() => {
 .scale-input:focus { outline: 3px solid #ffdd00; outline-offset: 0; }
 .scale-dash { color: var(--text-secondary); }
 .scale-unit { font-size: 14px; color: var(--text-secondary); }
-.scale-confirm-btn {
-  padding: 4px 14px; font-size: 14px; font-weight: 700;
-  color: #fff; background: #1d70b8; border: none; cursor: pointer;
-}
-.scale-confirm-btn:hover { background: #003078; }
 .filter-tip { padding: var(--space-sm) var(--space-md); font-size: 14px; color: var(--text-secondary); }
 
 /* 周期Tab - 已移除 toolbar 行，周期选择通过表头点击完成 */
@@ -1500,6 +1577,34 @@ onUnmounted(() => {
 
 /* ===== 弹窗 ===== */
 .mask { position: fixed; inset: 0; background: rgba(29,112,184,0.6); z-index: 100; }
+
+/* 更多筛选弹窗 */
+.more-modal {
+  position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+  width: 100%; max-width: 560px; max-height: 82vh;
+  background: #ffffff; border: 1px solid var(--border);
+  display: flex; flex-direction: column; z-index: 101;
+}
+.more-modal-header {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: var(--space-md) var(--space-lg); border-bottom: 1px solid var(--border);
+  background: #f3f2f1; flex-shrink: 0;
+}
+.more-modal-title { font-size: 19px; font-weight: 700; color: var(--text-primary); }
+.more-modal-close { font-size: 24px; color: var(--text-primary); cursor: pointer; padding: 4px; line-height: 1; }
+.more-modal-body { flex: 1; overflow-y: auto; padding: var(--space-sm) 0; }
+.more-modal-footer {
+  display: flex; justify-content: flex-end; gap: var(--space-sm);
+  padding: var(--space-md) var(--space-lg); border-top: 1px solid var(--border);
+  flex-shrink: 0; background: #ffffff;
+}
+.more-badge {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px;
+  background: #1d70b8; color: #fff; font-size: 12px; font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.filter-scale-presets { display: flex; flex-wrap: wrap; gap: 0; flex: 1; }
 
 .detail-panel {
   position: fixed; bottom: 0; left: 50%; transform: translateX(-50%);

@@ -4,7 +4,7 @@
     <header class="govuk-header" v-if="!isMobile">
       <div class="govuk-header__container">
         <div class="govuk-header__logo">
-          <router-link to="/" class="govuk-header__logotype-text" style="text-decoration:none;color:#fff">ALLFUND.CN</router-link>
+          <router-link to="/" class="govuk-header__logotype-text" style="text-decoration:none;color:#fff">靠谱指数工具 ALLFUND.CN</router-link>
         </div>
         <div class="govuk-header__content">
           <div class="govuk-header__auth">

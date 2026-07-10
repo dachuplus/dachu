@@ -3,7 +3,27 @@
     <!-- Header -->
     <div class="header-bar">
       <span class="data-time">数据截止：{{ dataDate }}</span>
-      <span class="refresh-btn" @click="loadAll">{{ refreshing ? '加载中...' : '刷新' }}</span>
+      <div class="signal-filters">
+        <label class="filter-select">
+          <span class="filter-select__label">周期</span>
+          <select v-model="selPeriod" @change="onPeriodChange" class="filter-select__input">
+            <option v-for="p in periodOptions" :key="p.key" :value="p.key">{{ p.label }}</option>
+          </select>
+        </label>
+        <label class="filter-select">
+          <span class="filter-select__label">市场</span>
+          <select v-model="selMarket" @change="onMarketChange" class="filter-select__input">
+            <option v-for="m in marketOptions" :key="m.key" :value="m.key">{{ m.label }}</option>
+          </select>
+        </label>
+        <span class="refresh-btn" @click="loadAll">{{ refreshing ? '加载中...' : '刷新' }}</span>
+      </div>
+    </div>
+
+    <!-- 市场维度建设中提示 -->
+    <div class="market-notice" v-if="marketNotice">
+      <span class="market-notice__icon">i</span>
+      <span>{{ marketNotice }}</span>
     </div>
 
     <!-- Tab 导航 -->
@@ -24,19 +44,24 @@
     <!-- ==================== 0. 信号总览（专业机构风格） ==================== -->
     <div v-if="activeTab === 'overview'">
       <div class="card overview-banner">
-        <div class="ov-banner-title">信号总览 · 配置建议</div>
+        <div class="ov-banner-title">信号总览</div>
         <p class="ov-banner-text">{{ overviewConclusion }}</p>
       </div>
       <div class="ov-grid">
         <div class="ov-card" v-for="c in signalOverview" :key="c.key">
-          <div class="ov-card-name">{{ c.name }}</div>
+          <div class="ov-card-head">
+            <div class="ov-card-name">{{ c.name }}</div>
+            <span class="ov-help" :title="c.desc">?</span>
+          </div>
           <div class="ov-card-value">{{ c.valueLabel }}</div>
           <div class="ov-bar-wrap" v-if="c.pct != null">
             <div class="ov-bar"><div class="ov-fill" :style="{ width: c.pct + '%', background: c.color }"></div></div>
             <span class="ov-pct">{{ c.pct }}%</span>
           </div>
           <div class="ov-signal" :class="c.signal">{{ c.signalLabel }}</div>
-          <div class="ov-advice" :class="adviceClass(c.advice)">建议：{{ c.adviceLabel }}</div>
+          <div class="ov-signal-label" :class="adviceClass(c.advice)">信号：{{ c.adviceLabel }}</div>
+          <div class="ov-benchmark" v-if="c.benchmark">统计基准：{{ c.benchmark }}</div>
+          <div class="ov-card-hint" v-if="c.hint">{{ c.hint }}</div>
         </div>
       </div>
       <p class="ov-hint">信号基于公开宏观与市场数据计算，仅供参考研究，不构成投资建议。</p>
@@ -48,7 +73,7 @@
       <div class="card" v-if="dashData">
         <div class="card-title">全市场加权平均隐含夏普</div>
         <p class="card-desc">基于风险平价权重加权平均，正值 = 整体有超额收益吸引力</p>
-        <div class="gauge-wrap" ref="gaugeRef"></div>
+        <div class="gauge-wrap" ref="gaugeEl"></div>
       </div>
 
       <!-- 宏观指标 6 个 + 10年历史 -->
@@ -97,7 +122,7 @@
           股债性价比历史走势（2002—今）
           <span class="card-subtitle">上证指数叠加 10Y 国债收益率 ± 标准差带</span>
         </div>
-        <div ref="fedChartRef" style="height:420px"></div>
+        <div ref="fedChartEl" style="height:420px"></div>
         <p class="chart-hint" style="margin-top:8px;font-size:12px;color:var(--text-muted)">
           蓝线 = 10Y国债收益率 | 浅蓝带 = ±1σ / ±2σ 标准差 | 灰底 = 上证指数 | 红线 = 当前股债利差参考线
         </p>
@@ -141,7 +166,7 @@
         </div>
         <!-- 上证指数历史走势 -->
         <div class="card-title" style="margin-top:20px">上证指数历史走势</div>
-        <div ref="compareIdxRef" style="height:200px"></div>
+        <div ref="compareIdxEl" style="height:200px"></div>
       </div>
     </div>
 
@@ -153,7 +178,7 @@
         <div class="allocate-layout">
           <!-- 饼图 -->
           <div class="pie-section">
-            <div class="pie-chart" ref="pieRef"></div>
+            <div class="pie-chart" ref="pieEl"></div>
           </div>
           <!-- 配置明细表 -->
           <div class="table-wrap">
@@ -195,7 +220,7 @@
       <div v-if="factorSub === 'stock'">
         <div class="card">
           <div class="card-title">Barra 六因子蛛网图（估值分 vs 性价比分）</div>
-          <div class="radar-wrap" ref="radarRef" v-show="factorFactors.length > 0"></div>
+          <div class="radar-wrap" ref="radarEl" v-show="factorFactors.length > 0"></div>
           <div class="empty-hint" v-if="factorFactors.length === 0">风格因子数据建设中，暂未提供真实数据（宁空不假）</div>
         </div>
           <div class="card">
@@ -219,9 +244,9 @@
       </div>
       <div v-if="factorSub === 'bond'" class="card">
         <div class="card-title">国债收益率曲线</div>
-        <div class="chart-wrap" ref="bondCurveRef"></div>
+        <div class="chart-wrap" ref="bondCurveEl"></div>
         <div class="card-title" style="margin-top:20px">10Y国债历史走势</div>
-        <div class="macro-chart" ref="bondHistRef" style="height:200px"></div>
+        <div class="macro-chart" ref="bondHistEl" style="height:200px"></div>
         <div class="card-title" style="margin-top:20px">期限利差</div>
         <div class="spread-item" v-for="s in bondSpreads" :key="s.label">
           <span>{{ s.label }}</span>
@@ -329,14 +354,40 @@ const tabs = [
   { key: 'industry', label: '行业估值' },
   { key: 'jqr',      label: '特色指标' },
 ]
-const activeTab = ref('overview')
+// ===== 标签页持久化（Req6）：刷新后保留浏览位置 =====
+const ACTIVE_TAB_KEY = 'af_signal_active_tab'
+const activeTab = ref(localStorage.getItem(ACTIVE_TAB_KEY) || 'overview')
+watch(activeTab, (t) => { try { localStorage.setItem(ACTIVE_TAB_KEY, t) } catch (e) {} })
+
+// ===== 周期 / 市场 筛选（Req1） =====
+const periodOptions = [
+  { key: 'week',    label: '周度', window: 250,    fedDays: 365 },
+  { key: 'month',   label: '月度', window: 750,    fedDays: 1095 },
+  { key: 'quarter', label: '季度', window: 1250,   fedDays: 1825 },
+  { key: 'year',    label: '年度', window: 100000, fedDays: 999999 },
+]
+const marketOptions = [
+  { key: 'all', label: '全市场' },
+  { key: 'hs',  label: '沪深' },
+  { key: 'hk',  label: '港股', building: true },
+  { key: 'us',  label: '美股', building: true },
+]
+const selPeriod = ref('quarter')
+const selMarket = ref('all')
+const marketNotice = computed(() => {
+  const m = marketOptions.find(x => x.key === selMarket.value)
+  if (m && m.building) return `${m.label}信号模块建设中，当前展示全市场数据`
+  return ''
+})
+function onPeriodChange() { updateMacroWindow(); redrawCurrentCharts() }
+function onMarketChange() { /* 港股/美股仅作建设中提示，数据仍为全市场 */ }
 
 // ===== 通用状态 =====
 const dataDate = ref('--')
 const dataError = ref('')
 const refreshing = ref(false)
 
-// ===== 信号总览（专业机构风格：信号值 + 分位 + 配置建议） =====
+// ===== 信号总览（仅呈现指标信号，不提供配置建议） =====
 const signalOverview = ref([])
 const pe300PctGlobal = ref(null)
 const pmiValGlobal = ref(null)
@@ -348,10 +399,11 @@ const overviewConclusion = computed(() => {
   const uw = list.filter(c => c.advice === 'underweight').length
   const nt = list.length - ow - uw
   let head
-  if (ow >= 3) head = '多数信号指向风险资产性价比提升，建议适度超配权益、把握结构性机会'
-  else if (uw >= 3) head = '多重信号偏紧，建议降低风险敞口、提升防御与现金比例'
-  else head = '信号分化，建议维持标准配置、以结构优化为主'
-  return `${head}。当前建议：超配 ${ow} · 低配 ${uw} · 标配 ${nt}`
+  if (ow >= 3) head = '多数信号指向风险资产性价比提升'
+  else if (uw >= 3) head = '多重信号偏紧'
+  else head = '信号分化'
+  // 仅陈述信号分布，不提供任何配置建议
+  return `${head}（偏多 ${ow} · 偏空 ${uw} · 中性 ${nt}）`
 })
 
 // ===== 宏觀數據 =====
@@ -382,7 +434,11 @@ const macroList = ref([
 // "更多"展开状态
 const macroExpand = reactive({})
 const macroHistory = reactive({}) // 完整历史数据缓存
-const MACRO_DEFAULT_WINDOW = 250 // dataZoom 默认窗口：250个数据点（约1年日线）
+const MACRO_DEFAULT_WINDOW = 1250 // dataZoom 默认窗口（随周期筛选动态变化，见 updateMacroWindow）
+function updateMacroWindow() {
+  const p = periodOptions.find(x => x.key === selPeriod.value)
+  MACRO_DEFAULT_WINDOW = p ? p.window : 1250
+}
 
 const chartRefs = {}
 function setChartRef(key, el) {
@@ -414,6 +470,7 @@ let radarChart = null
 let bondCurveChart = null
 let fedChart = null
 let compareIdxChart = null
+let fedHistChart = null
 
 // ===== 行业估值 =====
 const industryFilters = [
@@ -646,7 +703,7 @@ async function loadAll() {
 // 原先的 calcStyleFactors 以指数 PE 比值估算各 Barra 因子百分位，属于启发式伪造数据，
 // 已移除。等待接入真实多因子模型数据后再填充 factorFactors，当前展示"建设中"空状态。
 function drawRadar() {
-  const el = radarRef()
+  const el = radarEl.value
   if (!el) return
   if (radarChart) radarChart.dispose()
   if (!factorFactors.value || factorFactors.value.length === 0) return
@@ -691,7 +748,7 @@ function drawRadar() {
 }
 
 function drawBondCurve() {
-  const el = bondCurveRef()
+  const el = bondCurveEl.value
   if (!el) return
   if (bondCurveChart) bondCurveChart.dispose()
   bondCurveChart = echarts.init(el)
@@ -702,10 +759,11 @@ function drawBondCurve() {
   })
 
   // 10Y 国债历史走势（复用 macroHistory 中的 cn10y 数据）
-  const histEl = document.querySelector('[ref=bindHistRef]') || document.querySelector('#bond-hist')
+  const histEl = bondHistEl.value
   if (histEl && macroHistory['cn10y']) {
     const hdom = histEl.querySelector ? (histEl.querySelector('.macro-chart') || histEl) : histEl
     const hchart = echarts.getInstanceByDom(hdom) || echarts.init(hdom)
+    fedHistChart = hchart
     const hist = [...macroHistory['cn10y']].reverse() // ASC
     const dates = hist.map(d => d.date)
     const values = hist.map(d => d.value)
@@ -728,7 +786,7 @@ function drawBondCurve() {
 
 // ===== FED 历史图（股债性价比 + 上证指数叠加） =====
 async function drawFedChart() {
-  const el = document.querySelector('[ref=fedChartRef]')
+  const el = fedChartEl.value
   if (!el) return
   if (fedChart) { fedChart.dispose(); fedChart = null }
 
@@ -804,8 +862,9 @@ function _renderFedChart(el, data) {
     return yMin + ((v - idxMin) / (idxMax - idxMin)) * plotRange
   })
 
-  const useDataZoom = dates.length > 250
-  const startPct = useDataZoom ? Math.max(0, Math.round((1 - 500 / dates.length) * 100)) : 0
+  const winDays = { week: 365, month: 1095, quarter: 1825, year: 999999 }[selPeriod.value] || 1825
+  const useDataZoom = dates.length > winDays
+  const startPct = useDataZoom ? Math.max(0, Math.round((1 - winDays / dates.length) * 100)) : 0
   const labelStep = Math.max(1, Math.floor(dates.length / 10))
 
   const option = {
@@ -921,7 +980,7 @@ function _renderFedChart(el, data) {
 
 // ===== 资产对比 上证指数历史图 =====
 function drawCompareIdxChart() {
-  const el = document.querySelector('[ref=compareIdxRef]')
+  const el = compareIdxEl.value
   if (!el) return
   // 从 macroHistory 中查 上证指数
   supabase.from('macro_history')
@@ -962,7 +1021,7 @@ function drawMiniHistoryChart(el, rawData, label, isPercent = true) {
 
 // ===== 仪表盘 =====
 function drawGauge() {
-  const el = gaugeRef()
+  const el = gaugeEl.value
   if (!el) return
   if (gaugeChart) gaugeChart.dispose()
   if (!dashData.value) return
@@ -982,7 +1041,7 @@ function drawGauge() {
           color: [[0.25, '#d4351c'], [0.5, '#f47738'], [0.75, '#b1b4b6'], [1, '#00703c']]
         }
       },
-      pointer: { length: '65%', width: 5, itemStyle: { color: '#0b0c0c' } },
+      pointer: { length: '65%', width: 5, itemStyle: { color: '#1d70b8' } },
       axisTick: { show: false },
       splitLine: { show: false },
       axisLabel: { show: false },
@@ -997,10 +1056,14 @@ function drawGauge() {
   })
 }
 
-function gaugeRef() { return document.querySelector('[ref=gaugeRef]') }
-function pieRef() { return document.querySelector('[ref=pieRef]') }
-function radarRef() { return document.querySelector('[ref=radarRef]') }
-function bondCurveRef() { return document.querySelector('[ref=bondCurveRef]') }
+// Vue ref 绑定到图表容器（Vue3 不会把 template ref 渲染成 DOM 属性，必须用 ref 变量）
+const gaugeEl = ref(null)
+const pieEl = ref(null)
+const radarEl = ref(null)
+const bondCurveEl = ref(null)
+const fedChartEl = ref(null)
+const compareIdxEl = ref(null)
+const bondHistEl = ref(null)
 
 // ===== 宏观历史数据加载 =====
 const macroMetricMap = {
@@ -1119,7 +1182,7 @@ function drawMacroCharts() {
     const values = sd.values || []
     const indices = sd.indices || []
     const total = sd.total || dates.length
-    const defWin = sd.defaultWindow || MACRO_DEFAULT_WINDOW
+    const defWin = MACRO_DEFAULT_WINDOW
 
     // dataZoom：始终显示，默认窗口展示最近 defWin 个数据点
     const useDataZoom = total > defWin
@@ -1224,9 +1287,9 @@ function adviceClass(advice) {
   return advice === 'overweight' ? 'text-up' : advice === 'underweight' ? 'text-down' : ''
 }
 
-function makeCard(key, name, valueLabel, pct, signal, signalLabel, advice, adviceLabel) {
+function makeCard(key, name, valueLabel, pct, signal, signalLabel, advice, adviceLabel, desc = '', benchmark = '', hint = '') {
   const colorMap = { hot: 'var(--color-up)', cold: 'var(--color-down)', neutral: '#505a5f' }
-  return { key, name, valueLabel, pct, signal, signalLabel, advice, adviceLabel, color: colorMap[signal] || '#505a5f' }
+  return { key, name, valueLabel, pct, signal, signalLabel, advice, adviceLabel, desc, benchmark, hint, color: colorMap[signal] || '#505a5f' }
 }
 
 // 专业机构框架：6 大信号模块 → 指标值 + 历史分位 + 配置建议
@@ -1239,7 +1302,9 @@ function buildSignalOverview() {
     sharpe != null ? (sharpe > 0.1 ? 'hot' : sharpe < -0.1 ? 'cold' : 'neutral') : 'neutral',
     sharpe != null ? (sharpe > 0.1 ? '偏热' : sharpe < -0.1 ? '偏冷' : '中性') : '中性',
     sharpe != null ? (sharpe > 0.1 ? 'underweight' : sharpe < -0.1 ? 'overweight' : 'neutral') : 'neutral',
-    sharpe != null ? (sharpe > 0.1 ? '低配' : sharpe < -0.1 ? '超配' : '标配') : '标配'))
+    sharpe != null ? (sharpe > 0.1 ? '低配' : sharpe < -0.1 ? '超配' : '标配') : '标配',
+    '全市场风险平价加权隐含夏普比率，衡量权益资产整体性价比：数值越正，性价比越高。取值区间 −1 ~ 1。',
+    '风险平价权重加权平均 · 区间 −1 ~ 1'))
   // 2. 估值水位：沪深300 PE 百分位
   const pePct = pe300PctGlobal.value
   cards.push(makeCard('val', '估值水位',
@@ -1247,7 +1312,9 @@ function buildSignalOverview() {
     pePct != null ? (pePct > 70 ? 'hot' : pePct < 30 ? 'cold' : 'neutral') : 'neutral',
     pePct != null ? (pePct > 70 ? '偏贵' : pePct < 30 ? '偏低' : '中性') : '中性',
     pePct != null ? (pePct > 70 ? 'underweight' : pePct < 30 ? 'overweight' : 'neutral') : 'neutral',
-    pePct != null ? (pePct > 70 ? '低配' : pePct < 30 ? '超配' : '标配') : '标配'))
+    pePct != null ? (pePct > 70 ? '低配' : pePct < 30 ? '超配' : '标配') : '标配',
+    '沪深300指数 PE 所处历史分位：0% = 历史最便宜，100% = 历史最贵，越高越贵。',
+    '近10年历史分位（沪深300 PE）'))
   // 3. 流动性：10Y 国债收益率（越低越宽松）
   const y10 = bondY10y.value
   cards.push(makeCard('liq', '流动性',
@@ -1255,7 +1322,9 @@ function buildSignalOverview() {
     y10 != null ? (y10 < 0.025 ? 'cold' : y10 > 0.03 ? 'hot' : 'neutral') : 'neutral',
     y10 != null ? (y10 < 0.025 ? '宽松' : y10 > 0.03 ? '收紧' : '中性') : '中性',
     y10 != null ? (y10 < 0.025 ? 'overweight' : 'neutral') : 'neutral',
-    y10 != null ? (y10 < 0.025 ? '超配' : '标配') : '标配'))
+    y10 != null ? (y10 < 0.025 ? '超配' : '标配') : '标配',
+    '10年期国债收益率反映货币政策松紧：收益率越低，市场流动性越宽松。',
+    '中国10年期国债收益率（实时）'))
   // 4. 信用景气：PMI（>50 扩张）
   const pmi = pmiValGlobal.value
   cards.push(makeCard('credit', '信用景气',
@@ -1263,7 +1332,10 @@ function buildSignalOverview() {
     pmi != null ? (pmi > 50 ? 'hot' : 'cold') : 'neutral',
     pmi != null ? (pmi > 50 ? '扩张' : '收缩') : '中性',
     pmi != null ? (pmi > 50 ? 'overweight' : 'underweight') : 'neutral',
-    pmi != null ? (pmi > 50 ? '超配' : '低配') : '标配'))
+    pmi != null ? (pmi > 50 ? '超配' : '低配') : '标配',
+    '官方制造业 PMI 衡量经济扩张/收缩：高于 50 为扩张，低于 50 为收缩。',
+    '官方制造业 PMI（月度）',
+    pmi == null ? '信用数据待披露：官方 PMI 于每月初发布，最新一期尚未更新。' : ''))
   // 5. 海外联动：美债收益率（>4.5% 偏紧）
   const uy = us10yVal.value
   cards.push(makeCard('oversea', '海外联动',
@@ -1271,7 +1343,10 @@ function buildSignalOverview() {
     uy != null ? (uy > 4.5 ? 'hot' : 'cold') : 'neutral',
     uy != null ? (uy > 4.5 ? '收紧' : '宽松') : '中性',
     uy != null ? (uy > 4.5 ? 'underweight' : 'overweight') : 'neutral',
-    uy != null ? (uy > 4.5 ? '低配' : '超配') : '标配'))
+    uy != null ? (uy > 4.5 ? '低配' : '超配') : '标配',
+    '美国10年期国债收益率影响全球流动性与风险偏好：越高越偏紧，对权益资产估值压制越大。',
+    '美国10年期国债收益率（每日）',
+    uy == null ? '海外数据待同步：美债收盘较晚，每日 22:00 后同步更新。' : ''))
   // 6. 风格：价值因子百分位（<30% 低配价值/超配成长，>70% 反之）
   const valFactor = factorFactors.value.find(f => f.key === 'value')
   cards.push(makeCard('style', '风格(价值)',
@@ -1279,7 +1354,9 @@ function buildSignalOverview() {
     valFactor ? (valFactor.percentile > 70 ? 'hot' : valFactor.percentile < 30 ? 'cold' : 'neutral') : 'neutral',
     valFactor ? (valFactor.percentile > 70 ? '偏高' : valFactor.percentile < 30 ? '偏低' : '中性') : '中性',
     valFactor ? (valFactor.percentile > 70 ? 'underweight' : 'overweight') : 'neutral',
-    valFactor ? (valFactor.percentile > 70 ? '低配' : '超配') : '标配'))
+    valFactor ? (valFactor.percentile > 70 ? '低配' : '超配') : '标配',
+    '价值因子估值分（0~100，越高越贵）。结合性价比分判断成长/价值风格的相对吸引力。',
+    'Barra 价值因子估值分（0~100）'))
   signalOverview.value = cards
 }
 
@@ -1449,7 +1526,7 @@ function drawJqrCharts() {
 
 // ===== 资产配比饼图 =====
 function drawPie() {
-  const el = pieRef()
+  const el = pieEl.value
   if (!el || weightList.value.length === 0) return
   if (pieChart) pieChart.dispose()
   pieChart = echarts.init(el)
@@ -1466,9 +1543,10 @@ function drawPie() {
   })
 }
 
-// ===== 切换 tab 时初始化图表 =====
-watch(activeTab, (tab) => {
+// ===== 切换 tab / 周期时初始化图表 =====
+function redrawCurrentCharts() {
   nextTick(() => {
+    const tab = activeTab.value
     if (tab === 'macro') { drawGauge(); drawMacroCharts() }
     else if (tab === 'fed') drawFedChart()
     else if (tab === 'compare') drawCompareIdxChart()
@@ -1486,7 +1564,8 @@ watch(activeTab, (tab) => {
       else nextTick(drawJqrCharts)
     }
   })
-})
+}
+watch(activeTab, () => redrawCurrentCharts())
 
 onMounted(() => {
   const route = useRoute()
@@ -1511,12 +1590,16 @@ function handleResize() {
     const instance = echarts.getInstanceByDom(el)
     if (instance) instance.resize()
   })
+  Object.values(jqrChartRefs).forEach(el => {
+    const instance = echarts.getInstanceByDom(el)
+    if (instance) instance.resize()
+  })
 }
 </script>
 
 <style scoped>
 /* ========== gov.uk 蓝白灰 指标信号页 ========== */
-.page-signal { padding-bottom: var(--space-2xl); }
+.page-signal { padding-bottom: var(--space-2xl); overflow-x: hidden; max-width: 100%; }
 
 .header-bar {
   display: flex; justify-content: space-between; padding: var(--space-sm) 0;
@@ -1681,7 +1764,7 @@ function handleResize() {
 .ov-signal.hot { color: var(--color-up); }
 .ov-signal.cold { color: var(--color-down); }
 .ov-signal.neutral { color: var(--text-secondary); }
-.ov-advice { font-size: 14px; font-weight: 700; }
+.ov-signal-label { font-size: 14px; font-weight: 700; }
 .ov-hint { font-size: 12px; color: var(--text-secondary); }
 
 @media (max-width: 768px) {
@@ -1697,5 +1780,28 @@ function handleResize() {
   .radar-wrap { height: 280px; }
   .chart-wrap { height: 200px; }
   .allocate-layout { flex-direction: column; }
+}
+
+/* ===== 周期 / 市场 筛选 ===== */
+.signal-filters { display: flex; align-items: center; gap: var(--space-md); flex-wrap: wrap; }
+.filter-select { display: inline-flex; align-items: center; gap: 4px; font-size: 13px; color: var(--text-secondary); }
+.filter-select__label { white-space: nowrap; }
+.filter-select__input { font-size: 13px; padding: 3px 6px; border: 1px solid var(--border); border-radius: 3px; background: #fff; color: var(--text-primary); }
+
+/* 市场维度建设中提示 */
+.market-notice { display: flex; align-items: center; gap: 8px; margin: var(--space-sm) 0 var(--space-md); padding: var(--space-sm) var(--space-md); background: #f3f2f1; border-left: 4px solid var(--brand); font-size: 13px; color: var(--text-secondary); }
+.market-notice__icon { display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px; border-radius: 50%; background: var(--brand); color: #fff; font-size: 12px; font-style: normal; font-weight: 700; flex: 0 0 auto; }
+
+/* 信号总览卡片注释（问号悬浮 + 统计基准） */
+.ov-card-head { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
+.ov-help { display: inline-flex; align-items: center; justify-content: center; width: 16px; height: 16px; border-radius: 50%; border: 1px solid var(--text-secondary); color: var(--text-secondary); font-size: 11px; font-weight: 700; cursor: help; flex: 0 0 auto; }
+.ov-benchmark { font-size: 11px; color: var(--text-muted); margin-top: 4px; line-height: 1.4; }
+.ov-card-hint { font-size: 11px; color: #b95900; margin-top: 4px; line-height: 1.4; }
+
+/* 中屏（平板 / 小屏笔记本）提前堆叠，避免横向滚动 */
+@media (max-width: 1100px) {
+  .ov-grid { grid-template-columns: repeat(2, 1fr); }
+  .jqr-grid { grid-template-columns: repeat(2, 1fr); }
+  .fed-grid { grid-template-columns: repeat(2, 1fr); }
 }
 </style>

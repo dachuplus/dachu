@@ -96,19 +96,21 @@ def main():
 
     # 0a. 归一化 staging.t0 → 天天 7 大类命名
     #     修复：(1) 聚源命名（股票型基金等）与历史生产（股票型等）不一致；
-    #           (2) 指数基金被并入「股票型基金」导致缺失独立的「指数型」大类。
-    #     规则优先级：QDII基金→QDII（先于指数型，因存在 QDII-指数型 交叉）；
-    #                t1_tt 以「指数型」开头→指数型；t1_tt 非空→取 t1_tt 前缀；
-    #                其余（如货币型 t1_tt 为空）保留原 t0。
+    #           (2) 指数基金被并入「股票型基金」导致缺失独立的「指数型」大类；
+    #           (3) QDII 与指数型交叉（如「指数型-海外股票」）此前被错判为指数型，
+    #               导致 staging QDII 数量远低于生产（395→220），promote 校验整批拒绝。
+    #     规则优先级：QDII 先于指数型。QDII 判定信号：t0 ∈ {QDII,QDII基金}
+    #                或 t1_tt 含 'QDII'/'海外'；其次 t1_tt 以「指数型」开头→指数型；
+    #                t1_tt 非空→取前缀；其余（如货币型 t1_tt 为空）保留原 t0。
     print('\n[0a] 归一化 fund_scores_staging.t0 → 天天 7 大类命名', flush=True)
     pg("""UPDATE fund_scores_staging
         SET t0 = CASE
-            WHEN t0 = 'QDII基金' THEN 'QDII'
+            WHEN t0 IN ('QDII', 'QDII基金') OR t1_tt LIKE '%QDII%' OR t1_tt LIKE '%海外%' THEN 'QDII'
             WHEN t1_tt LIKE '指数型%' THEN '指数型'
             WHEN t1_tt IS NOT NULL THEN split_part(t1_tt, '-', 1)
             ELSE t0 END
         WHERE t0 IS DISTINCT FROM (
-            CASE WHEN t0 = 'QDII基金' THEN 'QDII'
+            CASE WHEN t0 IN ('QDII', 'QDII基金') OR t1_tt LIKE '%QDII%' OR t1_tt LIKE '%海外%' THEN 'QDII'
                  WHEN t1_tt LIKE '指数型%' THEN '指数型'
                  WHEN t1_tt IS NOT NULL THEN split_part(t1_tt, '-', 1)
                  ELSE t0 END

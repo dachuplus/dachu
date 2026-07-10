@@ -336,19 +336,27 @@ if STAGING:
 # 2g. 归一化 t0 → 天天 7 大类命名（与生产表/前端默认视图一致）
 #     修复：聚源命名（股票型基金）与历史生产（股票型）不一致；指数基金此前被并入
 #     「股票型基金」导致缺失独立的「指数型」大类，promote 校验会整批拒绝。
-#     优先级：QDII基金→QDII（先于指数型，覆盖 QDII-指数型 交叉）；
-#           t1_tt 以「指数型」开头→指数型；t1_tt 非空→取 t1_tt 前缀；否则保留原 t0。
+#     优先级（关键）：
+#       1) QDII 优先于 指数型 —— QDII 与指数型存在交叉（如「指数型-海外股票」），
+#          必须先归 QDII，否则 173 只 QDII 海外指数基金会被错判为指数型，
+#          导致 staging QDII 数量远低于生产（395→220），promote 校验整批拒绝。
+#          QDII 判定信号：t0 ∈ {QDII, QDII基金} 或 t1_tt 含 'QDII' / '海外'。
+#       2) t1_tt 以「指数型」开头→指数型；t1_tt 非空→取 t1_tt 前缀；否则保留原 t0。
 _t0_fixed = 0
 for _f in funds:
     _t0 = _f.get('t0')
     _t1tt = _f.get('t1_tt')
     _new = None
-    if _t0 == 'QDII基金':
+    _is_qdii = (_t0 in ('QDII', 'QDII基金')
+                or (isinstance(_t1tt, str) and ('QDII' in _t1tt or '海外' in _t1tt)))
+    if _is_qdii:
         _new = 'QDII'
     elif isinstance(_t1tt, str) and _t1tt.startswith('指数型'):
         _new = '指数型'
     elif _t1tt:
         _new = _t1tt.split('-')[0]
+    elif _t0:
+        _new = _t0
     if _new and _new != _t0:
         _f['t0'] = _new
         _t0_fixed += 1
