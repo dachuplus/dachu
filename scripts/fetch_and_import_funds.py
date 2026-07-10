@@ -235,14 +235,14 @@ def calc_scores_v5(funds):
 
     for period in periods:
         pk, rk, dk, sk = period['k'], period['r'], period['dd'], period['sr']
-        # 所有基金参与排名（收益率可以为任意值，包括0和负数）
-        valid = [(i, funds[i]) for i in range(len(funds))]
+        # 仅收益率非空的基金参与该周期排名；缺失收益率的基金 k 分保持 NULL
+        valid = [(i, funds[i]) for i in range(len(funds)) if funds[i].get(rk) is not None]
         if not valid:
             continue
 
         valid_n = len(valid)
         # 收益排位（降序，越高越好）
-        ret_ranked = sorted(valid, key=lambda x: x[1].get(rk, 0) or 0, reverse=True)
+        ret_ranked = sorted(valid, key=lambda x: x[1][rk], reverse=True)
         ret_pct = {}
         for rank, (idx, fund) in enumerate(ret_ranked):
             ret_pct[idx] = (1 - rank / (valid_n - 1)) * 100 if valid_n > 1 else 50.0

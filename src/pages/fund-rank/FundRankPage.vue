@@ -200,9 +200,9 @@
         </template>
       </Teleport>
 
-      <!-- 显示周期选择器 -->
+      <!-- 评分排序选择器 -->
       <div class="period-select-row">
-        <span class="period-select-label">显示周期：</span>
+        <span class="period-select-label">评分排序：</span>
         <span v-for="p in displayPeriods" :key="p.key" class="period-tag" :class="{ active: currentPeriod === p.key }" @click="switchPeriod(p.key)">
           {{ p.label }}
         </span>
