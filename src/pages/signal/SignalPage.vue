@@ -1112,7 +1112,7 @@ function drawGauge() {
         show: true,
         lineStyle: {
           width: 18,
-          color: [[0.25, '#d4351c'], [0.5, '#f47738'], [0.75, '#b1b4b6'], [1, '#00703c']]
+          color: [[0.25, '#00703c'], [0.5, '#f47738'], [0.75, '#b1b4b6'], [1, '#d4351c']]
         }
       },
       pointer: { length: '65%', width: 5, itemStyle: { color: '#1d70b8' } },
@@ -1129,7 +1129,7 @@ function drawGauge() {
         formatter: '{value}',
         fontSize: 36, fontWeight: 700,
         offsetCenter: [0, '65%'],
-        color: val > 0 ? '#d4351c' : '#00703c'
+        color: val > 0 ? '#00703c' : '#d4351c'
       },
       data: [{ value: +val.toFixed(3), name: '隐含夏普' }]
     }]
@@ -1562,6 +1562,9 @@ const JQR_META = {
   fear_greed:    { name: '恐贪指数',   desc: '波动率·动量·估值多因子综合情绪', color: '#d4351c', range: '0 - 100' },
   market_temp:   { name: '估值温度计', desc: '全市场 PE/PB 历史百分位', color: '#1d70b8', range: '0 - 100' },
   fund_issuance: { name: '资金流向信号', desc: '基金发行·募集资金面情绪（代理）', color: '#00703c', range: '0 - 100' },
+  equity_bond_gap: { name: '股债风险溢价', desc: '股票盈利收益率与10年国债收益率之差（越高股越优）', color: '#f47738', range: '0 - 100' },
+  below_nav:      { name: '破净股占比',   desc: 'PB<1 个股占全市场比例（越高越恐慌）', color: '#d4351c', range: '0 - 100' },
+  mcap_gdp:       { name: '市值GDP比',    desc: '全市场总市值与GDP之比（巴菲特指标）', color: '#1d70b8', range: '0 - 100' },
 }
 
 function buildJqrCard(metric, row) {
@@ -1585,6 +1588,23 @@ function buildJqrCard(metric, row) {
     else if (v < 55) { signalLabel = '中性'; signalClass = 'neutral' }
     else if (v < 75) { signalLabel = '流入'; signalClass = 'hot' }
     else { signalLabel = '大幅流入'; signalClass = 'hot' }
+  } else if (metric === 'equity_bond_gap') {
+    if (v < 25) { signalLabel = '债券占优'; signalClass = 'cold' }
+    else if (v < 45) { signalLabel = '股票偏贵'; signalClass = 'cold' }
+    else if (v < 55) { signalLabel = '中性'; signalClass = 'neutral' }
+    else if (v < 75) { signalLabel = '股票较优'; signalClass = 'hot' }
+    else { signalLabel = '股票超配'; signalClass = 'hot' }
+  } else if (metric === 'below_nav') {
+    if (v < 25) { signalLabel = '破净稀少'; signalClass = 'hot' }
+    else if (v < 45) { signalLabel = '破净偏少'; signalClass = 'neutral' }
+    else if (v < 55) { signalLabel = '中性'; signalClass = 'neutral' }
+    else if (v < 75) { signalLabel = '破净偏多'; signalClass = 'cold' }
+    else { signalLabel = '破净高企'; signalClass = 'cold' }
+  } else if (metric === 'mcap_gdp') {
+    if (v < 30) { signalLabel = '显著低估'; signalClass = 'cold' }
+    else if (v < 70) { signalLabel = '适中'; signalClass = 'neutral' }
+    else if (v < 85) { signalLabel = '偏高'; signalClass = 'hot' }
+    else { signalLabel = '高估偏热'; signalClass = 'hot' }
   }
   const subLines = []
   if (metric === 'fear_greed') {
@@ -1604,6 +1624,18 @@ function buildJqrCard(metric, row) {
     if (detail.recent_90d_count != null) subLines.push({ k: '近90日新发数', v: detail.recent_90d_count })
     if (detail.recent_90d_share_sum != null) subLines.push({ k: '近90日募集份额(亿)', v: detail.recent_90d_share_sum })
     if (detail.heat_percentile != null) subLines.push({ k: '发行热度分位', v: detail.heat_percentile + '%' })
+  } else if (metric === 'equity_bond_gap') {
+    if (detail.e_yield != null) subLines.push({ k: '股票盈利收益率', v: detail.e_yield + '%' })
+    if (detail.bond_yield != null) subLines.push({ k: '10年国债收益率', v: detail.bond_yield + '%' })
+    if (detail.gap != null) subLines.push({ k: '收益差', v: detail.gap + '%' })
+  } else if (metric === 'below_nav') {
+    if (detail.below_nav_count != null) subLines.push({ k: '破净家数', v: detail.below_nav_count })
+    if (detail.total_count != null) subLines.push({ k: '上市公司总数', v: detail.total_count })
+    if (detail.pe_median != null) subLines.push({ k: '中位PE', v: detail.pe_median })
+  } else if (metric === 'mcap_gdp') {
+    if (detail.total_mcap != null) subLines.push({ k: '总市值(万亿)', v: detail.total_mcap })
+    if (detail.gdp != null) subLines.push({ k: 'GDP(万亿)', v: detail.gdp })
+    if (detail.ratio != null) subLines.push({ k: '市值/GDP', v: detail.ratio })
   }
   // 估值温度计：按数值映射温度档位与颜色（偏低 / 正常 / 偏高 / 高估）
   let tempLevel = null, tempColor = null
@@ -1624,7 +1656,7 @@ function buildJqrCard(metric, row) {
 async function loadJqr() {
   if (!supabase) return
   try {
-    const metrics = ['fear_greed', 'market_temp', 'fund_issuance']
+    const metrics = ['fear_greed', 'market_temp', 'fund_issuance', 'equity_bond_gap', 'below_nav', 'mcap_gdp']
     const res = await Promise.all(metrics.map(m =>
       supabase.from('jqr_indicators').select('date,value,detail').eq('metric', m).order('date', { ascending: true }).limit(3000)
     ))
@@ -1643,7 +1675,13 @@ async function loadJqr() {
           ? 52
           : metrics[i] === 'market_temp'
             ? (pe300PctGlobal.value != null ? pe300PctGlobal.value : 55)
-            : 48
+            : metrics[i] === 'fund_issuance'
+              ? 48
+              : metrics[i] === 'equity_bond_gap'
+                ? 66
+                : metrics[i] === 'below_nav'
+                  ? 18
+                  : 58
         cards.push(buildJqrCard(metrics[i], { date: '模拟', value: mv, detail: {} }))
       }
     }

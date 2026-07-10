@@ -947,6 +947,7 @@ async function generateRiskParityPortfolio() {
 2. 大类内部按风险平价思想分配权重（可参考基金靠谱指数高低微调），使该大类内基金权重之和 ≈ 该大类目标权重；
 3. 所有基金权重之和 = 100%；
 4. 必须只从给定基金池中选择，不得自行编造代码或超出清单。
+5. 各大类的基金池已严格按一级分类筛选：例如【现金】池均为货币型基金(t0=货币型)、【债券】池均为债券型基金(t0=债券型)、【股票】池均为股票型/指数型基金。每个大类只能在「各自对应的基金池」内选择，严禁跨池串用（如不得把股票基金放进现金大类）。
 
 各大类目标权重：${weightSummary}
 
@@ -1012,42 +1013,54 @@ async function fetchCategoryFunds(cfg, limit) {
   let funds = []
   try {
     if (cfg.t0) {
-      // 1) ETF 优先（同 t0 内）
+      // 核心：严格按一级分类(t0)筛选 —— 本资产大类必须全部取自该一级分类。
+      // 例如 cash 权重→货币型(t0='货币型')取货币基金、bond→债券型取债券基金。
+      // 1) 同 t0 内，ETF 优先
       const { data: etf, error: e1 } = await base().ilike('n', '%ETF%').order('k1', { ascending: false }).limit(limit)
       if (e1) console.error(`[fetchCategoryFunds] ${cfg.category} step1 ETF error:`, e1.message)
       funds = uniq(etf || [])
       console.log(`[fetchCategoryFunds] ${cfg.category} step1 ETF: ${funds.length} results`)
-      // 2) 指数型产品降级补充（同 t0 内）
+      // 2) 同 t0 内，指数型产品补充
       if (funds.length < limit) {
         const { data: idx, error: e2 } = await base().ilike('n', '%指数%').order('k1', { ascending: false }).limit(limit)
         if (e2) console.error(`[fetchCategoryFunds] ${cfg.category} step2 idx error:`, e2.message)
         funds = funds.concat(uniq(idx || [], new Set(funds.map(f => f.c))))
         console.log(`[fetchCategoryFunds] ${cfg.category} step2 idx: total=${funds.length}`)
       }
-      // 3) 主动管理型兜底（同 t0 内，无名称限制）
+      // 3) 同 t0 内，主动管理型兜底（不限名称，仍严格限定本 t0）
       if (funds.length < limit) {
         const { data: act, error: e3 } = await base().order('k1', { ascending: false }).limit(limit)
         if (e3) console.error(`[fetchCategoryFunds] ${cfg.category} step3 active error:`, e3.message)
         funds = funds.concat(uniq(act || [], new Set(funds.map(f => f.c))))
         console.log(`[fetchCategoryFunds] ${cfg.category} step3 active: total=${funds.length}`)
       }
-      // 4) 放宽：跨相关一级分类补充（如股票→指数型）
+      // 4) k1 稀疏时，同 t0 内按 k3(3年评分)降序补充，仍严格限定本一级分类
+      if (funds.length < limit) {
+        const have = new Set(funds.map(f => f.c))
+        const { data: k3q, error: e4 } = await supabase.from('fund_scores')
+          .select('c,n,t0,t2,k1,k3,r3y').not('k3', 'is', null)
+          .eq('t0', cfg.t0).order('k3', { ascending: false }).limit(limit)
+        if (e4) console.error(`[fetchCategoryFunds] ${cfg.category} step4 k3 error:`, e4.message)
+        funds = funds.concat(uniq(k3q || [], have))
+        console.log(`[fetchCategoryFunds] ${cfg.category} step4 k3: total=${funds.length}`)
+      }
+      // 5) 跨相关一级分类补充（如股票→指数型），仅在同 t0 严重不足时启用，且指数型仍属权益大类
       if (funds.length < limit && cfg.fallbackT0) {
         const have = new Set(funds.map(f => f.c))
-        const { data: fb, error: e4 } = await supabase.from('fund_scores')
+        const { data: fb, error: e5 } = await supabase.from('fund_scores')
           .select('c,n,t0,t2,k1,k3,r3y').not('k1', 'is', null)
           .eq('t0', cfg.fallbackT0).order('k1', { ascending: false }).limit(limit)
-        if (e4) console.error(`[fetchCategoryFunds] ${cfg.category} step4 fallback(${cfg.fallbackT0}) error:`, e4.message)
+        if (e5) console.error(`[fetchCategoryFunds] ${cfg.category} step5 fallback(${cfg.fallbackT0}) error:`, e5.message)
         funds = funds.concat(uniq(fb || [], have))
-        console.log(`[fetchCategoryFunds] ${cfg.category} step4 fallback: total=${funds.length}`)
+        console.log(`[fetchCategoryFunds] ${cfg.category} step5 fallback: total=${funds.length}`)
       }
-      // 5) 终极兜底：若以上全部为空，忽略分类直接取全表 k1 最高基金（确保永远有数据展示）
+      // 6) 终极兜底：同 t0 内全量按 k1 降序取 —— 绝不跨一级分类（确保货币基金/债券基金等保持品类纯粹）
       if (funds.length === 0) {
-        console.warn(`[fetchCategoryFunds] ${cfg.category} all steps empty, using emergency fallback (global top k1)`)
-        const { data: em, error: e5 } = await supabase.from('fund_scores')
+        console.warn(`[fetchCategoryFunds] ${cfg.category} 同 t0(${cfg.t0}) 全量兜底`)
+        const { data: em, error: e6 } = await supabase.from('fund_scores')
           .select('c,n,t0,t2,k1,k3,r3y').not('k1', 'is', null)
-          .order('k1', { ascending: false }).limit(limit)
-        if (e5) console.error(`[fetchCategoryFunds] ${cfg.category} emergency error:`, e5.message)
+          .eq('t0', cfg.t0).order('k1', { ascending: false }).limit(limit)
+        if (e6) console.error(`[fetchCategoryFunds] ${cfg.category} emergency error:`, e6.message)
         funds = em || []
         console.log(`[fetchCategoryFunds] ${cfg.category} emergency fallback: ${funds.length} results`)
       }

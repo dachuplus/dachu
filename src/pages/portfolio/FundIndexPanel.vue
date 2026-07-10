@@ -118,7 +118,7 @@ async function loadPrimary() {
   if (!supabase) return
   try {
     const cols = ['t0', ...AGG_KEYS].join(',')
-    const SIZE = 2000
+    const SIZE = 1000
     const agg = {}
     let from = 0
     while (true) {
@@ -169,7 +169,7 @@ async function loadSecondary() {
   if (!supabase) return
   try {
     const cols = ['t1_tt', ...AGG_KEYS].join(',')
-    const SIZE = 2000
+    const SIZE = 1000
     const agg = {}
     let from = 0
     while (true) {
