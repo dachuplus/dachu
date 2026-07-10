@@ -126,42 +126,65 @@ export async function getCategoryRankInfoByScore(codes, scoreCol = 'k1') {
     return {}
   }
   const unique = [...new Set(codes.filter(Boolean))]
-  const result = {}
   try {
-    for (const code of unique) {
-      // ① 取该基金自身的 t1_tt（真实二级分类）与 scoreCol 评分
-      const { data: row, error } = await supabase
+    // ① 批量取所有基金的 (code, 细分品类 t1_tt, 评分) —— 1 次查询搞定全部基金
+    const { data, error } = await supabase
+      .from('fund_scores')
+      .select(`c,t1_tt,${scoreCol}`)
+      .in('c', unique)
+    if (error || !data) return {}
+    const info = {}
+    const cats = []
+    const catSet = new Set()
+    for (const f of data) {
+      const k = f[scoreCol] == null ? null : Number(f[scoreCol])
+      info[f.c] = { cat: f.t1_tt || null, score: k }
+      if (f.t1_tt && !catSet.has(f.t1_tt)) { catSet.add(f.t1_tt); cats.push(f.t1_tt) }
+    }
+    if (cats.length === 0) {
+      const result = {}
+      for (const f of data) result[f.c] = { cat: info[f.c].cat, score: info[f.c].score, rank: null, total: 0 }
+      return result
+    }
+    // ② 批量取这些品类下的全部 (t1_tt, 评分) —— 分页拉全量后内存排序算排名（避免 1000 行上限截断导致排名错）
+    const all = []
+    let from = 0
+    const PAGE = 1000
+    while (true) {
+      const { data: page, error: e2 } = await supabase
         .from('fund_scores')
-        .select(`c,t1_tt,${scoreCol}`)
-        .eq('c', code)
-        .maybeSingle()
-      if (error) { console.error('[getCategoryRankInfoByScore] info', code, error); continue }
-      const cat = row?.t1_tt || null
-      const score = row?.[scoreCol] == null ? null : Number(row[scoreCol])
-      // 分类为空或评分缺失 → fallback：rank=null, total=0
-      if (!cat || score == null) {
-        result[code] = { cat, score, rank: null, total: 0 }
+        .select(`t1_tt,${scoreCol}`)
+        .in('t1_tt', cats)
+        .range(from, from + PAGE - 1)
+      if (e2) { console.error('[getCategoryRankInfoByScore] cats query', e2); return {} }
+      if (!page || page.length === 0) break
+      all.push(...page)
+      if (page.length < PAGE) break
+      from += PAGE
+    }
+    const byCat = {}
+    for (const f of all) {
+      const k = f[scoreCol] == null ? null : Number(f[scoreCol])
+      if (k == null) continue
+      if (!byCat[f.t1_tt]) byCat[f.t1_tt] = []
+      byCat[f.t1_tt].push(k)
+    }
+    const totals = {}
+    for (const cat of Object.keys(byCat)) {
+      byCat[cat].sort((a, b) => a - b) // 升序，配合 bisectRight 计算降序名次
+      totals[cat] = byCat[cat].length
+    }
+    // ③ 计算排名：品类内 score 严格大于本基金的只数 + 1（降序名次），纯内存计算
+    const result = {}
+    for (const f of data) {
+      const r = info[f.c]
+      if (!r.cat || r.score == null) {
+        result[f.c] = { cat: r.cat, score: r.score, rank: null, total: r.cat ? (totals[r.cat] || 0) : 0 }
         continue
       }
-      // ② 该品类基金总数（服务端 COUNT，按品类缓存）
-      let total = _catTotalCache.get(cat)
-      if (total == null) {
-        const { count, error: eT } = await supabase
-          .from('fund_scores')
-          .select('*', { count: 'exact', head: true })
-          .eq('t1_tt', cat)
-        if (eT) { console.error('[getCategoryRankInfoByScore] total', cat, eT); continue }
-        total = count || 0
-        _catTotalCache.set(cat, total)
-      }
-      // ③ 该品类内 scoreCol >= 自身评分的只数 = 降序排名（与 bisectRight 语义一致：>= 自身的数量）
-      const { count: rank, error: eR } = await supabase
-        .from('fund_scores')
-        .select('*', { count: 'exact', head: true })
-        .eq('t1_tt', cat)
-        .gte(scoreCol, score)
-      if (eR) { console.error('[getCategoryRankInfoByScore] rank', code, eR); continue }
-      result[code] = { cat, score, rank: rank || 0, total }
+      const total = totals[r.cat] || 0
+      const rank = total - bisectRight(byCat[r.cat] || [], r.score) + 1
+      result[f.c] = { cat: r.cat, score: r.score, rank, total }
     }
     return result
   } catch (e) {

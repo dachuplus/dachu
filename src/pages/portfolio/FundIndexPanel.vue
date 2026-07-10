@@ -21,34 +21,24 @@
     <div class="fi-loading" v-if="loading">加载中…</div>
 
     <div class="fi-table-wrap" v-else>
-      <!-- 一级分类指数 -->
-      <table class="fi-table" v-if="sub === 'primary'">
+      <table class="fi-table">
         <thead>
           <tr>
-            <th>一级分类</th><th>基金数量</th>
-            <th v-for="c in ALL_COLS" :key="c.key">{{ c.label }}</th>
+            <th
+              v-for="c in headCols"
+              :key="c.key"
+              class="fi-th"
+              :class="{ 'fi-th--active': sortState.key === c.key }"
+              @click="requestSort(c.key)"
+            >
+              <span>{{ c.label }}</span>
+              <span class="fi-sort" v-if="sortState.key === c.key">{{ sortState.order === 'asc' ? '▲' : '▼' }}</span>
+            </th>
           </tr>
         </thead>
         <tbody>
-          <tr v-for="r in priRows" :key="r.name">
-            <td class="fi-pri-name">{{ r.name }}</td>
-            <td>{{ num(r.count) }}</td>
-            <td v-for="c in ALL_COLS" :key="c.key" :class="trendCls(r[c.key])">{{ pct(r[c.key]) }}</td>
-          </tr>
-        </tbody>
-      </table>
-
-      <!-- 二级分类指数 -->
-      <table class="fi-table" v-else-if="sub === 'secondary'">
-        <thead>
-          <tr>
-            <th>二级分类</th><th>基金数量</th>
-            <th v-for="c in ALL_COLS" :key="c.key">{{ c.label }}</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="r in secRows" :key="r.name">
-            <td class="fi-sec-name">{{ r.name }}</td>
+          <tr v-for="r in displayRows" :key="r.name">
+            <td :class="sub === 'primary' ? 'fi-pri-name' : 'fi-sec-name'">{{ r.name }}</td>
             <td>{{ num(r.count) }}</td>
             <td v-for="c in ALL_COLS" :key="c.key" :class="trendCls(r[c.key])">{{ pct(r[c.key]) }}</td>
           </tr>
@@ -109,9 +99,44 @@ const secRows = ref([])
 
 function switchSub(key) {
   sub.value = key
+  // 切换 tab 时重置排序，回到该分类的自然默认顺序
+  sortState.value = { key: null, order: 'desc' }
   // 延迟加载：切换到尚未加载的 tab 时触发
   if (key === 'secondary' && secRows.value.length === 0 && !loading.value) loadSecondary()
 }
+
+// ===== 表头排序 =====
+// sortState.key=null 时按各分类默认顺序展示；点击表头按列升/降序切换
+const sortState = ref({ key: null, order: 'desc' })
+function requestSort(key) {
+  if (sortState.value.key === key) {
+    sortState.value = { key, order: sortState.value.order === 'asc' ? 'desc' : 'asc' }
+  } else {
+    // 名称列默认升序，数量/收益列默认降序
+    sortState.value = { key, order: key === 'name' ? 'asc' : 'desc' }
+  }
+}
+// 表头列定义：一级/二级分类共用（首列名称随 tab 变化）
+const headCols = computed(() => [
+  { key: 'name', label: sub.value === 'primary' ? '一级分类' : '二级分类' },
+  { key: 'count', label: '基金数量' },
+  ...ALL_COLS,
+])
+// 当前展示行（已排序）：未指定排序列时返回原始默认顺序
+const displayRows = computed(() => {
+  const rows = sub.value === 'primary' ? priRows.value : secRows.value
+  const { key, order } = sortState.value
+  if (!key) return rows
+  const mul = order === 'asc' ? 1 : -1
+  return [...rows].sort((a, b) => {
+    if (key === 'name') return mul * String(a.name).localeCompare(String(b.name), 'zh-CN')
+    const va = a[key], vb = b[key]
+    if (va == null && vb == null) return 0
+    if (va == null) return 1   // 空值恒排末尾
+    if (vb == null) return -1
+    return mul * (Number(va) - Number(vb))
+  })
+})
 
 // ===== 一级分类指数：按 t0 分组等权聚合 =====
 async function loadPrimary() {
@@ -240,6 +265,11 @@ onMounted(async () => {
 .fi-table { width: 100%; border-collapse: collapse; font-size: 13px; min-width: 900px; }
 .fi-table th, .fi-table td { padding: 8px 10px; text-align: right; white-space: nowrap; border-bottom: 1px solid #eaeaea; }
 .fi-table th { background: #f3f2f1; color: #505a66; font-weight: 700; position: sticky; top: 0; font-size: 12px; }
+.fi-th { cursor: pointer; user-select: none; transition: background 0.12s; }
+.fi-th:hover { background: #e7e6e4; }
+.fi-th--active { color: #1d70b8; }
+.fi-th--active:hover { background: #e1edf7; }
+.fi-sort { margin-left: 4px; font-size: 10px; color: #1d70b8; }
 .fi-table td:first-child, .fi-table th:first-child,
 .fi-table td:nth-child(2), .fi-table th:nth-child(2) { text-align: left; }
 .fi-table tbody tr:hover { background: #f8fafc; }
