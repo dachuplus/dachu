@@ -705,7 +705,7 @@ async function addAiToCustom() {
 // 选基优先级：ETF > 指数型产品 > 主动管理型（同品类内按 k1 降序取 top 10）
 const ASSET_ETF_CONFIG = {
   // fallbackT0: 当该一级分类(t0)下 ETF/指数产品不足时，到「指数型」分类补回对应的指数/ETF 高分基金
-  stock: { category: '股票', t0: 'gp', nameKeyword: null, fallbackT0: '指数型' },
+  stock: { category: '股票', t0: 'gp', nameKeyword: null, fallbackT0: '指数型', topN: 3 },
   bond: { category: '债券', t0: 'zq', nameKeyword: null, fallbackT0: '指数型' },
   // nameKeyword: 以名称关键字识别品类；fallbackKeywords: 该品类命中太少时扩大名称关键字范围补充同类高分基金
   commodity: { category: '商品', t0: null, nameKeyword: '商品ETF', fallbackKeywords: ['商品', '豆粕', '能源'] },
@@ -839,8 +839,9 @@ async function fetchAllETFs(items) {
   const results = await Promise.all(items.map(async item => {
     if (item.noEtf) return { ...item, loading: false }
     const cfg = ASSET_ETF_CONFIG[item.assetKey]
+    const topN = cfg.topN || ETF_SELECT_TOP
     try {
-      const funds = await fetchCategoryFunds(cfg, ETF_SELECT_TOP)
+      const funds = await fetchCategoryFunds(cfg, topN)
       const etfs = []
       if (funds.length > 0) {
         // 在品类权重内按最大余数法分配整数权重，保证各基金权重之和 = 品类权重

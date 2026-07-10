@@ -1342,7 +1342,7 @@ onUnmounted(() => {
 }
 .fund-table thead { background: #f3f2f1; }
 .fund-table th {
-  padding: var(--space-xs) 6px; text-align: center;
+  padding: 4px 5px; text-align: center;
   font-size: 13px; font-weight: 700; color: var(--text-primary);
   border-bottom: 2px solid var(--border);
   border-right: 0.5px solid #eaeaea;
@@ -1376,26 +1376,28 @@ onUnmounted(() => {
 .fund-row:hover td.col-code {
   background: #d4e6fb;
 }
-.col-name { width: 156px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.col-name { width: 140px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .col-name a { color: var(--text-primary); text-decoration: none; }
 .col-name a:hover { color: var(--link); text-decoration: underline; }
-.col-manager { width: 96px; color: var(--text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.col-manager { width: 78px; color: var(--text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .col-manager.sortable { cursor: pointer; user-select: none; }
 .col-manager.sortable:hover { background: #e0e7ef; }
-.col-scale { width: 88px; text-align: right; color: var(--text-secondary); font-variant-numeric: tabular-nums; }
+.col-scale { width: 74px; text-align: right; color: var(--text-secondary); font-variant-numeric: tabular-nums; }
 .col-scale.sortable { cursor: pointer; user-select: none; }
 .col-scale.sortable:hover { background: #e0e7ef; }
 .col-num { width: 80px; text-align: right; color: var(--text-secondary); }
 .col-pct { width: 60px; text-align: right; color: var(--text-secondary); }
-.col-score { width: 74px; text-align: center; }
+.col-score { width: 70px; text-align: center; }
 .col-score .score-val { font-weight: 700; font-size: 13px; }
 .col-sort { background: #e8f0fe; }
-.col-actions { width: 90px; text-align: center; }
-.col-fee { width: 80px; text-align: right; color: var(--text-secondary); font-variant-numeric: tabular-nums; }
-.col-t1 { width: 120px; color: var(--text-secondary); font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.col-ret { width: 84px; text-align: right; color: var(--text-secondary); font-variant-numeric: tabular-nums; font-weight: 700; white-space: nowrap; }
+.col-actions { width: 84px; text-align: center; }
+.col-fee { width: 60px; text-align: right; color: var(--text-secondary); font-variant-numeric: tabular-nums; }
+.col-t1 { width: 100px; color: var(--text-secondary); font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.col-ret { width: 90px; text-align: right; color: var(--text-secondary); font-variant-numeric: tabular-nums; font-weight: 700; white-space: nowrap; }
 .col-ret.sortable { cursor: pointer; user-select: none; }
 .col-ret.sortable:hover { background: #e0e7ef; }
+/* 表头字号略缩，确保「近N年收益%」与排序三角形同处一列不被截断 */
+.fund-table th.col-ret { font-size: 12px; }
 
 /* ===== 移动端卡片布局 ===== */
 .mobile-fund-list {
