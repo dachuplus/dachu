@@ -207,11 +207,23 @@
             <th class="col-manager sortable" @click="toggleColumnSort('fund_manager')">
               基金经理<span class="th-arrow" v-if="sortField === 'fund_manager'">{{ sortDir === 'asc' ? '▲' : '▼' }}</span>
             </th>
+            <th class="col-t1">二级分类</th>
             <th class="col-scale sortable" @click="toggleColumnSort('fund_scale')">
               基金规模（亿）<span class="th-arrow" v-if="sortField === 'fund_scale'">{{ sortDir === 'asc' ? '▲' : '▼' }}</span>
             </th>
             <th class="col-fee">管理费率</th>
-            <th class="col-t1">二级分类</th>
+            <th class="col-ret sortable" @click="toggleColumnSort('r1y')">
+              近1年<span class="th-arrow" v-if="sortField === 'r1y'">{{ sortDir === 'asc' ? '▲' : '▼' }}</span>
+            </th>
+            <th class="col-ret sortable" @click="toggleColumnSort('r3y')">
+              近3年<span class="th-arrow" v-if="sortField === 'r3y'">{{ sortDir === 'asc' ? '▲' : '▼' }}</span>
+            </th>
+            <th class="col-ret sortable" @click="toggleColumnSort('r2y')">
+              近2年<span class="th-arrow" v-if="sortField === 'r2y'">{{ sortDir === 'asc' ? '▲' : '▼' }}</span>
+            </th>
+            <th class="col-ret sortable" @click="toggleColumnSort('r5y')">
+              近5年<span class="th-arrow" v-if="sortField === 'r5y'">{{ sortDir === 'asc' ? '▲' : '▼' }}</span>
+            </th>
             <th v-for="p in displayPeriods" :key="p.key" class="col-score sortable" :class="{ 'col-sort': currentPeriod === p.key }" @click="switchPeriod(p.key)">
               {{ p.label }}<span class="th-arrow" v-if="currentPeriod === p.key">{{ sortAsc ? '▲' : '▼' }}</span>
             </th>
@@ -227,9 +239,13 @@
             <td class="col-code"><a :href="eastMoneyUrl(fund.c)" target="_blank" @click.stop>{{ fund.c }}</a></td>
             <td class="col-name"><a :href="eastMoneyUrl(fund.c)" target="_blank" @click.stop>{{ fund.n || '基金' + fund.c }}</a></td>
             <td class="col-manager" :title="fund.fund_manager">{{ fund.fund_manager || '--' }}</td>
+            <td class="col-t1" :title="fund.t1_tt || fund.t1">{{ fund.t1_tt || fund.t1 || '--' }}</td>
             <td class="col-scale">{{ fmtFundScale(fund.fund_scale) }}</td>
             <td class="col-fee">{{ fmtManageFee(fund.manage_fee) }}</td>
-            <td class="col-t1" :title="fund.t1_tt || fund.t1">{{ fund.t1_tt || fund.t1 || '--' }}</td>
+            <td class="col-ret" :style="{ color: retColor(fund.r1y) }">{{ fmtRet(fund.r1y) }}</td>
+            <td class="col-ret" :style="{ color: retColor(fund.r3y) }">{{ fmtRet(fund.r3y) }}</td>
+            <td class="col-ret" :style="{ color: retColor(fund.r2y) }">{{ fmtRet(fund.r2y) }}</td>
+            <td class="col-ret" :style="{ color: retColor(fund.r5y) }">{{ fmtRet(fund.r5y) }}</td>
             <td v-for="p in displayPeriods" :key="p.key" class="col-score" :class="{ 'col-sort': currentPeriod === p.key }">
               <span class="score-val" :style="scoreColor(fund[p.key])">{{ fmtScore(fund[p.key]) }}</span>
             </td>
@@ -275,6 +291,12 @@
         </div>
         <div class="fund-card-mgr" v-if="fund.fund_manager">{{ fund.fund_manager }}</div>
         <div class="fund-card-scale" v-if="fund.fund_scale != null">规模（亿）：{{ fmtFundScale(fund.fund_scale) }} · 管理费：{{ fmtManageFee(fund.manage_fee) }}</div>
+        <div class="fund-card-ret">
+          <span :style="{ color: retColor(fund.r1y) }">近1年 {{ fmtRet(fund.r1y) }}</span>
+          <span :style="{ color: retColor(fund.r3y) }">近3年 {{ fmtRet(fund.r3y) }}</span>
+          <span :style="{ color: retColor(fund.r2y) }">近2年 {{ fmtRet(fund.r2y) }}</span>
+          <span :style="{ color: retColor(fund.r5y) }">近5年 {{ fmtRet(fund.r5y) }}</span>
+        </div>
         <div class="fund-card-scores">
           <span
             v-for="p in displayPeriods"
@@ -1034,6 +1056,14 @@ function toggleColumnSort(field) {
   }
 }
 
+/** 收益涨跌幅颜色：涨红跌绿（中国习惯），0/空为次要文本色 */
+function retColor(v) {
+  if (v == null) return 'var(--text-secondary)'
+  const n = parseFloat(v)
+  if (isNaN(n) || n === 0) return 'var(--text-secondary)'
+  return n > 0 ? '#d4351c' : '#00703c'
+}
+
 /** 排序后的基金列表 */
 const sortedFunds = computed(() => {
   if (!sortField.value) return funds.value
@@ -1245,7 +1275,7 @@ onUnmounted(() => {
 }
 .fund-row:hover { background: #f8f8f8; }
 
-.col-code { width: 84px; font-weight: 700; color: var(--text-primary); font-family: monospace; font-size: 13px; }
+.col-code { width: 80px; font-weight: 700; color: var(--text-primary); font-family: monospace; font-size: 12px; }
 .col-code a { color: var(--text-primary); text-decoration: none; }
 .col-code a:hover { color: var(--link); text-decoration: underline; }
 /* 固定首列 */
@@ -1258,7 +1288,7 @@ onUnmounted(() => {
 .fund-row:hover td.col-code {
   background: #f8f8f8;
 }
-.col-name { width: 260px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.col-name { width: 156px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .col-name a { color: var(--text-primary); text-decoration: none; }
 .col-name a:hover { color: var(--link); text-decoration: underline; }
 .col-manager { width: 96px; color: var(--text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -1275,6 +1305,9 @@ onUnmounted(() => {
 .col-actions { width: 90px; text-align: center; }
 .col-fee { width: 80px; text-align: right; color: var(--text-secondary); font-variant-numeric: tabular-nums; }
 .col-t1 { width: 120px; color: var(--text-secondary); font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.col-ret { width: 84px; text-align: right; color: var(--text-secondary); font-variant-numeric: tabular-nums; font-weight: 700; white-space: nowrap; }
+.col-ret.sortable { cursor: pointer; user-select: none; }
+.col-ret.sortable:hover { background: #e0e7ef; }
 
 /* ===== 移动端卡片布局 ===== */
 .mobile-fund-list {
@@ -1314,6 +1347,12 @@ onUnmounted(() => {
   font-size: 13px; color: var(--text-secondary);
   margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
+
+.fund-card-ret {
+  display: flex; flex-wrap: wrap; gap: 4px 14px;
+  font-size: 12px; color: var(--text-secondary); margin-top: 4px;
+}
+.fund-card-ret span { font-weight: 700; }
 
 .fund-card-actions {
   display: flex; align-items: center; gap: 2px; flex-shrink: 0;

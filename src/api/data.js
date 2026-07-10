@@ -24,7 +24,7 @@ export async function fetchTouguProducts(filters = {}) {
 
 // ========== 基金靠谱指数 ==========
 // fund_scores 表实际列（核心视图）：代码/名称/分类/详情/评分
-const FUND_SCORES_COLS = 'c,n,t0,t1,t1_tt,sg,daily_change,company,fund_manager,fund_scale,share_scale,manage_fee,custody_fee,sale_fee,found_date,k0w,k1m,k3m,k6m,k1,k2,k3,k5,k_all,score_grade'
+const FUND_SCORES_COLS = 'c,n,t0,t1,t1_tt,sg,daily_change,company,fund_manager,fund_scale,share_scale,manage_fee,custody_fee,sale_fee,found_date,k0w,k1m,k3m,k6m,k1,k2,k3,k5,k_all,score_grade,r1y,r2y,r3y,r5y'
 export function fetchFundScores(params = {}) {
   const key = 'fundScores:' + JSON.stringify(params)
   return withCache(key, 60000, () => fetchFundScoresImpl(params))
