@@ -1395,12 +1395,12 @@ onUnmounted(() => {
 .col-manager { width: 96px; color: var(--text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .col-manager.sortable { cursor: pointer; user-select: none; }
 .col-manager.sortable:hover { background: #e0e7ef; }
-.col-scale { width: 115px; text-align: right; color: var(--text-secondary); font-variant-numeric: tabular-nums; }
+.col-scale { width: 88px; text-align: right; color: var(--text-secondary); font-variant-numeric: tabular-nums; }
 .col-scale.sortable { cursor: pointer; user-select: none; }
 .col-scale.sortable:hover { background: #e0e7ef; }
 .col-num { width: 80px; text-align: right; color: var(--text-secondary); }
 .col-pct { width: 60px; text-align: right; color: var(--text-secondary); }
-.col-score { width: 52px; text-align: center; }
+.col-score { width: 74px; text-align: center; }
 .col-score .score-val { font-weight: 700; font-size: 13px; }
 .col-sort { background: #e8f0fe; }
 .col-actions { width: 90px; text-align: center; }
