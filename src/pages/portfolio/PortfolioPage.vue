@@ -16,7 +16,7 @@
       <!-- 未登录提示 -->
       <div class="card" v-if="!isLoggedIn">
         <div class="card-title">自建组合</div>
-        <p class="card-desc">登录后可创建和管理自己的基金组合</p>
+        <p class="card-desc">登录后可创建和管理自己的智能组合</p>
         <button class="btn-primary" @click="showLogin">登录 / 注册</button>
       </div>
 
@@ -42,10 +42,10 @@
                 <span class="pf-hold-name">{{ h.name }}</span>
                 <span class="pf-hold-code">{{ h.code }}</span>
                 <span class="pf-hold-cat" v-if="holdMetaMap[h.code]">
-                  <span class="pf-meta-cat">{{ holdMetaMap[h.code].cat }}</span>
+                  <span class="pf-meta-cat" :title="'基金二级分类'">{{ holdMetaMap[h.code].cat }}</span>
                   <span class="pf-meta-score">1年评分 {{ fmtScore2(holdMetaMap[h.code].score) }}</span>
-                  <span class="pf-meta-rank" v-if="holdMetaMap[h.code].rank != null">排名 {{ holdMetaMap[h.code].rank }}|{{ holdMetaMap[h.code].total }}</span>
-                  <span class="pf-meta-rank pf-meta-na" v-else>排名 --</span>
+                  <span class="pf-meta-rank" v-if="holdMetaMap[h.code].rank != null">1年评分排名 {{ holdMetaMap[h.code].rank }}/{{ holdMetaMap[h.code].total }}</span>
+                  <span class="pf-meta-rank pf-meta-na" v-else>1年评分排名 --</span>
                 </span>
               </div>
               <div class="pf-hold-right">
@@ -108,7 +108,7 @@
     <div v-if="activeTab === 'ai'">
       <div class="card ai-card">
         <div class="card-title">DeepSeek AI 自动建组合</div>
-        <p class="card-desc">选择投资策略，AI 分析当前市场并生成定制化基金组合</p>
+        <p class="card-desc">选择投资策略，AI 分析当前市场并生成定制化智能组合</p>
 
         <div class="ai-strategies">
           <button
@@ -193,10 +193,10 @@
                 <span class="ai-fund-name">{{ f.name }}</span>
                 <span class="ai-fund-code">{{ f.code }}</span>
                 <span class="ai-fund-cat" v-if="holdMetaMap[f.code]">
-                  <span class="pf-meta-cat">{{ holdMetaMap[f.code].cat }}</span>
+                  <span class="pf-meta-cat" :title="'基金二级分类'">{{ holdMetaMap[f.code].cat }}</span>
                   <span class="pf-meta-score">1年评分 {{ fmtScore2(holdMetaMap[f.code].score) }}</span>
-                  <span class="pf-meta-rank" v-if="holdMetaMap[f.code].rank != null">排名 {{ holdMetaMap[f.code].rank }}|{{ holdMetaMap[f.code].total }}</span>
-                  <span class="pf-meta-rank pf-meta-na" v-else>排名 --</span>
+                  <span class="pf-meta-rank" v-if="holdMetaMap[f.code].rank != null">1年评分排名 {{ holdMetaMap[f.code].rank }}/{{ holdMetaMap[f.code].total }}</span>
+                  <span class="pf-meta-rank pf-meta-na" v-else>1年评分排名 --</span>
                 </span>
               </div>
               <div class="ai-fund-right">

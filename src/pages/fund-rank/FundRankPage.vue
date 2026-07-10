@@ -597,7 +597,7 @@
             </div>
             <div class="picker-empty" v-else>
               <p>暂无自建组合</p>
-              <p class="picker-empty-hint">请先在「基金组合」页面创建一个组合</p>
+              <p class="picker-empty-hint">请先在「智能组合」页面创建一个组合</p>
             </div>
           </div>
         </div>

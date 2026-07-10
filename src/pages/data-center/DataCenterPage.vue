@@ -654,7 +654,7 @@ const tables = [
   { key: 'config', name: '配置表', desc: '全站配置项（键值对，含meta/timestamp）', rows: 3 },
   { key: 'index_pe_history', name: '指数PE历史表', desc: '沪深300等指数的PE/PB历史估值数据', rows: 0 },
   { key: 'site_stats', name: '站点统计表', desc: '网站访问量统计', rows: 1 },
-  { key: 'user_portfolios', name: '用户组合表', desc: '用户自建基金组合（含portfolio_data JSON）', rows: 3, sensitive: true },
+  { key: 'user_portfolios', name: '用户组合表', desc: '用户自建智能组合（含portfolio_data JSON）', rows: 3, sensitive: true },
   { key: 'user_profiles', name: '用户档案表', desc: '用户注册信息', rows: 0, sensitive: true },
 ]
 

@@ -118,7 +118,7 @@ function onLoggedIn() {
 const quickLinks = [
   { path: '/signal',           label: '指标信号' },
   { path: '/tools/fund-rank',  label: '靠谱指数' },
-  { path: '/portfolio',        label: '基金组合' },
+  { path: '/portfolio',        label: '智能组合' },
 ]
 
 /* ---- Tab 数据（仅移动端 TabBar 使用）---- */
@@ -126,7 +126,7 @@ const tabs = [
   { key: 'home',      path: '/',                 label: '首页' },
   { key: 'signal',    path: '/signal',           label: '信号' },
   { key: 'fundrank',  path: '/tools/fund-rank',  label: '评分' },
-  { key: 'portfolio', path: '/portfolio',        label: '组合' },
+  { key: 'portfolio', path: '/portfolio',        label: '智能组合' },
   { key: 'profile',   path: '/profile',          label: '我的' },
 ]
 

@@ -35,7 +35,7 @@
       <path d="M11 16L8 28L16 23L24 28L21 16" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
     </template>
 
-    <!-- 基金组合 — 文件夹/组合 -->
+    <!-- 智能组合 — 文件夹/组合 -->
     <template v-else-if="name === 'portfolio'">
       <rect x="3" y="6" width="11" height="10" rx="2" stroke="currentColor" stroke-width="2"/>
       <rect x="18" y="6" width="11" height="10" rx="2" stroke="currentColor" stroke-width="2"/>

@@ -22,7 +22,7 @@ const tabs = [
   { key: 'home',    path: '/',                 label: '首页' },
   { key: 'signal',  path: '/signal',           label: '信号' },
   { key: 'fundrank',path: '/tools/fund-rank',  label: '评分' },
-  { key: 'portfolio',path:'/portfolio',        label: '组合' },
+  { key: 'portfolio',path:'/portfolio',        label: '智能组合' },
   { key: 'profile', path: '/profile',          label: '我的' },
 ]
 

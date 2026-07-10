@@ -27,8 +27,8 @@ const routes = [
     meta: {
       tab: 'tools',
       title: '工具',
-      description: 'ALLFUND.CN 基金投资工具集：靠谱基金指数评分、投顾产品精选、基金组合与数据中心的入口。',
-      keywords: '基金工具,基金评分,投顾产品,基金组合'
+      description: 'ALLFUND.CN 基金投资工具集：靠谱基金指数评分、投顾产品精选、智能组合与数据中心的入口。',
+      keywords: '基金工具,基金评分,投顾产品,智能组合'
     }
   },
   {
@@ -56,9 +56,9 @@ const routes = [
     component: () => import('../pages/portfolio/PortfolioPage.vue'),
     meta: {
       tab: 'tools',
-      title: '基金组合',
-      description: '基金组合构建：自建组合、DeepSeek AI 推荐组合（16 策略）与 Kan&Zhou 增强型风险平价模型组合，辅助资产配置。',
-      keywords: '基金组合,资产配置,风险平价,AI组合'
+      title: '智能组合',
+      description: '智能组合构建：自建组合、DeepSeek AI 推荐组合（16 策略）与 Kan&Zhou 增强型风险平价模型组合，辅助资产配置。',
+      keywords: '智能组合,资产配置,风险平价,AI组合'
     }
   },
   {
@@ -87,7 +87,7 @@ const routes = [
     meta: {
       tab: 'profile',
       title: '我的',
-      description: '我的：管理自选基金组合、查看历史 AI 组合推荐与账户信息。',
+      description: '我的：管理自选智能组合、查看历史 AI 组合推荐与账户信息。',
       keywords: '我的,自选基金,基金账户'
     }
   },

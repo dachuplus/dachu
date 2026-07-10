@@ -265,3 +265,19 @@ export async function fetchFactorScores() {
   if (error) throw error
   return data || []
 }
+
+/**
+ * 查询风格因子信号生产表（style_factors）
+ * category ∈ 'stock' | 'bond' | 'commodity'
+ * 返回行：category, factor_key, name, sub_style, percentile, value_score,
+ *         value_label, cost_score, cost_label, signal, signal_label, reason, color
+ */
+export async function fetchStyleFactors(category) {
+  const { data, error } = await supabase
+    .from('style_factors')
+    .select('category,factor_key,name,sub_style,percentile,value_score,value_label,cost_score,cost_label,signal,signal_label,reason,color')
+    .eq('category', category)
+    .order('factor_key')
+  if (error) throw error
+  return data || []
+}

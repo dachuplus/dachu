@@ -220,7 +220,8 @@
       </div>
       <div v-if="factorSub === 'stock'">
         <div class="card">
-          <div class="card-title">Barra 六因子蛛网图（估值分，默认）</div>
+          <div class="card-title">风格因子蛛网图（估值分，默认）</div>
+          <p class="card-desc">全部采用中证指数（沪深300 / 中证800价值 / 中证800成长 / 中证质量 / 中证红利 / 中证500），估值分=当前价格近5年历史分位，高=贵·性价比低。</p>
           <div class="radar-wrap" ref="radarEl" v-show="factorFactors.length > 0"></div>
           <div class="empty-hint" v-if="factorFactors.length === 0">风格因子数据建设中，暂未提供真实数据（宁空不假）</div>
         </div>
@@ -253,16 +254,42 @@
           <span>{{ s.label }}</span>
           <span :class="s.bp > 0 ? 'text-up' : 'text-down'">{{ s.bp }}bp</span>
         </div>
-      </div>
-      <div v-if="factorSub === 'commodity'" class="card">
-        <div class="card-title">核心商品价格</div>
-        <div class="comm-grid">
-          <div class="comm-item" v-for="c in commodityItems" :key="c.label">
-            <div class="comm-label">{{ c.label }}</div>
-            <div class="comm-value">{{ c.value }}</div>
-            <div :class="c.change > 0 ? 'text-up' : 'text-down'">{{ c.change > 0 ? '+' : '' }}{{ c.change }}%</div>
+
+        <div class="card-title" style="margin-top:24px">债券风格信号（久期 / 信用 / 杠杆）</div>
+        <p class="card-desc">基于中证利率债、信用债指数近1月表现与资金面套息空间，给出明确信号结论与依据。</p>
+        <div class="bond-signal-grid">
+          <div class="bond-signal-card" v-for="b in bondSignals" :key="b.factor_key">
+            <div class="bs-head">
+              <span class="bs-name">{{ b.name }}</span>
+              <span class="bs-signal" :class="b.signal">{{ b.signal_label }}</span>
+            </div>
+            <div class="bs-reason">{{ b.reason }}</div>
           </div>
         </div>
+        <div class="empty-hint" v-if="bondSignals.length === 0">债券信号数据建设中…</div>
+      </div>
+      <div v-if="factorSub === 'commodity'" class="card">
+        <div class="card-title">大宗商品信号（十几种主流期货）</div>
+        <p class="card-desc">估值分 = 当前价格近5年历史分位（高=贵·性价比低）；性价比分 = 100 − 估值分（高=便宜·性价比高）。下表按性价比分从高到低排列。</p>
+
+        <div class="comm-best" v-if="commodityBest">
+          <span class="comm-best-tag">★ 当前性价比最高</span>
+          <span class="comm-best-name">{{ commodityBest.name }}</span>
+          <span class="comm-best-reason">{{ commodityBest.reason }}</span>
+        </div>
+
+        <div class="comm-grid">
+          <div class="comm-item" :class="{ 'comm-item--best': c.isBest }" v-for="c in commodityItems" :key="c.key">
+            <div class="comm-label">{{ c.label }}</div>
+            <div class="comm-bar-wrap">
+              <div class="comm-bar"><div class="comm-fill" :style="{ width: c.percentile + '%', background: c.color }"></div></div>
+              <span class="comm-pct">估值分 {{ c.percentile }}</span>
+            </div>
+            <div class="comm-cost">性价比分 <b>{{ c.cost_score }}</b></div>
+            <div class="comm-signal" :class="c.signal">{{ c.signalLabel }}</div>
+          </div>
+        </div>
+        <div class="empty-hint" v-if="commodityItems.length === 0">大宗商品信号数据建设中…</div>
       </div>
     </div>
 
@@ -340,7 +367,7 @@ import { useRoute } from 'vue-router'
 import echarts from '../../utils/echarts-setup'
 import { getIndexQuotes, buildMarketData, parseValue500Data } from '../../utils/market-data'
 import { calcAllExpectedReturns, calcEnhancedRiskParityWeights, calcMarketSharpe, calcRiskPremium } from '../../utils/calc'
-import { fetchValue500All, fetchConfig, fetchIndexEva, fetchFactorScores } from '../../utils/api'
+import { fetchValue500All, fetchConfig, fetchIndexEva, fetchFactorScores, fetchStyleFactors } from '../../utils/api'
 import { COLORS } from '../../utils/echarts-theme'
 import { supabase } from '../../api/supabase'
 import HelpTip from '../../components/HelpTip.vue'
@@ -468,12 +495,14 @@ const fedIndices = ref([
 const factorSubTabs = [
   { key: 'stock', label: '股票风格' },
   { key: 'bond', label: '债券' },
-  { key: 'commodity', label: '商品宏观' }
+  { key: 'commodity', label: '大宗商品' }
 ]
 const factorSub = ref('stock')
 const factorFactors = ref([])
+const bondSignals = ref([])
 const bondSpreads = ref([])
 const commodityItems = ref([])
+const commodityBest = computed(() => commodityItems.value.find(c => c.isBest) || null)
 
 // ===== ECharts instances =====
 let gaugeChart = null
@@ -568,10 +597,6 @@ async function loadAll() {
     ])
 
     const { bond: bondData, shibor: shiborData, m2: m2Data, cpi: cpiData, ep: epData, pe300: pe300Data, rf, get: v500Get } = parseValue500Data(v500)
-    const goldData = v500Get('gold')
-    const usdxData = v500Get('usdx')
-    const bdiData = v500Get('bdi')
-    const ppiData = v500Get('ppi')
     const pmiData = v500Get('pmi')
 
     // 宏观数据
@@ -675,14 +700,8 @@ async function loadAll() {
       ? [{ label: '10Y-1Y期限利差', bp: bondData.spread }]
       : []
 
-    // 商品数据
-    commodityItems.value = [
-      { label: '黄金(美元/盎司)', value: goldData.price != null ? '$' + goldData.price : '--', change: goldData.changePct ?? 0 },
-      { label: '美元指数', value: usdxData.price != null ? usdxData.price.toFixed(2) : '--', change: usdxData.changePct ?? 0 },
-      { label: 'BDI 波罗的海', value: bdiData.price != null ? bdiData.price : '--', change: bdiData.changePct ?? 0 },
-      { label: 'PPI 同比', value: ppiData.ppi != null ? ppiData.ppi + '%' : '--', change: 0 },
-      { label: 'PMI', value: pmiData.pmi != null ? pmiData.pmi : '--', change: 0 }
-    ]
+    // 商品信号数据（改由 style_factors 表提供，见 loadCommodityFactors，不再用 v500 5 项）
+    commodityItems.value = []
 
     // FED
     calcFED(quotes, rf)
@@ -697,8 +716,10 @@ async function loadAll() {
     drawGauge()
     drawMacroCharts()
 
-    // 风格因子 + 行业估值 + 特色指标（读生产表，异步不阻塞主流程）
+    // 风格因子(股票/债券/大宗) + 行业估值 + 特色指标（读生产表，异步不阻塞主流程）
     loadFactorScores()
+    loadBondFactors()
+    loadCommodityFactors()
     loadIndustry()
     loadJqr()
 
@@ -1396,10 +1417,10 @@ async function loadIndustry() {
   }
 }
 
-// ===== 加载风格因子评分（读 factor_scores 生产表，Barra 六因子性价比评分） =====
+// ===== 加载风格因子评分（读 style_factors 生产表，股票风格·全中证指数） =====
 async function loadFactorScores() {
   try {
-    const rows = await fetchFactorScores()
+    const rows = await fetchStyleFactors('stock')
     if (!rows || rows.length === 0) {
       factorFactors.value = []
       return
@@ -1422,6 +1443,54 @@ async function loadFactorScores() {
   } catch (e) {
     console.error('风格因子加载失败', e)
     factorFactors.value = []
+  }
+}
+
+// ===== 加载债券风格信号（读 style_factors 生产表，category='bond'） =====
+async function loadBondFactors() {
+  try {
+    const rows = await fetchStyleFactors('bond')
+    bondSignals.value = (rows || []).map(r => ({
+      factor_key: r.factor_key,
+      name: r.name,
+      sub_style: r.sub_style || '',
+      signal: r.signal || 'neutral',
+      signal_label: r.signal_label || '',
+      reason: r.reason || '',
+      color: r.color || '#1d70b8',
+    }))
+  } catch (e) {
+    console.error('债券风格信号加载失败', e)
+    bondSignals.value = []
+  }
+}
+
+// ===== 加载大宗商品信号（读 style_factors 生产表，category='commodity'） =====
+async function loadCommodityFactors() {
+  try {
+    const rows = await fetchStyleFactors('commodity')
+    const mapped = (rows || []).map(r => {
+      const isBest = (r.signal_label || '').startsWith('★')
+      return {
+        key: r.factor_key,
+        label: r.name,
+        name: r.name,
+        percentile: r.value_score != null ? parseFloat(r.value_score)
+          : (r.percentile != null ? parseFloat(r.percentile) : 0),
+        cost_score: r.cost_score != null ? parseFloat(r.cost_score) : null,
+        signal: r.signal || 'neutral',
+        signalLabel: r.signal_label || '',
+        color: r.color || '#1d70b8',
+        reason: r.reason || '',
+        isBest,
+      }
+    })
+    // 按性价比分从高到低排列
+    mapped.sort((a, b) => (b.cost_score ?? 0) - (a.cost_score ?? 0))
+    commodityItems.value = mapped
+  } catch (e) {
+    console.error('大宗商品信号加载失败', e)
+    commodityItems.value = []
   }
 }
 
@@ -1564,6 +1633,8 @@ function redrawCurrentCharts() {
     else if (tab === 'allocate') drawPie()
     else if (tab === 'factor') {
       if (factorFactors.value.length === 0) loadFactorScores()
+      if (bondSignals.value.length === 0) loadBondFactors()
+      if (commodityItems.value.length === 0) loadCommodityFactors()
       if (factorSub.value === 'stock') drawRadar()
       else if (factorSub.value === 'bond') drawBondCurve()
     }
@@ -1725,11 +1796,36 @@ function handleResize() {
 .spread-item { display: flex; justify-content: space-between; padding: var(--space-sm) 0; border-bottom: 1px solid var(--border); font-size: 16px; }
 .chart-wrap { width: 100%; height: 250px; }
 
+/* 债券风格信号 */
+.bond-signal-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--space-md); }
+.bond-signal-card { border: 1px solid var(--border); padding: var(--space-md); background: #fff; }
+.bs-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--space-sm); }
+.bs-name { font-size: 15px; font-weight: 700; color: var(--text-primary); }
+.bs-signal { font-size: 13px; font-weight: 700; padding: 2px 10px; border-radius: 3px; white-space: nowrap; }
+.bs-signal.cheap { color: #fff; background: #00703c; }
+.bs-signal.neutral { color: #fff; background: #1d70b8; }
+.bs-signal.expensive { color: #fff; background: #d4351c; }
+.bs-reason { font-size: 13px; color: var(--text-secondary); line-height: 1.6; }
+
 /* 商品 */
-.comm-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: var(--space-md); }
-.comm-item { border: 1px solid var(--border); padding: var(--space-md); text-align: center; }
-.comm-label { font-size: 14px; color: var(--text-secondary); }
-.comm-value { font-size: 20px; font-weight: 700; color: var(--text-primary); margin: var(--space-xs) 0; }
+.comm-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--space-md); }
+.comm-item { border: 1px solid var(--border); padding: var(--space-md); background: #fff; }
+.comm-item--best { border-color: #00703c; box-shadow: 0 0 0 1px #00703c inset; }
+.comm-label { font-size: 14px; font-weight: 700; color: var(--text-primary); margin-bottom: var(--space-xs); }
+.comm-bar-wrap { display: flex; align-items: center; gap: var(--space-sm); margin-bottom: 6px; }
+.comm-bar { flex: 1; height: 14px; background: #f3f2f1; }
+.comm-fill { height: 100%; transition: width 0.5s ease; }
+.comm-pct { width: 84px; font-size: 12px; text-align: right; font-weight: 700; white-space: nowrap; color: var(--text-secondary); }
+.comm-cost { font-size: 13px; color: var(--text-secondary); margin-bottom: 4px; }
+.comm-cost b { color: var(--text-primary); }
+.comm-signal { font-size: 12px; font-weight: 700; padding: 1px 8px; border-radius: 3px; display: inline-block; }
+.comm-signal.cheap { color: #fff; background: #00703c; }
+.comm-signal.neutral { color: #fff; background: #1d70b8; }
+.comm-signal.expensive { color: #fff; background: #d4351c; }
+.comm-best { background: #e6f3ec; border-left: 4px solid #00703c; padding: var(--space-md); margin-bottom: var(--space-md); line-height: 1.6; }
+.comm-best-tag { display: inline-block; font-size: 13px; font-weight: 700; color: #00703c; margin-right: 8px; }
+.comm-best-name { font-size: 15px; font-weight: 700; color: var(--text-primary); margin-right: 8px; }
+.comm-best-reason { font-size: 13px; color: var(--text-secondary); }
 
 /* 筛选 */
 .filter-row { display: flex; gap: var(--space-md); margin-bottom: var(--space-md); padding-bottom: var(--space-sm); border-bottom: 1px solid var(--border); }
@@ -1784,6 +1880,7 @@ function handleResize() {
   .ov-grid { grid-template-columns: repeat(2, 1fr); }
   .fed-grid { grid-template-columns: repeat(1, 1fr); }
   .comm-grid { grid-template-columns: repeat(1, 1fr); }
+  .bond-signal-grid { grid-template-columns: repeat(1, 1fr); }
   .macro-indicators { grid-template-columns: repeat(1, 1fr); }
   .macro-chart-wrap { height: 160px; }
   .macro-chart { height: 160px; }
@@ -1815,5 +1912,7 @@ function handleResize() {
   .ov-grid { grid-template-columns: repeat(2, 1fr); }
   .jqr-grid { grid-template-columns: repeat(2, 1fr); }
   .fed-grid { grid-template-columns: repeat(2, 1fr); }
+  .comm-grid { grid-template-columns: repeat(2, 1fr); }
+  .bond-signal-grid { grid-template-columns: repeat(2, 1fr); }
 }
 </style>

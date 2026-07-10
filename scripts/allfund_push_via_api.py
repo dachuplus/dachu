@@ -74,6 +74,32 @@ def main():
             continue
         changed.append(filepath)
 
+    # --- Exclusion guard: keep repo clean, avoid pushing binary/large artifacts ---
+    EXCLUDE_PREFIXES = ("exports/", "public/downloads/", "node_modules/", "dist/", ".workbuddy/")
+    EXCLUDE_SUFFIXES = (".xlsx", ".xls", ".zip", ".log", ".tmp", ".png", ".jpg", ".jpeg", ".gif", ".pdf")
+    EXCLUDE_EXACT = {
+        "fund_raw_sample.xlsx", "fund_raw_sample_full.xlsx", "fund_raw_sample_scored.xlsx",
+        "recover_summary.txt", "run_recover.sh", "scripts/.mgr_checkpoint.json",
+    }
+    MAX_TEXT_BYTES = 2 * 1024 * 1024  # 2 MB text guard
+    filtered = []
+    for f in changed:
+        base = os.path.basename(f)
+        if any(f.startswith(p) for p in EXCLUDE_PREFIXES):
+            print(f"    ⏭ 排除(目录) {f}"); continue
+        if base in EXCLUDE_EXACT:
+            print(f"    ⏭ 排除(文件) {f}"); continue
+        if f.endswith(EXCLUDE_SUFFIXES):
+            print(f"    ⏭ 排除(二进制) {f}"); continue
+        try:
+            sz = os.path.getsize(f)
+        except OSError:
+            filtered.append(f); continue
+        if sz > MAX_TEXT_BYTES:
+            print(f"    ⏭ 排除(过大 {sz//1024}KB) {f}"); continue
+        filtered.append(f)
+    changed = filtered
+
     if not changed:
         print("  无改动，跳过"); return
     print(f"  ✓ 检测到 {len(changed)} 个文件")
