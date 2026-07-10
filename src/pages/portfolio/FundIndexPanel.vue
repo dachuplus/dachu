@@ -60,6 +60,33 @@
           </tr>
         </tbody>
       </table>
+
+      <!-- 二级分类指数：按 t1_tt 等权聚合 -->
+      <table class="fi-table" v-else-if="sub === 'secondary'">
+        <thead>
+          <tr>
+            <th>二级分类</th><th>成分数量</th>
+            <th>近1年</th><th>近2年</th><th>近3年</th><th>近5年</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="r in secRows" :key="r.name">
+            <td class="fi-sec-name">{{ r.name }}</td>
+            <td>{{ num(r.count) }}</td>
+            <td :class="trendCls(r.r1y)">{{ pct(r.r1y) }}</td>
+            <td :class="trendCls(r.r2y)">{{ pct(r.r2y) }}</td>
+            <td :class="trendCls(r.r3y)">{{ pct(r.r3y) }}</td>
+            <td :class="trendCls(r.r5y)">{{ pct(r.r5y) }}</td>
+          </tr>
+          <tr v-if="secRows.length === 0"><td colspan="6" class="fi-empty">暂无二级分类数据</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="fi-note fi-note--sec" v-if="sub === 'secondary'">
+      二级分类指数按 <b>fund_scores</b> 全量基金的 <b>t1_tt（天天基金二级分类）</b> 分组，
+      每类为该分类下所有基金各周期收益率的<b>等权平均值</b>，与一级分类口径一致、可直接横向比较。
+      成分数量 = 该二级分类下的基金只数。
     </div>
   </div>
 </template>
@@ -71,9 +98,11 @@ import { supabase } from '../../api/supabase'
 const subTabs = [
   { key: 'basic', label: '基本信息' },
   { key: 'market', label: '各周期收益' },
+  { key: 'secondary', label: '二级分类' },
 ]
 const sub = ref('basic')
 const rows = ref([])
+const secRows = ref([])
 const loading = ref(true)
 
 // 各周期列（仅在任一分类存在该周期时展示）
@@ -103,6 +132,48 @@ function trendCls(v) {
   return Number(v) >= 0 ? 'up' : 'down'
 }
 
+// ===== 二级分类指数：按 t1_tt 分组等权聚合 =====
+const SEC_PERIODS = ['r1y', 'r2y', 'r3y', 'r5y']
+async function loadSecondary() {
+  if (!supabase) return
+  try {
+    const cols = ['t1_tt', ...SEC_PERIODS].join(',')
+    const SIZE = 1000
+    const agg = {} // t1_tt -> { n, sum, cnt }
+    let from = 0
+    while (true) {
+      const { data, error } = await supabase
+        .from('fund_scores')
+        .select(cols)
+        .range(from, from + SIZE - 1)
+      if (error) { console.warn('[FundIndexPanel] secondary query error', error); break }
+      if (!data || data.length === 0) break
+      data.forEach(r => {
+        const key = (r.t1_tt && String(r.t1_tt).trim()) ? String(r.t1_tt).trim() : '其他'
+        if (!agg[key]) {
+          agg[key] = { n: 0, sum: { r1y: 0, r2y: 0, r3y: 0, r5y: 0 }, cnt: { r1y: 0, r2y: 0, r3y: 0, r5y: 0 } }
+        }
+        const a = agg[key]
+        a.n++
+        SEC_PERIODS.forEach(k => {
+          const v = Number(r[k])
+          if (v != null && !isNaN(v)) { a.sum[k] += v; a.cnt[k]++ }
+        })
+      })
+      if (data.length < SIZE) break
+      from += SIZE
+    }
+    const out = Object.keys(agg).map(k => {
+      const a = agg[k]
+      const avg = k2 => a.cnt[k2] ? a.sum[k2] / a.cnt[k2] : null
+      return { name: k, count: a.n, r1y: avg('r1y'), r2y: avg('r2y'), r3y: avg('r3y'), r5y: avg('r5y') }
+    }).sort((x, y) => y.count - x.count)
+    secRows.value = out
+  } catch (e) {
+    console.error('[FundIndexPanel] secondary', e)
+  }
+}
+
 onMounted(async () => {
   loading.value = true
   try {
@@ -121,6 +192,8 @@ onMounted(async () => {
         })
         periodCols.value = ALL_PERIODS.filter(p => present.has(p.key))
       }
+      // 二级分类指数（不阻塞主流程）
+      loadSecondary()
     }
   } catch (e) {
     console.error('[FundIndexPanel]', e)
@@ -156,4 +229,7 @@ onMounted(async () => {
 .fi-table .up { color: #cf1322; font-weight: 600; }
 .fi-table .down { color: #009a44; font-weight: 600; }
 .fi-caliber { white-space: normal; min-width: 200px; color: var(--text-secondary); font-weight: 400; }
+.fi-sec-name { font-weight: 700; color: var(--text-primary); white-space: nowrap; }
+.fi-empty { text-align: center; color: var(--text-secondary); padding: 24px 0; }
+.fi-note--sec { background: #e6f3ec; border-left: 3px solid #00703c; color: #1d4829; }
 </style>

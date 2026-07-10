@@ -11,6 +11,9 @@
       <p>{{ dataError }}</p>
     </div>
 
+    <!-- =========== 核心指标 =========== -->
+    <section class="ac-section">
+    <div class="ac-section-title">核心指标</div>
     <!-- 全市场加权平均隐含夏普 -->
     <div class="card" v-if="marketSharpe !== '--'">
       <div class="card-title">
@@ -75,6 +78,11 @@
         <div class="macro-sub">{{ cpiDate }}</div>
       </div>
     </div>
+    </section>
+
+    <!-- =========== 资产对比 =========== -->
+    <section class="ac-section">
+    <div class="ac-section-title">资产对比 — 预期收益 / 风险溢价 / 隐含夏普</div>
 
     <!-- 预期收益率 vs 风险溢价 -->
     <div class="card">
@@ -140,6 +148,11 @@
         </div>
       </div>
     </div>
+    </section>
+
+    <!-- =========== 资产配比 =========== -->
+    <section class="ac-section">
+    <div class="ac-section-title">资产配比 — 建议配置权重</div>
 
     <!-- 建议配置权重 -->
     <div class="card">
@@ -179,6 +192,7 @@
         </div>
       </div>
     </div>
+    </section>
 
     <!-- 帮助弹窗 -->
     <div class="help-overlay" v-if="helpKey" @click.self="helpKey = null">
@@ -428,6 +442,13 @@ onMounted(loadData)
 .card {
   background: #ffffff; border: 1px solid var(--border);
   padding: var(--space-lg); margin-bottom: var(--space-xl);
+}
+/* 合并分区（核心指标 / 资产对比 / 资产配比） */
+.ac-section { margin-bottom: var(--space-xl); }
+.ac-section-title {
+  font-size: 20px; font-weight: 700; color: var(--text-primary);
+  margin-bottom: var(--space-md); padding-left: 10px;
+  border-left: 4px solid var(--brand);
 }
 .card-title { font-size: 24px; font-weight: 700; color: var(--text-primary); margin-bottom: var(--space-sm); }
 .card-subtitle { font-size: 14px; color: var(--text-secondary); margin-left: 6px; font-weight: 400; }

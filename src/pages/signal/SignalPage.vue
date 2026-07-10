@@ -85,9 +85,10 @@
             <div class="macro-label">{{ m.label }}<HelpTip v-if="m.help" :text="m.help" align="right" /></div>
             <div class="macro-value">{{ m.value }}</div>
             <div class="macro-date">{{ m.date }}</div>
-            <div class="macro-chart-wrap" :class="{ 'macro-chart-expanded': macroExpand[m.key] }">
+            <div class="macro-chart-wrap" :class="{ 'macro-chart-expanded': macroExpand[m.key] }" v-if="m.series && m.series.dates && m.series.dates.length">
               <div class="macro-chart" :ref="el => setChartRef(m.key, el)"></div>
             </div>
+            <div class="macro-empty" v-else>暂无数据（指标建设中）</div>
             <div class="macro-more" v-if="macroHistory[m.key] && macroHistory[m.key].length > MACRO_DEFAULT_WINDOW && !macroExpand[m.key]">
               <span class="more-btn" @click="expandMacroChart(m.key)">更多</span>
             </div>
@@ -124,6 +125,9 @@
           <span class="card-subtitle">上证指数叠加 10Y 国债收益率 ± 标准差带</span>
         </div>
         <div ref="fedChartEl" style="height:420px"></div>
+        <p v-if="fedIsMock" class="chart-hint" style="margin-top:8px;font-size:12px;color:var(--text-muted)">
+          注：当前为模拟数据（基于利率均值回归关系生成），仅用于演示走势形态，不构成投资建议。
+        </p>
         <p class="chart-hint" style="margin-top:8px;font-size:12px;color:var(--text-muted)">
           蓝线 = 10Y国债收益率 | 浅蓝带 = ±1σ / ±2σ 标准差 | 灰底 = 上证指数 | 红线 = 当前股债利差参考线
         </p>
@@ -344,6 +348,10 @@
             <div class="jqr-card-name">{{ c.name }}</div>
             <div class="jqr-value" :style="{ color: c.color }">{{ c.valueLabel }}</div>
             <div class="jqr-signal" :class="c.signalClass">{{ c.signalLabel }}</div>
+            <div class="jqr-thermo" v-if="c.tempLevel">
+              <div class="jqr-thermo-bar"><div class="jqr-thermo-fill" :style="{ width: c.valueLabel + '%', background: c.tempColor }"></div></div>
+              <span class="jqr-thermo-label" :style="{ color: c.tempColor }">{{ c.tempLevel }}</span>
+            </div>
             <div class="jqr-range">取值范围：{{ c.range }}</div>
             <div class="jqr-date">数据日期：{{ c.date }}</div>
             <div class="jqr-sub" v-if="c.subLines.length">
@@ -357,6 +365,7 @@
         <div class="jqr-chart" :ref="el => setJqrChartRef(c.key, el)"></div>
       </div>
       <p class="data-source">数据来源：akshare（沪深300日线 / 全市场市盈率 / 新发基金），自建复合算法，仅供参考研究，不构成投资建议。</p>
+      <p v-if="jqrIsMock" class="data-source" style="color:#b95900">注：部分特色指标当前为模拟值（真实数据暂未同步），仅用于展示卡片形态，不构成投资建议。</p>
     </div>
   </div>
 </template>
@@ -459,6 +468,7 @@ const macroList = ref([
   { key: 'cpi',    label: 'CPI同比', value: '--', date: '', series: [], help: 'CPI 同比\n含义：居民消费价格同比涨幅，衡量通胀水平。通胀上行通常伴随货币政策收紧预期。\n数据来源：国家统计局。\n更新时间：每月 9-10 日左右公布上月数据。' },
   { key: 'm2',     label: 'M2同比', value: '--', date: '', series: [], help: 'M2 同比\n含义：广义货币供应量同比增速，反映货币投放与流动性总量。增速上行通常预示流动性宽松。\n数据来源：中国人民银行。\n更新时间：每月 10-15 日公布上月数据。' },
   { key: 'ppi',    label: 'PPI同比', value: '--', date: '', series: [], help: 'PPI 同比\n含义：工业生产者出厂价格同比涨幅，衡量工业品通缩/通胀，领先于企业盈利。\n数据来源：国家统计局。\n更新时间：每月 9-10 日左右公布上月数据。' },
+  { key: 'omo',    label: 'OMO净投放', value: '--', date: '', series: [], help: '公开市场操作(OMO)净投放\n含义：央行通过逆回购 / MLF 等工具向市场投放或回笼流动性，净投放为正=呵护资金面，为负=回收流动性。\n数据来源：中国人民银行公开市场业务交易公告（经抓取）。\n更新时间：每个交易日 17:00 左右公布。' },
 ])
 
 // 「宏观信号」仪表盘详细说明（含义 / 取值范围 / 计算公式 / 数据来源 / 更新时间）
@@ -617,10 +627,11 @@ async function loadAll() {
       cpi:    { value: cpiData.cpi != null ? (cpiData.cpi * 100).toFixed(1) + '%' : '--', date: cpiData.date || '' },
       m2:     { value: m2Data.m2yoy != null ? m2Data.m2yoy + '%' : '--', date: m2Data.date || '' },
       us10y:  { value: '--', date: '' },
-      ppi:    { value: '--', date: '' }
+      ppi:    { value: '--', date: '' },
+      omo:    { value: '--', date: '' }
     }
-    macroList.value = ['cn10y', 'us10y', 'shibor', 'cpi', 'm2', 'ppi'].map(k => {
-      const labels = { cn10y: '中国10Y国债', us10y: '美国10Y国债', shibor: 'Shibor隔夜', cpi: 'CPI同比', m2: 'M2同比', ppi: 'PPI同比' }
+    macroList.value = ['cn10y', 'us10y', 'shibor', 'cpi', 'm2', 'ppi', 'omo'].map(k => {
+      const labels = { cn10y: '中国10Y国债', us10y: '美国10Y国债', shibor: 'Shibor隔夜', cpi: 'CPI同比', m2: 'M2同比', ppi: 'PPI同比', omo: 'OMO净投放' }
       return { key: k, label: labels[k], value: v500Values[k]?.value || '--', date: v500Values[k]?.date || '', series: [] }
     })
 
@@ -829,7 +840,13 @@ async function drawFedChart() {
       supabase.from('macro_history').select('date, value').eq('metric', 'cn10y').order('date', { ascending: true }).limit(10000),
       supabase.from('macro_history').select('date, value').eq('metric', 'sh000001').order('date', { ascending: true }).limit(10000)
     ])
-    if (cn10yRes.error || !cn10yRes.data?.length) return
+    if (cn10yRes.error || !cn10yRes.data?.length) {
+      // 真实历史缺失 → 基于当前利率关系生成模拟走势（标注"模拟值"）
+      fedIsMock.value = true
+      _renderFedChartMock(el)
+      return
+    }
+    fedIsMock.value = false
 
     const cn10yData = cn10yRes.data
     const idxMap = {}
@@ -861,6 +878,39 @@ async function drawFedChart() {
 
 // 缓存 FED 数据避免重复拉取
 const fedSeriesData = ref(null)
+// 标记当前 FED 走势是否为模拟数据（真实历史缺失时回退）
+const fedIsMock = ref(false)
+
+// 基于当前股债利差 / 利率关系生成模拟走势（真实历史缺失时回退，仅供参考）
+function _renderFedChartMock(el) {
+  const baseYield = (bondY10y.value ? bondY10y.value * 100 : 2.8)
+  const n = 60
+  const dates = []
+  const yields = []
+  let y = baseYield + 0.6
+  const d = new Date()
+  d.setMonth(d.getMonth() - (n - 1))
+  for (let i = 0; i < n; i++) {
+    const mm = String(d.getMonth() + 1).padStart(2, '0')
+    dates.push(`${d.getFullYear()}-${mm}`)
+    // 均值回归 + 周期项 + 噪声
+    y += (baseYield - y) * 0.15 + Math.sin(i / 6) * 0.12 + (Math.random() - 0.5) * 0.15
+    yields.push(+y.toFixed(3))
+    d.setMonth(d.getMonth() + 1)
+  }
+  const mean = yields.reduce((a, b) => a + b, 0) / n
+  const variance = yields.reduce((s, v) => s + (v - mean) ** 2, 0) / n
+  const std = Math.sqrt(variance)
+  let idx = 3000
+  const indices = yields.map(() => {
+    idx += (Math.random() - 0.48) * 130
+    return +idx.toFixed(0)
+  })
+  const currentSpread = fedIndices.value[0]?.spread !== '--' ? parseFloat(fedIndices.value[0].spread) : 3.5
+  const data = { dates, yields, indices, mean, std, currentSpread, validCount: n }
+  fedSeriesData.value = data
+  _renderFedChart(el, data)
+}
 
 function _renderFedChart(el, data) {
   const { dates, yields, indices, mean, std, currentSpread, validCount } = data
@@ -1068,9 +1118,15 @@ function drawGauge() {
         }
       },
       pointer: { length: '65%', width: 5, itemStyle: { color: '#1d70b8' } },
-      axisTick: { show: false },
-      splitLine: { show: false },
-      axisLabel: { show: false },
+      axisTick: { show: true, splitNumber: 4, length: 10, lineStyle: { color: '#505a5f', width: 1 } },
+      splitLine: { show: true, length: 14, lineStyle: { color: '#505a5f', width: 2 } },
+      axisLabel: {
+        show: true,
+        distance: 16,
+        fontSize: 11,
+        color: '#505a5f',
+        formatter: v => v.toFixed(1)
+      },
       detail: {
         formatter: '{value}',
         fontSize: 36, fontWeight: 700,
@@ -1094,7 +1150,7 @@ const bondHistEl = ref(null)
 // ===== 宏观历史数据加载 =====
 const macroMetricMap = {
   cn10y: 'cn10y', us10y: 'us10y', shibor: 'shibor_on',
-  cpi: 'cpi', m2: 'm2_growth', ppi: 'ppi'
+  cpi: 'cpi', m2: 'm2_growth', ppi: 'ppi', omo: 'omo_net'
 }
 
 async function loadMacroHistoryAsync() {
@@ -1138,11 +1194,13 @@ async function loadMacroHistoryAsync() {
     macroResults.forEach(r => {
       const { key, data } = r
       if (!data || data.length === 0) return
-      // 更新最新值（us10y / ppi 没有 v500 数据源）
-      if ((key === 'us10y' || key === 'ppi') && data[0]) {
+      // 更新最新值（us10y / ppi / omo 没有 v500 数据源）
+      if ((key === 'us10y' || key === 'ppi' || key === 'omo') && data[0]) {
         const item = macroList.value.find(x => x.key === key)
         if (item && item.value === '--') {
-          item.value = data[0].value.toFixed(2) + '%'
+          item.value = key === 'omo'
+            ? (data[0].value != null ? data[0].value + '亿' : '--')
+            : data[0].value.toFixed(2) + '%'
           item.date = data[0].date
         }
         if (key === 'us10y') {
@@ -1497,13 +1555,15 @@ async function loadCommodityFactors() {
 // ===== 特色指标（自建复合算法，数据存 jqr_indicators 表） =====
 const jqrCards = ref([])
 const jqrSeries = reactive({})
+// 标记特色指标是否含模拟值（真实数据缺失时回退）
+const jqrIsMock = ref(false)
 const jqrChartRefs = {}
 function setJqrChartRef(key, el) { if (el) jqrChartRefs[key] = el }
 
 const JQR_META = {
-  fear_greed:    { name: '恐惧贪婪指数', desc: '短期情绪', color: '#d4351c', range: '0 - 100' },
-  market_temp:   { name: '市场温度',     desc: '估值冷热', color: '#1d70b8', range: '0 - 100' },
-  fund_issuance: { name: '基金发行热度', desc: '募集景气', color: '#00703c', range: '0 - 100' },
+  fear_greed:    { name: '恐贪指数',   desc: '波动率·动量·估值多因子综合情绪', color: '#d4351c', range: '0 - 100' },
+  market_temp:   { name: '估值温度计', desc: '全市场 PE/PB 历史百分位', color: '#1d70b8', range: '0 - 100' },
+  fund_issuance: { name: '资金流向信号', desc: '基金发行·募集资金面情绪（代理）', color: '#00703c', range: '0 - 100' },
 }
 
 function buildJqrCard(metric, row) {
@@ -1522,11 +1582,11 @@ function buildJqrCard(metric, row) {
     else if (v < 70) { signalLabel = '适中'; signalClass = 'neutral' }
     else { signalLabel = '高估偏热'; signalClass = 'hot' }
   } else if (metric === 'fund_issuance') {
-    if (v < 25) { signalLabel = '冰点'; signalClass = 'cold' }
-    else if (v < 45) { signalLabel = '偏冷'; signalClass = 'cold' }
+    if (v < 25) { signalLabel = '大幅流出'; signalClass = 'cold' }
+    else if (v < 45) { signalLabel = '流出'; signalClass = 'cold' }
     else if (v < 55) { signalLabel = '中性'; signalClass = 'neutral' }
-    else if (v < 75) { signalLabel = '偏热'; signalClass = 'hot' }
-    else { signalLabel = '狂热'; signalClass = 'hot' }
+    else if (v < 75) { signalLabel = '流入'; signalClass = 'hot' }
+    else { signalLabel = '大幅流入'; signalClass = 'hot' }
   }
   const subLines = []
   if (metric === 'fear_greed') {
@@ -1547,10 +1607,19 @@ function buildJqrCard(metric, row) {
     if (detail.recent_90d_share_sum != null) subLines.push({ k: '近90日募集份额(亿)', v: detail.recent_90d_share_sum })
     if (detail.heat_percentile != null) subLines.push({ k: '发行热度分位', v: detail.heat_percentile + '%' })
   }
+  // 估值温度计：按数值映射温度档位与颜色（偏低 / 正常 / 偏高 / 高估）
+  let tempLevel = null, tempColor = null
+  if (metric === 'market_temp' && v != null) {
+    if (v < 30) { tempLevel = '偏低'; tempColor = '#1d70b8' }
+    else if (v < 70) { tempLevel = '正常'; tempColor = '#00703c' }
+    else if (v < 85) { tempLevel = '偏高'; tempColor = '#f47738' }
+    else { tempLevel = '高估'; tempColor = '#d4351c' }
+  }
   return {
     key: metric, name: meta.name, desc: meta.desc,
     valueLabel: v != null ? v : '--', color: meta.color, range: meta.range,
     signalLabel, signalClass, date: row.date || '--', subLines,
+    tempLevel, tempColor,
   }
 }
 
@@ -1565,10 +1634,20 @@ async function loadJqr() {
     const series = {}
     for (let i = 0; i < metrics.length; i++) {
       const { data, error } = res[i]
-      if (error || !data || !data.length) continue
-      const latest = data[data.length - 1]
-      series[metrics[i]] = data.map(d => ({ date: d.date, value: d.value }))
-      cards.push(buildJqrCard(metrics[i], latest))
+      if (!error && data && data.length) {
+        const latest = data[data.length - 1]
+        series[metrics[i]] = data.map(d => ({ date: d.date, value: d.value }))
+        cards.push(buildJqrCard(metrics[i], latest))
+      } else {
+        // 该特色指标暂无真实数据 → 模拟值展示（标注"模拟值"）
+        jqrIsMock.value = true
+        const mv = metrics[i] === 'fear_greed'
+          ? 52
+          : metrics[i] === 'market_temp'
+            ? (pe300PctGlobal.value != null ? pe300PctGlobal.value : 55)
+            : 48
+        cards.push(buildJqrCard(metrics[i], { date: '模拟', value: mv, detail: {} }))
+      }
     }
     jqrCards.value = cards
     Object.assign(jqrSeries, series)
@@ -1734,6 +1813,7 @@ function handleResize() {
 .macro-chart-wrap { width: 100%; height: 200px; overflow: hidden; }
 .macro-chart-wrap.macro-chart-expanded { height: 200px; overflow: visible; }
 .macro-chart { width: 100%; height: 200px; }
+.macro-empty { font-size: 13px; color: var(--text-secondary); padding: var(--space-md) 0; text-align: center; }
 .macro-more { text-align: center; margin-top: var(--space-sm); }
 .more-btn {
   display: inline-block; padding: var(--space-xs) var(--space-lg); font-size: 13px;
@@ -1849,6 +1929,10 @@ function handleResize() {
 .jqr-signal.neutral { color: #fff; background: #505a5f; }
 .jqr-date { font-size: 12px; color: var(--text-secondary); margin: var(--space-xs) 0; }
 .jqr-range { font-size: 12px; color: var(--text-muted); margin: 2px 0; }
+.jqr-thermo { display: flex; align-items: center; gap: 8px; margin: 4px 0; }
+.jqr-thermo-bar { flex: 1; height: 10px; background: linear-gradient(90deg, #1d70b8 0%, #00703c 35%, #f47738 75%, #d4351c 100%); position: relative; }
+.jqr-thermo-fill { position: absolute; top: 0; right: 0; height: 100%; background: #fff; opacity: 0.65; }
+.jqr-thermo-label { font-size: 12px; font-weight: 700; white-space: nowrap; }
 .jqr-sub { margin-top: var(--space-sm); border-top: 1px solid var(--border); padding-top: var(--space-sm); text-align: left; }
 .jqr-sub-row { display: flex; justify-content: space-between; font-size: 12px; padding: 2px 0; }
 .jqr-sub-row span:first-child { color: var(--text-secondary); }

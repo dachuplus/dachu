@@ -202,13 +202,11 @@
 
       <!-- 评分排序选择器 -->
       <div class="period-select-row">
-        <span class="period-select-label">评分排序：</span>
-        <span v-for="p in displayPeriods" :key="p.key" class="period-tag" :class="{ active: currentPeriod === p.key }" @click="switchPeriod(p.key)">
+        <span v-for="p in quickPeriods" :key="p.key" class="period-tag" :class="{ active: currentPeriod === p.key }" @click="switchPeriod(p.key)">
           {{ p.label }}
         </span>
-        <select class="period-select" :value="extraPeriod" @change="e => extraPeriod = e.target.value">
-          <option value="">+ 选择其他周期</option>
-          <option v-for="p in availableExtraPeriods" :key="p.key" :value="p.key">{{ p.label }}</option>
+        <select class="period-select-dropdown" :value="currentPeriod" @change="e => switchPeriod(e.target.value)">
+          <option v-for="p in allPeriods" :key="p.key" :value="p.key">{{ p.label }}</option>
         </select>
       </div>
 
@@ -628,23 +626,24 @@ const periods = [
   { key: 'k5',  label: '5年' },
 ]
 
-// 默认显示周期 + 可选额外周期
-const defaultPeriodKeys = ['k1', 'k2', 'k3', 'k5']   // 默认显示：1年/2年/3年/5年
-const extraPeriod = ref('')                      // 用户自选的第4列周期
+// 快捷按钮周期（1年/2年/3年），其余周期通过下拉选择
+const quickPeriodKeys = ['k1', 'k2', 'k3']
+const quickPeriods = computed(() =>
+  periods.filter(p => quickPeriodKeys.includes(p.key))
+)
 
+// 全部可用周期（供下拉选择）
+const allPeriods = periods
+
+// 表格展示的周期列：快捷按钮 + 当前选中周期（若不在快捷按钮中，追加显示）
 const displayPeriods = computed(() => {
-  const result = periods.filter(p => defaultPeriodKeys.includes(p.key))
-  if (extraPeriod.value) {
-    const ep = periods.find(p => p.key === extraPeriod.value)
-    if (ep) result.push(ep)
+  const result = quickPeriods.value.slice()
+  if (!quickPeriodKeys.includes(currentPeriod.value)) {
+    const cp = periods.find(p => p.key === currentPeriod.value)
+    if (cp) result.push(cp)
   }
   return result
 })
-
-// 可选周期（排除默认已显示的）
-const availableExtraPeriods = computed(() =>
-  periods.filter(p => !defaultPeriodKeys.includes(p.key))
-)
 
 const riskPeriods = [
   { label: '近1年', dd: 'dd1y', sr: 'sr1y' },
@@ -754,7 +753,7 @@ function applyScoreIndicator() {
 
 // 搜索/周期/分页/排序
 const searchText = ref('')
-const currentPeriod = ref('k1')     // 默认按 1 年排序（用户可切换到 k3/k5/k_all 等）
+const currentPeriod = ref('k5')     // 默认按 5 年排序（与下拉默认显示一致）
 const sortAsc = ref(false)        // 靠谱指数排序方向（false=降序，true=升序）
 const sortField = ref('')          // 客户端排序列（非评分列）：'c'|'n'|'equityPct'|'bondPct'
 const sortDir = ref('desc')        // 客户端排序方向
@@ -1380,11 +1379,11 @@ onUnmounted(() => {
 .fund-table th:last-child,
 .fund-table td:last-child { border-right: none; }
 /* 斑马纹：偶数行浅灰蓝底（加深至清晰可辨） */
-.fund-table tbody tr:nth-child(even) { background: #eef1f4; }
-.fund-table tbody tr:nth-child(even) td.col-code { background: #eef1f4; }
+.fund-table tbody tr:nth-child(even) { background: #dde3ea; }
+.fund-table tbody tr:nth-child(even) td.col-code { background: #dde3ea; }
 /* 悬停高亮：品牌蓝浅色，比斑马纹更深以便区分 */
-.fund-row:hover { background: #e2e9f2; }
-.fund-row:hover td.col-code { background: #e2e9f2; }
+.fund-row:hover { background: #d0dae8; }
+.fund-row:hover td.col-code { background: #d0dae8; }
 
 .col-code { width: 80px; font-weight: 700; color: var(--text-primary); font-family: monospace; font-size: 12px; }
 .col-code a { color: var(--text-primary); text-decoration: none; }
@@ -1394,10 +1393,10 @@ onUnmounted(() => {
   position: sticky; left: 0; z-index: 3;
 }
 .fund-table td.col-code {
-  position: sticky; left: 0; z-index: 1; background: #fff;
+  position: sticky; left: 0; z-index: 1; background: inherit;
 }
 .fund-row:hover td.col-code {
-  background: #e2e9f2;
+  background: #d0dae8;
 }
 .col-name { width: 156px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .col-name a { color: var(--text-primary); text-decoration: none; }
@@ -1563,9 +1562,6 @@ onUnmounted(() => {
   background: #f3f2f1;
   flex-wrap: wrap;
 }
-.period-select-label {
-  font-size: 14px; color: var(--text-secondary); font-weight: 700;
-}
 .period-tag {
   display: inline-block; padding: 4px 12px;
   font-size: 14px; color: var(--link);
@@ -1576,12 +1572,15 @@ onUnmounted(() => {
 .period-tag.active {
   color: #fff; background: #1d70b8; border-color: #1d70b8;
 }
-.period-select {
-  padding: 4px 8px; font-size: 14px;
-  border: 1px solid var(--border); color: var(--text-secondary);
+.period-select-dropdown {
+  padding: 4px 28px 4px 10px; font-size: 14px;
+  border: 2px solid #1d70b8; border-radius: 4px; color: var(--text-primary);
   background: #fff; cursor: pointer; margin-left: var(--space-xs);
+  -webkit-appearance: none; appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%231d70b8' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right 10px center;
 }
-.period-select:focus { border-color: #1d70b8; outline: none; }
+.period-select-dropdown:focus { outline: 3px solid #ffdd00; outline-offset: 0; }
 
 /* 状态 */
 .empty-state { text-align: center; padding: var(--space-2xl) var(--space-md); }

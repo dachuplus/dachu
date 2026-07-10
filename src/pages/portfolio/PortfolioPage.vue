@@ -704,11 +704,13 @@ async function addAiToCustom() {
 // 每个资产大类按「一级分类 t0」筛选；无 t0 的品类（商品/黄金/REIT）用名称关键字识别
 // 选基优先级：ETF > 指数型产品 > 主动管理型（同品类内按 k1 降序取 top 10）
 const ASSET_ETF_CONFIG = {
-  stock: { category: '股票', t0: 'gp', nameKeyword: null },
-  bond: { category: '债券', t0: 'zq', nameKeyword: null },
-  commodity: { category: '商品', t0: null, nameKeyword: '商品ETF' },
-  gold: { category: '黄金', t0: null, nameKeyword: '黄金' },
-  reit: { category: 'REITs', t0: null, nameKeyword: 'REIT' },
+  // fallbackT0: 当该一级分类(t0)下 ETF/指数产品不足时，到「指数型」分类补回对应的指数/ETF 高分基金
+  stock: { category: '股票', t0: 'gp', nameKeyword: null, fallbackT0: '指数型' },
+  bond: { category: '债券', t0: 'zq', nameKeyword: null, fallbackT0: '指数型' },
+  // nameKeyword: 以名称关键字识别品类；fallbackKeywords: 该品类命中太少时扩大名称关键字范围补充同类高分基金
+  commodity: { category: '商品', t0: null, nameKeyword: '商品ETF', fallbackKeywords: ['商品', '豆粕', '能源'] },
+  gold: { category: '黄金', t0: null, nameKeyword: '黄金', fallbackKeywords: ['黄金', '贵金属', '金ETF'] },
+  reit: { category: 'REITs', t0: null, nameKeyword: 'REIT', fallbackKeywords: ['REIT', '不动产', '基础设施', 'reits'] },
   cash: { category: '现金', t0: 'hb', nameKeyword: null, noEtf: true }
 }
 // 每个资产大类精选的基金数量
@@ -771,6 +773,8 @@ async function buildPortfolio() {
 }
 
 // 按品类精选高分基金：优先级 ETF > 指数型产品 > 主动管理型，同品类内按 k1（1年评分）降序取 top N
+// 若某品类备选不足（< limit），自动启用 fallback：跨相关一级分类补充 / 扩大名称关键字范围，
+// 确保每类资产都能展示足够多的高分基金
 async function fetchCategoryFunds(cfg, limit) {
   if (!supabase) return []
   // 基础查询：按 t0（一级分类）或名称关键字定位品类，按 k1 降序
@@ -788,23 +792,43 @@ async function fetchCategoryFunds(cfg, limit) {
   let funds = []
   try {
     if (cfg.t0) {
-      // 1) ETF 优先
+      // 1) ETF 优先（同 t0 内）
       const { data: etf } = await base().ilike('n', '%ETF%').order('k1', { ascending: false }).limit(limit)
       funds = uniq(etf || [])
-      // 2) 指数型产品降级补充
+      // 2) 指数型产品降级补充（同 t0 内）
       if (funds.length < limit) {
         const { data: idx } = await base().ilike('n', '%指数%').order('k1', { ascending: false }).limit(limit)
         funds = funds.concat(uniq(idx || [], new Set(funds.map(f => f.c))))
       }
-      // 3) 主动管理型兜底
+      // 3) 主动管理型兜底（同 t0 内，无名称限制）
       if (funds.length < limit) {
         const { data: act } = await base().order('k1', { ascending: false }).limit(limit)
         funds = funds.concat(uniq(act || [], new Set(funds.map(f => f.c))))
+      }
+      // 4) 放宽：跨相关一级分类补充 ETF/指数产品
+      //    （如股票/债券的一级分类下无 ETF，则到「指数型」分类补回对应的指数/ETF 高分基金）
+      if (funds.length < limit && cfg.fallbackT0) {
+        const have = new Set(funds.map(f => f.c))
+        const { data: fb } = await supabase.from('fund_scores')
+          .select('c,n,t0,t2,k1,k3,r3y').not('k1', 'is', null)
+          .eq('t0', cfg.fallbackT0).order('k1', { ascending: false }).limit(limit)
+        funds = funds.concat(uniq(fb || [], have))
       }
     } else if (cfg.nameKeyword) {
       // 商品/黄金/REIT 等以名称关键字识别的品类，直接按 k1 取 top N
       const { data } = await base().order('k1', { ascending: false }).limit(limit)
       funds = data || []
+      // 兜底：若关键字命中太少（< limit），扩大名称关键字范围补充同类高分基金
+      if (funds.length < limit && cfg.fallbackKeywords && cfg.fallbackKeywords.length) {
+        const have = new Set(funds.map(f => f.c))
+        for (const kw of cfg.fallbackKeywords) {
+          if (funds.length >= limit) break
+          const { data: fb } = await supabase.from('fund_scores')
+            .select('c,n,t0,t2,k1,k3,r3y').not('k1', 'is', null)
+            .ilike('n', `%${kw}%`).order('k1', { ascending: false }).limit(limit)
+          funds = funds.concat(uniq(fb || [], have))
+        }
+      }
     }
   } catch (e) { console.error('[fetchCategoryFunds]', cfg.category, e) }
   return funds.slice(0, limit)
