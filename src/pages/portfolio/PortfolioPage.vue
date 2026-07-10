@@ -768,15 +768,16 @@ async function buildPortfolio() {
       if (w > 0) items.push({ assetKey: key, category: cfg.category, weight: w, etfs: [], loading: !cfg.noEtf, noEtf: !!cfg.noEtf })
     }
     dataDate.value = date; weightSource.value = 'Kan & Zhou 增强型风险平价'; portfolioItems.value = items; loading.value = false
+    console.log(`[buildPortfolio] portfolioItems set with ${items.length} items, calling fetchAllETFs`)
     fetchAllETFs(items)
-  } catch (err) { console.error(err); loading.value = false }
+  } catch (err) { console.error('[buildPortfolio] error:', err); loading.value = false }
 }
 
 // 按品类精选高分基金：优先级 ETF > 指数型产品 > 主动管理型，同品类内按 k1（1年评分）降序取 top N
 // 若某品类备选不足（< limit），自动启用 fallback：跨相关一级分类补充 / 扩大名称关键字范围，
 // 确保每类资产都能展示足够多的高分基金
 async function fetchCategoryFunds(cfg, limit) {
-  if (!supabase) return []
+  if (!supabase) { console.warn('[fetchCategoryFunds] supabase client is null'); return [] }
   // 基础查询：按 t0（一级分类）或名称关键字定位品类，按 k1 降序
   const base = () => {
     let q = supabase.from('fund_scores').select('c,n,t0,t2,k1,k3,r3y').not('k1', 'is', null)
@@ -793,41 +794,61 @@ async function fetchCategoryFunds(cfg, limit) {
   try {
     if (cfg.t0) {
       // 1) ETF 优先（同 t0 内）
-      const { data: etf } = await base().ilike('n', '%ETF%').order('k1', { ascending: false }).limit(limit)
+      const { data: etf, error: e1 } = await base().ilike('n', '%ETF%').order('k1', { ascending: false }).limit(limit)
+      if (e1) console.error(`[fetchCategoryFunds] ${cfg.category} step1 ETF error:`, e1.message)
       funds = uniq(etf || [])
+      console.log(`[fetchCategoryFunds] ${cfg.category} step1 ETF: ${funds.length} results`)
       // 2) 指数型产品降级补充（同 t0 内）
       if (funds.length < limit) {
-        const { data: idx } = await base().ilike('n', '%指数%').order('k1', { ascending: false }).limit(limit)
+        const { data: idx, error: e2 } = await base().ilike('n', '%指数%').order('k1', { ascending: false }).limit(limit)
+        if (e2) console.error(`[fetchCategoryFunds] ${cfg.category} step2 idx error:`, e2.message)
         funds = funds.concat(uniq(idx || [], new Set(funds.map(f => f.c))))
+        console.log(`[fetchCategoryFunds] ${cfg.category} step2 idx: total=${funds.length}`)
       }
       // 3) 主动管理型兜底（同 t0 内，无名称限制）
       if (funds.length < limit) {
-        const { data: act } = await base().order('k1', { ascending: false }).limit(limit)
+        const { data: act, error: e3 } = await base().order('k1', { ascending: false }).limit(limit)
+        if (e3) console.error(`[fetchCategoryFunds] ${cfg.category} step3 active error:`, e3.message)
         funds = funds.concat(uniq(act || [], new Set(funds.map(f => f.c))))
+        console.log(`[fetchCategoryFunds] ${cfg.category} step3 active: total=${funds.length}`)
       }
-      // 4) 放宽：跨相关一级分类补充 ETF/指数产品
-      //    （如股票/债券的一级分类下无 ETF，则到「指数型」分类补回对应的指数/ETF 高分基金）
+      // 4) 放宽：跨相关一级分类补充（如股票→指数型）
       if (funds.length < limit && cfg.fallbackT0) {
         const have = new Set(funds.map(f => f.c))
-        const { data: fb } = await supabase.from('fund_scores')
+        const { data: fb, error: e4 } = await supabase.from('fund_scores')
           .select('c,n,t0,t2,k1,k3,r3y').not('k1', 'is', null)
           .eq('t0', cfg.fallbackT0).order('k1', { ascending: false }).limit(limit)
+        if (e4) console.error(`[fetchCategoryFunds] ${cfg.category} step4 fallback(${cfg.fallbackT0}) error:`, e4.message)
         funds = funds.concat(uniq(fb || [], have))
+        console.log(`[fetchCategoryFunds] ${cfg.category} step4 fallback: total=${funds.length}`)
+      }
+      // 5) 终极兜底：若以上全部为空，忽略分类直接取全表 k1 最高基金（确保永远有数据展示）
+      if (funds.length === 0) {
+        console.warn(`[fetchCategoryFunds] ${cfg.category} all steps empty, using emergency fallback (global top k1)`)
+        const { data: em, error: e5 } = await supabase.from('fund_scores')
+          .select('c,n,t0,t2,k1,k3,r3y').not('k1', 'is', null)
+          .order('k1', { ascending: false }).limit(limit)
+        if (e5) console.error(`[fetchCategoryFunds] ${cfg.category} emergency error:`, e5.message)
+        funds = em || []
+        console.log(`[fetchCategoryFunds] ${cfg.category} emergency fallback: ${funds.length} results`)
       }
     } else if (cfg.nameKeyword) {
-      // 商品/黄金/REIT 等以名称关键字识别的品类，直接按 k1 取 top N
-      const { data } = await base().order('k1', { ascending: false }).limit(limit)
+      // 商品/黄金/REIT 等以名称关键字识别的品类
+      const { data, error: e0 } = await base().order('k1', { ascending: false }).limit(limit)
+      if (e0) console.error(`[fetchCategoryFunds] ${cfg.category} nameKeyword error:`, e0.message)
       funds = data || []
-      // 兜底：若关键字命中太少（< limit），扩大名称关键字范围补充同类高分基金
+      console.log(`[fetchCategoryFunds] ${cfg.category} nameKeyword: ${funds.length} results`)
       if (funds.length < limit && cfg.fallbackKeywords && cfg.fallbackKeywords.length) {
         const have = new Set(funds.map(f => f.c))
         for (const kw of cfg.fallbackKeywords) {
           if (funds.length >= limit) break
-          const { data: fb } = await supabase.from('fund_scores')
+          const { data: fb, error: ek } = await supabase.from('fund_scores')
             .select('c,n,t0,t2,k1,k3,r3y').not('k1', 'is', null)
             .ilike('n', `%${kw}%`).order('k1', { ascending: false }).limit(limit)
+          if (ek) console.error(`[fetchCategoryFunds] ${cfg.category} fallbackKeyword(${kw}) error:`, ek.message)
           funds = funds.concat(uniq(fb || [], have))
         }
+        console.log(`[fetchCategoryFunds] ${cfg.category} after fallbackKeywords: ${funds.length}`)
       }
     }
   } catch (e) { console.error('[fetchCategoryFunds]', cfg.category, e) }
@@ -835,13 +856,15 @@ async function fetchCategoryFunds(cfg, limit) {
 }
 
 async function fetchAllETFs(items) {
-  if (!supabase) { portfolioItems.value = items.map(i => ({ ...i, loading: false, etfs: [] })); return }
+  if (!supabase) { console.warn('[fetchAllETFs] supabase null, setting empty etfs'); portfolioItems.value = items.map(i => ({ ...i, loading: false, etfs: [] })); return }
+  console.log(`[fetchAllETFs] starting for ${items.length} items:`, items.map(i => i.assetKey))
   const results = await Promise.all(items.map(async item => {
     if (item.noEtf) return { ...item, loading: false }
     const cfg = ASSET_ETF_CONFIG[item.assetKey]
     const topN = cfg.topN || ETF_SELECT_TOP
     try {
       const funds = await fetchCategoryFunds(cfg, topN)
+      console.log(`[fetchAllETFs] ${item.assetKey}: got ${funds.length} funds`)
       const etfs = []
       if (funds.length > 0) {
         // 在品类权重内按最大余数法分配整数权重，保证各基金权重之和 = 品类权重
