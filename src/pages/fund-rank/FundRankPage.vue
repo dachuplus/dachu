@@ -38,10 +38,17 @@
       </div>
 
       <!-- 更多筛选（弹窗入口） -->
-      <div class="more-filter-toggle" @click="openMoreFilter">
-        <span>更多筛选</span>
-        <span class="more-badge" v-if="activeMoreFilterCount">{{ activeMoreFilterCount }}</span>
-        <span class="toggle-arrow">▾</span>
+      <div class="filter-actions-row">
+        <div class="more-filter-toggle" @click="openMoreFilter">
+          <span>更多筛选</span>
+          <span class="more-badge" v-if="activeMoreFilterCount">{{ activeMoreFilterCount }}</span>
+          <span class="toggle-arrow">▾</span>
+        </div>
+
+        <!-- 评分指标（弹窗入口） -->
+        <div class="score-indicator-toggle" @click="showScoreIndicator = true">
+          <SvgIcon name="gear" :size="16" class="wt-icon" /> 评分指标
+        </div>
       </div>
 
       <!-- 更多筛选弹窗 -->
@@ -164,33 +171,34 @@
         </template>
       </Teleport>
 
-      <!-- 自定义指标入口 -->
-      <div class="weight-entry-row">
-        <div class="weight-toggle" @click="showWeightPanel = !showWeightPanel">
-          <SvgIcon name="gear" :size="16" class="wt-icon" /> 自定义指标
-        </div>
-      </div>
-
-      <!-- 自定义指标面板 -->
-      <div class="weight-panel" v-if="showWeightPanel">
-        <div class="weight-panel-header">
-          <span>自定义评分权重（合计 100%）
-            <span class="weight-sum" :class="{ valid: weightSum === 100, invalid: weightSum !== 100 }">当前：{{ weightSum }}%</span>
-          </span>
-          <span class="weight-panel-close" @click="showWeightPanel = false"><SvgIcon name="close" :size="16" /></span>
-        </div>
-        <div class="weight-sliders">
-          <div class="weight-row" v-for="item in weightItems" :key="item.key">
-            <span class="weight-label">{{ item.label }}</span>
-            <input type="range" :min="0" :max="100" :value="item.value" class="weight-range" @input="e => item.value = Number(e.target.value)" />
-            <input type="number" :min="0" :max="100" :value="item.value" class="weight-num" @input="e => item.value = Number(e.target.value)" />%
+      <!-- 评分指标弹窗 -->
+      <Teleport to="body">
+        <template v-if="showScoreIndicator">
+          <div class="mask" @click="cancelScoreIndicator"></div>
+          <div class="score-indicator-modal">
+            <div class="more-modal-header">
+              <span class="more-modal-title">评分指标</span>
+              <span class="more-modal-close" @click="cancelScoreIndicator">&#x2715;</span>
+            </div>
+            <div class="more-modal-body">
+              <p class="score-tip">自定义评分权重（合计 100%）
+                <span class="weight-sum" :class="{ valid: weightSum === 100, invalid: weightSum !== 100 }">当前：{{ weightSum }}%</span>
+              </p>
+              <div class="weight-sliders">
+                <div class="weight-row" v-for="item in weightItems" :key="item.key">
+                  <span class="weight-label">{{ item.label }}</span>
+                  <input type="range" :min="0" :max="100" :value="item.value" class="weight-range" @input="e => item.value = Number(e.target.value)" />
+                  <input type="number" :min="0" :max="100" :value="item.value" class="weight-num" @input="e => item.value = Number(e.target.value)" />%
+                </div>
+              </div>
+            </div>
+            <div class="more-modal-footer">
+              <button class="btn-reset" @click="resetWeights">恢复默认</button>
+              <button class="btn-confirm" :disabled="weightSum !== 100" @click="applyScoreIndicator">确认</button>
+            </div>
           </div>
-        </div>
-        <div class="weight-actions">
-          <button class="btn-reset" @click="resetWeights">恢复默认</button>
-          <button class="btn-confirm" :disabled="weightSum !== 100" @click="applyCustomWeights">确认</button>
-        </div>
-      </div>
+        </template>
+      </Teleport>
 
       <!-- 显示周期选择器 -->
       <div class="period-select-row">
@@ -221,10 +229,10 @@
         <thead>
           <tr>
             <th class="col-code sortable" @click="toggleColumnSort('c')">
-              代码<span class="th-arrow" v-if="sortField === 'c'">{{ sortDir === 'asc' ? '▲' : '▼' }}</span>
+              基金代码<span class="th-arrow" v-if="sortField === 'c'">{{ sortDir === 'asc' ? '▲' : '▼' }}</span>
             </th>
             <th class="col-name sortable" @click="toggleColumnSort('n')">
-              简称<span class="th-arrow" v-if="sortField === 'n'">{{ sortDir === 'asc' ? '▲' : '▼' }}</span>
+              基金简称<span class="th-arrow" v-if="sortField === 'n'">{{ sortDir === 'asc' ? '▲' : '▼' }}</span>
             </th>
             <th class="col-manager sortable" @click="toggleColumnSort('fund_manager')">
               基金经理<span class="th-arrow" v-if="sortField === 'fund_manager'">{{ sortDir === 'asc' ? '▲' : '▼' }}</span>
@@ -233,23 +241,23 @@
             <th class="col-scale sortable" @click="toggleColumnSort('fund_scale')">
               基金规模（亿）<span class="th-arrow" v-if="sortField === 'fund_scale'">{{ sortDir === 'asc' ? '▲' : '▼' }}</span>
             </th>
-            <th class="col-fee">管理费率</th>
+            <th class="col-fee">管理费%</th>
             <th class="col-ret sortable" @click="toggleColumnSort('r1y')">
-              近1年<span class="th-arrow" v-if="sortField === 'r1y'">{{ sortDir === 'asc' ? '▲' : '▼' }}</span>
-            </th>
-            <th class="col-ret sortable" @click="toggleColumnSort('r3y')">
-              近3年<span class="th-arrow" v-if="sortField === 'r3y'">{{ sortDir === 'asc' ? '▲' : '▼' }}</span>
+              近1年收益<span class="th-arrow" v-if="sortField === 'r1y'">{{ sortDir === 'asc' ? '▲' : '▼' }}</span>
             </th>
             <th class="col-ret sortable" @click="toggleColumnSort('r2y')">
-              近2年<span class="th-arrow" v-if="sortField === 'r2y'">{{ sortDir === 'asc' ? '▲' : '▼' }}</span>
+              近2年收益<span class="th-arrow" v-if="sortField === 'r2y'">{{ sortDir === 'asc' ? '▲' : '▼' }}</span>
+            </th>
+            <th class="col-ret sortable" @click="toggleColumnSort('r3y')">
+              近3年收益<span class="th-arrow" v-if="sortField === 'r3y'">{{ sortDir === 'asc' ? '▲' : '▼' }}</span>
             </th>
             <th class="col-ret sortable" @click="toggleColumnSort('r5y')">
-              近5年<span class="th-arrow" v-if="sortField === 'r5y'">{{ sortDir === 'asc' ? '▲' : '▼' }}</span>
+              近5年收益<span class="th-arrow" v-if="sortField === 'r5y'">{{ sortDir === 'asc' ? '▲' : '▼' }}</span>
             </th>
             <th v-for="p in displayPeriods" :key="p.key" class="col-score sortable" :class="{ 'col-sort': currentPeriod === p.key }" @click="switchPeriod(p.key)">
-              {{ p.label }}<span class="th-arrow" v-if="currentPeriod === p.key">{{ sortAsc ? '▲' : '▼' }}</span>
+              {{ p.label }}评分<span class="th-arrow" v-if="currentPeriod === p.key">{{ sortAsc ? '▲' : '▼' }}</span>
             </th>
-            <th class="col-actions">操作</th>
+            <th class="col-actions">投票</th>
           </tr>
         </thead>
         <tbody>
@@ -265,8 +273,8 @@
             <td class="col-scale">{{ fmtFundScale(fund.fund_scale) }}</td>
             <td class="col-fee">{{ fmtManageFee(fund.manage_fee) }}</td>
             <td class="col-ret" :style="{ color: retColor(fund.r1y) }">{{ fmtRet(fund.r1y) }}</td>
-            <td class="col-ret" :style="{ color: retColor(fund.r3y) }">{{ fmtRet(fund.r3y) }}</td>
             <td class="col-ret" :style="{ color: retColor(fund.r2y) }">{{ fmtRet(fund.r2y) }}</td>
+            <td class="col-ret" :style="{ color: retColor(fund.r3y) }">{{ fmtRet(fund.r3y) }}</td>
             <td class="col-ret" :style="{ color: retColor(fund.r5y) }">{{ fmtRet(fund.r5y) }}</td>
             <td v-for="p in displayPeriods" :key="p.key" class="col-score" :class="{ 'col-sort': currentPeriod === p.key }">
               <span class="score-val" :style="scoreColor(fund[p.key])">{{ fmtScore(fund[p.key]) }}</span>
@@ -312,12 +320,12 @@
           </span>
         </div>
         <div class="fund-card-mgr" v-if="fund.fund_manager">{{ fund.fund_manager }}</div>
-        <div class="fund-card-scale" v-if="fund.fund_scale != null">规模（亿）：{{ fmtFundScale(fund.fund_scale) }} · 管理费：{{ fmtManageFee(fund.manage_fee) }}</div>
+        <div class="fund-card-scale" v-if="fund.fund_scale != null">规模（亿）：{{ fmtFundScale(fund.fund_scale) }} · 管理费%：{{ fmtManageFee(fund.manage_fee) }}</div>
         <div class="fund-card-ret">
-          <span :style="{ color: retColor(fund.r1y) }">近1年 {{ fmtRet(fund.r1y) }}</span>
-          <span :style="{ color: retColor(fund.r3y) }">近3年 {{ fmtRet(fund.r3y) }}</span>
-          <span :style="{ color: retColor(fund.r2y) }">近2年 {{ fmtRet(fund.r2y) }}</span>
-          <span :style="{ color: retColor(fund.r5y) }">近5年 {{ fmtRet(fund.r5y) }}</span>
+          <span :style="{ color: retColor(fund.r1y) }">近1年收益 {{ fmtRet(fund.r1y) }}</span>
+          <span :style="{ color: retColor(fund.r2y) }">近2年收益 {{ fmtRet(fund.r2y) }}</span>
+          <span :style="{ color: retColor(fund.r3y) }">近3年收益 {{ fmtRet(fund.r3y) }}</span>
+          <span :style="{ color: retColor(fund.r5y) }">近5年收益 {{ fmtRet(fund.r5y) }}</span>
         </div>
         <div class="fund-card-scores">
           <span
@@ -711,8 +719,8 @@ const SCALE_PRESETS = [
   { key: 'custom',  label: '自定义',    min: null, max: null },
 ]
 
-// 自定义指标权重（6项）
-const showWeightPanel = ref(false)
+// 评分指标权重（6项）
+const showScoreIndicator = ref(false)
 const DEFAULT_WEIGHTS = { ret: 50, dd: 25, sr: 25, calmar: 0, ir: 0, te: 0 }
 const weightItems = reactive([
   { key: 'ret',    label: '区间收益', value: DEFAULT_WEIGHTS.ret },
@@ -730,9 +738,18 @@ function resetWeights() {
 
 function applyCustomWeights() {
   if (weightSum.value !== 100) return
-  showWeightPanel.value = false
+  showScoreIndicator.value = false
   // Re-fetch with updated weights (custom weight scoring computed client-side)
   loadData(true)
+}
+
+// 评分指标弹窗操作
+function cancelScoreIndicator() {
+  showScoreIndicator.value = false
+}
+
+function applyScoreIndicator() {
+  applyCustomWeights()
 }
 
 // 搜索/周期/分页/排序
@@ -1341,7 +1358,7 @@ onUnmounted(() => {
 }
 .fund-table thead { background: #f3f2f1; }
 .fund-table th {
-  padding: var(--space-xs) 6px; text-align: left;
+  padding: var(--space-xs) 6px; text-align: center;
   font-size: 13px; font-weight: 700; color: var(--text-primary);
   border-bottom: 2px solid var(--border);
   position: sticky; top: 0; background: #f3f2f1; z-index: 1;
@@ -1517,10 +1534,14 @@ onUnmounted(() => {
 }
 .loaded-all strong { color: #0b0c0c; font-weight: 700; }
 
-/* 自定义指标入口（加载更多后） */
-.weight-entry-row {
-  display: flex; justify-content: center;
-  padding: var(--space-lg); border-top: 1px solid var(--border);
+/* 筛选操作行：更多筛选 + 评分指标 并列 */
+.filter-actions-row {
+  display: flex; align-items: center; gap: var(--space-md);
+}
+.score-indicator-toggle {
+  display: flex; align-items: center; gap: 4px;
+  padding: var(--space-sm) var(--space-md); font-size: 16px; color: var(--link);
+  cursor: pointer; text-decoration: underline;
 }
 
 /* 显示周期选择器 */
@@ -1681,23 +1702,18 @@ onUnmounted(() => {
 .help-section { margin-bottom: var(--space-lg); }
 .help-section-label { display: block; font-size: 19px; font-weight: 700; color: var(--text-primary); margin-bottom: var(--space-sm); border-bottom: 2px solid var(--border); padding-bottom: 4px; }
 .help-desc { display: block; font-size: 16px; color: var(--text-primary); line-height: 1.7; }
-/* 自定义权重面板 */
-.weight-toggle {
-  padding: var(--space-xs) var(--space-sm); font-size: 14px;
-  color: var(--link); cursor: pointer; border: 1px solid var(--border);
-  white-space: nowrap;
+/* 评分指标弹窗 */
+.score-indicator-modal {
+  position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+  z-index: 101;
+  width: min(480px, 90vw); max-height: 80vh;
+  background: #fff; border: 2px solid var(--border);
+  display: flex; flex-direction: column;
 }
-.weight-toggle:hover { background: #f3f2f1; }
-
-.weight-panel {
-  border: 1px solid var(--border); background: #ffffff;
-  padding: var(--space-lg); margin-top: var(--space-sm);
+.score-tip {
+  font-size: 14px; font-weight: 700; color: var(--text-primary);
+  margin-bottom: var(--space-sm); display: flex; align-items: center; gap: var(--space-xs); flex-wrap: wrap;
 }
-.weight-panel-header {
-  display: flex; justify-content: space-between; align-items: center;
-  font-size: 19px; font-weight: 700; color: var(--text-primary); margin-bottom: var(--space-md);
-}
-.weight-panel-close { font-size: 20px; color: var(--text-secondary); cursor: pointer; }
 
 .weight-sliders { display: flex; flex-direction: column; gap: var(--space-sm); }
 .weight-row { display: flex; align-items: center; gap: var(--space-sm); }
@@ -1714,12 +1730,7 @@ onUnmounted(() => {
 .btn-confirm { padding: var(--space-xs) var(--space-lg); font-size: 14px; background: #00703c; color: #fff; border: none; cursor: pointer; }
 .btn-confirm:disabled { opacity: 0.5; cursor: not-allowed; }
 
-.weight-valid { background: #e6f7ee; color: #00703c; }
-.weight-invalid { background: #fef0ef; color: #d4351c; }
-.weight-warn { font-weight: 400; }
-.weight-ok { color: #00703c; }
-
-.weight-actions { text-align: center; margin-top: var(--space-sm); }
+.weight-actions { display: flex; gap: var(--space-sm); justify-content: flex-end; margin-top: var(--space-md); }
 .btn-reset {
   background: none; border: 1px solid var(--border); color: var(--text-secondary);
   padding: var(--space-xs) var(--space-md); font-size: 14px; cursor: pointer;

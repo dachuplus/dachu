@@ -67,13 +67,13 @@ export function fmtFundScale(v) {
 export function fmtManageFee(v) {
   if (v == null || v === '') return '--'
   const s = String(v).trim()
-  if (s.includes('<') || s.includes('href')) return '--'   // HTML 占位符视为无效
+  if (s.includes('<') || s.includes('href')) return '--'
   if (s.endsWith('%')) {
     const n = parseFloat(s)
-    return isNaN(n) ? '--' : n.toFixed(2) + '%'
+    return isNaN(n) ? '--' : n.toFixed(2)
   }
-  const n = parseFloat(s)
-  return isNaN(n) ? '--' : n.toFixed(2) + '%'
+  const n = parseFloat(v)
+  return isNaN(n) ? '--' : n.toFixed(2)
 }
 
 /**
