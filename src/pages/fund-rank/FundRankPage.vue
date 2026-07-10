@@ -200,16 +200,6 @@
         </template>
       </Teleport>
 
-      <!-- 评分排序选择器 -->
-      <div class="period-select-row">
-        <span v-for="p in quickPeriods" :key="p.key" class="period-tag" :class="{ active: currentPeriod === p.key }" @click="switchPeriod(p.key)">
-          {{ p.label }}
-        </span>
-        <select class="period-select-dropdown" :value="currentPeriod" @change="e => switchPeriod(e.target.value)">
-          <option v-for="p in allPeriods" :key="p.key" :value="p.key">{{ p.label }}</option>
-        </select>
-      </div>
-
       <!-- 筛选结果数量 -->
       <div class="filter-result-row" v-if="dataLoaded">
         <span class="filter-result-count">
