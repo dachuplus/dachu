@@ -1378,9 +1378,9 @@ onUnmounted(() => {
 /* 最右列去掉右边框，避免外缘出现多余竖线 */
 .fund-table th:last-child,
 .fund-table td:last-child { border-right: none; }
-/* 斑马纹：偶数行浅蓝底 + 奇数行白底，交替条纹 */
-.fund-table tbody tr:nth-child(even) { background: #e8f1fc; }
-.fund-table tbody tr:nth-child(even) td.col-code { background: #e8f1fc; }
+/* 斑马纹：偶数行白底（去除蓝色条纹，仅保留细分割线） */
+.fund-table tbody tr:nth-child(even) { background: #ffffff; }
+.fund-table tbody tr:nth-child(even) td.col-code { background: #ffffff; }
 /* 悬停高亮：品牌蓝略深，比斑马纹更深以便区分 */
 .fund-row:hover { background: #d4e6fb; }
 .fund-row:hover td.col-code { background: #d4e6fb; }
