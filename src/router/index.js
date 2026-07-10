@@ -94,7 +94,7 @@ const routes = [
   // 旧路径重定向（带 tab 参数，跳转到正确视图）
   {
     path: '/config',
-    redirect: '/signal?tab=allocate'
+    redirect: '/signal?tab=asset'
   },
   {
     path: '/style-factor',

@@ -134,8 +134,9 @@
       </div>
     </div>
 
-    <!-- ==================== 3. 资产对比 ==================== -->
-    <div v-if="activeTab === 'compare'">
+    <!-- ==================== 3+4. 资产配置（资产对比 + 资产配比 合并） ==================== -->
+    <div v-if="activeTab === 'asset'">
+      <!-- 资产对比 -->
       <div class="card">
         <div class="card-title">资产对比 — 隐含夏普 / 预期收益 / 风险溢价</div>
         <p class="card-desc">现金用Shibor，债券用YTM，股票用Gordon模型，黄金用实际利率模型</p>
@@ -173,11 +174,9 @@
         <div class="card-title" style="margin-top:20px">上证指数历史走势</div>
         <div ref="compareIdxEl" style="height:200px"></div>
       </div>
-    </div>
 
-    <!-- ==================== 4. 资产配比 ==================== -->
-    <div v-if="activeTab === 'allocate'">
-      <div class="card">
+      <!-- 资产配比 -->
+      <div class="card" style="margin-top:20px">
         <div class="card-title">资产配比 — Kan & Zhou 增强型风险平价</div>
         <p class="card-desc">基础权重 × 夏普信号调整，限幅 [0%, 50%]</p>
         <div class="allocate-layout">
@@ -386,8 +385,7 @@ const tabs = [
   { key: 'overview', label: '信号总览' },
   { key: 'macro',    label: '宏观策略' },
   { key: 'fed',      label: '股债对比' },
-  { key: 'compare',  label: '资产对比' },
-  { key: 'allocate', label: '资产配比' },
+  { key: 'asset',    label: '资产配置' },
   { key: 'factor',   label: '风格因子' },
   { key: 'industry', label: '行业估值' },
   { key: 'jqr',      label: '特色指标' },
@@ -1708,8 +1706,7 @@ function redrawCurrentCharts() {
     const tab = activeTab.value
     if (tab === 'macro') { drawGauge(); drawMacroCharts() }
     else if (tab === 'fed') drawFedChart()
-    else if (tab === 'compare') drawCompareIdxChart()
-    else if (tab === 'allocate') drawPie()
+    else if (tab === 'asset') { drawCompareIdxChart(); drawPie() }
     else if (tab === 'factor') {
       if (factorFactors.value.length === 0) loadFactorScores()
       if (bondSignals.value.length === 0) loadBondFactors()

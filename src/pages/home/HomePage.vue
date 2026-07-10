@@ -124,7 +124,7 @@
         <div class="skeleton" style="height:14px; width:100%; margin-bottom:8px;"></div>
         <div class="skeleton" style="height:14px; width:80%;"></div>
       </div>
-      <router-link class="view-detail" to="/signal?tab=allocate">查看大类资产性价比详情 ></router-link>
+      <router-link class="view-detail" to="/signal?tab=asset">查看大类资产性价比详情 ></router-link>
     </div>
 
     <!-- 参考基准 -->

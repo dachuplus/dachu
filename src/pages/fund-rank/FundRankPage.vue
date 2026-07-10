@@ -1378,12 +1378,12 @@ onUnmounted(() => {
 /* 最右列去掉右边框，避免外缘出现多余竖线 */
 .fund-table th:last-child,
 .fund-table td:last-child { border-right: none; }
-/* 斑马纹：偶数行浅灰蓝底（加深至清晰可辨） */
-.fund-table tbody tr:nth-child(even) { background: #dde3ea; }
-.fund-table tbody tr:nth-child(even) td.col-code { background: #dde3ea; }
-/* 悬停高亮：品牌蓝浅色，比斑马纹更深以便区分 */
-.fund-row:hover { background: #d0dae8; }
-.fund-row:hover td.col-code { background: #d0dae8; }
+/* 斑马纹：偶数行浅蓝底 + 奇数行白底，交替条纹 */
+.fund-table tbody tr:nth-child(even) { background: #e8f1fc; }
+.fund-table tbody tr:nth-child(even) td.col-code { background: #e8f1fc; }
+/* 悬停高亮：品牌蓝略深，比斑马纹更深以便区分 */
+.fund-row:hover { background: #d4e6fb; }
+.fund-row:hover td.col-code { background: #d4e6fb; }
 
 .col-code { width: 80px; font-weight: 700; color: var(--text-primary); font-family: monospace; font-size: 12px; }
 .col-code a { color: var(--text-primary); text-decoration: none; }
@@ -1396,7 +1396,7 @@ onUnmounted(() => {
   position: sticky; left: 0; z-index: 1; background: inherit;
 }
 .fund-row:hover td.col-code {
-  background: #d0dae8;
+  background: #d4e6fb;
 }
 .col-name { width: 156px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .col-name a { color: var(--text-primary); text-decoration: none; }
