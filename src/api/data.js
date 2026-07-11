@@ -194,7 +194,7 @@ export async function getCategoryRankInfoByScore(codes, scoreCol = 'k1') {
 }
 
 async function fetchFundScoresImpl(params = {}) {
-  const { t0, t1, search, kKey = 'k1', page = 1, pageSize = 100, sortAsc, etf, lof, dk, sg, dailyLimit, scaleMin, scaleMax } = params
+  const { t0, t1, search, kKey = 'k1', page = 1, pageSize = 100, sortAsc, etf, lof, dk, sg, dailyLimit, scaleMin, scaleMax, sortField, sortDir } = params
   if (supabase) {
     let query = supabase.from('fund_scores').select(FUND_SCORES_COLS, { count: 'exact', head: false })
     // 分类筛选：直接采用 fund_scores 的「一级分类 t0」与「二级分类 t1_tt」
@@ -233,9 +233,13 @@ async function fetchFundScoresImpl(params = {}) {
     if (scaleMax != null) query = query.lte('fund_scale', scaleMax)
     // 不再过滤 null 评分（否则债券型-混合二级等数据源未覆盖的分类会显示为空）
     // 改用 nullsFirst: false 让 null 排到最后
+    // 排序：若指定了列排序（sortField），则在整个 fund_scores 表（已按筛选条件过滤）基础上按该列排序；
+    //       否则按靠谱分周期 kKey 排序。两种排序均在服务端完成，覆盖全表而非仅已加载的 100 条。
+    const orderField = sortField || kKey
+    const orderAsc = sortField ? (sortDir === 'asc') : !!sortAsc
     const from = (page - 1) * pageSize
     const { data, count, error } = await query
-      .order(kKey, { ascending: !!sortAsc, nullsFirst: false })
+      .order(orderField, { ascending: orderAsc, nullsFirst: false })
       .range(from, from + pageSize - 1)
     if (error) throw error
     return { data: data || [], count }

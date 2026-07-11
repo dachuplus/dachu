@@ -947,6 +947,9 @@ async function loadData(reset = true, _retryCount = 0) {
       dailyLimit: filterDailyLimit.value || undefined,
       scaleMin: filterScaleMin.value !== '' ? parseFloat(filterScaleMin.value) : undefined,
       scaleMax: filterScaleMax.value !== '' ? parseFloat(filterScaleMax.value) : undefined,
+      // 列排序（代码/简称/经理/规模/管理费/各阶段收益）：服务端在整个 fund_scores 表排序后分页返回
+      sortField: sortField.value || undefined,
+      sortDir: sortDir.value || undefined,
     }), LOAD_TIMEOUT_MS)
 
     if (result.data) {
@@ -1127,7 +1130,7 @@ function switchPeriod(key) {
   loadData(true)
 }
 
-/** 客户端列排序（代码/简称/规模/权益%/债券%） */
+/** 列排序（代码/简称/经理/规模/管理费/各阶段收益）：改由服务端在整个 fund_scores 表排序后返回 */
 function toggleColumnSort(field) {
   if (sortField.value === field) {
     sortDir.value = sortDir.value === 'asc' ? 'desc' : 'asc'
@@ -1135,6 +1138,8 @@ function toggleColumnSort(field) {
     sortField.value = field
     sortDir.value = 'asc'  // 首次点击默认升序
   }
+  // 触发服务端重新拉取（排序已下推到数据库，覆盖全表而非仅已加载的 100 条）
+  loadData(true)
 }
 
 /** 收益涨跌幅颜色：涨红跌绿（中国习惯），0/空为次要文本色 */
@@ -1145,20 +1150,11 @@ function retColor(v) {
   return n > 0 ? '#d4351c' : '#00703c'
 }
 
-/** 排序后的基金列表 */
-const sortedFunds = computed(() => {
-  if (!sortField.value) return funds.value
-  const dir = sortDir.value === 'asc' ? 1 : -1
-  const key = sortField.value
-  return [...funds.value].sort((a, b) => {
-    let va = a[key], vb = b[key]
-    if (va == null) va = dir > 0 ? Infinity : -Infinity
-    if (vb == null) vb = dir > 0 ? Infinity : -Infinity
-    if (typeof va === 'string') va = va.toLowerCase()
-    if (typeof vb === 'string') vb = vb.toLowerCase()
-    return va > vb ? dir : va < vb ? -dir : 0
-  })
-})
+/** 排序后的基金列表
+ *  排序已在服务端完成（整个 fund_scores 表按筛选条件过滤后，按靠谱分周期或指定列排序），
+ *  这里直接返回 funds（服务端已按正确顺序分页返回，加载更多时顺序保持全局一致）。
+ *  不再做客户端排序——否则只会排已加载的前 100 条，无法反映全表排序结果。 */
+const sortedFunds = computed(() => funds.value)
 
 function doSearch() { loadData(true) }
 
