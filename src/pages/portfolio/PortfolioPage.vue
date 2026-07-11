@@ -347,6 +347,11 @@
 
     </div>
 
+    <!-- ==================== 3. AI 大 PK ==================== -->
+    <div v-if="activeTab === 'aipk'">
+      <AIPkPanel />
+    </div>
+
     <!-- ==================== 4. 基金指数 ==================== -->
     <div v-if="activeTab === 'index'">
       <FundIndexPanel />
@@ -366,6 +371,7 @@ import { useAuth } from '../../composables/useAuth'
 import { toast, confirm } from '../../composables/useToast.js'
 import { createPortfolio as savePortfolioToDb, deletePortfolio } from '../../api/user-data'
 import FundIndexPanel from './FundIndexPanel.vue'
+import AIPkPanel from './AIPkPanel.vue'
 
 const {
   user, isLoggedIn,
@@ -377,6 +383,7 @@ const {
 const tabs = [
   { key: 'custom', label: '自建组合' },
   { key: 'ai', label: 'AI 组合' },
+  { key: 'aipk', label: 'AI 大 PK' },
   { key: 'index', label: '基金指数' }
 ]
 const activeTab = ref('custom')
