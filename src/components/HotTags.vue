@@ -77,7 +77,7 @@
                     </div>
                   </div>
                   <div class="ft-right">
-                    <span class="ft-ret-label">区间收益</span>
+                    <span class="ft-ret-label">近1年收益</span>
                     <span class="ft-ret" :style="{ color: retColor(f.r1y) }" v-if="f.r1y != null">{{ fmtRetPlain(f.r1y) }}%</span>
                     <span class="ft-ret" v-else>—</span>
                   </div>
@@ -87,6 +87,10 @@
             <div class="funds-empty" v-else>
               <p>暂无关联基金数据</p>
               <p class="funds-empty-hint">可前往<a :href="eastmoneyTopicUrl(selectedTag.name)" target="_blank">天天基金</a>查看完整列表</p>
+            </div>
+            <!-- 数据来源 -->
+            <div class="data-source-line">
+              数据来源：ALLFUND.CN &nbsp;|&nbsp; 截止时间：{{ fundMetaUpdateTime || '—' }}
             </div>
           </div>
         </div>
@@ -116,7 +120,7 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import QRCode from 'qrcode'
-import { fetchFundTags } from '../api/data.js'
+import { fetchFundTags, fetchFundMeta } from '../api/data.js'
 import { fmtRetPlain } from '../utils/format.js'
 
 const props = defineProps({
@@ -133,6 +137,7 @@ const tagFunds = ref([]) // 标签关联的基金列表（前3只）
 const tagFundsLoading = ref(false)
 const shareImage = ref(null) // 生成的分享图 dataURL
 const shareGenerating = ref(false)
+const fundMetaUpdateTime = ref('') // fund_scores 更新时间
 
 // ========== 计算属性 ==========
 const displayTags = computed(() => {
@@ -162,6 +167,15 @@ function openTagDetail(tag) {
   selectedTag.value = tag
   tagFunds.value = []
   loadTagFunds(tag)
+  // 获取 fund_scores 更新时间
+  fetchFundMeta().then(m => {
+    if (m?.tsq) {
+      try {
+        const d = new Date(m.tsq)
+        fundMetaUpdateTime.value = d.toLocaleString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false })
+      } catch { fundMetaUpdateTime.value = '' }
+    }
+  })
 }
 
 /** 从 fund_tag_funds 表查询标签关联基金（东财 ZTJJ 真实映射），再补充 fund_scores 的经理字段 */
@@ -267,7 +281,76 @@ function truncateText(ctx, text, maxWidth) {
   return t + '…'
 }
 
-/** 生成分享图片：含标签 + 3只基金 + 二维码 */
+/** 文字自动换行（canvas 用） */
+function wrapText(ctx, text, maxWidth) {
+  if (!text) return []
+  const lines = []
+  let current = ''
+  for (const ch of text) {
+    const test = current + ch
+    if (ctx.measureText(test).width <= maxWidth) {
+      current = test
+    } else {
+      if (current) lines.push(current)
+      current = ch
+    }
+  }
+  if (current) lines.push(current)
+  return lines
+}
+
+/** 调用 DeepSeek 生成标签相关金句 */
+async function generateTagline(tagName, avgReturn, isPositive, funds) {
+  const apiKey = import.meta.env.VITE_DEEPSEEK_API_KEY || ''
+  if (!apiKey) return ''
+
+  // 构建基金表现摘要
+  const topFund = funds.length > 0 ? funds[0] : null
+  const fundSummary = funds.slice(0, 3).map(f => {
+    const ret = f.r1y != null ? (f.r1y >= 0 ? '+' : '') + f.r1y.toFixed(2) + '%' : '—'
+    return `${f.n || f.c}(${ret})`
+  }).join('、')
+
+  const direction = isPositive ? '大涨' : '下跌'
+  const toneInstruction = isPositive
+    ? '写一句正向的、张扬的、充满斗志和激情的金句，让读者看了热血沸腾想立刻买入或持有'
+    : '写一句鼓励的、温暖的、给人坚持力量的金句，让读者在亏损中不放弃、相信长期价值'
+
+  const prompt = `你是一个有感染力的基金投资博主。请根据以下信息，${toneInstruction}。
+
+要求：
+- 金句必须与标签「${tagName}」强相关，体现该赛道的行业特征
+- ${isPositive ? '要体现涨幅的亮眼程度，用数字增强冲击力' : '要体现当前困难是暂时的，该赛道长期逻辑未变'}
+- 一句话，不超过30个字
+- 不要用emoji，不要引号，直接输出金句正文
+
+标签：${tagName}
+板块方向：${direction}
+平均近1年收益：${avgReturn != null ? (avgReturn >= 0 ? '+' : '') + avgReturn.toFixed(2) + '%' : '—'}
+代表性基金：${fundSummary || '无'}`
+
+  const response = await fetch('https://api.deepseek.com/v1/chat/completions', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
+    body: JSON.stringify({
+      model: 'deepseek-chat',
+      messages: [
+        { role: 'system', content: '你是擅长写短小有力投资金句的高手。只输出金句正文，不要任何解释、前缀、后缀。' },
+        { role: 'user', content: prompt }
+      ],
+      temperature: 0.85,
+      max_tokens: 100
+    })
+  })
+  if (!response.ok) return ''
+  const result = await response.json()
+  let content = result.choices?.[0]?.message?.content || ''
+  // 清理可能的引号和换行
+  content = content.replace(/^["'「『]|["'」』]$/g, '').replace(/\n/g, ' ').trim()
+  return content.slice(0, 60) // 安全截断
+}
+
+/** 生成分享图片：含标签 + 基金 + 金句 + 二维码 */
 async function generateShareImage() {
   if (shareGenerating.value) return
   shareGenerating.value = true
@@ -283,11 +366,36 @@ async function generateShareImage() {
     const qrBottomGap = 70
 
     const list = tagFunds.value
+    // 计算平均收益用于判断涨跌方向
+    const avgReturn = list.length > 0
+      ? list.reduce((s, f) => s + (f.r1y ?? 0), 0) / list.length
+      : 0
+    const isPositive = avgReturn >= 0
+
+    // 获取金句（DeepSeek）
+    let tagline = ''
+    try {
+      tagline = await generateTagline(selectedTag.value.name, avgReturn, isPositive, list)
+    } catch { /* 静默失败，不显示金句 */ }
+
+    // 获取更新时间
+    let updateTimeStr = ''
+    try {
+      const meta = await fetchFundMeta()
+      if (meta?.tsq) {
+        const d = new Date(meta.tsq)
+        updateTimeStr = d.toLocaleString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false })
+      }
+    } catch { /* ignore */ }
+
     let H = headerH + titleGap + 20
     H += list.length * (fundH + fundGap)
-    H += 30 // 与二维码间距
+    H += 30 // 与金句间距
+    if (tagline) H += 50 // 金句高度
+    H += 20 // 金句与二维码间距
     const qrY = H
     H += qrSize + qrBottomGap
+    H += 30 // 来源行高度
 
     const canvas = document.createElement('canvas')
     canvas.width = W * scale
@@ -369,9 +477,24 @@ async function generateShareImage() {
       ctx.fillText(retStr, W - pad - 20, y + 44)
       ctx.fillStyle = '#999999'
       ctx.font = '17px sans-serif'
-      ctx.fillText('区间收益(近1年)', W - pad - 20, y + 92)
+      ctx.fillText('近1年收益', W - pad - 20, y + 92)
 
       y += fundH + fundGap
+    }
+
+    // 金句（DeepSeek 生成，在二维码上方）
+    if (tagline) {
+      ctx.textAlign = 'center'
+      ctx.fillStyle = isPositive ? '#d4351c' : '#1d70b8'
+      ctx.font = 'bold 24px sans-serif'
+      // 自动换行：金句较长时分行
+      const maxTaglineW = W - pad * 2
+      const lines = wrapText(ctx, tagline, maxTaglineW)
+      let lineY = qrY - lines.length * 32 - 10
+      for (const line of lines) {
+        ctx.fillText(line, W / 2, lineY)
+        lineY += 30
+      }
     }
 
     // 二维码
@@ -390,6 +513,17 @@ async function generateShareImage() {
     ctx.fillStyle = '#999999'
     ctx.font = '18px sans-serif'
     ctx.fillText('识别二维码，查看靠谱指数与更多热门基金', W / 2, qrY + qrSize + 52)
+
+    // 来源信息
+    if (updateTimeStr) {
+      ctx.fillStyle = '#bbbbbb'
+      ctx.font = '15px sans-serif'
+      ctx.fillText('来源：ALLFUND.CN  |  ' + updateTimeStr, W / 2, qrY + qrSize + 80)
+    } else {
+      ctx.fillStyle = '#bbbbbb'
+      ctx.font = '15px sans-serif'
+      ctx.fillText('来源：ALLFUND.CN', W / 2, qrY + qrSize + 80)
+    }
 
     shareImage.value = canvas.toDataURL('image/png')
   } catch (e) {
@@ -708,6 +842,14 @@ defineExpose({ refresh: loadTags })
 .funds-empty p { margin: var(--space-xs) 0; }
 .funds-empty-hint { font-size: 13px; }
 .funds-empty a { color: var(--link); text-decoration: underline; }
+.data-source-line {
+  font-size: 11px;
+  color: var(--text-secondary);
+  text-align: center;
+  padding-top: var(--space-sm);
+  margin-top: var(--space-xs);
+  border-top: 1px solid #f0f0f0;
+}
 
 .mask { position: fixed; inset: 0; background: rgba(29,112,184,0.6); z-index: 100; }
 
