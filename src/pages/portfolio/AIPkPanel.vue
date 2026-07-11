@@ -101,14 +101,30 @@
     <!-- 调仓时间线 -->
     <div class="card aipk-timeline-card">
       <div class="card-title">调仓时间线</div>
-      <div class="aipk-timeline">
-        <div class="aipk-tl-item" v-for="pm in timelinePeriods" :key="pm">
-          <span class="aipk-tl-dot"></span>
-          <span class="aipk-tl-date">{{ pm }} 月度调仓</span>
-          <span class="aipk-tl-desc">各模型按规则重新选基，每月 1 日自动调仓（接入真实模型 API 后生效）</span>
+      <div class="aipk-tl-period" v-if="latestPeriod">
+        {{ latestPeriod }} 月度调仓 · 各模型选基逻辑（两层）
+      </div>
+      <div class="aipk-tl-empty" v-if="!orderedModels.length">暂无选基数据</div>
+      <div class="aipk-tl-model" v-for="m in orderedModels" :key="m.id">
+        <div class="aipk-tl-model-hd">
+          <span class="aipk-dot" :style="{ background: m.color }"></span>
+          <span class="aipk-tl-model-name">{{ m.name }}</span>
+          <span class="aipk-tl-model-short" :style="{ color: m.color }">{{ m.name_short }}</span>
         </div>
-        <div class="aipk-tl-item" v-if="!timelinePeriods.length">
-          <span class="aipk-tl-desc">暂无调仓记录</span>
+        <div class="aipk-tl-layer">
+          <span class="aipk-tl-tag">第一层 · 品类逻辑</span>
+          <p class="aipk-tl-text">{{ m.category_logic || '—' }}</p>
+        </div>
+        <div class="aipk-tl-layer">
+          <span class="aipk-tl-tag">第二层 · 个基逻辑</span>
+          <div class="aipk-tl-funds">
+            <div class="aipk-tl-fund" v-for="(f, i) in (picksMap[m.id]?.picks || [])" :key="f.code">
+              <span class="aipk-tl-fund-idx">{{ i + 1 }}</span>
+              <span class="aipk-tl-fund-name">{{ f.name }}</span>
+              <span class="aipk-tl-fund-w">20%</span>
+              <p class="aipk-tl-fund-reason">{{ f.reason || '—' }}</p>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -205,6 +221,7 @@ const timelinePeriods = computed(() => {
   Object.values(picksMap.value).forEach(p => { if (p?.period_month) set.add(p.period_month) })
   return [...set].sort().reverse()
 })
+const latestPeriod = computed(() => timelinePeriods.value[0] || null)
 
 function modelName(id) {
   return models.value.find(m => m.id === id)?.name || id
@@ -384,13 +401,23 @@ onBeforeUnmount(() => {
 .ret-flat { color: #505a66; }
 .ret-na { color: #b1b4b6; }
 
-/* 时间线 */
-.aipk-timeline { position: relative; padding-left: var(--space-lg); }
-.aipk-timeline::before { content: ''; position: absolute; left: 5px; top: 4px; bottom: 4px; width: 2px; background: var(--border); }
-.aipk-tl-item { position: relative; display: flex; align-items: baseline; gap: var(--space-md); padding: var(--space-sm) 0; flex-wrap: wrap; }
-.aipk-tl-dot { position: absolute; left: calc(-1 * var(--space-lg) + 1px); top: 12px; width: 10px; height: 10px; background: #1d70b8; border-radius: 50%; }
-.aipk-tl-date { font-size: 15px; font-weight: 700; color: #1d70b8; }
-.aipk-tl-desc { font-size: 14px; color: var(--text-secondary); }
+/* 时间线（两层选基逻辑） */
+.aipk-tl-period { font-size: 15px; font-weight: 700; color: #1d70b8; margin-bottom: var(--space-md); }
+.aipk-tl-empty { font-size: 14px; color: var(--text-secondary); }
+.aipk-tl-model { border-top: 1px solid var(--border); padding: var(--space-md) 0; }
+.aipk-tl-model:first-of-type { border-top: none; }
+.aipk-tl-model-hd { display: flex; align-items: center; gap: var(--space-sm); margin-bottom: var(--space-sm); }
+.aipk-tl-model-name { font-size: 17px; font-weight: 700; }
+.aipk-tl-model-short { font-size: 13px; font-weight: 700; }
+.aipk-tl-layer { margin-bottom: var(--space-sm); }
+.aipk-tl-tag { display: inline-block; font-size: 12px; font-weight: 700; color: #fff; background: #1d70b8; padding: 2px 8px; margin-bottom: 6px; }
+.aipk-tl-text { font-size: 14px; color: var(--text-secondary); line-height: 1.7; margin: 0; }
+.aipk-tl-funds { display: flex; flex-direction: column; gap: 8px; }
+.aipk-tl-fund { display: grid; grid-template-columns: 20px 1fr auto; gap: var(--space-sm); align-items: baseline; }
+.aipk-tl-fund-idx { width: 20px; height: 20px; line-height: 20px; text-align: center; background: #f3f2f1; color: var(--text-secondary); font-size: 11px; }
+.aipk-tl-fund-name { font-weight: 600; font-size: 14px; }
+.aipk-tl-fund-w { color: #1d70b8; font-weight: 700; font-size: 12px; }
+.aipk-tl-fund-reason { grid-column: 2 / 4; font-size: 13px; color: var(--text-secondary); line-height: 1.6; margin: 2px 0 0; }
 
 .aipk-loading { text-align: center; padding: var(--space-xl); color: var(--text-secondary); }
 
