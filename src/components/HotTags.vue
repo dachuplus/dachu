@@ -31,6 +31,11 @@
       </div>
     </div>
 
+    <!-- 数据来源说明 -->
+    <div class="tags-footnote" v-if="displayTags.length > 0">
+      板块收益为该标签关联基金近1年收益率均值，数据来源：天天基金东财ZTJJ接口
+    </div>
+
     <!-- 加载中 -->
     <div class="tags-loading" v-if="loading && displayTags.length === 0">标签加载中...</div>
 
@@ -43,7 +48,7 @@
             <span class="detail-title">
               {{ selectedTag.name }}
               <span class="detail-type-badge" :class="selectedTag.tag_type">{{ selectedTag.tag_type === 'concept' ? '概念' : '行业' }}</span>
-              <span class="detail-return" v-if="selectedTag.return_pct != null">近1年 {{ fmtPct(selectedTag.return_pct) }}</span>
+              <span class="detail-return" :class="selectedTag.return_pct >= 0 ? 'positive' : 'negative'" v-if="selectedTag.return_pct != null">近1年 {{ fmtPct(selectedTag.return_pct) }}</span>
             </span>
             <div class="detail-header-actions">
               <button
@@ -243,17 +248,27 @@ async function loadTagFunds(tag) {
   }
 }
 
-/** 颜色映射：根据收益率返回红粉渐变色 */
+/** 颜色映射：根据收益率返回颜色（正=红粉渐变，负=绿渐变，参考天天基金） */
 function tagColor(ret) {
   if (ret == null) return '#e8e8e8'
   const r = parseFloat(ret)
   if (isNaN(r)) return '#e8e8e8'
-  const v = Math.min(Math.max(r, 0), 600)
-  let ratio = v / 600
-  const r_val = Math.round(255 - ratio * 60)
-  const g_val = Math.round(224 - ratio * 200)
-  const b_val = Math.round(224 - ratio * 210)
-  return `rgb(${r_val},${g_val},${b_val})`
+  if (r >= 0) {
+    // 正收益：红→粉渐变（0%=浅粉, 600%+=深红）
+    const v = Math.min(r, 600)
+    const ratio = v / 600
+    const rv = Math.round(255 - ratio * 60)
+    const gv = Math.round(224 - ratio * 200)
+    const bv = Math.round(224 - ratio * 210)
+    return `rgb(${rv},${gv},${bv})`
+  } else {
+    // 负收益：绿渐变（0%=浅绿, -25%+=深绿）
+    const v = Math.max(r, -25)
+    const ratio = v / -25  // 0~1
+    const gv = Math.round(220 - ratio * 80)
+    const bv = Math.round(215 - ratio * 90)
+    return `rgb(${Math.round(60 + ratio * 40)},${gu},${bv})`
+  }
 }
 
 function fmtPct(v) {
@@ -447,9 +462,11 @@ async function generateShareImage() {
     ctx.fillStyle = '#ffffff'
     ctx.textAlign = 'center'
     ctx.fillText(badgeText, W - pad - bw / 2, y + 13)
-    // 标签收益率
+    // 标签收益率（根据涨跌变色）
+    const tagRet = parseFloat(selectedTag.value.return_pct)
+    const isTagPositive = !isNaN(tagRet) && tagRet >= 0
     ctx.textAlign = 'left'
-    ctx.fillStyle = '#d4351c'
+    ctx.fillStyle = isTagPositive ? '#d4351c' : '#00703c'
     ctx.font = 'bold 26px sans-serif'
     ctx.fillText('近1年收益 ' + fmtPct(selectedTag.value.return_pct), pad, y + 56)
 
@@ -676,6 +693,13 @@ defineExpose({ refresh: loadTags })
   font-size: 14px;
   color: var(--text-secondary);
 }
+.tags-footnote {
+  font-size: 11px;
+  color: var(--text-secondary);
+  text-align: center;
+  padding: 6px var(--space-md) var(--space-sm);
+  line-height: 1.4;
+}
 
 /* ===== 标签详情弹窗（垂直居中，保证完整展示） ===== */
 .tag-detail-panel {
@@ -728,9 +752,11 @@ defineExpose({ refresh: loadTags })
 .detail-return {
   font-size: 16px;
   font-weight: 700;
-  color: #d4351c;
   flex-shrink: 0;
 }
+/* 正收益红色，负收益绿色 */
+.detail-return.positive { color: #d4351c; }
+.detail-return.negative { color: #00703c; }
 .detail-header-actions {
   display: flex;
   align-items: center;
