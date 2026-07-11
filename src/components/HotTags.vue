@@ -43,7 +43,7 @@
             <span class="detail-title">
               {{ selectedTag.name }}
               <span class="detail-type-badge" :class="selectedTag.tag_type">{{ selectedTag.tag_type === 'concept' ? '概念' : '行业' }}</span>
-              <span class="detail-return" v-if="selectedTag.return_pct != null">{{ fmtPct(selectedTag.return_pct) }}</span>
+              <span class="detail-return" v-if="selectedTag.return_pct != null">近1年 {{ fmtPct(selectedTag.return_pct) }}</span>
             </span>
             <div class="detail-header-actions">
               <button
@@ -310,12 +310,11 @@ function wrapText(ctx, text, maxWidth) {
 }
 
 /** 调用 DeepSeek 生成标签相关金句 */
-async function generateTagline(tagName, avgReturn, isPositive, funds) {
+async function generateTagline(tagName, tagReturnPct, isPositive, funds) {
   const apiKey = import.meta.env.VITE_DEEPSEEK_API_KEY || ''
   if (!apiKey) return ''
 
   // 构建基金表现摘要
-  const topFund = funds.length > 0 ? funds[0] : null
   const fundSummary = funds.slice(0, 3).map(f => {
     const ret = f.r1y != null ? (f.r1y >= 0 ? '+' : '') + f.r1y.toFixed(2) + '%' : '—'
     return `${f.n || f.c}(${ret})`
@@ -326,17 +325,20 @@ async function generateTagline(tagName, avgReturn, isPositive, funds) {
     ? '写一句正向的、张扬的、充满斗志和激情的金句，让读者看了热血沸腾想立刻买入或持有'
     : '写一句鼓励的、温暖的、给人坚持力量的金句，让读者在亏损中不放弃、相信长期价值'
 
+  // 板块收益格式化：必须使用这个真实数据
+  const retStr = tagReturnPct != null ? (tagReturnPct >= 0 ? '+' : '') + tagReturnPct.toFixed(2) + '%' : ''
+
   const prompt = `你是一个有感染力的基金投资博主。请根据以下信息，${toneInstruction}。
 
 要求：
 - 金句必须与标签「${tagName}」强相关，体现该赛道的行业特征
-- ${isPositive ? '要体现涨幅的亮眼程度，用数字增强冲击力' : '要体现当前困难是暂时的，该赛道长期逻辑未变'}
+- ${isPositive ? `要体现涨幅的亮眼程度。如果金句里包含收益率数字，必须且只能用「${retStr}」这个板块近1年收益数据，禁止编造其他数字` : '要体现当前困难是暂时的，该赛道长期逻辑未变'}
 - 一句话，不超过30个字
 - 不要用emoji，不要引号，直接输出金句正文
 
 标签：${tagName}
 板块方向：${direction}
-平均近1年收益：${avgReturn != null ? (avgReturn >= 0 ? '+' : '') + avgReturn.toFixed(2) + '%' : '—'}
+板块近1年收益（唯一权威数字）：${retStr || '—'}
 代表性基金：${fundSummary || '无'}`
 
   const response = await fetch('https://api.deepseek.com/v1/chat/completions', {
@@ -385,7 +387,7 @@ async function generateShareImage() {
     // 获取金句（DeepSeek）
     let tagline = ''
     try {
-      tagline = await generateTagline(selectedTag.value.name, avgReturn, isPositive, list)
+      tagline = await generateTagline(selectedTag.value.name, selectedTag.value.return_pct, isPositive, list)
     } catch { /* 静默失败，不显示金句 */ }
 
     // 获取更新时间
@@ -449,7 +451,7 @@ async function generateShareImage() {
     ctx.textAlign = 'left'
     ctx.fillStyle = '#d4351c'
     ctx.font = 'bold 26px sans-serif'
-    ctx.fillText('板块收益 ' + fmtPct(selectedTag.value.return_pct), pad, y + 56)
+    ctx.fillText('近1年收益 ' + fmtPct(selectedTag.value.return_pct), pad, y + 56)
 
     // 基金卡片
     y = headerH + titleGap
