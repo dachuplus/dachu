@@ -356,7 +356,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, nextTick } from 'vue'
+import { ref, computed, onMounted, watch, nextTick } from 'vue'
 import { supabase } from '../../api/supabase'
 import { fetchValue500All } from '../../utils/api'
 import { getCategoryRankInfo, getCategoryRankInfoByScore } from '../../api/data.js'
@@ -868,6 +868,7 @@ async function addPortfolioToCustom(pf) {
     toast('已添加到自建组合', 'success')
     activeTab.value = 'custom'
     await nextTick()
+    await enrichRanks()
     loadPortfolioReturns()
   } catch (err) {
     console.error('[addPortfolioToCustom]', err)
@@ -1089,7 +1090,26 @@ async function fetchCategoryFunds(cfg, limit) {
 
 onMounted(() => {
   loadAiHistory()
+  // 初始化：如果默认 tab 是自建组合且已登录，立即加载组合数据 + 元数据
+  if (activeTab.value === 'custom' && isLoggedIn.value) {
+    loadCustomPortfolios()
+  }
 })
+
+// 监听：登录状态变为已登录 + 默认在自建组合 tab 时，自动加载
+watch(isLoggedIn, (loggedIn) => {
+  if (loggedIn && activeTab.value === 'custom') {
+    loadCustomPortfolios()
+  }
+})
+
+// 监听：自定义组合列表变化时（如从 AI 添加到自建），自动刷新元数据
+watch(customPortfolios, (newVal) => {
+  if (activeTab.value === 'custom' && newVal && newVal.length > 0) {
+    enrichRanks()
+    loadPortfolioReturns()
+  }
+}, { deep: true })
 </script>
 
 <style scoped>
