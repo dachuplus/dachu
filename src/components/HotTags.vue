@@ -164,27 +164,53 @@ function openTagDetail(tag) {
   loadTagFunds(tag)
 }
 
-/** 从 fund_scores 表模糊匹配关联基金，取靠谱分最高的前 3 只 */
+/** 从 fund_tag_funds 表查询标签关联基金（东财真实映射），再补充 fund_scores 的经理/收益字段 */
 async function loadTagFunds(tag) {
   tagFundsLoading.value = true
   try {
     const { supabase } = await import('../api/supabase.js')
-    if (!supabase) {
-      tagFundsLoading.value = false
+    if (!supabase) { tagFundsLoading.value = false; return }
+
+    // 1) 从 fund_tag_funds 获取东财映射的基金列表（前5只，取靠谱分最高的）
+    const { data: mappings, error: err1 } = await supabase
+      .from('fund_tag_funds')
+      .select('fund_code,fund_name,fund_type,return_pct')
+      .eq('tag_name', tag.name)
+      .order('sort_order', { ascending: true })
+    .limit(5)
+
+    if (err1 || !mappings || mappings.length === 0) {
+      tagFunds.value = []
       return
     }
 
-    const keyword = tag.name.replace(/[+&｜()（）]/g, '')
-    const { data, error } = await supabase
+    // 2) 用基金代码从 fund_scores 补充经理和近1年收益
+    const codes = mappings.map(m => m.fund_code).filter(Boolean)
+    const { data: scores } = await supabase
       .from('fund_scores')
-      .select('c,n,t0,t1,t1_tt,k1,r1y,fund_manager')
-      .or(`n.ilike.%${keyword}%`)
-      .order('k1', { ascending: false, nullsFirst: false })
-      .limit(3)
+      .select('c,n,fund_manager,r1y,k1')
+      .in('c', codes)
 
-    if (!error && data) {
-      tagFunds.value = data
+    const scoreMap = {}
+    if (scores) {
+      for (const s of scores) { scoreMap[s.c] = s }
     }
+
+    // 3) 合并：优先用 fund_scores 字段，fallback 到映射数据
+    tagFunds.value = mappings.map(m => {
+      const sc = scoreMap[m.fund_code] || {}
+      return {
+        c: m.fund_code,
+        n: sc.n || m.fund_name,
+        t0: sc.t0,
+        t1: sc.t1,
+        t1_tt: sc.t1_tt,
+        k1: sc.k1,
+        r1y: sc.r1y ?? m.return_pct,  // fund_scores 优先，否则用东财收益率
+        fund_manager: sc.fund_manager || '',
+        _ftype: m.fund_type,
+      }
+    })
   } catch (e) {
     console.error('[HotTags] loadTagFunds error', e)
   } finally {
