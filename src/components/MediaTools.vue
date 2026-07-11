@@ -14,7 +14,7 @@
       >MP3 + 图片 合成 MP4</div>
     </div>
 
-    <p class="mt-note">全部转换在您的浏览器本地完成，文件不会上传到任何服务器，请放心使用。</p>
+    <p class="mt-note">全部转换在您的浏览器本地完成，文件不会上传到任何服务器，请放心使用。单个上传文件不超过 30MB。</p>
 
     <!-- ========== MP4 → MP3 ========== -->
     <div v-if="sub === 'v2a'" class="mt-card">
@@ -59,6 +59,13 @@
 
       <img v-if="a2vPreview" :src="a2vPreview" class="mt-preview" alt="封面预览" />
 
+      <label class="mt-drop mt-sub-drop" :class="{ filled: a2vSubtitle }">
+        <input type="file" accept=".srt,.vtt,.ass,.ssa,text/plain" @change="onA2vSubtitle" hidden />
+        <span v-if="!a2vSubtitle">（可选）点击上传字幕文件（SRT / VTT / ASS / SSA）</span>
+        <span v-else>字幕：{{ a2vSubtitle.name }}（{{ fmtSize(a2vSubtitle.size) }}）</span>
+      </label>
+      <p v-if="a2vSubtitle" class="mt-hint">字幕将以硬字幕形式烧录到视频中，所有播放器均可显示。</p>
+
       <button
         class="mt-btn"
         :disabled="!a2vAudio || !a2vImage || busy"
@@ -81,7 +88,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onUnmounted } from 'vue'
+import { ref, onUnmounted } from 'vue'
 
 const sub = ref('v2a')
 const busy = ref(false)
@@ -90,6 +97,9 @@ const progress = ref(0)
 const errMsg = ref('')
 const loadingCore = ref(false)
 
+// 上传文件大小上限：30MB
+const MAX_SIZE = 30 * 1024 * 1024
+
 // MP4 → MP3 状态
 const v2aFile = ref(null)
 const v2aResult = ref(null)
@@ -97,7 +107,9 @@ const v2aResult = ref(null)
 // MP3 + 图片 → MP4 状态
 const a2vAudio = ref(null)
 const a2vImage = ref(null)
+const a2vSubtitle = ref(null)
 const a2vPreview = ref('')
+const a2vImgH = ref(0)
 const a2vResult = ref(null)
 
 let ffmpeg = null
@@ -109,22 +121,50 @@ function fmtSize(bytes) {
   return (bytes / 1024 / 1024).toFixed(1) + ' MB'
 }
 
+function checkSize(file, label) {
+  if (file.size > MAX_SIZE) {
+    errMsg.value = `${label}文件过大（${fmtSize(file.size)}），请控制在 30MB 以内。`
+    return false
+  }
+  return true
+}
+
 function onV2aFile(e) {
   const f = e.target.files && e.target.files[0]
-  if (f) { v2aFile.value = f; v2aResult.value = null; errMsg.value = '' }
+  if (f) {
+    if (!checkSize(f, '视频')) return
+    v2aFile.value = f; v2aResult.value = null; errMsg.value = ''
+  }
 }
 function onA2vAudio(e) {
   const f = e.target.files && e.target.files[0]
-  if (f) { a2vAudio.value = f; a2vResult.value = null; errMsg.value = '' }
+  if (f) {
+    if (!checkSize(f, '音频')) return
+    a2vAudio.value = f; a2vResult.value = null; errMsg.value = ''
+  }
 }
 function onA2vImage(e) {
   const f = e.target.files && e.target.files[0]
   if (f) {
+    if (!checkSize(f, '图片')) return
     a2vImage.value = f
     a2vResult.value = null
     errMsg.value = ''
     if (a2vPreview.value) URL.revokeObjectURL(a2vPreview.value)
-    a2vPreview.value = URL.createObjectURL(f)
+    const url = URL.createObjectURL(f)
+    a2vPreview.value = url
+    const img = new Image()
+    img.onload = () => { a2vImgH.value = img.naturalHeight || 0 }
+    img.src = url
+  }
+}
+function onA2vSubtitle(e) {
+  const f = e.target.files && e.target.files[0]
+  if (f) {
+    if (!checkSize(f, '字幕')) return
+    a2vSubtitle.value = f
+    a2vResult.value = null
+    errMsg.value = ''
   }
 }
 
@@ -216,21 +256,40 @@ async function convertA2V() {
     const outName = 'output.mp4'
     await fm.writeFile(imgName, await readFileBytes(a2vImage.value))
     await fm.writeFile(audName, await readFileBytes(a2vAudio.value))
-    await fm.exec([
+
+    // 基础视频滤镜：尺寸取偶 + yuv420p 兼容
+    let vf = 'scale=trunc(iw/2)*2:trunc(ih/2)*2,format=yuv420p'
+
+    // 字幕（可选）：烧录为硬字幕，字体大小按封面高度自适应，带黑色描边保证可读性
+    let subName = null
+    if (a2vSubtitle.value) {
+      const subExt = (a2vSubtitle.value.name.match(/\.(srt|vtt|ass|ssa)$/i) || ['', 'srt'])[1].toLowerCase()
+      subName = `sub.${subExt}`
+      await fm.writeFile(subName, await readFileBytes(a2vSubtitle.value))
+      const fontSize = Math.round(Math.max(18, (a2vImgH.value || 720) / 24))
+      vf += `,subtitles=${subName}:force_style='FontSize=${fontSize},Alignment=2,MarginV=40,Outline=2,OutlineColour=&H000000'`
+    }
+
+    const args = [
       '-loop', '1',
       '-framerate', '2',
       '-i', imgName,
       '-i', audName,
+    ]
+    if (subName) args.push('-i', subName)
+    args.push(
       '-c:v', 'libx264',
       '-preset', 'ultrafast',
       '-tune', 'stillimage',
-      '-vf', 'scale=trunc(iw/2)*2:trunc(ih/2)*2,format=yuv420p',
+      '-vf', vf,
       '-c:a', 'aac',
       '-b:a', '192k',
       '-shortest',
       '-movflags', '+faststart',
       outName,
-    ])
+    )
+
+    await fm.exec(args)
     const data = await fm.readFile(outName)
     const blob = new Blob([data.buffer], { type: 'video/mp4' })
     const baseName = (a2vAudio.value.name || 'video').replace(/\.[^.]+$/, '')
@@ -239,7 +298,12 @@ async function convertA2V() {
       name: `${baseName}.mp4`,
       size: blob.size,
     }
-    try { await fm.deleteFile(imgName); await fm.deleteFile(audName); await fm.deleteFile(outName) } catch (e) {}
+    try {
+      await fm.deleteFile(imgName)
+      await fm.deleteFile(audName)
+      if (subName) await fm.deleteFile(subName)
+      await fm.deleteFile(outName)
+    } catch (e) {}
     progress.value = 100
   } catch (e) {
     errMsg.value = '合成失败：' + (e && e.message ? e.message : String(e))
@@ -274,6 +338,8 @@ onUnmounted(() => {
   color: #505a5f; font-size: 14px; cursor: pointer; margin-bottom: 12px; background: #f8f8f8;
 }
 .mt-drop.filled { border-color: #1d70b8; color: #0b0c0c; background: #eef6fc; }
+.mt-sub-drop { border-style: dotted; background: #fbfbfb; }
+.mt-hint { font-size: 12px; color: #505a5f; margin: -6px 0 12px; }
 .mt-preview { display: block; max-width: 100%; max-height: 160px; margin: 0 auto 12px; border: 1px solid #b1b4b6; }
 .mt-btn {
   width: 100%; padding: 12px; font-size: 15px; font-weight: 600; color: #fff;
