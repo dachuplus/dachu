@@ -62,6 +62,12 @@ def get_empty_codes():
     return [x["c"] for x in rows if not x.get("fund_manager")]
 
 
+def get_combined_empty_codes():
+    """返回 fund_combined 中 fund_manager 为空的代码（不带 .OF）"""
+    rows = rest_get_all("fund_combined", "c,fund_manager")
+    return [x["c"] for x in rows if not x.get("fund_manager")]
+
+
 def esc(s):
     return str(s).replace("'", "''")
 
@@ -147,6 +153,26 @@ def main():
 
     n2 = batch_update_combined(backfill, genuine)
     print(f"✅ fund_combined 已更新: {n2} 只", flush=True)
+
+    # 第二遍：fund_combined 中仍为空经理的基金（含孤儿：不在 fund_scores 中的基金）
+    # fund_combined 行数多于 fund_scores，孤儿基金无法从 fund_scores 同步，需直接抓 jbgk。
+    combined_codes = get_combined_empty_codes()
+    print(f"\nfund_combined 仍为空经理: {len(combined_codes)} 只（含孤儿）", flush=True)
+    if combined_codes:
+        backfill2, genuine2, failed2 = {}, set(), 0
+        with ThreadPoolExecutor(max_workers=8) as ex:
+            futs = {ex.submit(fetch_one, c): c for c in combined_codes}
+            for fut in as_completed(futs):
+                c = futs[fut]
+                _, parsed, _ = fut.result()
+                if parsed and parsed.get("fund_manager"):
+                    backfill2[c] = parsed["fund_manager"]
+                elif parsed:
+                    genuine2.add(c)
+                else:
+                    failed2 += 1
+        n3 = batch_update_combined(backfill2, genuine2)
+        print(f"✅ fund_combined 孤儿/剩余已更新: {n3} 只（真无经理-- {len(genuine2)}，失败{failed2}）", flush=True)
 
     print(f"\nDone. 回填{len(backfill)} 真无经理{len(genuine)} 抓取失败{fetch_failed}", flush=True)
 
