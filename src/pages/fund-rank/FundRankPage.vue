@@ -1,5 +1,8 @@
 <template>
   <div class="page-fund-rank">
+    <!-- 热门标签（行业/概念） -->
+    <HotTags ref="hotTagsRef" />
+
     <!-- 顶部：搜索 -->
     <div class="top-bar">
       <div class="search-box">
@@ -604,6 +607,7 @@ import { addFundToPortfolio } from '../../api/user-data'
 import { useAuth } from '../../composables/useAuth.js'
 import { toast } from '../../composables/useToast.js'
 import SvgIcon from '../../components/SvgIcon.vue'
+import HotTags from '../../components/HotTags.vue'
 const { isLoggedIn, portfolios } = useAuth()
 
 // ========== 常量 ==========

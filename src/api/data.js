@@ -280,6 +280,23 @@ async function fetchFundMetaImpl() {
   return null
 }
 
+// ========== 热门标签（行业/概念） ==========
+export function fetchFundTags() {
+  return withCache('fundTags', 3600000, fetchFundTagsImpl) // 缓存1小时
+}
+
+async function fetchFundTagsImpl() {
+  if (supabase) {
+    const { data, error } = await supabase
+      .from('fund_tags')
+      .select('*')
+      .order('sort_order', { ascending: true })
+    if (error) throw error
+    return data || []
+  }
+  return []
+}
+
 // ========== 配置（API Key等）==========
 export async function fetchConfig(type) {
   if (supabase) {
