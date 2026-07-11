@@ -26,8 +26,8 @@
         :style="{ background: tagColor(tag.return_pct) }"
         @click="openTagDetail(tag)"
       >
-        <span class="tag-name">{{ tag.name }}</span>
-        <span class="tag-return" v-if="tag.return_pct != null">{{ fmtPct(tag.return_pct) }}</span>
+        <span class="tag-name" :style="{ color: tagTextColor(tag.return_pct) }">{{ tag.name }}</span>
+        <span class="tag-return" v-if="tag.return_pct != null" :style="{ color: tagTextColor(tag.return_pct), opacity: 0.9 }">{{ fmtPct(tag.return_pct) }}</span>
       </div>
     </div>
 
@@ -172,9 +172,11 @@ function openTagDetail(tag) {
   selectedTag.value = tag
   tagFunds.value = []
   loadTagFunds(tag)
-  // 获取 fund_scores 更新时间（优先 tsq，其次 update_time）
+  // 获取 fund_scores 更新时间（优先 tsq，其次 update_time / nav_date）
   fetchFundMeta().then(m => {
-    const raw = m?.tsq || m?.update_time || ''
+    if (!m) return
+    // 后备链：tsq → update_time → nav_date
+    const raw = m.tsq || m.update_time || m.nav_date || ''
     if (raw) {
       try {
         const d = new Date(raw)
@@ -183,6 +185,8 @@ function openTagDetail(tag) {
         }
       } catch { /* ignore */ }
     }
+  }).catch(e => {
+    console.warn('[HotTags] fetchFundMeta failed', e)
   })
 }
 
@@ -262,7 +266,7 @@ function tagColor(ret) {
     const bv = Math.round(224 - ratio * 210)
     return `rgb(${rv},${gv},${bv})`
   } else {
-    // 负收益：绿渐变（0%=浅绿, -25%+=深绿），白色文字保证可读性
+    // 负收益：绿渐变（0%=浅绿, -25%+=深绿）
     const v = Math.max(r, -25)
     const ratio = v / -25  // 0~1
     const rv = Math.round(190 - ratio * 130)   // 190→60
@@ -270,6 +274,18 @@ function tagColor(ret) {
     const bv = Math.round(200 - ratio * 145)   // 200→55
     return `rgb(${rv},${gv},${bv})`
   }
+}
+
+/** 根据背景亮度返回合适的文字颜色（深色底→白字，浅色底→深色字） */
+function tagTextColor(ret) {
+  const c = tagColor(ret)
+  const m = c.match(/rgb\((\d+),(\d+),(\d+)\)/)
+  if (!m) return '#fff'
+  const r = +m[1], g = +m[2], b = +m[3]
+  // 相对亮度（ITU-R BT.601 加权）
+  const lum = (0.299 * r + 0.587 * g + 0.114 * b) / 255
+  // 亮度 > 0.55 视为"浅色背景"，用深色文字保证可读性
+  return lum > 0.55 ? '#1a1a1a' : '#ffffff'
 }
 
 function fmtPct(v) {
@@ -672,7 +688,6 @@ defineExpose({ refresh: loadTags })
 .tag-name {
   font-size: 13px;
   font-weight: 700;
-  color: #fff;
   line-height: 1.2;
   word-break: keep-all;
   overflow: hidden;
@@ -682,7 +697,6 @@ defineExpose({ refresh: loadTags })
 }
 .tag-return {
   font-size: 11px;
-  color: rgba(255,255,255,0.9);
   margin-top: 2px;
   font-weight: 500;
   font-variant-numeric: tabular-nums;
