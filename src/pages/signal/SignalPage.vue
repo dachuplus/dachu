@@ -366,6 +366,11 @@
       <p class="data-source">数据来源：akshare（沪深300日线 / 全市场市盈率 / 新发基金），自建复合算法，仅供参考研究，不构成投资建议。</p>
       <p v-if="jqrIsMock" class="data-source" style="color:#b95900">注：部分特色指标当前为模拟值（真实数据暂未同步），仅用于展示卡片形态，不构成投资建议。</p>
     </div>
+
+    <!-- ==================== 8. 个人工具 ==================== -->
+    <div v-if="activeTab === 'tools'">
+      <MediaTools />
+    </div>
   </div>
 </template>
 
@@ -379,6 +384,7 @@ import { fetchValue500All, fetchConfig, fetchIndexEva, fetchFactorScores, fetchS
 import { COLORS } from '../../utils/echarts-theme'
 import { supabase } from '../../api/supabase'
 import HelpTip from '../../components/HelpTip.vue'
+import MediaTools from '../../components/MediaTools.vue'
 
 // ===== Tab 结构 =====
 const tabs = [
@@ -389,6 +395,7 @@ const tabs = [
   { key: 'factor',   label: '风格因子' },
   { key: 'industry', label: '行业估值' },
   { key: 'jqr',      label: '特色指标' },
+  { key: 'tools',    label: '个人工具' },
 ]
 // ===== 标签页持久化（Req6）：刷新后保留浏览位置 =====
 const ACTIVE_TAB_KEY = 'af_signal_active_tab'
