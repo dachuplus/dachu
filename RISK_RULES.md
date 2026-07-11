@@ -29,7 +29,7 @@
 ## 三、后端 / ETL 规则
 
 1. **禁止硬编码兜底数据**：不得在脚本中内置标签列表、收益率、净值等"BUILTIN / 默认值"数据并在拉取失败时回退写入。
-   - 例：`fetch_fund_tags.py` 的 `BUILTIN_TAGS`（131 条手写标签 + 写死收益率）属于**违规遗留代码**，已弃用且不在 CI 流水线中，须彻底删除，不得复活。
+   - 例：`fetch_fund_tags.py` 原 `BUILTIN_TAGS`（131 条手写标签 + 写死收益率）曾为违规遗留代码，已于 2026-07-11 **彻底删除**；`main()` 现改为「API 抓取不足则保留现有表并退出」。今后任何 `BUILTIN*` / `*_FALLBACK` 类内置兜底均**不得复活**。
 2. **真实 API 拉取失败 = 留空 / 跳过，不回退**：
    - 当上游接口（ZTJJ、push2、akshare、value500 等）返回空或超时，**直接跳过该批次写入**，绝不用内置假数据补位。
    - 已有真实数据的行保持不动；缺失的行保持 NULL。
@@ -50,11 +50,15 @@
 
 ---
 
-## 五、已知技术债（须整改，不得新增）
+## 五、已知技术债（已整改，存档备查）
 
-- [ ] `scripts/fetch_fund_tags.py`：`BUILTIN_TAGS` 硬编码标签 + 写死 `return_pct`，违规。**已弃用、不在 CI，须删除**。
-- [ ] `scripts/setup_fund_tags.py`：`FORCE_BUILTIN` 开关，违规。**已弃用，须删除**。
-- [ ] 前端 `SignalPage.vue` 的 `jqrIsMock` 模拟值提示：违反"禁止 mock 展示"原则，后续须改为 `--`。
+> 下述历史违规项已于 2026-07-11 全部整改完毕，相关代码已删除，不再存在硬编码兜底 / mock 展示逻辑。
+
+- [x] `scripts/fetch_fund_tags.py`：原 `BUILTIN_TAGS` 硬编码标签 + 写死 `return_pct` 已**彻底删除**；`main()` 改为「API 抓取不足则保留现有表、不写入任何数据并退出」，绝不回退硬编码。
+- [x] `scripts/setup_fund_tags.py`：原 `FORCE_BUILTIN` 开关及内置兜底已**删除**；仅接受 push2 实时真实数据，不足则拒绝写入并退出。
+- [x] 前端 `SignalPage.vue` 的 `jqrIsMock` 模拟值提示：已**删除**；特色指标（jqr）缺失真实数据时直接显示 `--` / `暂无数据`，不编造模拟值。
+- [x] 前端 `SignalPage.vue` 的 `fedIsMock` 股债性价比模拟走势：已**删除** `_renderFedChartMock`；`macro_history` 缺失时显示「暂无股债性价比历史数据」，不渲染任何伪造走势。
+- [x] `src/api/data.js` 的 `MOCK_TOUGU` / `MOCK_FUNDS` 伪造示例数据：已**删除**；`!supabase` 时返回空结果（前端显示 `--` / 暂无数据），不再展示任何示例记录。
 
 ---
 

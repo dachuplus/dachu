@@ -124,9 +124,9 @@
           股债性价比历史走势（2002—今）
           <span class="card-subtitle">上证指数叠加 10Y 国债收益率 ± 标准差带</span>
         </div>
-        <div ref="fedChartEl" style="height:420px"></div>
-        <p v-if="fedIsMock" class="chart-hint" style="margin-top:8px;font-size:12px;color:var(--text-muted)">
-          注：当前为模拟数据（基于利率均值回归关系生成），仅用于演示走势形态，不构成投资建议。
+        <div ref="fedChartEl" v-if="fedHasData" style="height:420px"></div>
+        <p v-else class="chart-hint" style="margin-top:8px;height:420px;display:flex;align-items:center;justify-content:center;color:#b95900">
+          暂无股债性价比历史数据（macro_history 缺失 cn10y / sh000001 真实数据）。
         </p>
         <p class="chart-hint" style="margin-top:8px;font-size:12px;color:var(--text-muted)">
           蓝线 = 10Y国债收益率 | 浅蓝带 = ±1σ / ±2σ 标准差 | 灰底 = 上证指数 | 红线 = 当前股债利差参考线
@@ -364,7 +364,7 @@
         <div class="jqr-chart" :ref="el => setJqrChartRef(c.key, el)"></div>
       </div>
       <p class="data-source">数据来源：ALLFUND.CN（沪深300日线 / 全市场市盈率 / 新发基金），自建复合算法，仅供参考研究，不构成投资建议。</p>
-      <p v-if="jqrIsMock" class="data-source" style="color:#b95900">注：部分特色指标当前为模拟值（真实数据暂未同步），仅用于展示卡片形态，不构成投资建议。</p>
+      <p v-if="jqrCards.length === 0" class="data-source" style="color:#b95900">暂无特色指标数据。</p>
     </div>
 
     <!-- ==================== 8. 个人工具 ==================== -->
@@ -846,12 +846,11 @@ async function drawFedChart() {
       supabase.from('macro_history').select('date, value').eq('metric', 'sh000001').order('date', { ascending: true }).limit(10000)
     ])
     if (cn10yRes.error || !cn10yRes.data?.length) {
-      // 真实历史缺失 → 基于当前利率关系生成模拟走势（标注"模拟值"）
-      fedIsMock.value = true
-      _renderFedChartMock(el)
+      // 真实历史缺失 → 按最高风控规则不渲染任何模拟走势，提示暂无数据
+      fedHasData.value = false
       return
     }
-    fedIsMock.value = false
+    fedHasData.value = true
 
     const cn10yData = cn10yRes.data
     const idxMap = {}
@@ -883,39 +882,8 @@ async function drawFedChart() {
 
 // 缓存 FED 数据避免重复拉取
 const fedSeriesData = ref(null)
-// 标记当前 FED 走势是否为模拟数据（真实历史缺失时回退）
-const fedIsMock = ref(false)
-
-// 基于当前股债利差 / 利率关系生成模拟走势（真实历史缺失时回退，仅供参考）
-function _renderFedChartMock(el) {
-  const baseYield = (bondY10y.value ? bondY10y.value * 100 : 2.8)
-  const n = 60
-  const dates = []
-  const yields = []
-  let y = baseYield + 0.6
-  const d = new Date()
-  d.setMonth(d.getMonth() - (n - 1))
-  for (let i = 0; i < n; i++) {
-    const mm = String(d.getMonth() + 1).padStart(2, '0')
-    dates.push(`${d.getFullYear()}-${mm}`)
-    // 均值回归 + 周期项 + 噪声
-    y += (baseYield - y) * 0.15 + Math.sin(i / 6) * 0.12 + (Math.random() - 0.5) * 0.15
-    yields.push(+y.toFixed(3))
-    d.setMonth(d.getMonth() + 1)
-  }
-  const mean = yields.reduce((a, b) => a + b, 0) / n
-  const variance = yields.reduce((s, v) => s + (v - mean) ** 2, 0) / n
-  const std = Math.sqrt(variance)
-  let idx = 3000
-  const indices = yields.map(() => {
-    idx += (Math.random() - 0.48) * 130
-    return +idx.toFixed(0)
-  })
-  const currentSpread = fedIndices.value[0]?.spread !== '--' ? parseFloat(fedIndices.value[0].spread) : 3.5
-  const data = { dates, yields, indices, mean, std, currentSpread, validCount: n }
-  fedSeriesData.value = data
-  _renderFedChart(el, data)
-}
+// 标记当前 FED 走势是否有真实数据（无数据时不渲染任何模拟走势）
+const fedHasData = ref(false)
 
 function _renderFedChart(el, data) {
   const { dates, yields, indices, mean, std, currentSpread, validCount } = data
@@ -1560,8 +1528,6 @@ async function loadCommodityFactors() {
 // ===== 特色指标（自建复合算法，数据存 jqr_indicators 表） =====
 const jqrCards = ref([])
 const jqrSeries = reactive({})
-// 标记特色指标是否含模拟值（真实数据缺失时回退）
-const jqrIsMock = ref(false)
 const jqrChartRefs = {}
 function setJqrChartRef(key, el) { if (el) jqrChartRefs[key] = el }
 
@@ -1578,8 +1544,10 @@ function buildJqrCard(metric, row) {
   const meta = JQR_META[metric]
   const detail = row.detail || {}
   const v = row.value
-  let signalLabel = '中性', signalClass = 'neutral'
-  if (metric === 'fear_greed') {
+  let signalLabel = '暂无数据', signalClass = 'neutral'
+  if (v == null) {
+    signalLabel = '暂无数据'; signalClass = 'neutral'
+  } else if (metric === 'fear_greed') {
     if (v < 25) { signalLabel = '极度恐惧'; signalClass = 'cold' }
     else if (v < 45) { signalLabel = '恐惧'; signalClass = 'cold' }
     else if (v < 55) { signalLabel = '中性'; signalClass = 'neutral' }
@@ -1676,20 +1644,8 @@ async function loadJqr() {
         series[metrics[i]] = data.map(d => ({ date: d.date, value: d.value }))
         cards.push(buildJqrCard(metrics[i], latest))
       } else {
-        // 该特色指标暂无真实数据 → 模拟值展示（标注"模拟值"）
-        jqrIsMock.value = true
-        const mv = metrics[i] === 'fear_greed'
-          ? 52
-          : metrics[i] === 'market_temp'
-            ? (pe300PctGlobal.value != null ? pe300PctGlobal.value : 55)
-            : metrics[i] === 'fund_issuance'
-              ? 48
-              : metrics[i] === 'equity_bond_gap'
-                ? 66
-                : metrics[i] === 'below_nav'
-                  ? 18
-                  : 58
-        cards.push(buildJqrCard(metrics[i], { date: '模拟', value: mv, detail: {} }))
+        // 该特色指标暂无真实数据 → 按最高风控规则展示 '--'，绝不编造模拟值
+        cards.push(buildJqrCard(metrics[i], { date: null, value: null, detail: {} }))
       }
     }
     jqrCards.value = cards

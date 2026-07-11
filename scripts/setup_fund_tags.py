@@ -3,6 +3,9 @@
 一次性修复脚本：通过 Supabase Management API（PAT）创建 fund_tags 表并写入标签数据。
 绕过 RLS，确保前端 fetchFundTags 能拿到数据。
 
+风控：本脚本仅接受 push2.eastmoney.com 实时抓取的真实数据；绝不写入任何兜底/假数据。
+若实时抓取不足，按最高风控规则拒绝写入并退出，不回退到内置列表。
+
 用法（必须用正确的 PAT 覆盖沙箱里过期的 SUPABASE_MGMT_TOKEN）：
   SUPABASE_PAT="$PAT" SUPABASE_MGMT_TOKEN="$PAT" python3 scripts/setup_fund_tags.py
 """
@@ -10,10 +13,13 @@ import os, sys, time
 import requests
 
 sys.path.insert(0, os.path.dirname(__file__))
-from fetch_fund_tags import get_builtin_tags, fetch_push2_sectors
+from fetch_fund_tags import fetch_push2_sectors
 
 REF = "tqhtegazxykkqfcpejky"
 MGMT_URL = f"https://api.supabase.com/v1/projects/{REF}/database/query"
+
+# 真实抓取的最小标签数阈值；低于此值视为抓取失败，绝不写入兜底数据
+MIN_TAGS_REQUIRED = 50
 
 # 注意顺序：优先 SUPABASE_PAT（正确的），避免沙箱注入的过期 SUPABASE_MGMT_TOKEN
 PAT = os.environ.get("SUPABASE_PAT") or os.environ.get("SUPABASE_MGMT_TOKEN", "")
@@ -41,23 +47,20 @@ def esc(s: str) -> str:
 
 
 def main():
-    # 1) 选取标签数据：默认优先 push2 实时；FORCE_BUILTIN=1 时强制用内置（来自天天基金 ztjj 页，共158个，return_pct 为百分比收益率）
+    # 1) 仅从 push2 实时抓取；抓取不足则拒绝写入（风控：禁止假数据）
     tags = []
-    print("[1/3] 抓取标签数据源...")
-    if os.environ.get("FORCE_BUILTIN"):
-        tags = get_builtin_tags()
-        print(f"  -> FORCE_BUILTIN：使用内置标签 {len(tags)} 个")
-    else:
-        try:
-            api = fetch_push2_sectors()
-            if len(api) >= 20:
-                tags = api
-                print(f"  -> 使用 push2 实时数据 {len(tags)} 个")
-        except Exception as e:
-            print(f"  push2 失败: {e}")
-    if len(tags) < 50:
-        tags = get_builtin_tags()
-        print(f"  -> 使用内置标签 {len(tags)} 个")
+    print("[1/3] 抓取标签数据源（push2 实时）...")
+    try:
+        api = fetch_push2_sectors()
+    except Exception as e:
+        print(f"  push2 失败: {e}")
+        api = []
+    if len(api) < MIN_TAGS_REQUIRED:
+        print(f"[ERROR] 仅获取 {len(api)} 个标签，低于阈值 {MIN_TAGS_REQUIRED}。")
+        print("        按最高风控规则：拒绝写入任何兜底/假数据，脚本退出（保留现有表）。")
+        sys.exit(2)
+    tags = api
+    print(f"  -> 使用 push2 实时数据 {len(tags)} 个")
 
     # 2) 建表（逐条执行，确保 Management API 全部跑完）
     print("\n[2/3] 创建 fund_tags 表...")
