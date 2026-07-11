@@ -45,24 +45,42 @@
               <span class="detail-type-badge" :class="selectedTag.tag_type">{{ selectedTag.tag_type === 'concept' ? '概念' : '行业' }}</span>
               <span class="detail-return" v-if="selectedTag.return_pct != null">{{ fmtPct(selectedTag.return_pct) }}</span>
             </span>
-            <span class="detail-close" @click="selectedTag = null">&#x2715;</span>
+            <div class="detail-header-actions">
+              <button
+                class="detail-share"
+                v-if="tagFunds.length > 0"
+                :disabled="shareGenerating"
+                @click="generateShareImage"
+                title="生成分享图片"
+              >分享</button>
+              <span class="detail-close" @click="selectedTag = null">&#x2715;</span>
+            </div>
           </div>
           <div class="detail-body">
-            <!-- 关联基金列表 -->
+            <!-- 关联基金列表（前3只） -->
             <div class="funds-loading" v-if="tagFundsLoading">加载中...</div>
             <template v-else-if="tagFunds.length > 0">
-              <div class="funds-count">共 {{ tagFunds.length }} 只关联基金</div>
+              <div class="funds-count">相关基金 TOP {{ tagFunds.length }}</div>
               <div class="fund-tag-list">
                 <div
                   v-for="f in tagFunds"
                   :key="f.c"
                   class="fund-tag-item"
                 >
-                  <a class="ft-code" :href="eastMoneyUrl(f.c)" target="_blank">{{ f.c }}</a>
-                  <a class="ft-name" :href="eastMoneyUrl(f.c)" target="_blank">{{ f.n || ('基金' + f.c) }}</a>
-                  <span class="ft-type" :title="f.t1_tt || f.t1">{{ f.t1_tt || f.t1 || '--' }}</span>
-                  <span class="ft-ret" :style="{ color: retColor(f.r1y) }" v-if="f.r1y != null">{{ fmtRetPlain(f.r1y) }}%</span>
-                  <span class="ft-score" :style="scoreColor(f.k1)" v-if="f.k1 != null">{{ Math.round(f.k1) }}</span>
+                  <div class="ft-main">
+                    <div class="ft-line1">
+                      <a class="ft-code" :href="eastMoneyUrl(f.c)" target="_blank">{{ f.c }}</a>
+                      <a class="ft-name" :href="eastMoneyUrl(f.c)" target="_blank">{{ f.n || ('基金' + f.c) }}</a>
+                    </div>
+                    <div class="ft-line2">
+                      <span class="ft-manager">经理：{{ f.fund_manager || '—' }}</span>
+                    </div>
+                  </div>
+                  <div class="ft-right">
+                    <span class="ft-ret-label">区间收益</span>
+                    <span class="ft-ret" :style="{ color: retColor(f.r1y) }" v-if="f.r1y != null">{{ fmtRetPlain(f.r1y) }}%</span>
+                    <span class="ft-ret" v-else>—</span>
+                  </div>
                 </div>
               </div>
             </template>
@@ -74,13 +92,32 @@
         </div>
       </template>
     </Teleport>
+
+    <!-- 分享图片预览弹窗 -->
+    <Teleport to="body">
+      <template v-if="shareImage">
+        <div class="mask" @click="shareImage = null"></div>
+        <div class="share-panel">
+          <div class="share-header">
+            <span class="share-title">分享到朋友圈</span>
+            <span class="detail-close" @click="shareImage = null">&#x2715;</span>
+          </div>
+          <div class="share-body">
+            <img class="share-img" :src="shareImage" alt="分享图" />
+            <p class="share-hint">长按图片可保存到相册，或分享到朋友圈</p>
+            <button class="share-save-btn" @click="saveShareImage">保存图片</button>
+          </div>
+        </div>
+      </template>
+    </Teleport>
   </div>
 </template>
 
 <script setup>
-import { ref, computed, watch, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
+import QRCode from 'qrcode'
 import { fetchFundTags } from '../api/data.js'
-import { fmtRetPlain, scoreColor } from '../utils/format.js'
+import { fmtRetPlain } from '../utils/format.js'
 
 const props = defineProps({
   /** 最大展示行数，默认显示全部 */
@@ -92,8 +129,10 @@ const activeTab = ref('concept') // 'concept' | 'industry'
 const allTags = ref([]) // [{ name, tag_type, return_pct, sort_order }]
 const loading = ref(false)
 const selectedTag = ref(null) // 当前选中的标签
-const tagFunds = ref([]) // 标签关联的基金列表
+const tagFunds = ref([]) // 标签关联的基金列表（前3只）
 const tagFundsLoading = ref(false)
+const shareImage = ref(null) // 生成的分享图 dataURL
+const shareGenerating = ref(false)
 
 // ========== 计算属性 ==========
 const displayTags = computed(() => {
@@ -125,25 +164,23 @@ function openTagDetail(tag) {
   loadTagFunds(tag)
 }
 
-/** 从 fund_scores 表模糊匹配关联基金 */
+/** 从 fund_scores 表模糊匹配关联基金，取靠谱分最高的前 3 只 */
 async function loadTagFunds(tag) {
   tagFundsLoading.value = true
   try {
-    // 通过 Supabase 查询：在 fund_combined 或 fund_scores 中搜索名称包含标签关键词的基金
     const { supabase } = await import('../api/supabase.js')
     if (!supabase) {
       tagFundsLoading.value = false
       return
     }
 
-    // 策略：用标签名作为关键词搜索基金名称，限制返回20只
     const keyword = tag.name.replace(/[+&｜()（）]/g, '')
     const { data, error } = await supabase
       .from('fund_scores')
-      .select('c,n,t0,t1,t1_tt,k1,r1y')
+      .select('c,n,t0,t1,t1_tt,k1,r1y,fund_manager')
       .or(`n.ilike.%${keyword}%`)
       .order('k1', { ascending: false, nullsFirst: false })
-      .limit(50)
+      .limit(3)
 
     if (!error && data) {
       tagFunds.value = data
@@ -160,17 +197,11 @@ function tagColor(ret) {
   if (ret == null) return '#e8e8e8'
   const r = parseFloat(ret)
   if (isNaN(r)) return '#e8e8e8'
-  // 截断到合理范围 [0, 600]
   const v = Math.min(Math.max(r, 0), 600)
-  // 映射到颜色：
-  //   0% → 浅粉 #ffe0e0
-  //   100% → 珊瑚红 #ff8080
-  //   300% → 红 #e04040
-  //   600% → 深红 #c01010
   let ratio = v / 600
-  const r_val = Math.round(255 - ratio * 60)       // 255 -> 195
-  const g_val = Math.round(224 - ratio * 200)      // 224 -> 24
-  const b_val = Math.round(224 - ratio * 210)      // 224 -> 14
+  const r_val = Math.round(255 - ratio * 60)
+  const g_val = Math.round(224 - ratio * 200)
+  const b_val = Math.round(224 - ratio * 210)
   return `rgb(${r_val},${g_val},${b_val})`
 }
 
@@ -198,12 +229,178 @@ function eastmoneyTopicUrl(topicName) {
   return `https://fund.eastmoney.com/ztjj/#!syl/Y/curr/zf-${encodeURIComponent(topicName)}/fst/DESC`
 }
 
+/** 截断文本（canvas 绘制用） */
+function truncateText(ctx, text, maxWidth) {
+  if (!text) return ''
+  if (ctx.measureText(text).width <= maxWidth) return text
+  let t = text
+  while (t.length > 1 && ctx.measureText(t + '…').width > maxWidth) {
+    t = t.slice(0, -1)
+  }
+  return t + '…'
+}
+
+/** 生成分享图片：含标签 + 3只基金 + 二维码 */
+async function generateShareImage() {
+  if (shareGenerating.value) return
+  shareGenerating.value = true
+  try {
+    const scale = 2
+    const W = 750
+    const pad = 30
+    const headerH = 150
+    const titleGap = 110
+    const fundH = 150
+    const fundGap = 16
+    const qrSize = 190
+    const qrBottomGap = 70
+
+    const list = tagFunds.value
+    let H = headerH + titleGap + 20
+    H += list.length * (fundH + fundGap)
+    H += 30 // 与二维码间距
+    const qrY = H
+    H += qrSize + qrBottomGap
+
+    const canvas = document.createElement('canvas')
+    canvas.width = W * scale
+    canvas.height = H * scale
+    const ctx = canvas.getContext('2d')
+    ctx.scale(scale, scale)
+    ctx.textBaseline = 'top'
+
+    // 背景
+    ctx.fillStyle = '#ffffff'
+    ctx.fillRect(0, 0, W, H)
+
+    // 顶部品牌蓝条
+    ctx.fillStyle = '#1d70b8'
+    ctx.fillRect(0, 0, W, headerH)
+    ctx.fillStyle = '#ffffff'
+    ctx.textAlign = 'left'
+    ctx.font = 'bold 38px sans-serif'
+    ctx.fillText('ALLFUND.CN', pad, 34)
+    ctx.font = '24px sans-serif'
+    ctx.fillStyle = 'rgba(255,255,255,0.92)'
+    ctx.fillText('靠谱指数 · 热门基金', pad, 86)
+
+    // 标签标题
+    let y = headerH + 30
+    ctx.textAlign = 'left'
+    ctx.fillStyle = '#1a1a1a'
+    ctx.font = 'bold 40px sans-serif'
+    ctx.fillText(truncateText(ctx, selectedTag.value.name, W - pad * 2 - 160), pad, y)
+    // 标签类型徽标
+    const badgeText = selectedTag.value.tag_type === 'concept' ? '概念' : '行业'
+    ctx.font = 'bold 22px sans-serif'
+    const bw = ctx.measureText(badgeText).width + 24
+    ctx.fillStyle = badgeText === '概念' ? '#d4351c' : '#1d70b8'
+    roundRect(ctx, W - pad - bw, y + 6, bw, 36, 6)
+    ctx.fill()
+    ctx.fillStyle = '#ffffff'
+    ctx.textAlign = 'center'
+    ctx.fillText(badgeText, W - pad - bw / 2, y + 13)
+    // 标签收益率
+    ctx.textAlign = 'left'
+    ctx.fillStyle = '#d4351c'
+    ctx.font = 'bold 26px sans-serif'
+    ctx.fillText('板块收益 ' + fmtPct(selectedTag.value.return_pct), pad, y + 56)
+
+    // 基金卡片
+    y = headerH + titleGap
+    for (const f of list) {
+      // 卡片底
+      ctx.fillStyle = '#f6f8fb'
+      roundRect(ctx, pad, y, W - pad * 2, fundH, 12)
+      ctx.fill()
+      ctx.strokeStyle = '#e3e8ef'
+      ctx.lineWidth = 1
+      roundRect(ctx, pad + 0.5, y + 0.5, W - pad * 2 - 1, fundH - 1, 12)
+      ctx.stroke()
+
+      const innerX = pad + 20
+      // 代码
+      ctx.textAlign = 'left'
+      ctx.fillStyle = '#1d70b8'
+      ctx.font = 'bold 22px sans-serif'
+      ctx.fillText(f.c || '', innerX, y + 18)
+      // 名称
+      ctx.fillStyle = '#1a1a1a'
+      ctx.font = 'bold 26px sans-serif'
+      ctx.fillText(truncateText(ctx, f.n || ('基金' + f.c), W - pad * 2 - 40 - 150), innerX, y + 50)
+      // 经理
+      ctx.fillStyle = '#666666'
+      ctx.font = '19px sans-serif'
+      ctx.fillText('经理：' + (f.fund_manager || '—'), innerX, y + 92)
+
+      // 区间收益（右侧）
+      ctx.textAlign = 'right'
+      const r1y = f.r1y
+      ctx.fillStyle = (r1y == null || r1y >= 0) ? '#d4351c' : '#00703c'
+      ctx.font = 'bold 32px sans-serif'
+      const retStr = r1y == null ? '—' : (r1y >= 0 ? '+' : '') + r1y.toFixed(2) + '%'
+      ctx.fillText(retStr, W - pad - 20, y + 44)
+      ctx.fillStyle = '#999999'
+      ctx.font = '17px sans-serif'
+      ctx.fillText('区间收益(近1年)', W - pad - 20, y + 92)
+
+      y += fundH + fundGap
+    }
+
+    // 二维码
+    const qrCanvas = document.createElement('canvas')
+    await QRCode.toCanvas(qrCanvas, 'https://www.allfund.cn', {
+      width: qrSize * scale,
+      margin: 1,
+      color: { dark: '#000000', light: '#ffffff' },
+    })
+    ctx.drawImage(qrCanvas, (W - qrSize) / 2, qrY, qrSize, qrSize)
+    // 二维码说明
+    ctx.textAlign = 'center'
+    ctx.fillStyle = '#1d70b8'
+    ctx.font = 'bold 26px sans-serif'
+    ctx.fillText('微信扫一扫 · 访问 www.allfund.cn', W / 2, qrY + qrSize + 18)
+    ctx.fillStyle = '#999999'
+    ctx.font = '18px sans-serif'
+    ctx.fillText('识别二维码，查看靠谱指数与更多热门基金', W / 2, qrY + qrSize + 52)
+
+    shareImage.value = canvas.toDataURL('image/png')
+  } catch (e) {
+    console.error('[HotTags] generateShareImage error', e)
+    alert('生成分享图片失败，请重试')
+  } finally {
+    shareGenerating.value = false
+  }
+}
+
+/** 圆角矩形路径 */
+function roundRect(ctx, x, y, w, h, r) {
+  ctx.beginPath()
+  ctx.moveTo(x + r, y)
+  ctx.arcTo(x + w, y, x + w, y + h, r)
+  ctx.arcTo(x + w, y + h, x, y + h, r)
+  ctx.arcTo(x, y + h, x, y, r)
+  ctx.arcTo(x, y, x + w, y, r)
+  ctx.closePath()
+}
+
+/** 保存分享图片 */
+function saveShareImage() {
+  if (!shareImage.value) return
+  const a = document.createElement('a')
+  a.href = shareImage.value
+  const safeName = (selectedTag.value?.name || 'fund') + '-allfund.png'
+  a.download = safeName
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+}
+
 // ========== 生命周期 ==========
 onMounted(() => {
   loadTags()
 })
 
-// 暴露方法供父组件调用
 defineExpose({ refresh: loadTags })
 </script>
 
@@ -248,7 +445,7 @@ defineExpose({ refresh: loadTags })
   font-weight: 700;
 }
 
-/* 标签网格：8列布局，参考截图 */
+/* 标签网格：8列布局 */
 .tags-grid {
   display: grid;
   grid-template-columns: repeat(8, 1fr);
@@ -307,15 +504,15 @@ defineExpose({ refresh: loadTags })
   color: var(--text-secondary);
 }
 
-/* ===== 标签详情弹窗 ===== */
+/* ===== 标签详情弹窗（垂直居中，保证完整展示） ===== */
 .tag-detail-panel {
   position: fixed;
-  bottom: 0;
+  top: 50%;
   left: 50%;
-  transform: translateX(-50%);
-  width: 100%;
-  max-width: 640px;
-  max-height: 82vh;
+  transform: translate(-50%, -50%);
+  width: calc(100% - 32px);
+  max-width: 560px;
+  max-height: 88vh;
   background: #ffffff;
   border: 1px solid var(--border);
   overflow: hidden;
@@ -361,6 +558,26 @@ defineExpose({ refresh: loadTags })
   color: #d4351c;
   flex-shrink: 0;
 }
+.detail-header-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  flex-shrink: 0;
+}
+.detail-share {
+  font-size: 13px;
+  font-weight: 700;
+  color: #fff;
+  background: #1d70b8;
+  border: none;
+  border-radius: 2px;
+  padding: 5px 14px;
+  cursor: pointer;
+}
+.detail-share:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
 .detail-close {
   font-size: 24px;
   color: var(--text-primary);
@@ -387,56 +604,73 @@ defineExpose({ refresh: loadTags })
 .fund-tag-item {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: var(--space-sm);
-  padding: 8px 0;
+  padding: 10px 0;
   border-bottom: 1px solid #f0f0f0;
 }
 .fund-tag-item:last-child { border-bottom: none; }
+.ft-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.ft-line1 {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  min-width: 0;
+}
 .ft-code {
   font-size: 12px;
   font-weight: 700;
   font-family: monospace;
   color: var(--text-primary);
-  min-width: 68px;
   text-decoration: none;
   flex-shrink: 0;
 }
 .ft-code:hover { color: var(--link); text-decoration: underline; }
 .ft-name {
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 700;
   color: var(--text-primary);
-  min-width: 100px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   text-decoration: none;
   flex: 1;
+  min-width: 0;
 }
 .ft-name:hover { color: var(--link); text-decoration: underline; }
-.ft-type {
-  font-size: 12px;
+.ft-line2 {
+  display: flex;
+  align-items: center;
+}
+.ft-manager {
+  font-size: 13px;
   color: var(--text-secondary);
-  flex-shrink: 0;
-  max-width: 90px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.ft-ret {
-  font-size: 13px;
-  font-weight: 700;
-  width: 65px;
-  text-align: right;
+.ft-right {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
   flex-shrink: 0;
-  font-variant-numeric: tabular-nums;
+  min-width: 88px;
 }
-.ft-score {
-  font-size: 14px;
+.ft-ret-label {
+  font-size: 11px;
+  color: var(--text-secondary);
+  margin-bottom: 2px;
+}
+.ft-ret {
+  font-size: 18px;
   font-weight: 700;
-  width: 32px;
-  text-align: right;
-  flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
 }
 .funds-loading, .funds-empty {
   text-align: center;
@@ -449,4 +683,62 @@ defineExpose({ refresh: loadTags })
 .funds-empty a { color: var(--link); text-decoration: underline; }
 
 .mask { position: fixed; inset: 0; background: rgba(29,112,184,0.6); z-index: 100; }
+
+/* ===== 分享图片预览弹窗 ===== */
+.share-panel {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: calc(100% - 32px);
+  max-width: 420px;
+  background: #ffffff;
+  border: 1px solid var(--border);
+  z-index: 102;
+  display: flex;
+  flex-direction: column;
+  max-height: 92vh;
+}
+.share-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--space-sm) var(--space-lg);
+  border-bottom: 1px solid var(--border);
+  background: #f3f2f1;
+  flex-shrink: 0;
+}
+.share-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+.share-body {
+  padding: var(--space-md);
+  overflow-y: auto;
+  text-align: center;
+}
+.share-img {
+  width: 100%;
+  height: auto;
+  border: 1px solid #eee;
+  display: block;
+}
+.share-hint {
+  font-size: 13px;
+  color: var(--text-secondary);
+  margin: var(--space-sm) 0;
+}
+.share-save-btn {
+  display: block;
+  width: 100%;
+  padding: 10px;
+  font-size: 15px;
+  font-weight: 700;
+  color: #fff;
+  background: #1d70b8;
+  border: none;
+  border-radius: 2px;
+  cursor: pointer;
+}
 </style>
