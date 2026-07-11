@@ -167,13 +167,16 @@ function openTagDetail(tag) {
   selectedTag.value = tag
   tagFunds.value = []
   loadTagFunds(tag)
-  // 获取 fund_scores 更新时间
+  // 获取 fund_scores 更新时间（优先 tsq，其次 update_time）
   fetchFundMeta().then(m => {
-    if (m?.tsq) {
+    const raw = m?.tsq || m?.update_time || ''
+    if (raw) {
       try {
-        const d = new Date(m.tsq)
-        fundMetaUpdateTime.value = d.toLocaleString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false })
-      } catch { fundMetaUpdateTime.value = '' }
+        const d = new Date(raw)
+        if (!isNaN(d.getTime())) {
+          fundMetaUpdateTime.value = d.toLocaleString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false })
+        }
+      } catch { /* ignore */ }
     }
   })
 }
@@ -199,16 +202,23 @@ async function loadTagFunds(tag) {
       return
     }
 
-    // 2) 用基金代码从 fund_scores 补充经理信息
+    // 2) 用基金代码从 fund_scores 补充经理信息（fund_scores 的 c 字段带 .OF 后缀）
     const codes = mappings.map(m => m.fund_code).filter(Boolean)
+    const codesWithOF = codes.map(c => c.endsWith('.OF') ? c : c + '.OF')
+    // 同时查原始码和带.OF的码，确保能匹配到
+    const allCodes = [...codes, ...codesWithOF]
     const { data: scores } = await supabase
       .from('fund_scores')
       .select('c,n,fund_manager,r1y,k1')
-      .in('c', codes)
+      .in('c', allCodes)
 
     const scoreMap = {}
     if (scores) {
-      for (const s of scores) { scoreMap[s.c] = s }
+      for (const s of scores) {
+        // 去掉 .OF 后缀作为 key，确保与 fund_tag_funds 的代码匹配
+        const key = s.c.replace(/\.OF$/i, '')
+        scoreMap[key] = s
+      }
     }
 
     // 3) 合并：用 fund_scores 的 r1y（近1年收益，来自CI计算），缺失时用东财 syl_1n

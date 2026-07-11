@@ -274,7 +274,7 @@ async function fetchFundMetaImpl() {
   if (supabase) {
     const { data, error } = await supabase
       .from('fund_scores_meta')
-      .select('nav_date,total_count,scored_count,tsq')
+      .select('nav_date,total_count,scored_count,tsq,update_time')
       .order('tsq', { ascending: false })
       .limit(1)
       .single()
