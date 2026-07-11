@@ -26,8 +26,8 @@
         :style="{ background: tagColor(tag.return_pct) }"
         @click="openTagDetail(tag)"
       >
-        <span class="tag-name" :style="{ color: tagTextColor(tag.return_pct) }">{{ tag.name }}</span>
-        <span class="tag-return" v-if="tag.return_pct != null" :style="{ color: tagTextColor(tag.return_pct), opacity: 0.9 }">{{ fmtPct(tag.return_pct) }}</span>
+        <span class="tag-name" style="color:#1a1a1a">{{ tag.name }}</span>
+        <span class="tag-return" v-if="tag.return_pct != null" style="color:#1a1a1a;opacity:0.88">{{ fmtPct(tag.return_pct) }}</span>
       </div>
     </div>
 
@@ -274,18 +274,6 @@ function tagColor(ret) {
     const bv = Math.round(200 - ratio * 145)   // 200→55
     return `rgb(${rv},${gv},${bv})`
   }
-}
-
-/** 根据背景亮度返回合适的文字颜色（深色底→白字，浅色底→深色字） */
-function tagTextColor(ret) {
-  const c = tagColor(ret)
-  const m = c.match(/rgb\((\d+),(\d+),(\d+)\)/)
-  if (!m) return '#fff'
-  const r = +m[1], g = +m[2], b = +m[3]
-  // 相对亮度（ITU-R BT.601 加权）
-  const lum = (0.299 * r + 0.587 * g + 0.114 * b) / 255
-  // 亮度 > 0.55 视为"浅色背景"，用深色文字保证可读性
-  return lum > 0.55 ? '#1a1a1a' : '#ffffff'
 }
 
 function fmtPct(v) {
