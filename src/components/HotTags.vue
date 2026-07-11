@@ -164,27 +164,28 @@ function openTagDetail(tag) {
   loadTagFunds(tag)
 }
 
-/** 从 fund_tag_funds 表查询标签关联基金（东财真实映射），再补充 fund_scores 的经理/收益字段 */
+/** 从 fund_tag_funds 表查询标签关联基金（东财 ZTJJ 真实映射），再补充 fund_scores 的经理字段 */
 async function loadTagFunds(tag) {
   tagFundsLoading.value = true
   try {
     const { supabase } = await import('../api/supabase.js')
     if (!supabase) { tagFundsLoading.value = false; return }
 
-    // 1) 从 fund_tag_funds 获取东财映射的基金列表（前5只，取靠谱分最高的）
+    // 1) 从 fund_tag_funds 获取东财 ZTJJ 接口映射的基金列表
     const { data: mappings, error: err1 } = await supabase
       .from('fund_tag_funds')
-      .select('fund_code,fund_name,fund_type,return_pct')
+      .select('fund_code,fund_name,fund_type,syl_1n')
       .eq('tag_name', tag.name)
       .order('sort_order', { ascending: true })
     .limit(5)
 
+    // 无数据时直接显示空状态，不做任何兜底
     if (err1 || !mappings || mappings.length === 0) {
       tagFunds.value = []
       return
     }
 
-    // 2) 用基金代码从 fund_scores 补充经理和近1年收益
+    // 2) 用基金代码从 fund_scores 补充经理信息
     const codes = mappings.map(m => m.fund_code).filter(Boolean)
     const { data: scores } = await supabase
       .from('fund_scores')
@@ -196,17 +197,17 @@ async function loadTagFunds(tag) {
       for (const s of scores) { scoreMap[s.c] = s }
     }
 
-    // 3) 合并：优先用 fund_scores 字段，fallback 到映射数据
+    // 3) 合并：用 fund_scores 的 r1y（近1年收益，来自CI计算），缺失时用东财 syl_1n
     tagFunds.value = mappings.map(m => {
       const sc = scoreMap[m.fund_code] || {}
       return {
         c: m.fund_code,
-        n: sc.n || m.fund_name,
+        n: m.fund_name,  // 直接使用东财官方名称
         t0: sc.t0,
         t1: sc.t1,
         t1_tt: sc.t1_tt,
         k1: sc.k1,
-        r1y: sc.r1y ?? m.return_pct,  // fund_scores 优先，否则用东财收益率
+        r1y: sc.r1y ?? m.syl_1n,  // fund_scores优先，否则用东财近1年收益
         fund_manager: sc.fund_manager || '',
         _ftype: m.fund_type,
       }
