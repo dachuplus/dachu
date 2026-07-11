@@ -13,6 +13,9 @@ import { upsertUserProfile, getMyPortfolios } from '../api/user-data'
 const SESSION_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000
 const LS_LOGIN_AT = 'allfund_auth_login_at'
 
+// 数据中心（数据下载）唯一授权账户
+const OWNER_EMAIL = '57502460@qq.com'
+
 // ---- 全局单例状态 ----
 const user = ref(null)
 const loading = ref(false)
@@ -25,6 +28,9 @@ let _initDone = false
 
 export function useAuth() {
   const isLoggedIn = computed(() => !!user.value)
+
+  /** 是否为数据中心授权账户（唯一可访问数据下载功能） */
+  const isOwner = computed(() => user.value?.email === OWNER_EMAIL)
 
   /** 初始化：App.vue 挂载时调用，恢复 session 并监听状态变更 */
   async function init() {
@@ -120,5 +126,5 @@ export function useAuth() {
   function showLogin() { showLoginDialog.value = true }
   function hideLogin() { showLoginDialog.value = false }
 
-  return { user, loading, isLoggedIn, displayName, displayInitial, portfolios, profile, init, signOut, refreshUserData, showLoginDialog, showLogin, hideLogin, markLogin }
+  return { user, loading, isLoggedIn, isOwner, displayName, displayInitial, portfolios, profile, init, signOut, refreshUserData, showLoginDialog, showLogin, hideLogin, markLogin }
 }

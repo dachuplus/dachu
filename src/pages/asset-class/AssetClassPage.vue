@@ -264,7 +264,7 @@ const helpTexts = {
   expectedReturn: '股票：Gordon模型 E[R]=(1/PE)×adjust，adjust基于PE百分位\n债券：10Y国债YTM\n黄金：实际利率模型 E[R]=5%+(2%-实际利率)×1.5\n现金：Shibor隔夜利率',
   sharpe: 'Sharpe = (预期收益率 - 无风险利率) / 年化波动率\n正值=有超额收益吸引力，负值=性价比不如无风险资产\n柱状条越正越长，性价比越高',
   weight: 'Kan & Zhou (2007) 增强型风险平价：\n1. 基础权重按 1/σ 分配（风险平价）\n2. 乘以 (1 + (SR - median_SR) × 0.5) 信号调整\n3. 限幅 [0%, 50%]，归一化到 100%\n\n夏普高于中位数的资产加仓，低于中位数的减仓',
-  stockBondValue: '股债利差 = 股票盈利收益率(1/PE) - 国债收益率\n\n正利差说明股票相对债券更便宜\n利差越大，股票性价比越高\n\n数据来源：value500.com'
+  stockBondValue: '股债利差 = 股票盈利收益率(1/PE) - 国债收益率\n\n正利差说明股票相对债券更便宜\n利差越大，股票性价比越高\n\n数据来源：ALLFUND.CN'
 }
 
 function showHelp(key) { helpKey.value = key }

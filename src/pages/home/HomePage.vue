@@ -239,7 +239,7 @@
     <!-- 底部声明 -->
     <div class="footer-note-bar">
       <div v-if="fundUpdateText">基金靠谱分数据更新于：{{ fundUpdateText }}</div>
-      <div>数据来源：腾讯API(行情)、value500(国债/Shibor/M2/CPI/股债比)、天天基金(基金评分)</div>
+      <div>数据来源：ALLFUND.CN</div>
       <div>数据仅供参考，不构成投资建议</div>
       <div>权重模型：Kan &amp; Zhou (2007) 增强型风险平价</div>
     </div>

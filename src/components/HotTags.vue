@@ -33,7 +33,7 @@
 
     <!-- 数据来源说明 -->
     <div class="tags-footnote" v-if="displayTags.length > 0">
-      板块收益为该标签关联基金近1年收益率均值，数据来源：天天基金东财ZTJJ接口
+      板块收益为该标签关联基金近1年收益率均值，数据来源：ALLFUND.CN
     </div>
 
     <!-- 加载中 -->
@@ -262,12 +262,13 @@ function tagColor(ret) {
     const bv = Math.round(224 - ratio * 210)
     return `rgb(${rv},${gv},${bv})`
   } else {
-    // 负收益：绿渐变（0%=浅绿, -25%+=深绿）
+    // 负收益：绿渐变（0%=浅绿, -25%+=深绿），白色文字保证可读性
     const v = Math.max(r, -25)
     const ratio = v / -25  // 0~1
-    const gv = Math.round(220 - ratio * 80)
-    const bv = Math.round(215 - ratio * 90)
-    return `rgb(${Math.round(60 + ratio * 40)},${gu},${bv})`
+    const rv = Math.round(190 - ratio * 130)   // 190→60
+    const gv = Math.round(235 - ratio * 125)   // 235→110
+    const bv = Math.round(200 - ratio * 145)   // 200→55
+    return `rgb(${rv},${gv},${bv})`
   }
 }
 

@@ -57,9 +57,9 @@
         <div class="disclaimer-content" v-if="showDisclaimer">
           <p>本工具展示数据仅供参考，不构成任何投资建议。</p>
           <p>投资有风险，决策需谨慎。</p>
-          <p>数据来源：天天基金、value500.com、蛋卷基金、恒生聚源、Supabase</p>
+          <p>数据来源：ALLFUND.CN</p>
         </div>
-        <router-link to="/data-center" class="profile-item">
+        <router-link v-if="isOwner" to="/data-center" class="profile-item">
           <span class="pi-label">下载数据 (数据中心)</span>
           <span class="pi-arrow">›</span>
         </router-link>
@@ -78,7 +78,7 @@ import { useAuth } from '../../composables/useAuth'
 import { removeFundFromPortfolio } from '../../api/user-data'
 
 const {
-  user, loading: authLoading, isLoggedIn,
+  user, loading: authLoading, isLoggedIn, isOwner,
   displayName, displayInitial,
   portfolios, profile,
   signOut, refreshUserData, showLogin

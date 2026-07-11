@@ -2,6 +2,14 @@
   <div class="page-placeholder">
     <!-- 页面标题 -->
     <h1 class="page-title">数据中心</h1>
+
+    <!-- 无访问权限提示（仅授权账户可见） -->
+    <div class="no-access" v-if="!isOwner">
+      <p class="no-access__title">无访问权限</p>
+      <p class="no-access__desc">数据中心仅对授权账户开放，如需访问请使用授权账户登录。</p>
+    </div>
+
+    <template v-else>
     <p class="page-desc">ALLFUND.CN 数据库全部表一览。选择需要下载的数据表，点击下载 Excel 文件。数据每日 21:30（北京时间）自动更新。</p>
 
     <!-- 未登录提示横幅 -->
@@ -627,6 +635,7 @@
         </tbody>
       </table>
     </div>
+    </template>
   </div>
 </template>
 
@@ -634,7 +643,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { useAuth } from '../../composables/useAuth'
 
-const { isLoggedIn, showLogin } = useAuth()
+const { isLoggedIn, isOwner, showLogin } = useAuth()
 
 const updateTime = ref('')
 const tableData = ref({})
@@ -707,6 +716,14 @@ onMounted(loadIndex)
   font-size: 16px; color: var(--text-secondary); margin: 0 0 var(--space-xl);
   line-height: 1.6;
 }
+
+/* 无访问权限提示 */
+.no-access {
+  background: #fff; border: 1px solid var(--border); border-left: 4px solid #d4351c;
+  padding: var(--space-lg); margin-bottom: var(--space-xl);
+}
+.no-access__title { font-size: 18px; font-weight: 700; color: #d4351c; margin: 0 0 var(--space-xs); }
+.no-access__desc { font-size: 14px; color: var(--text-secondary); margin: 0; line-height: 1.6; }
 
 /* 登录提示横幅 */
 .login-banner {

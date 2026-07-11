@@ -196,7 +196,7 @@ const helpMap = {
       ]},
       { heading: '说明', desc: '因子百分位为近似值，基于实时指数PE和相对强弱推算。' }
     ],
-    footer: '数据来源：腾讯行情API + value500.com | 更新：交易日实时'
+    footer: '数据来源：ALLFUND.CN | 更新：交易日实时'
   },
   styleAdvice: {
     title: '风格配置建议说明',
@@ -204,18 +204,18 @@ const helpMap = {
       { heading: '配置逻辑', desc: '基于Barra六因子性价比，动态分配各风格权重。百分位越低=越低估=权重越高。' },
       { heading: '权重范围', desc: '建议权重范围0~50%，评分≥75超配，25~50标配，<25回避。' }
     ],
-    footer: '数据来源：腾讯行情API | 更新：交易日实时'
+    footer: '数据来源：ALLFUND.CN | 更新：交易日实时'
   },
   bondScore: {
     title: '国债收益率曲线说明',
     sections: [
-      { heading: '数据来源', desc: 'value500.com/10Bond.html，中债国债收益率曲线。' },
+      { heading: '数据来源', desc: '中债国债收益率曲线（ChinaBond）。' },
       { heading: '期限利差', items: [
         { label: '正常陡峭', desc: '长端>短端，经济预期正常' },
         { label: '倒挂/平坦', desc: '长端≤短端，可能预示经济放缓' }
       ]}
     ],
-    footer: '数据来源：value500.com | 更新：跟随 value500.com（日度）'
+    footer: '数据来源：ALLFUND.CN | 更新：日度'
   },
   commodityScore: {
     title: '商品与宏观指标说明',
@@ -228,7 +228,7 @@ const helpMap = {
       ]},
       { heading: '金油比', desc: 'COMEX黄金÷NYMEX原油。>25避险情绪升温，<20风险偏好上升。' }
     ],
-    footer: '数据来源：value500.com | 更新：跟随 value500.com（日度）'
+    footer: '数据来源：ALLFUND.CN | 更新：日度'
   }
 }
 

@@ -140,7 +140,7 @@
           <div class="help-body">
             <div class="help-section">
               <span class="help-section-label">数据来源</span>
-              <span class="help-desc">天天基金投顾页面（fund.eastmoney.com/tg/），涵盖全市场投顾组合产品。</span>
+              <span class="help-desc">ALLFUND.CN（涵盖全市场投顾组合产品）。</span>
             </div>
             <div class="help-section">
               <span class="help-section-label">分类规则</span>

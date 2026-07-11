@@ -52,6 +52,7 @@
           {{ item.label }}
         </router-link>
         <router-link
+          v-if="isOwner"
           to="/data-center"
           class="quick-nav__item quick-nav__item--download"
           :class="{ 'quick-nav__item--active': route.path === '/data-center' }"
@@ -92,7 +93,7 @@ import { useAuth } from './composables/useAuth'
 
 const route   = useRoute()
 const router  = useRouter()
-const { user, isLoggedIn, loading: authLoading, displayName, init, signOut, showLoginDialog, showLogin, hideLogin } = useAuth()
+const { user, isLoggedIn, isOwner, loading: authLoading, displayName, init, signOut, showLoginDialog, showLogin, hideLogin } = useAuth()
 
 /* ---- 响应式断点 ---- */
 const isMobile = ref(window.innerWidth < 769)

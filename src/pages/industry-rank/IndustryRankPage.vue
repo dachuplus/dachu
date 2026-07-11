@@ -119,7 +119,7 @@
 
     <!-- 底部说明 -->
     <div class="bottom-info" v-if="!loading || filteredIndices.length > 0">
-      <span>数据来源：蛋卷基金估值中心（danjuanfunds.com）</span>
+      <span>数据来源：ALLFUND.CN</span>
       <span>PE/PB百分位 = 当前值在历史数据中的排名位置，越低越便宜</span>
       <span>仅供学习参考，不构成投资建议</span>
     </div>
