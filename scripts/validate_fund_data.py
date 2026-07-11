@@ -271,6 +271,36 @@ def check_extreme_values():
         ok('无极端异常值')
 
 
+def check_manager_blanks():
+    """校验 6: 基金经理空值检测（应在 CI 回填步骤之后运行）"""
+    global total_checks
+    total_checks += 1
+    print('\n📋 校验6: 基金经理空值检测')
+
+    # fund_scores 空 fund_manager
+    url = (f'{SUPABASE_URL}/rest/v1/fund_scores'
+           f'?select=count&or=(fund_manager.is.null,fund_manager.eq.)')
+    resp = requests.get(url, headers={'apikey': ANON_KEY, 'Authorization': f'Bearer {ANON_KEY}',
+                                      'Prefer': 'count=exact', 'Range': '0-0'})
+    fs_empty = int(resp.headers.get('content-range', '0').split('/')[-1] if 'content-range' in resp.headers else '0')
+
+    # fund_combined 空 fund_manager
+    url2 = (f'{SUPABASE_URL}/rest/v1/fund_combined'
+            f'?select=count&or=(fund_manager.is.null,fund_manager.eq.)')
+    resp2 = requests.get(url2, headers={'apikey': ANON_KEY, 'Authorization': f'Bearer {ANON_KEY}',
+                                        'Prefer': 'count=exact', 'Range': '0-0'})
+    fc_empty = int(resp2.headers.get('content-range', '0').split('/')[-1] if 'content-range' in resp2.headers else '0')
+
+    print(f'  fund_scores 空基金经理: {fs_empty} | fund_combined 空基金经理: {fc_empty}')
+
+    if fs_empty > 10 or fc_empty > 10:
+        warn(f'基金经理空值偏多 (fs={fs_empty}, fc={fc_empty})，建议核查回填步骤')
+    elif fs_empty > 0 or fc_empty > 0:
+        warn(f'仍有少量基金经理空值 (fs={fs_empty}, fc={fc_empty})，多为抓取瞬时限流，下次更新补齐')
+    else:
+        ok('基金经理空值已清零')
+
+
 def main():
     parser = argparse.ArgumentParser(description='fund_scores 数据质量校验')
     parser.add_argument('--sample', type=int, default=20, help='抽样数量')
@@ -295,6 +325,7 @@ def main():
     check_score_grade()
     check_random_sample(args.sample)
     check_extreme_values()
+    check_manager_blanks()
 
     # 汇总
     print('\n' + '=' * 60)

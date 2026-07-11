@@ -13,14 +13,25 @@
       </div>
     </div>
 
-    <div class="fi-note">
+    <div class="fi-note" v-if="sub === 'primary'">
       数据说明：基金指数按分类从 <b>fund_scores</b> 全量基金等权构建，
       每一类为该分类下所有基金各周期收益率的<b>等权平均值</b>，口径统一、可直接横向比较。数据每日更新。
+    </div>
+    <div class="fi-note fi-note--sec" v-if="sub === 'secondary'">
+      二级分类指数按 <b>fund_scores</b> 全量基金的 <b>t1_tt（天天基金二级分类）</b> 分组，
+      每类为该分类下所有基金各周期收益率的<b>等权平均值</b>。
+      成分数量 = 该二级分类下的基金只数。
+    </div>
+    <div class="fi-note fi-note--em" v-if="sub === 'em_index'">
+      数据说明：东财基金指数来自<b>东方财富数据中心</b>公开行情接口，为市场上<b>真实发布的基金指数产品</b>
+      （上证基金指数 / 国证基金 / 深证ETF指数），展示其各周期收益率，
+      与上方「分类聚合」口径不同，仅供横向参考。
     </div>
 
     <div class="fi-loading" v-if="loading">加载中…</div>
 
-    <div class="fi-table-wrap" v-else>
+    <!-- 一级 / 二级分类聚合表 -->
+    <div class="fi-table-wrap" v-else-if="sub !== 'em_index'">
       <table class="fi-table">
         <thead>
           <tr>
@@ -46,10 +57,33 @@
       </table>
     </div>
 
-    <div class="fi-note fi-note--sec" v-if="sub === 'secondary'">
-      二级分类指数按 <b>fund_scores</b> 全量基金的 <b>t1_tt（天天基金二级分类）</b> 分组，
-      每类为该分类下所有基金各周期收益率的<b>等权平均值</b>。
-      成分数量 = 该二级分类下的基金只数。
+    <!-- 东财基金指数表 -->
+    <div class="fi-table-wrap" v-else>
+      <table class="fi-table">
+        <thead>
+          <tr>
+            <th class="fi-th">指数名称</th>
+            <th class="fi-th">分类</th>
+            <th
+              v-for="c in EM_COLS"
+              :key="c.key"
+              class="fi-th"
+              :class="{ 'fi-th--active': emSortState.key === c.key }"
+              @click="requestEmSort(c.key)"
+            >
+              <span>{{ c.label }}</span>
+              <span class="fi-sort" v-if="emSortState.key === c.key">{{ emSortState.order === 'asc' ? '▲' : '▼' }}</span>
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="r in emDisplayRows" :key="r.wind_code">
+            <td class="fi-pri-name">{{ r.name }}</td>
+            <td>{{ r.category || '—' }}</td>
+            <td v-for="c in EM_COLS" :key="c.key" :class="trendCls(r[c.key])">{{ pct(r[c.key]) }}</td>
+          </tr>
+        </tbody>
+      </table>
     </div>
   </div>
 </template>
@@ -61,6 +95,7 @@ import { supabase } from '../../api/supabase'
 const subTabs = [
   { key: 'primary', label: '一级分类' },
   { key: 'secondary', label: '二级分类' },
+  { key: 'em_index', label: '东财基金指数' },
 ]
 const sub = ref('primary')
 const loading = ref(true)
@@ -96,13 +131,77 @@ function trendCls(v) {
 
 const priRows = ref([])
 const secRows = ref([])
+const emRows = ref([])
+
+// 东财基金指数展示列（来自 fund_indices.market_perf）
+const EM_COLS = [
+  { key: 'ytd', label: '今年以来' },
+  { key: 'r1y', label: '近1年' },
+  { key: 'r3y', label: '近3年' },
+  { key: 'r5y', label: '近5年' },
+  { key: 'since_inception', label: '成立以来' },
+]
 
 function switchSub(key) {
   sub.value = key
   // 切换 tab 时重置排序，回到该分类的自然默认顺序
   sortState.value = { key: null, order: 'desc' }
+  emSortState.value = { key: null, order: 'desc' }
   // 延迟加载：切换到尚未加载的 tab 时触发
   if (key === 'secondary' && secRows.value.length === 0 && !loading.value) loadSecondary()
+  if (key === 'em_index' && emRows.value.length === 0 && !loading.value) loadEmIndex()
+}
+
+// 东财基金指数排序状态
+const emSortState = ref({ key: null, order: 'desc' })
+function requestEmSort(key) {
+  if (emSortState.value.key === key) {
+    emSortState.value = { key, order: emSortState.value.order === 'asc' ? 'desc' : 'asc' }
+  } else {
+    emSortState.value = { key, order: key === 'name' || key === 'category' ? 'asc' : 'desc' }
+  }
+}
+const emDisplayRows = computed(() => {
+  const rows = emRows.value
+  const { key, order } = emSortState.value
+  if (!key) return rows
+  const mul = order === 'asc' ? 1 : -1
+  return [...rows].sort((a, b) => {
+    if (key === 'name' || key === 'category') return mul * String(a[key]).localeCompare(String(b[key]), 'zh-CN')
+    const va = a[key], vb = b[key]
+    if (va == null && vb == null) return 0
+    if (va == null) return 1
+    if (vb == null) return -1
+    return mul * (Number(va) - Number(vb))
+  })
+})
+
+// ===== 东财基金指数：从 fund_indices 表读取真实基金指数产品 =====
+async function loadEmIndex() {
+  if (!supabase) return
+  try {
+    const { data, error } = await supabase
+      .from('fund_indices')
+      .select('wind_code, name_cn, category, market_perf')
+      .order('category')
+    if (error) { console.warn('[FundIndexPanel] em_index query error', error); return }
+    const rows = (data || []).map(r => {
+      const mp = r.market_perf || {}
+      return {
+        wind_code: r.wind_code,
+        name: r.name_cn,
+        category: r.category,
+        ytd: mp.ytd,
+        r1y: mp.r1y,
+        r3y: mp.r3y,
+        r5y: mp.r5y,
+        since_inception: mp.since_inception,
+      }
+    })
+    emRows.value = rows
+  } catch (e) {
+    console.error('[FundIndexPanel] em_index', e)
+  }
 }
 
 // ===== 表头排序 =====
@@ -235,7 +334,7 @@ async function loadSecondary() {
 onMounted(async () => {
   loading.value = true
   try {
-    await Promise.all([loadPrimary(), loadSecondary()])
+    await Promise.all([loadPrimary(), loadSecondary(), loadEmIndex()])
   } catch (e) {
     console.error('[FundIndexPanel]', e)
   } finally {
@@ -279,6 +378,7 @@ onMounted(async () => {
 .fi-sec-name { font-weight: 700; color: var(--text-primary); white-space: nowrap; }
 .fi-empty { text-align: center; color: var(--text-secondary); padding: 24px 0; }
 .fi-note--sec { background: #e6f3ec; border-left: 3px solid #00703c; color: #1d4829; }
+.fi-note--em { background: #e8f0fb; border-left: 3px solid #1d70b8; color: #0b3d6e; }
 
 /* 移动端适配 */
 @media (max-width: 768px) {

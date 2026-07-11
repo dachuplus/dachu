@@ -221,6 +221,19 @@ jobs:
           python scripts/promote_staging.py
           echo "切换完成: $(date '+%Y-%m-%d %H:%M:%S')"
 
+      - name: 步骤3d — 基金经理空值回填与--标记
+        continue-on-error: true
+        run: |
+          echo "============================================"
+          echo "  步骤3d: 基金经理空值复核回填（jbgk 抓取，确无经理标记 --）"
+          echo "  开始时间: $(date '+%Y-%m-%d %H:%M:%S')"
+          echo "  说明: 读取 fund_scores/fund_combined 空经理基金，回源 fundf10 jbgk 复核；"
+          echo "        抓到→回填(漏抓)；页面无经理→'--'(确无)；抓取失败→保留(瞬时限流)。"
+          echo "============================================"
+          pip install requests
+          python scripts/fix_manager_blanks.py
+          echo "基金经理回填完成: $(date '+%Y-%m-%d %H:%M:%S')"
+
       - name: 步骤4 — 验证数据
         run: |
           echo "============================================"
