@@ -155,12 +155,12 @@
 import { ref, computed, onMounted, onBeforeUnmount, watch, nextTick } from 'vue'
 import { supabase } from '../../api/supabase'
 import echarts from '../../utils/echarts-setup'
-import { BarChart } from 'echarts/charts'
-import { GridComponent, TooltipComponent, TitleComponent } from 'echarts/components'
+import { BarChart, LineChart } from 'echarts/charts'
+import { GridComponent, TooltipComponent, TitleComponent, LegendComponent } from 'echarts/components'
 import { createGovukChart } from '../../utils/echarts-theme'
 
 // 注册本组件所需的 BarChart（不修改共享的 echarts-setup.js）
-echarts.use([BarChart, GridComponent, TooltipComponent, TitleComponent])
+echarts.use([BarChart, LineChart, GridComponent, TooltipComponent, TitleComponent, LegendComponent])
 
 const MODEL_ORDER = ['ds', 'doubao', 'qwen', 'wenxin', 'zhipu', 'kimi', 'minimax']
 
@@ -306,41 +306,65 @@ async function loadAll() {
 function renderChart() {
   if (!chartEl.value) return
   if (!chartInstance) chartInstance = echarts.getInstanceByDom(chartEl.value) || echarts.init(chartEl.value)
-  // 升序排列：ECharts category 轴首项在底部，最大值的放最后 → 顶部为冠军
-  const data = ranking.value.slice().sort((a, b) => a.ret - b.ret)
-  if (data.length === 0) {
+
+  // 多模型收益曲线：X轴=时间周期，每条线=一个模型
+  const periods = CHART_PERIODS.map(p => p.key)   // [r1m, r3m, r6m, r1y, r3y, r5y]
+  const periodLabels = CHART_PERIODS.map(p => p.label)
+  const seriesData = []
+  for (const m of orderedModels.value) {
+    const ret = modelReturns.value[m.id] || {}
+    const values = periods.map(pk => ret[pk] ?? null)
+    // 至少有一个有效数据点才画线
+    if (values.some(v => v != null)) {
+      seriesData.push({
+        name: m.name,
+        type: 'line',
+        data: values,
+        symbol: 'circle', symbolSize: 6,
+        lineStyle: { width: 2 },
+        itemStyle: { color: m.color || '#1d70b8' },
+        emphasis: { focus: 'series' },
+        connectNulls: true,
+      })
+    }
+  }
+
+  if (seriesData.length === 0) {
     chartInstance.clear()
     return
   }
-  const names = data.map(d => modelName(d.id))
-  const values = data.map(d => ({
-    value: +d.ret.toFixed(2),
-    itemStyle: { color: (models.value.find(m => m.id === d.id) || {}).color || '#1d70b8' },
-  }))
+
   const option = createGovukChart({
-    grid: { left: 10, right: 50, top: 10, bottom: 20, containLabel: true },
+    legend: {
+      bottom: 0, left: 0, right: 0,
+      textStyle: { fontSize: 12, color: '#505a66' },
+      itemWidth: 16, itemHeight: 3, itemGap: 14,
+      type: 'scroll',
+    },
+    grid: { left: 10, right: 20, top: 10, bottom: 42, containLabel: true },
     tooltip: {
       trigger: 'axis',
-      axisPointer: { type: 'shadow' },
+      axisPointer: { type: 'cross' },
       formatter: (params) => {
-        const p = params[0]
-        return `${p.name}<br/>${chartPeriodLabel()}：<b>${(p.value > 0 ? '+' : '') + p.value.toFixed(2)}%</b>`
+        if (!Array.isArray(params)) params = [params]
+        const period = params[0]?.axisValue || ''
+        let html = `<b>${period}</b><br/>`
+        for (const p of params) {
+          const v = p.value
+          if (v == null) continue
+          const sign = v > 0 ? '+' : ''
+          html += `${p.marker} ${p.seriesName}：<b style="color:${v >= 0 ? '#d4351c' : '#00703c'}">${sign}${v.toFixed(2)}%</b><br/>`
+        }
+        return html
       },
     },
-    xAxis: { type: 'value', axisLabel: { formatter: '{value}%' } },
-    yAxis: { type: 'category', data: names },
-    series: [{
-      type: 'bar',
-      data: values,
-      barWidth: '55%',
-      label: {
-        show: true,
-        position: 'right',
-        formatter: (p) => (p.value > 0 ? '+' : '') + p.value.toFixed(2) + '%',
-        color: '#0b0c0c',
-        fontSize: 13,
-      },
-    }],
+    xAxis: { type: 'category', data: periodLabels, boundaryGap: false, axisLabel: { fontSize: 12 } },
+    yAxis: {
+      type: 'value',
+      axisLabel: { formatter: '{value}%', fontSize: 12 },
+      splitLine: { lineStyle: { color: '#f3f2f1' } },
+    },
+    series: seriesData,
   })
   chartInstance.setOption(option, true)
 }
