@@ -24,7 +24,7 @@ env:
 jobs:
   update-fund-data:
     runs-on: ubuntu-latest
-    timeout-minutes: 180
+    timeout-minutes: 420
     env:
       SUPABASE_MGMT_TOKEN: ${{ secrets.SUPABASE_MGMT_TOKEN }}
       SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
@@ -132,7 +132,7 @@ jobs:
 
       - name: 步骤2c2 — 抓取基金基本概况（fundf10 jbgk：基金经理/管理人/分类/费率）
         if: ${{ !inputs.skip_risk }}
-        timeout-minutes: 120
+        timeout-minutes: 240
         continue-on-error: true
         run: |
           echo "============================================"
@@ -198,7 +198,7 @@ jobs:
           python scripts/import_via_rest.py --staging
 
       - name: 步骤3b — 刷新 fund_quarterly_scores（季度引擎评分，供 fund_combined 派生）
-        timeout-minutes: 60
+        timeout-minutes: 120
         continue-on-error: true
         run: |
           echo "============================================"

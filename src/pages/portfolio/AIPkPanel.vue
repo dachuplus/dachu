@@ -5,12 +5,15 @@
     <div class="card aipk-intro">
       <div class="card-title-row">
         <span class="card-title">AI 大 PK</span>
-        <span class="aipk-badge">规则版 · 待接入真实大模型</span>
+        <span class="aipk-badge" :class="{ 'aipk-badge-real': realModels.length }">
+          {{ realModels.length ? `真实大模型已接入（${realModels.length}）` : '规则版' }}
+        </span>
       </div>
       <p class="card-desc">
-        让多个大模型各自按规则挑选 5 只基金、每只 20% 等权，每月 1 日调仓，比一比谁的收益更好。
-        当前为 <b>规则版（Plan B）</b>：7 个国内模型按各自的量化规则从 ALLFUND.CN 真实基金库中自动选基，
-        用于先把框架跑通；接入各家大模型 API Key 后，将改为由真实模型选基（选基逻辑不变）。
+        让多个大模型各自挑选 5 只基金、每只 20% 等权，每月 1 日调仓，比一比谁的收益更好。
+        <b>已接入真实大模型</b>的模型（如 DeepSeek）由模型自己从 ALLFUND.CN 真实基金库中选品类、选单基，
+        并给出两层选基逻辑；其余模型暂以规则版运行（待接入各家 API Key 后改由真实模型选基）。
+        所有选基因均来自 fund_scores 真实表，无编造、无模拟。
       </p>
       <div class="aipk-src">数据来源：ALLFUND.CN 靠谱指数基金库（真实收益，非模拟）</div>
     </div>
@@ -23,6 +26,9 @@
           <span class="aipk-dot" :style="{ background: m.color }"></span>
           <span class="aipk-model-name">{{ m.name }}</span>
           <span class="aipk-model-short" :style="{ color: m.color }">{{ m.name_short }}</span>
+          <span class="aipk-model-mode" :class="m.mode === 'real' ? 'is-real' : 'is-rule'">
+            {{ m.mode === 'real' ? '真实' : '规则' }}
+          </span>
         </div>
         <div class="aipk-model-persona">{{ m.persona }}</div>
         <div class="aipk-model-ret" :class="retClass(modelReturns[m.id]?.r1y)">
@@ -103,6 +109,9 @@
       <div class="card-title">调仓时间线</div>
       <div class="aipk-tl-period" v-if="latestPeriod">
         {{ latestPeriod }} 月度调仓 · 各模型选基逻辑（两层）
+        <span class="aipk-tl-mode-note" v-if="orderedModels.length">
+          （{{ realModels.length ? realModels.length + ' 个真实模型' : '' }}{{ realModels.length && ruleModels.length ? ' + ' : '' }}{{ ruleModels.length ? ruleModels.length + ' 个规则版' : '' }}）
+        </span>
       </div>
       <div class="aipk-tl-empty" v-if="!orderedModels.length">暂无选基数据</div>
       <div class="aipk-tl-model" v-for="m in orderedModels" :key="m.id">
@@ -183,6 +192,9 @@ const orderedModels = computed(() => {
   models.value.forEach(m => { map[m.id] = m })
   return MODEL_ORDER.map(id => map[id]).filter(Boolean)
 })
+
+const realModels = computed(() => orderedModels.value.filter(m => m.mode === 'real'))
+const ruleModels = computed(() => orderedModels.value.filter(m => m.mode !== 'real'))
 
 // 各模型加权区间收益
 const modelReturns = computed(() => {
@@ -342,7 +354,16 @@ onBeforeUnmount(() => {
 .card-title-row { display: flex; align-items: center; gap: var(--space-md); margin-bottom: var(--space-md); }
 .card-title-row .card-title { margin-bottom: 0; }
 .aipk-badge { font-size: 13px; color: #943c0c; background: #fff4e0; padding: 2px 10px; font-weight: 700; }
+.aipk-badge-real { color: #fff; background: #1d70b8; }
 .aipk-src { font-size: 14px; color: var(--text-secondary); }
+
+/* 模型卡模式标签（真实/规则） */
+.aipk-model-mode { font-size: 12px; font-weight: 700; padding: 1px 8px; margin-left: auto; }
+.aipk-model-mode.is-real { color: #fff; background: #1d70b8; }
+.aipk-model-mode.is-rule { color: #505a66; background: #f3f2f1; border: 1px solid var(--border); }
+
+/* 时间线模式注记 */
+.aipk-tl-mode-note { font-size: 13px; font-weight: 400; color: var(--text-secondary); }
 
 .aipk-section-title { font-size: 19px; font-weight: 700; margin: var(--space-lg) 0 var(--space-md); }
 

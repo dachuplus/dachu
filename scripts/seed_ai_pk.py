@@ -57,27 +57,39 @@ MGMT_HEADERS = {"Authorization": f"Bearer {PAT}", "Content-Type": "application/j
 # 每个模型的「第一层 · 品类逻辑」：说明其选品类的理由与为何排除其他品类（与 rule 一致，真实可解释）
 MODELS = [
     {"id": "ds", "name": "DeepSeek", "name_short": "DS", "region": "cn",
-     "color": "#1d70b8", "persona": "综合靠谱分(全周期评分)最高的基金", "rule": "k_all",
-     "category_logic": "不预设品类偏好，以综合评分(k_all)为唯一标准在全市场选最优质的 5 只。k_all 综合了收益、回撤、夏普等多维指标，故入选基金天然跨股票/混合/债券多品类，不把鸡蛋放在一个篮子里。"},
+     "color": "#1d70b8", "persona": "深度基本面派：长期业绩扎实、基金经理任职稳定、回撤可控的主动管理型基金，宁可少赚不可大亏", "rule": "k_all",
+     "category_logic": "以深度基本面为核心：在全市场寻找长期业绩扎实、波动可控、基金经理任职稳定的主动管理型基金。综合评分(k_all)是其代理指标，故入选基金天然跨股票/混合多品类，不押注单一赛道，用多维质量而非单一年度爆发来控风险。"},
     {"id": "doubao", "name": "豆包", "name_short": "豆包", "region": "cn",
-     "color": "#d4351c", "persona": "近1年收益率最高的基金", "rule": "r1y",
-     "category_logic": "进攻型策略：只认近1年收益，优先高弹性品类（偏股混合、股票型、部分 QDII），主动规避低弹性的纯债与货币——它们收益弹性不足，会拉低组合进攻性。故入选多为高波动高收益品类。"},
+     "color": "#d4351c", "persona": "成长进攻派：高弹性、高成长赛道（科技/制造/医药）的基金，能承受较大波动以博取高收益", "rule": "r1y",
+     "category_logic": "进攻型成长策略：聚焦高弹性、高成长赛道（科技/制造/医药/部分 QDII），主动规避低弹性的纯债与货币——它们收益弹性不足、会拉低组合进攻性。愿意用较大波动换取更高的收益弹性，故入选多为高波动高收益品类。"},
     {"id": "qwen", "name": "千问", "name_short": "千问", "region": "cn",
-     "color": "#00703c", "persona": "近1年夏普比率最高的基金(风险调整后收益)", "rule": "sr1y",
-     "category_logic": "风险调整后收益优先：偏好波动可控且收益稳定的品类（偏债混合、量化、中短债），规避高波动股票基金——其收益虽高但夏普被剧烈波动稀释。目标是同等风险下收益最高。"},
+     "color": "#00703c", "persona": "风险平价派：波动低、夏普高、收益稳定的基金，强调风险调整后收益", "rule": "sr1y",
+     "category_logic": "风险平价优先：偏好波动可控且收益稳定的品类（偏债混合、量化、中短债），规避高波动股票基金——其收益虽高但夏普被剧烈波动稀释。目标是同等风险下收益最高，用夏普比率(sr1y)衡量风险调整后的真实性价比。"},
     {"id": "wenxin", "name": "文心一言", "name_short": "文心", "region": "cn",
-     "color": "#f47738", "persona": "近1年最大回撤最小的基金(防守型)", "rule": "dd1y",
-     "category_logic": "极致防御：只选低回撤品类（短债、纯债、货币增强），明确规避股票型与偏股混合——这些品类在下跌市回撤可达 20%+，远超防守目标。用低回撤换下行保护，宁可少赚不能大亏。"},
+     "color": "#f47738", "persona": "稳健防御派：债券型、偏债混合等低回撤品种，本金安全放第一位", "rule": "dd1y",
+     "category_logic": "极致防御：只选低回撤品类（短债、纯债、货币增强、偏债混合），明确规避股票型与偏股混合——这些品类在下跌市回撤可达 20%+，远超防守目标。用低回撤换下行保护，宁可少赚不能大亏。"},
     {"id": "zhipu", "name": "智谱", "name_short": "智谱", "region": "cn",
-     "color": "#4c2c92", "persona": "近3年收益率最高的基金", "rule": "r3y",
-     "category_logic": "中长期视角：偏好能穿越牛熊的品类（偏股混合、平衡型、部分 QDII），对短期波动容忍度高。近3年收益更能反映基金经理中长期管理能力，故不追短期热点、不配纯债。"},
+     "color": "#4c2c92", "persona": "长期价值派：穿越牛熊、中长期（3年+）收益领先的基金，不追短期热点", "rule": "r3y",
+     "category_logic": "中长期价值视角：偏好能穿越牛熊的品类（偏股混合、平衡型、部分 QDII），对短期波动容忍度高。近3年收益(r3y)更能反映基金经理中长期管理能力，故不追短期热点、不配纯债，看重的是时间复利而非一时排名。"},
     {"id": "kimi", "name": "Kimi", "name_short": "Kimi", "region": "cn",
-     "color": "#d53880", "persona": "近3年卡玛比率(收益/回撤)最优的基金", "rule": "calmar3",
-     "category_logic": "收益/回撤比最优：偏好高卡玛品类（二级债基、偏债混合、量化），规避单边上行的纯股基金——其回撤大、会拖累卡玛比率。要的是「涨得多、跌得少」的性价比。"},
+     "color": "#d53880", "persona": "性价比派：收益/回撤比（卡玛）高、涨多跌少的基金，追求风险收益性价比", "rule": "calmar3",
+     "category_logic": "收益/回撤比最优：偏好高卡玛品类（二级债基、偏债混合、量化），规避单边上行的纯股基金——其回撤大、会拖累卡玛比率。要的是「涨得多、跌得少」的性价比，用近3年卡玛(r3y/|dd3y|)筛选真正的风险收益效率。"},
     {"id": "minimax", "name": "MiniMax", "name_short": "Minimax", "region": "cn",
-     "color": "#28a197", "persona": "跨一级分类均衡配置(各品类高分基金)", "rule": "balanced",
-     "category_logic": "强制跨一级分类均衡：在混合型/指数型/债券型/股票型/QDII 各大类各取代表基，避免风格漂移与单一风险暴露。即便某品类短期更强也不超配，确保组合在任何市况都有压舱石。"},
+     "color": "#28a197", "persona": "全天候均衡派：强制跨大类（股/债/QDII/指数）分散，不押注单一风格", "rule": "balanced",
+     "category_logic": "强制跨一级分类均衡：在混合型/指数型/债券型/股票型/QDII 各大类各取代表基，避免风格漂移与单一风险暴露。即便某品类短期更强也不超配，确保组合在任何市况都有压舱石，用分散化解未知风险。"},
 ]
+
+
+# 真实模型 API 配置（规则版种子仍写 mode='rule'，api_* 仅记录能力，待 ai_pk_real.py 真实跑）
+_API_CONFIG = {
+    "ds": {"api_provider": "deepseek", "api_model": "deepseek-chat", "api_key_env": "DEEPSEEK_API_KEY"},
+    "doubao": {"api_provider": "volc-ark", "api_model": "待创建_火山方舟推理接入点", "api_key_env": "ARK_API_KEY"},
+}
+for m in MODELS:
+    cfg = _API_CONFIG.get(m["id"])
+    if cfg:
+        m.update(cfg)
+    m["mode"] = "rule"
 
 
 def mgmt_query(sql, expect_ok=(200, 201)):
@@ -287,6 +299,10 @@ CREATE TABLE IF NOT EXISTS public.ai_pk_models (
   color text NOT NULL,
   persona text,
   category_logic text,
+  mode text NOT NULL DEFAULT 'rule',
+  api_provider text,
+  api_model text,
+  api_key_env text,
   enabled boolean NOT NULL DEFAULT true,
   created_at timestamptz NOT NULL DEFAULT now()
 );
@@ -296,6 +312,7 @@ CREATE TABLE IF NOT EXISTS public.ai_pk_picks (
   model_id text NOT NULL REFERENCES public.ai_pk_models(id),
   period_month text NOT NULL,
   picks jsonb NOT NULL,
+  mode text NOT NULL DEFAULT 'rule',
   created_at timestamptz NOT NULL DEFAULT now()
 );
 
@@ -312,10 +329,16 @@ DROP POLICY IF EXISTS "ai_pk_picks_public_read" ON public.ai_pk_picks;
 CREATE POLICY "ai_pk_picks_public_read" ON public.ai_pk_picks FOR SELECT USING (true);
 """
     mgmt_query(ddl)
-    # category_logic 列可能在旧表已存在，用 ADD COLUMN IF NOT EXISTS 兜底
-    mgmt_query(
-        "ALTER TABLE public.ai_pk_models ADD COLUMN IF NOT EXISTS category_logic text;"
-    )
+    # 旧表兜底补列
+    for col, typ in [
+        ("category_logic", "text"),
+        ("mode", "text NOT NULL DEFAULT 'rule'"),
+        ("api_provider", "text"),
+        ("api_model", "text"),
+        ("api_key_env", "text"),
+    ]:
+        mgmt_query(f"ALTER TABLE public.ai_pk_models ADD COLUMN IF NOT EXISTS {col} {typ};")
+    mgmt_query("ALTER TABLE public.ai_pk_picks ADD COLUMN IF NOT EXISTS mode text NOT NULL DEFAULT 'rule';")
     print("[DDL] 完成")
 
 
@@ -325,24 +348,30 @@ def upsert_models():
     for m in MODELS:
         persona = m["persona"].replace("'", "''")
         clogic = m["category_logic"].replace("'", "''")
+        provider = m.get("api_provider") or ""
+        apimodel = m.get("api_model") or ""
+        keyenv = m.get("api_key_env") or ""
+        mode = m.get("mode") or "rule"
         vals.append(
             f"('{m['id']}','{m['name']}','{m['name_short']}','{m['region']}','{m['color']}',"
-            f"'{persona}','{clogic}',true)"
+            f"'{persona}','{clogic}','{mode}','{provider}','{apimodel}','{keyenv}',true)"
         )
     sql = (
         "INSERT INTO public.ai_pk_models "
-        "(id,name,name_short,region,color,persona,category_logic,enabled) VALUES "
+        "(id,name,name_short,region,color,persona,category_logic,mode,api_provider,api_model,api_key_env,enabled) VALUES "
         + ",".join(vals)
         + " ON CONFLICT (id) DO UPDATE SET name=EXCLUDED.name, name_short=EXCLUDED.name_short, "
           "region=EXCLUDED.region, color=EXCLUDED.color, persona=EXCLUDED.persona, "
-          "category_logic=EXCLUDED.category_logic, enabled=EXCLUDED.enabled;"
+          "category_logic=EXCLUDED.category_logic, mode=EXCLUDED.mode, "
+          "api_provider=EXCLUDED.api_provider, api_model=EXCLUDED.api_model, "
+          "api_key_env=EXCLUDED.api_key_env, enabled=EXCLUDED.enabled;"
     )
     mgmt_query(sql)
     print("[SEED] 模型元信息完成")
 
 
-def upsert_picks(picks_by_model, period_month):
-    print(f"[SEED] 写入当期({period_month})选基结果 ...")
+def upsert_picks(picks_by_model, period_month, mode="rule"):
+    print(f"[SEED] 写入当期({period_month})选基结果 [mode={mode}] ...")
     for m in MODELS:
         mid = m["id"]
         funds = picks_by_model.get(mid, [])
@@ -355,8 +384,8 @@ def upsert_picks(picks_by_model, period_month):
             f"DELETE FROM public.ai_pk_picks WHERE model_id='{mid}' AND period_month='{period_month}';"
         )
         mgmt_query(
-            f"INSERT INTO public.ai_pk_picks (model_id, period_month, picks) "
-            f"VALUES ('{mid}','{period_month}','{picks_json}');"
+            f"INSERT INTO public.ai_pk_picks (model_id, period_month, picks, mode) "
+            f"VALUES ('{mid}','{period_month}','{picks_json}','{mode}');"
         )
         names = "、".join(f["name"] for f in funds)
         print(f"  {mid}({m['name_short']}): {names}")
@@ -381,7 +410,7 @@ def main():
             print(f"   {i}. {f['code']} {f['name']} (20%)")
             print(f"      └ {f['reason']}")
     upsert_models()
-    upsert_picks(picks_by_model, period_month)
+    upsert_picks(picks_by_model, period_month, mode="rule")
     print("\n=== 完成 ===")
 
 
