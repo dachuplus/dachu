@@ -10,7 +10,7 @@ AI大PK —— 规则版选基种子脚本 (Plan B)
 
 规则映射（基于 fund_combined 真实字段，绝不使用编造基金）：
   ds(DeepSeek)   : 综合靠谱分 k_all 最高
-  doubao(豆包)   : 近1年收益 r1y 最高
+  doubao(豆包)   : 规则模型（非真实大模型），不参与实时选基，前端显示「待接入」
   qwen(千问)     : 近1年夏普 sr1y 最高（风险调整后收益）
   wenxin(文心)   : 近1年最大回撤 dd1y 最小（dd 列为负，数值越大回撤越小）
   zhipu(智谱)    : 近3年收益 r3y 最高
@@ -94,7 +94,8 @@ for m in MODELS:
     cfg = _API_CONFIG.get(m["id"])
     if cfg:
         m.update(cfg)
-    m["mode"] = "rule"
+    # 豆包为规则模型（非真实大模型），不参与真实选基，置待接入
+    m["mode"] = "pending" if m["id"] == "doubao" else "rule"
 
 
 def mgmt_query(sql, expect_ok=(200, 201)):
@@ -416,7 +417,8 @@ def upsert_models():
     vals = []
     for m in MODELS:
         persona = m["persona"].replace("'", "''")
-        clogic = m["category_logic"].replace("'", "''")
+        # 豆包为规则模型，不参与真实选基：置待接入，不写入品类逻辑
+        clogic = "" if m["id"] == "doubao" else (m["category_logic"] or "").replace("'", "''")
         provider = m.get("api_provider") or ""
         apimodel = m.get("api_model") or ""
         keyenv = m.get("api_key_env") or ""
@@ -443,6 +445,10 @@ def upsert_picks(picks_by_model, period_month, mode="rule"):
     print(f"[SEED] 写入当期({period_month})选基结果 [mode={mode}] ...")
     for m in MODELS:
         mid = m["id"]
+        # 豆包为规则模型（非真实大模型）：不参与真实选基，置待接入，跳过写库
+        if mid == "doubao":
+            print(f"  [SKIP] {mid} 为规则模型，置待接入，不写入选基")
+            continue
         funds = picks_by_model.get(mid, [])
         if len(funds) < 5:
             print(f"  [WARN] {mid} 仅选到 {len(funds)} 只，跳过")

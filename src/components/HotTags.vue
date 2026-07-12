@@ -6,6 +6,11 @@
       <div class="tabs">
         <button
           class="tab-btn"
+          :class="{ active: activeTab === 'all' }"
+          @click="activeTab = 'all'"
+        >全部</button>
+        <button
+          class="tab-btn"
           :class="{ active: activeTab === 'concept' }"
           @click="activeTab = 'concept'"
         >概念</button>
@@ -146,11 +151,17 @@ const fundMetaUpdateTime = ref('') // fund_scores 更新时间
 
 // ========== 计算属性 ==========
 const displayTags = computed(() => {
-  const filtered = allTags.value.filter(t => t.tag_type === activeTab.value)
-  if (props.maxRows > 0) {
-    return filtered.slice(0, props.maxRows * 8) // 每行8个
+  let list
+  if (activeTab.value === 'all') {
+    // 全部：概念 + 行业 合并，按近1年涨幅（return_pct）降序排序
+    list = allTags.value.slice().sort((a, b) => (b.return_pct ?? -Infinity) - (a.return_pct ?? -Infinity))
+  } else {
+    list = allTags.value.filter(t => t.tag_type === activeTab.value)
   }
-  return filtered
+  if (props.maxRows > 0) {
+    return list.slice(0, props.maxRows * 8) // 每行8个
+  }
+  return list
 })
 
 // ========== 方法 ==========

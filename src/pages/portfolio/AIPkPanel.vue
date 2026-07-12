@@ -11,7 +11,7 @@
       </div>
       <p class="card-desc">
         让多个大模型各自挑选 5 只基金、每只 20% 等权，每月 1 日调仓，比一比谁的收益更好。
-        <b>全部 7 个模型均已接入真实大模型</b>，由模型自己从 ALLFUND.CN 全市场真实基金库中，独立选品类、选单品，
+        由 <b>6 个真实大模型</b>独立从 ALLFUND.CN 全市场真实基金库提名、选品类、选单品（豆包为规则模型，暂待接入），
         并给出两层逻辑（第一层模型独立研究 · 第二层单品逻辑）；各模型按自身推理逻辑自主决策，目标只有一个——跑赢对手。
         通过「千问百炼」聚合平台调用的模型已在卡片上标注<span class="aipk-ds-badge">百炼</span>徽标。
         所有选品均来自 ALLFUND.CN 全市场真实基金库，无编造、无模拟。
@@ -27,23 +27,26 @@
           <span class="aipk-dot" :style="{ background: m.color }"></span>
           <span class="aipk-model-name">{{ m.name }}</span>
           <span class="aipk-model-short" :style="{ color: m.color }">{{ m.name_short }}</span>
-          <span class="aipk-model-mode" :class="m.mode === 'real' ? 'is-real' : 'is-rule'">
-            {{ m.mode === 'real' ? '真实' : '规则' }}
+          <span class="aipk-model-mode" :class="m.mode === 'real' ? 'is-real' : m.mode === 'pending' ? 'is-pending' : 'is-rule'">
+            {{ m.mode === 'real' ? '真实' : m.mode === 'pending' ? '待接入' : '规则' }}
           </span>
           <span v-if="m.api_provider === 'qwen'" class="aipk-ds-badge">百炼</span>
         </div>
         <div class="aipk-model-persona">{{ modelTagline(m) }}</div>
-        <div class="aipk-model-ret" :class="retClass(modelReturns[m.id]?.r1y)">
+        <div class="aipk-model-ret" v-if="m.mode !== 'pending'" :class="retClass(modelReturns[m.id]?.r1y)">
           近1年组合收益 {{ fmtRet(modelReturns[m.id]?.r1y) }}
         </div>
         <div class="aipk-funds">
-          <div class="aipk-fund" v-for="(f, i) in (picksMap[m.id]?.picks || [])" :key="f.code">
-            <span class="aipk-fund-idx">{{ i + 1 }}</span>
-            <span class="aipk-fund-name">{{ f.name }}</span>
-            <span class="aipk-fund-code">{{ f.code }}</span>
-            <span class="aipk-fund-w">20%</span>
-          </div>
-          <div class="aipk-funds-empty" v-if="!(picksMap[m.id]?.picks || []).length">暂无选基数据</div>
+          <div class="aipk-pending" v-if="m.mode === 'pending'">待接入</div>
+          <template v-else>
+            <div class="aipk-fund" v-for="(f, i) in (picksMap[m.id]?.picks || [])" :key="f.code">
+              <span class="aipk-fund-idx">{{ i + 1 }}</span>
+              <span class="aipk-fund-name">{{ f.name }}</span>
+              <span class="aipk-fund-code">{{ f.code }}</span>
+              <span class="aipk-fund-w">20%</span>
+            </div>
+            <div class="aipk-funds-empty" v-if="!(picksMap[m.id]?.picks || []).length">暂无选基数据</div>
+          </template>
         </div>
       </div>
     </div>
@@ -122,21 +125,24 @@
           <span class="aipk-tl-model-name">{{ m.name }}</span>
           <span class="aipk-tl-model-short" :style="{ color: m.color }">{{ m.name_short }}</span>
         </div>
-        <div class="aipk-tl-layer">
-          <span class="aipk-tl-tag">第一层 · 模型独立研究（宏观/策略/行业/流动性/金融工程/胜率赔率 六维度）</span>
-          <p class="aipk-tl-text">{{ m.category_logic || '—' }}</p>
-        </div>
-        <div class="aipk-tl-layer">
-          <span class="aipk-tl-tag">第二层 · 单品逻辑（多维度分析）</span>
-          <div class="aipk-tl-funds">
-            <div class="aipk-tl-fund" v-for="(f, i) in (picksMap[m.id]?.picks || [])" :key="f.code">
-              <span class="aipk-tl-fund-idx">{{ i + 1 }}</span>
-              <span class="aipk-tl-fund-name">{{ f.name }}</span>
-              <span class="aipk-tl-fund-w">20%</span>
-              <p class="aipk-tl-fund-reason">{{ f.reason || '—' }}</p>
+        <div class="aipk-tl-pending" v-if="m.mode === 'pending'">待接入</div>
+        <template v-else>
+          <div class="aipk-tl-layer">
+            <span class="aipk-tl-tag">第一层 · 模型独立研究（宏观/策略/行业/流动性/金融工程/胜率赔率 六维度）</span>
+            <p class="aipk-tl-text">{{ m.category_logic || '—' }}</p>
+          </div>
+          <div class="aipk-tl-layer">
+            <span class="aipk-tl-tag">第二层 · 单品逻辑（多维度分析）</span>
+            <div class="aipk-tl-funds">
+              <div class="aipk-tl-fund" v-for="(f, i) in (picksMap[m.id]?.picks || [])" :key="f.code">
+                <span class="aipk-tl-fund-idx">{{ i + 1 }}</span>
+                <span class="aipk-tl-fund-name">{{ f.name }}</span>
+                <span class="aipk-tl-fund-w">20%</span>
+                <p class="aipk-tl-fund-reason">{{ f.reason || '—' }}</p>
+              </div>
             </div>
           </div>
-        </div>
+        </template>
       </div>
     </div>
 
@@ -379,6 +385,7 @@ onBeforeUnmount(() => {
 .aipk-model-mode { font-size: 12px; font-weight: 700; padding: 1px 8px; margin-left: auto; }
 .aipk-model-mode.is-real { color: #fff; background: #1d70b8; }
 .aipk-model-mode.is-rule { color: #505a66; background: #f3f2f1; border: 1px solid var(--border); }
+.aipk-model-mode.is-pending { color: #943c0c; background: #fff4e0; border: 1px solid #f0c89a; }
 
 /* 千问百炼聚合平台徽标 */
 .aipk-ds-badge { font-size: 12px; font-weight: 700; padding: 1px 8px; margin-left: 6px; color: #fff; background: #b8860b; }
@@ -404,6 +411,8 @@ onBeforeUnmount(() => {
 .aipk-fund-code { color: var(--text-secondary); font-size: 12px; }
 .aipk-fund-w { color: #1d70b8; font-weight: 700; font-size: 12px; }
 .aipk-funds-empty { font-size: 13px; color: var(--text-secondary); }
+.aipk-pending { font-size: 14px; font-weight: 700; color: #943c0c; background: #fff4e0; border: 1px solid #f0c89a; padding: var(--space-sm); text-align: center; }
+.aipk-tl-pending { font-size: 15px; font-weight: 700; color: #943c0c; background: #fff4e0; border: 1px solid #f0c89a; padding: var(--space-md); text-align: center; }
 
 /* 收益 PK */
 .aipk-pk-hd { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: var(--space-md); margin-bottom: var(--space-md); }

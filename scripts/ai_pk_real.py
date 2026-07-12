@@ -20,10 +20,9 @@ AI大PK —— 真实大模型自选脚本
   4. 解析模型返回的 JSON（5 个 code + 两层理由），校验 code 真实存在、份额去重。
   5. 写入 ai_pk_picks（mode='real'），并把模型 mode 置为 'real'。
 
-豆包(火山方舟)特别说明：
-  - 必须先在火山方舟控制台创建「推理接入点」得到 ep-xxxx，并把 ep-xxxx 写入该模型行的 api_model。
-  - 脚本读取 api_key_env（默认 ARK_API_KEY）作为 Bearer Token。
-  - api_model 若不是以 'ep-' 开头（即仍是占位），脚本会跳过豆包并提示，不影响其他模型。
+豆包(规则模型)特别说明：
+  - 豆包并非真实大模型，而是规则模型，不参与真实选基；脚本直接将其置为「待接入」，
+    前端展示「待接入」而不展示任何基金，不影响其他 6 个真实模型的 PK。
 
 用法：
   python3 scripts/ai_pk_real.py                 # 跑所有已配置模型
@@ -51,12 +50,12 @@ os.environ["SUPABASE_PAT"] = PAT
 MGMT_URL = f"https://api.supabase.com/v1/projects/{REF}/database/query"
 MGMT_HEADERS = {"Authorization": f"Bearer {PAT}", "Content-Type": "application/json"}
 
-# ===== 候选池：全市场 fund_combined 各大类中立抽样，保证模型能自由选择品类 =====
-# 注意：数据源改为 fund_combined（全市场基金，约 2 万条）；排序用「基金规模」而非 k_all，
-# 避免用历史评分引导模型，让模型基于研究独立判断品类与单品。
-POOL_CATEGORIES = ["混合型", "指数型", "债券型", "股票型", "QDII", "FOF"]
-POOL_PER_CAT = 55
-SELECT_FIELDS = "c,name,t0,t1,k_all,r1y,r3y,r5y,dd1y,sr1y,fund_scale"
+# ===== 全市场校验字典（仅用于校验/归一化模型自由提名的基金，绝不作为候选池）=====
+# 用户硬性要求：模型必须「独立选基金」，不基于数据库任何表来引导选择。
+# 因此本脚本不再向模型提供候选池，而是由模型基于自身研究自由提名；
+# 下面构建的 by_code / name_index 仅用于事后校验提名是否真实存在、并归一化名称/代码，
+# 不参与任何选基决策。
+LOOKUP_FIELDS = "c,name"
 
 # 最高风控规则：识别「持有期 / 定开 / 定期开放」等带锁定期、月度调仓时卖不掉的产品（按名称，无需额外列）
 _LOCKED_RE = re.compile(r'(持有期|定开|定期开放|最短持有|\d+\s*(年|个月|月|天|日)\s*持有|持有\s*\d+\s*(年|个月|月))')
@@ -98,51 +97,48 @@ def rest_select(params, table="fund_scores"):
     return r.json()
 
 
-def build_candidate_pool():
-    """全市场 fund_combined 各大类中立抽样，份额去重，返回 (list, code->fund)。
+def build_lookup_index():
+    """构建全市场基金「校验字典」（仅用于事后校验/归一化，绝不作为候选池）。
 
-    数据源改为 fund_combined（全市场），排序按基金规模(fund_scale)倒序（中性，不按 k_all），
-    避免用历史评分引导模型。候选 code 统一追加 .OF 后缀，与下游 fund_scores / 前端保持一致。
+    用户硬性要求：模型必须「独立选基金」，不基于数据库任何表来引导选择。
+    因此本脚本不向模型提供候选池，而是由模型基于自身研究自由提名基金；
+    这里仅拉取 fund_combined 的（c, name）全量，建立 code→基金、name→code 索引，
+    用于：① 校验模型提名是否真实存在；② 归一化名称/代码（统一补 .OF 后缀）。
+    该字典不参与任何选基决策，也不向模型泄露。
     """
-    collected = []
-    for cat in POOL_CATEGORIES:
+    print("[LOOKUP] 构建全市场基金校验字典（仅校验/归一化，不作候选池）...")
+    by_code = {}
+    name_index = []
+    offset = 0
+    page = 2000
+    while True:
         params = {
-            "select": SELECT_FIELDS,
-            "t0": f"eq.{cat}",
-            "fund_scale": "gt.2",
-            "r1y": "not.is.null",
-            "order": "fund_scale.desc",
-            "limit": str(POOL_PER_CAT),
+            "select": LOOKUP_FIELDS,
+            "order": "c.asc",
+            "limit": str(page),
+            "offset": str(offset),
         }
-        data = rest_select(params, table="fund_combined")
-        # fund_combined.c 不带 .OF 后缀，下游 fund_scores 校验 / 前端 / picks 存储均期望带 .OF
-        for row in data:
-            if row.get("c") and not row["c"].endswith(".OF"):
-                row["c"] = row["c"] + ".OF"
-        collected.extend(data)
-
-    # ===== 最高风控规则：剔除持有期/定开等带锁定期产品 =====
-    # 这类产品带锁定期，月度调仓时根本卖不掉，会破坏组合流动性，绝不允许进入候选池。
-    # fund_combined 无持有期专用列，按基金名称识别（与 FundRankPage 定开筛选口径一致）。
-    before_filter = len(collected)
-    collected = [f for f in collected if not is_locked_fund(f.get('name'))]
-    print(f"[POOL] 已剔除持有期/定开产品: {before_filter - len(collected)} 只（剩余 {len(collected)}）")
-
-    # 份额去重：同基金只留一个主代码（优先 A 份额，否则规模大者）
-    groups = {}
-    for f in collected:
-        groups.setdefault(norm_name(f.get('name')), []).append(f)
-    out = []
-    for items in groups.values():
-        if len(items) == 1:
-            out.append(items[0])
-            continue
-        a_items = [x for x in items if (x.get('name') or '').rstrip().endswith('A')]
-        out.append(max(a_items, key=lambda x: (x.get('fund_scale') or 0)) if a_items
-                   else max(items, key=lambda x: (x.get('fund_scale') or 0)))
-    by_code = {f["c"]: f for f in out}
-    print(f"[POOL] 候选池规模: {len(out)} 只（来自 {len(collected)} 原始，已份额去重）")
-    return out, by_code
+        rows = rest_select(params, table="fund_combined")
+        if not rows:
+            break
+        for f in rows:
+            c = f.get("c")
+            if not c:
+                continue
+            rec = {"c": c, "name": f.get("name")}
+            by_code[c] = rec
+            if c.endswith(".OF"):
+                by_code[c[:-3]] = rec
+            else:
+                by_code[c + ".OF"] = rec
+            nn = norm_name(f.get("name"))
+            if nn:
+                name_index.append((nn, c))
+        offset += len(rows)
+        if len(rows) < page:
+            break
+    print(f"[LOOKUP] 校验字典规模: {len(by_code)} 个代码映射、{len(name_index)} 个名称索引")
+    return by_code, name_index
 
 
 def fmt_num(v, pct=False):
@@ -151,74 +147,81 @@ def fmt_num(v, pct=False):
     return (f"{v:+.2f}%" if pct else f"{v:.2f}")
 
 
-def pool_to_text(pool):
-    lines = []
-    for f in pool:
-        lines.append(
-            f"- code={f['c']} | 名称={f.get('name')} | 大类={f.get('t0')}/{f.get('t1')} | "
-            f"k_all={fmt_num(f.get('k_all'))} | 近1年={fmt_num(f.get('r1y'), True)} | "
-            f"近3年={fmt_num(f.get('r3y'), True)} | 近1年回撤={fmt_num(f.get('dd1y'), True)} | "
-            f"夏普1y={fmt_num(f.get('sr1y'))} | "
-            f"规模={fmt_num(f.get('fund_scale'))}亿"
-        )
-    return "\n".join(lines)
+def resolve_fund(qname, qcode, by_code, name_index):
+    """校验模型提名的基金是否真实存在，并返回归一化基金记录。
+    解析顺序：① code（多种形态）→ ② 归一化名称精确匹配 → ③ 子串模糊匹配。
+    返回 fund_combined 记录（含 c/name），或 None（无法校验）。
+    """
+    cands = []
+    if qcode:
+        cq = qcode.strip()
+        cands = [cq, cq.replace(".OF", ""), (cq + ".OF") if not cq.endswith(".OF") else cq]
+    for c in cands:
+        if c in by_code:
+            return by_code[c]
+    qn = norm_name(qname)
+    if qn:
+        for kn, code in name_index:
+            if kn == qn and code in by_code:
+                return by_code[code]
+    best = None
+    for kn, code in name_index:
+        if len(kn) >= 3 and (kn in qn or qn in kn):
+            if kn in qn:          # 模型写了更完整的名称 → 直接命中
+                return by_code.get(code)
+            best = code
+    return by_code.get(best) if best else None
 
 
-def build_messages(model, pool_text):
+def build_messages(model):
     system = (
         "你是一名顶级基金投顾 AI，正在参加一场「AI 大 PK」选基竞赛。"
-        "你的核心目标：从候选池中选出 5 只基金（每只 20% 等权）构建组合。"
-        "你必须严格基于候选池真实数据决策，绝不编造基金或指标；缺失数据处注明『以最新定期报告为准』。"
-        "你只能从候选池选择，输出严格 JSON。"
+        "你的任务：从你自己的知识库中，独立提名 5 只真实存在的中国公募基金（含 name 与 code），"
+        "每只 20% 等权，构建投资组合。你必须基于独立研究自主决策，绝不编造不存在的基金；"
+        "若对 code 不确定，仍需给出 best-effort 的 6 位代码 + .OF。输出严格 JSON。"
     )
-    user = f"""你代表「{model.get('name')}」——一个独立思考的大语言模型。
-你的任务：从下方候选基金池中挑选恰好 5 只基金，每只等权 20%，构建一个投资组合。
+    user = f"""你代表「{model.get('name')}」——一个独立思考的大语言模型，正在与其他 6 个模型同台竞技。
 
-核心原则：
-- 你拥有完全的自主权，不受任何预设风格、角色或策略限制，应基于你作为投顾的研究框架独立判断。
-- 候选池来自全市场抽样（已是全市场范围），你可以自由地从候选池中选任何基金，不要被历史评分引导。
-- 你的目标是：在所有参赛模型中，让这个组合的实际收益率尽可能高、回撤可控。
-- 给出清晰、有研究支撑、可执行的两层逻辑，并用真实指标数字支撑。
+【任务】
+从你掌握的中国公募基金知识中，独立提名恰好 5 只真实存在的公募基金（含 name 与 code），每只等权 20%，构建一个投资组合。
+不要依赖任何外部提供的候选列表（本环境不会提供），完全由你基于研究判断。
 
-第一层（category_logic）——品类配置逻辑：
-请结合以下研究维度，独立判断本期应超配 / 低配哪些基金品类（混合型 / 指数型 / 债券型 / 股票型 / QDII / FOF）：
-  · 宏观研究：利率、通胀、货币政策、经济增长（美林时钟 / 宏观象限）。
-  · 策略研究：动量、价值、质量、成长等风格因子的相对强弱。
-  · 行业研究：行业景气度、估值分位、产业政策导向。
-  · 流动性研究：市场资金面、成交换手、资金流入流出。
-  · 金融工程：因子暴露、风险模型、组合相关性。
-  · 胜率与赔率研究：盈亏比、历史胜率统计、预期收益风险比。
-明确要求：不要仅依赖候选池里罗列的历史评分表，要基于上述研究独立判断，并给出清晰可执行的配置结论（哪些品类超配、哪些低配、为什么）。
+【核心目标】
+在所有参赛模型中，让你的组合实际收益尽可能高、回撤可控。你拥有完全自主权，不受任何预设风格限制。
 
-第二层（picks[].reason）——单品逻辑：
-对所选的每一只基金，请从以下维度逐一说明「为什么选它」：
-  ① 同类对比：同类排名、风格定位（如跑赢基准 / 同类前 10%）。
-  ② 收益：中长期业绩（近 1/3/5 年），相对指数或同类。
-  ③ 回撤：最大回撤控制能力、下行风险。
-  ④ 规模：基金规模是否合理（过大影响灵活性 / 过小有清盘风险）。
-  ⑤ 持仓：前十大持仓、行业集中度、与配置逻辑是否吻合。
-  ⑥ 费率：管理费 + 托管费合计，相对同类是否低廉。
-  ⑦ 基金经理：任职年限、历史管理业绩、投资理念。
-  ⑧ 基金公司：平台投研实力、管理规模。
-  ⑨ 综合结论：为何最终入选组合。
-若候选池数据缺失某维度（如持仓 / 费率 / 基金经理），允许基于公开常识合理描述，但不得编造具体数字，缺失处请注明「以最新定期报告为准」。
+【第一层 · 模型独立研究（category_logic）——必须达到研究级、有说服力的推理】
+请基于以下六个维度做自上而下（top-down）的独立研究，并给出清晰、可执行、带具体结论的配置逻辑：
+  · 宏观研究：当前宏观经济象限（美林时钟）、增长/通胀/利率/汇率/货币财政基调，判断风险资产 vs 避险资产的天平。
+  · 策略研究：动量 / 价值 / 质量 / 成长 / 红利 / 小盘等风格因子的相对强弱与轮动，本期超配哪些风格。
+  · 行业研究：高景气 / 低估 / 政策受益的具体行业与赛道（点名行业，而非泛泛而谈），及其估值分位。
+  · 流动性研究：市场资金面、北向/融资/新基金发行、成交活跃度，对组合流动性的含义。
+  · 金融工程：因子暴露、相关性/风险预算、组合层面对冲与分散设计。
+  · 胜率与赔率研究：各资产/风格的预期收益风险比、历史胜率、盈亏比，据此分配胜率型与赔率型仓位。
+明确要求：必须给出具体结论（哪些品类/风格超配、哪些低配、为什么是「现在」），用真实的研究逻辑支撑，
+严禁停留在产品层面空话（例如不要说「近1年收益前10中有8只偏股型，所以选偏股」这类事后统计式理由）。
 
-硬性要求（最高风控规则优先，绝不违反）：
-- 【最高规则·不可违反】严禁选择任何「持有期」或「定开」类基金（即带有锁定期、在锁定期内无法赎回的产品）。这类产品在月度调仓时根本卖不掉，会直接破坏组合的流动性。候选池已预先剔除此类产品，你也必须再次确认不在候选池之外引入任何带锁定期的产品。
-1. 只能从下方候选池挑选（code 必须出现在列表中），不可编造基金。
+【第二层 · 单品逻辑（picks[].reason）】
+对所选的每一只基金，说明「为什么是这只而非同类其他基金」：
+  · 基金经理：任职年限、代表业绩、投资理念与能力圈。
+  · 投资策略与定位：主动/指数、风格、仓位与换手，如何承接第一层的研究结论。
+  · 历史业绩：中长期（1/3/5 年）相对基准与同类的表现、稳定性。
+  · 风险控制：最大回撤、波动、下行保护。
+  · 规模与流动性：规模是否适配策略（过大影响灵活、过小有清盘风险）。
+  · 综合：为何它是该 thesis 下的最优载体。
+
+【硬性约束 · 最高风控，绝不违反】
+- 严禁选择任何「持有期 / 定开 / 定期开放 / 最短持有」类基金（带锁定期、锁定期内无法赎回，会破坏月度调仓流动性）。
+1. 提名 5 只真实存在的公募基金（name + code 都要给），不可编造。
 2. 恰好 5 只，权重各 20%。
-3. 同一基金的不同份额（A/C/E 等）视为同一标的，不要同时选 A 和 C。
-4. 输出严格 JSON（不要任何多余文字/解释），结构如下：
+3. 同一基金的不同份额（A/C/E 等）视为同一标的，只选其一（优先 A）。
+4. 输出严格 JSON（不要任何多余文字），结构如下：
 {{
-  "category_logic": "第一层：结合宏观/策略/行业/流动性/金工/胜率赔率研究，独立给出本期品类超配低配逻辑（4-8句，清晰可执行）",
+  "category_logic": "第一层：结合宏观/策略/行业/流动性/金融工程/胜率赔率六维度，给出本期超配低配的具体研究结论（6-10句，有说服力、可执行）",
   "picks": [
-    {{"code": "基金code", "reason": "第二层：按①同类②收益③回撤④规模⑤持仓⑥费率⑦基金经理⑧基金公司⑨综合，逐维度说明为何选它"}},
+    {{"name": "基金全称（如 易方达蓝筹精选混合）", "code": "基金code(如 005827.OF)", "reason": "第二层：按基金经理/策略/业绩/风控/规模/综合说明为何选这只"}},
     ... 共 5 个
   ]
 }}
-
-候选基金池（JSON）：
-{pool_text}
 """
     return [
         {"role": "system", "content": system},
@@ -420,7 +423,7 @@ def call_model(model, prompt_messages):
 
 
 def resolve_names(codes):
-    """确认 code 真实存在于 fund_scores，并取规范名称。返回 {code: name}。"""
+    """（兼容保留）按 code 取规范名称；新逻辑主要用 resolve_fund。"""
     if not codes:
         return {}
     placeholders = ",".join(f"'{c}'" for c in codes)
@@ -430,9 +433,9 @@ def resolve_names(codes):
     return {r["c"]: r.get("n") or r["c"] for r in (rows or [])}
 
 
-def run_model(model, pool, by_code, period_month, dry_run):
+def run_model(model, by_code, name_index, period_month, dry_run):
     print(f"\n===== [{model['id']}] {model['name']} ({model.get('api_provider')}) =====")
-    messages = build_messages(model, pool_to_text(pool))
+    messages = build_messages(model)
     try:
         raw = call_model(model, messages)
     except Exception as e:
@@ -447,62 +450,55 @@ def run_model(model, pool, by_code, period_month, dry_run):
 
     cat_logic = (data.get("category_logic") or "").strip()
     picks = data.get("picks") or []
-    if not cat_logic or len(picks) < 5:
-        print(f"  [SKIP] 返回结构不完整：category_logic={'有' if cat_logic else '无'}, picks={len(picks)}")
+    if not cat_logic or not isinstance(picks, list) or len(picks) < 5:
+        print(f"  [SKIP] 返回结构不完整：category_logic={'有' if cat_logic else '无'}, picks={len(picks) if isinstance(picks,list) else '非列表'}")
         return False
 
-    # 校验 code 真实存在 + 份额去重
-    chosen_codes = []
-    seen_names = set()
-    valid_codes = set(by_code.keys())
+    # 校验模型提名（基于全市场校验字典，事后确认真实存在 + 归一化）
+    chosen = []
+    seen_norm = set()
     for p in picks:
-        code = (p.get("code") or "").strip()
-        if not code:
+        qname = (p.get("name") or "").strip()
+        qcode = (p.get("code") or "").strip()
+        rec = resolve_fund(qname, qcode, by_code, name_index)
+        if not rec:
+            print(f"  [WARN] 无法校验基金（name={qname}, code={qcode}），跳过")
             continue
-        if code in chosen_codes:
+        code = rec["c"]
+        if not code.endswith(".OF"):
+            code = code + ".OF"
+        name = rec.get("name") or qname
+        if is_locked_fund(name):
+            print(f"  [WARN] {name} 为持有期/定开产品（最高风控），跳过")
             continue
-        # 真实存在性：在候选池中 OR 回库查 fund_scores
-        name = by_code.get(code, {}).get("n")
-        if code not in valid_codes:
-            names = resolve_names([code])
-            if code not in names:
-                print(f"  [WARN] code={code} 不在 fund_scores，跳过")
-                continue
-            name = names[code]
-        # 份额去重
         nn = norm_name(name)
-        if nn in seen_names:
-            print(f"  [WARN] {name}({code}) 与已选基金同标的（份额重复），跳过")
+        if nn in seen_norm:
+            print(f"  [WARN] {name} 与已选同标的（份额重复），跳过")
             continue
-        seen_names.add(nn)
-        chosen_codes.append(code)
+        seen_norm.add(nn)
+        chosen.append({
+            "code": code,
+            "name": name,
+            "weight": 20,
+            "reason": (p.get("reason") or "由模型自选").strip(),
+        })
+        if len(chosen) >= 5:
+            break
 
-    if len(chosen_codes) < 5:
-        print(f"  [SKIP] 去重/校验后仅 {len(chosen_codes)} 只，不足 5")
+    if len(chosen) < 5:
+        print(f"  [SKIP] 校验后仅 {len(chosen)} 只有效基金，不足 5，本模型跳过")
         return False
 
-    # 组装 picks（取前 5）
-    final = []
-    reason_map = {p.get("code"): p.get("reason", "") for p in picks}
-    names_map = resolve_names(chosen_codes)
-    for code in chosen_codes[:5]:
-        final.append({
-            "code": code,
-            "name": names_map.get(code, by_code.get(code, {}).get("n", code)),
-            "weight": 20,
-            "reason": (reason_map.get(code) or "由模型自选").strip(),
-        })
-
-    print(f"  [OK] 选基：{', '.join(f['name'] for f in final)}")
+    print(f"  [OK] 选基：{', '.join(f['name'] for f in chosen)}")
 
     if dry_run:
         print(f"  [DRY-RUN] category_logic: {cat_logic[:120]}...")
-        for f in final:
+        for f in chosen:
             print(f"    - {f['name']} ({f['code']}) 20% | {f['reason'][:80]}")
         return True
 
     # 写入 ai_pk_picks（mode='real'）
-    picks_json = json.dumps(final, ensure_ascii=False).replace("'", "''")
+    picks_json = json.dumps(chosen, ensure_ascii=False).replace("'", "''")
     cat_json = cat_logic.replace("'", "''")
     mgmt_query(f"DELETE FROM public.ai_pk_picks WHERE model_id='{model['id']}' AND period_month='{period_month}';")
     mgmt_query(
@@ -518,15 +514,25 @@ def run_model(model, pool, by_code, period_month, dry_run):
     return True
 
 
+def handle_doubao_pending(period_month):
+    """豆包为规则模型（非真实大模型），不展示真实选基，置为「待接入」。"""
+    print(f"\n===== [doubao] 豆包（规则模型，非真实大模型）→ 待接入 =====")
+    mgmt_query(f"DELETE FROM public.ai_pk_picks WHERE model_id='doubao' AND period_month='{period_month}';")
+    mgmt_query(
+        f"UPDATE public.ai_pk_models SET mode='pending', category_logic=NULL WHERE id='doubao';"
+    )
+    print("  [PENDING] 豆包已置为待接入（前端显示「待接入」，不展示选基）")
+
+
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--models", help="限定模型 id，逗号分隔，如 ds,doubao")
+    ap.add_argument("--models", help="限定模型 id，逗号分隔，如 ds,qwen")
     ap.add_argument("--dry-run", action="store_true", help="只打印不写入")
     ap.add_argument("--period", help="期次 YYYY-MM，默认当月")
     args = ap.parse_args()
 
     period_month = args.period or datetime.date.today().strftime("%Y-%m")
-    print(f"=== AI大PK 真实模型自选 (期次 {period_month}) ===")
+    print(f"=== AI大PK 真实模型自选（独立提名，不基于任何表）(期次 {period_month}) ===")
 
     # 读模型配置
     rows = mgmt_query(
@@ -540,18 +546,24 @@ def main():
     if not models:
         print("[ERR] 没有已配置 api_provider 且启用的模型。请先在 ai_pk_models 配置 api_provider/api_model/api_key_env。")
         sys.exit(1)
-    print(f"待跑模型: {', '.join(m['id'] for m in models)}")
+    print(f"待跑模型: {', '.join(m['id'] for m in models)}（豆包将置为待接入）")
 
-    pool, by_code = build_candidate_pool()
-    if not pool:
-        print("[ERR] 候选池为空")
+    # 构建全市场校验字典（仅校验/归一化，绝不作为候选池）
+    by_code, name_index = build_lookup_index()
+    if not by_code:
+        print("[ERR] 校验字典为空，无法校验")
         sys.exit(1)
 
     ok = 0
     for m in models:
-        if run_model(m, pool, by_code, period_month, args.dry_run):
+        if m["id"] == "doubao":
+            # 豆包是规则模型，非真实大模型：不调用、不展示，置待接入
+            handle_doubao_pending(period_month)
+            continue
+        if run_model(m, by_code, name_index, period_month, args.dry_run):
             ok += 1
-    print(f"\n=== 完成：{ok}/{len(models)} 个模型成功生成真实选基 ===")
+    real_count = len([x for x in models if x["id"] != "doubao"])
+    print(f"\n=== 完成：{ok}/{real_count} 个真实模型成功生成独立选基（豆包已置待接入） ===")
 
 
 if __name__ == "__main__":
