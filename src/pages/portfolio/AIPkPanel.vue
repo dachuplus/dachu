@@ -20,7 +20,13 @@
     </div>
 
     <!-- 模型阵容 -->
-    <div class="aipk-section-title">模型阵容（各 5 只 · 等权 20%）</div>
+    <div class="aipk-section-title aipk-section-title-row">
+      <span>模型阵容（各 5 只 · 等权 20%）</span>
+      <button class="aipk-share-btn" @click="openShare('lineup')" title="分享到朋友圈">
+        <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><path fill="currentColor" d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81 1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9c-1.66 0-3 1.34-3 3s1.34 3 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.16c-.05.21-.08.43-.08.65 0 1.61 1.31 2.92 2.92 2.92s2.92-1.31 2.92-2.92-1.31-2.92-2.92-2.92z"/></svg>
+        分享
+      </button>
+    </div>
     <div class="aipk-models">
       <div class="aipk-model" v-for="m in orderedModels" :key="m.id" :style="{ borderTopColor: m.color }">
         <div class="aipk-model-hd">
@@ -55,13 +61,19 @@
     <div class="card aipk-pk">
       <div class="aipk-pk-hd">
         <span class="card-title">收益 PK</span>
-        <div class="aipk-periods">
-          <button
-            v-for="p in CHART_PERIODS" :key="p.key"
-            class="aipk-period-btn"
-            :class="{ active: chartPeriod === p.key }"
-            @click="chartPeriod = p.key"
-          >{{ p.label }}</button>
+        <div class="aipk-pk-hd-right">
+          <div class="aipk-periods">
+            <button
+              v-for="p in CHART_PERIODS" :key="p.key"
+              class="aipk-period-btn"
+              :class="{ active: chartPeriod === p.key }"
+              @click="chartPeriod = p.key"
+            >{{ p.label }}</button>
+          </div>
+          <button class="aipk-share-btn" @click="openShare('pk')" title="分享到朋友圈">
+            <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><path fill="currentColor" d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81 1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9c-1.66 0-3 1.34-3 3s1.34 3 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.16c-.05.21-.08.43-.08.65 0 1.61 1.31 2.92 2.92 2.92s2.92-1.31 2.92-2.92-1.31-2.92-2.92-2.92z"/></svg>
+            分享
+          </button>
         </div>
       </div>
 
@@ -111,7 +123,13 @@
 
     <!-- 调仓时间线 -->
     <div class="card aipk-timeline-card">
-      <div class="card-title">调仓时间线</div>
+      <div class="aipk-tl-head">
+        <span class="card-title">调仓时间线</span>
+        <button class="aipk-share-btn" @click="openShare('timeline')" title="分享到朋友圈">
+          <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><path fill="currentColor" d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81 1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9c-1.66 0-3 1.34-3 3s1.34 3 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.16c-.05.21-.08.43-.08.65 0 1.61 1.31 2.92 2.92 2.92s2.92-1.31 2.92-2.92-1.31-2.92-2.92-2.92z"/></svg>
+          分享
+        </button>
+      </div>
       <div class="aipk-tl-period" v-if="latestPeriod">
         {{ latestPeriod }} 月度调仓 · 各模型选基逻辑（两层）
         <span class="aipk-tl-mode-note" v-if="orderedModels.length">
@@ -148,6 +166,28 @@
 
     <!-- 加载 / 空态 -->
     <div class="aipk-loading" v-if="loading">加载中...</div>
+
+    <!-- 分享到朋友圈 弹窗 -->
+    <Teleport to="body">
+      <template v-if="shareSection">
+        <div class="mask" @click="closeShare"></div>
+        <div class="aipk-share-panel">
+          <div class="aipk-share-header">
+            <span class="aipk-share-title">分享到朋友圈</span>
+            <span class="aipk-share-close" @click="closeShare">&#x2715;</span>
+          </div>
+          <div class="aipk-share-body">
+            <div v-if="shareGenerating" class="aipk-share-loading">分享图生成中...</div>
+            <template v-else>
+              <img v-if="shareImage" class="aipk-share-img" :src="shareImage" alt="分享图" />
+              <p class="aipk-share-hint" v-if="shareImage">长按图片可保存到相册，或分享到朋友圈</p>
+              <button class="aipk-share-save-btn" v-if="shareImage" @click="saveShareImage">保存图片</button>
+              <button class="aipk-share-save-btn aipk-share-save-btn-ghost" v-if="shareImage" @click="closeShare">关闭</button>
+            </template>
+          </div>
+        </div>
+      </template>
+    </Teleport>
   </div>
 </template>
 
@@ -158,9 +198,21 @@ import echarts from '../../utils/echarts-setup'
 import { BarChart, LineChart } from 'echarts/charts'
 import { GridComponent, TooltipComponent, TitleComponent, LegendComponent } from 'echarts/components'
 import { createGovukChart } from '../../utils/echarts-theme'
+import QRCode from 'qrcode'
 
 // 注册本组件所需的 BarChart（不修改共享的 echarts-setup.js）
 echarts.use([BarChart, LineChart, GridComponent, TooltipComponent, TitleComponent, LegendComponent])
+
+// ========== 分享到朋友圈 ==========
+const shareSection = ref(null)        // 'pk' | 'lineup' | 'timeline'
+const shareImage = ref(null)
+const shareGenerating = ref(false)
+const SHARE_SECTION_TITLE = {
+  pk: '收益 PK',
+  lineup: '模型阵容',
+  timeline: '调仓时间线',
+}
+const shareSectionTitle = computed(() => SHARE_SECTION_TITLE[shareSection.value] || '')
 
 const MODEL_ORDER = ['ds', 'doubao', 'qwen', 'wenxin', 'zhipu', 'kimi', 'minimax']
 
@@ -387,6 +439,307 @@ onBeforeUnmount(() => {
   window.removeEventListener('resize', onResize)
   if (chartInstance) chartInstance.dispose()
 })
+
+// ========== 分享到朋友圈：canvas 海报生成 ==========
+function openShare(section) {
+  if (shareGenerating.value) return
+  shareSection.value = section
+  shareImage.value = null
+  generateShareImage(section)
+}
+function closeShare() {
+  shareSection.value = null
+  shareImage.value = null
+}
+
+/** 截断文本（canvas 绘制用） */
+function truncateText(ctx, text, maxWidth) {
+  if (!text) return ''
+  if (ctx.measureText(text).width <= maxWidth) return text
+  let t = text
+  while (t.length > 1 && ctx.measureText(t + '…').width > maxWidth) t = t.slice(0, -1)
+  return t + '…'
+}
+
+/** 文字自动换行（canvas 用） */
+function wrapText(ctx, text, maxWidth) {
+  if (!text) return []
+  const lines = []
+  let current = ''
+  for (const ch of String(text)) {
+    const test = current + ch
+    if (ctx.measureText(test).width <= maxWidth) current = test
+    else { if (current) lines.push(current); current = ch }
+  }
+  if (current) lines.push(current)
+  return lines
+}
+
+/** 圆角矩形路径 */
+function roundRect(ctx, x, y, w, h, r) {
+  ctx.beginPath()
+  ctx.moveTo(x + r, y)
+  ctx.arcTo(x + w, y, x + w, y + h, r)
+  ctx.arcTo(x + w, y + h, x, y + h, r)
+  ctx.arcTo(x, y + h, x, y, r)
+  ctx.arcTo(x, y, x + w, y, r)
+  ctx.closePath()
+}
+
+/** 加载图片（dataURL / src）为 Image 对象 */
+function loadImage(src) {
+  return new Promise((resolve) => {
+    const img = new Image()
+    img.onload = () => resolve(img)
+    img.onerror = () => resolve(null)
+    img.src = src
+  })
+}
+
+/** 顶部品牌蓝条（每个海报通用） */
+function drawShareHeader(ctx, W, pad, headerH, title) {
+  ctx.fillStyle = '#1d70b8'
+  ctx.fillRect(0, 0, W, headerH)
+  ctx.fillStyle = '#ffffff'
+  ctx.textAlign = 'left'
+  ctx.font = 'bold 38px sans-serif'
+  ctx.fillText('ALLFUND.CN', pad, 34)
+  ctx.font = '24px sans-serif'
+  ctx.fillStyle = 'rgba(255,255,255,0.92)'
+  ctx.fillText('AI 大 PK · ' + title, pad, 86)
+}
+
+/** 收益 PK 海报：曲线图 + 冠亚季军 + 完整对比表 */
+async function drawPkPoster(ctx, W, pad, headerH) {
+  let y = headerH + 24
+  const subtitle = latestPeriod.value ? `${latestPeriod.value} 月度调仓 · 各模型加权区间收益` : '各模型加权区间收益'
+  ctx.fillStyle = '#1a1a1a'
+  ctx.font = 'bold 22px sans-serif'
+  ctx.textAlign = 'left'
+  ctx.fillText(truncateText(ctx, subtitle, W - pad * 2), pad, y)
+  y += 42
+
+  // 收益曲线图（ECharts 原生导出）
+  if (chartInstance) {
+    const url = chartInstance.getDataURL({ pixelRatio: 2, backgroundColor: '#ffffff' })
+    const img = await loadImage(url)
+    if (img && img.width) {
+      const cw = W - pad * 2
+      const ratio = img.height / img.width
+      const drawH = Math.min(320, cw * ratio)
+      ctx.drawImage(img, pad, y, cw, drawH)
+      y += drawH + 20
+    }
+  }
+
+  // 冠亚季军
+  if (ranking.value.length) {
+    const medals = ranking.value.slice(0, 3)
+    const gap = 12
+    const mw = (W - pad * 2 - gap * 2) / 3
+    const mh = 110
+    const colors = ['#b8860b', '#8c8c8c', '#b5651d']
+    const labels = ['冠军', '亚军', '季军']
+    medals.forEach((item, i) => {
+      const mx = pad + i * (mw + gap)
+      ctx.fillStyle = '#f6f8fb'
+      roundRect(ctx, mx, y, mw, mh, 10); ctx.fill()
+      ctx.strokeStyle = colors[i]; ctx.lineWidth = 2
+      roundRect(ctx, mx + 1, y + 1, mw - 2, mh - 2, 10); ctx.stroke()
+      ctx.textAlign = 'center'
+      ctx.fillStyle = colors[i]; ctx.font = 'bold 22px sans-serif'
+      ctx.fillText(labels[i], mx + mw / 2, y + 14)
+      ctx.fillStyle = '#1a1a1a'; ctx.font = 'bold 19px sans-serif'
+      ctx.fillText(truncateText(ctx, modelName(item.id), mw - 12), mx + mw / 2, y + 46)
+      ctx.fillStyle = item.ret >= 0 ? '#d4351c' : '#00703c'; ctx.font = 'bold 26px sans-serif'
+      ctx.fillText(fmtRet(item.ret), mx + mw / 2, y + 76)
+    })
+    y += mh + 20
+  }
+
+  // 完整对比表（6 个主周期）
+  ctx.textAlign = 'left'
+  ctx.fillStyle = '#1a1a1a'
+  ctx.font = 'bold 20px sans-serif'
+  ctx.fillText('完整区间收益对比', pad, y)
+  y += 32
+  const tableCols = CHART_PERIODS
+  const colW = (W - pad * 2) / (tableCols.length + 1)
+  const rowH = 40
+  // 表头
+  ctx.fillStyle = '#f3f2f1'
+  ctx.fillRect(pad, y, W - pad * 2, rowH)
+  ctx.fillStyle = '#1a1a1a'; ctx.font = 'bold 15px sans-serif'; ctx.textAlign = 'left'
+  ctx.fillText('模型', pad + 8, y + 12)
+  tableCols.forEach((c, i) => {
+    const cx = pad + (i + 1) * colW
+    ctx.textAlign = 'center'
+    ctx.fillText(c.label, cx + colW / 2, y + 12)
+  })
+  y += rowH
+  // 数据行
+  let ri = 0
+  for (const m of orderedModels.value) {
+    const ret = modelReturns.value[m.id] || {}
+    ctx.fillStyle = ri % 2 === 0 ? '#ffffff' : '#fafbfc'
+    ctx.fillRect(pad, y, W - pad * 2, rowH)
+    ctx.textAlign = 'left'
+    ctx.fillStyle = m.color || '#1d70b8'
+    ctx.fillRect(pad + 8, y + 14, 10, 10)
+    ctx.fillStyle = '#1a1a1a'; ctx.font = 'bold 14px sans-serif'
+    ctx.fillText(truncateText(ctx, m.name, colW - 16), pad + 24, y + 12)
+    tableCols.forEach((c, i) => {
+      const v = ret[c.key]
+      const cx = pad + (i + 1) * colW
+      ctx.textAlign = 'center'
+      ctx.fillStyle = v == null ? '#b1b4b6' : (v >= 0 ? '#d4351c' : '#00703c')
+      ctx.font = '14px sans-serif'
+      ctx.fillText(fmtRet(v), cx + colW / 2, y + 12)
+    })
+    ctx.strokeStyle = '#eeeeee'; ctx.lineWidth = 1
+    ctx.strokeRect(pad, y, W - pad * 2, rowH)
+    y += rowH
+    ri++
+  }
+  return y + 10
+}
+
+/** 模型阵容海报：每个模型 5 只基金 */
+function drawLineupPoster(ctx, W, pad, headerH) {
+  let y = headerH + 24
+  ctx.fillStyle = '#1a1a1a'
+  ctx.font = 'bold 22px sans-serif'
+  ctx.textAlign = 'left'
+  ctx.fillText('7 大模型各选 5 只 · 等权 20%', pad, y)
+  y += 42
+  for (const m of orderedModels.value) {
+    ctx.fillStyle = m.color || '#1d70b8'
+    roundRect(ctx, pad, y, W - pad * 2, 36, 6); ctx.fill()
+    ctx.fillStyle = '#ffffff'; ctx.font = 'bold 18px sans-serif'; ctx.textAlign = 'left'
+    const modeText = m.mode === 'real' ? ' · 真实' : (m.mode === 'pending' ? ' · 待接入' : ' · 规则')
+    ctx.fillText(truncateText(ctx, m.name + modeText, W - pad * 2 - 28), pad + 14, y + 9)
+    y += 46
+    const picks = (picksMap.value[m.id]?.picks || [])
+    if (!picks.length) {
+      ctx.fillStyle = '#999999'; ctx.font = '15px sans-serif'
+      ctx.fillText('暂无选基数据', pad + 14, y + 4); y += 30
+    } else {
+      picks.forEach((f, i) => {
+        ctx.fillStyle = '#f6f8fb'
+        roundRect(ctx, pad + 12, y, W - pad * 2 - 24, 44, 6); ctx.fill()
+        ctx.fillStyle = '#1d70b8'; ctx.font = 'bold 14px sans-serif'; ctx.textAlign = 'left'
+        ctx.fillText(String(i + 1), pad + 26, y + 15)
+        ctx.fillStyle = '#1a1a1a'; ctx.font = 'bold 16px sans-serif'
+        ctx.fillText(truncateText(ctx, f.name || '', W - pad * 2 - 24 - 150), pad + 46, y + 10)
+        ctx.fillStyle = '#888888'; ctx.font = '12px sans-serif'
+        ctx.fillText(f.code || '', pad + 46, y + 28)
+        ctx.textAlign = 'right'; ctx.fillStyle = '#1d70b8'; ctx.font = 'bold 15px sans-serif'
+        ctx.fillText('20%', W - pad - 26, y + 15)
+        y += 50
+      })
+    }
+    y += 14
+  }
+  return y
+}
+
+/** 调仓时间线海报：各模型第一层品类选择逻辑 */
+function drawTimelinePoster(ctx, W, pad, headerH) {
+  let y = headerH + 24
+  const periodLabel = latestPeriod.value
+    ? `${latestPeriod.value} 月度调仓 · 各模型两层选基逻辑`
+    : '各模型两层选基逻辑'
+  ctx.fillStyle = '#1a1a1a'
+  ctx.font = 'bold 22px sans-serif'
+  ctx.textAlign = 'left'
+  ctx.fillText(truncateText(ctx, periodLabel, W - pad * 2), pad, y)
+  y += 40
+  for (const m of orderedModels.value) {
+    ctx.fillStyle = m.color || '#1d70b8'
+    ctx.beginPath(); ctx.arc(pad + 16, y + 10, 6, 0, Math.PI * 2); ctx.fill()
+    ctx.fillStyle = '#1a1a1a'; ctx.font = 'bold 18px sans-serif'; ctx.textAlign = 'left'
+    ctx.fillText(truncateText(ctx, m.name, W - pad * 2 - 40), pad + 30, y + 2)
+    y += 32
+    ctx.fillStyle = '#1d70b8'; ctx.font = 'bold 14px sans-serif'
+    ctx.fillText('第一层 · 品类选择逻辑', pad + 10, y)
+    y += 24
+    ctx.fillStyle = '#444444'; ctx.font = '15px sans-serif'
+    const logic = m.category_logic || '—'
+    const lines = wrapText(ctx, logic, W - pad * 2 - 20)
+    for (const ln of lines) { ctx.fillText(ln, pad + 10, y); y += 24 }
+    y += 16
+  }
+  return y
+}
+
+/** 生成分享海报（主入口） */
+async function generateShareImage(section) {
+  if (shareGenerating.value) return
+  shareGenerating.value = true
+  try {
+    const scale = 2
+    const W = 750
+    const pad = 30
+    const headerH = 150
+    const qrSize = 170
+    const sourceLineH = 40
+
+    const canvas = document.createElement('canvas')
+    canvas.width = W * scale
+    canvas.height = 6000 * scale
+    const ctx = canvas.getContext('2d')
+    ctx.scale(scale, scale)
+    ctx.textBaseline = 'top'
+    ctx.fillStyle = '#ffffff'
+    ctx.fillRect(0, 0, W, 6000)
+
+    drawShareHeader(ctx, W, pad, headerH, shareSectionTitle.value)
+
+    let usedY = headerH
+    if (section === 'pk') usedY = await drawPkPoster(ctx, W, pad, headerH)
+    else if (section === 'lineup') usedY = drawLineupPoster(ctx, W, pad, headerH)
+    else if (section === 'timeline') usedY = drawTimelinePoster(ctx, W, pad, headerH)
+
+    // 二维码 + 说明
+    const qrY = usedY + 16
+    const qrCanvas = document.createElement('canvas')
+    await QRCode.toCanvas(qrCanvas, 'https://www.allfund.cn', {
+      width: qrSize * scale, margin: 1, color: { dark: '#000000', light: '#ffffff' },
+    })
+    ctx.drawImage(qrCanvas, (W - qrSize) / 2, qrY, qrSize, qrSize)
+    ctx.textAlign = 'center'
+    ctx.fillStyle = '#1d70b8'; ctx.font = 'bold 24px sans-serif'
+    ctx.fillText('微信扫一扫 · 访问 www.allfund.cn', W / 2, qrY + qrSize + 14)
+    ctx.fillStyle = '#999999'; ctx.font = '16px sans-serif'
+    ctx.fillText('识别二维码，查看靠谱指数与 AI 大 PK', W / 2, qrY + qrSize + 44)
+
+    const totalH = qrY + qrSize + sourceLineH
+    // 裁剪到实际使用高度
+    const finalCanvas = document.createElement('canvas')
+    finalCanvas.width = W * scale
+    finalCanvas.height = totalH * scale
+    const fctx = finalCanvas.getContext('2d')
+    fctx.drawImage(canvas, 0, 0, W * scale, totalH * scale, 0, 0, W * scale, totalH * scale)
+    shareImage.value = finalCanvas.toDataURL('image/png')
+  } catch (e) {
+    console.error('[AIPkPanel] generateShareImage error', e)
+  } finally {
+    shareGenerating.value = false
+  }
+}
+
+/** 保存分享图片到本地 */
+function saveShareImage() {
+  if (!shareImage.value) return
+  const a = document.createElement('a')
+  a.href = shareImage.value
+  const safeName = ('aipk-' + (shareSection.value || 'share')) + '-allfund.png'
+  a.download = safeName
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+}
+
 </script>
 
 <style scoped>
@@ -500,4 +853,80 @@ onBeforeUnmount(() => {
   .aipk-rank { grid-template-columns: 1fr; }
   .aipk-chart { height: 320px; }
 }
+
+/* ===== 分享按钮 ===== */
+.aipk-share-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 13px;
+  font-weight: 700;
+  color: #1d70b8;
+  background: #fff;
+  border: 1px solid #1d70b8;
+  border-radius: 2px;
+  padding: 5px 12px;
+  cursor: pointer;
+  flex: none;
+}
+.aipk-share-btn svg { color: #1d70b8; }
+.aipk-share-btn:hover { background: #1d70b8; color: #fff; }
+.aipk-share-btn:hover svg { color: #fff; }
+
+/* 收益 PK 头部右侧（周期 + 分享） */
+.aipk-pk-hd-right { display: flex; align-items: center; gap: var(--space-md); flex-wrap: wrap; }
+
+/* 模型阵容标题行（标题 + 分享） */
+.aipk-section-title-row { display: flex; align-items: center; justify-content: space-between; }
+.aipk-section-title-row .aipk-share-btn { margin-left: auto; }
+
+/* 调仓时间线标题行 */
+.aipk-tl-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--space-md); }
+.aipk-tl-head .card-title { margin-bottom: 0; }
+
+/* ===== 分享弹窗 ===== */
+.mask { position: fixed; inset: 0; background: rgba(29,112,184,0.6); z-index: 100; }
+.aipk-share-panel {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: calc(100% - 32px);
+  max-width: 420px;
+  background: #ffffff;
+  border: 1px solid var(--border);
+  z-index: 102;
+  display: flex;
+  flex-direction: column;
+  max-height: 92vh;
+}
+.aipk-share-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--space-sm) var(--space-lg);
+  border-bottom: 1px solid var(--border);
+  background: #f3f2f1;
+  flex-shrink: 0;
+}
+.aipk-share-title { font-size: 16px; font-weight: 700; color: var(--text-primary); }
+.aipk-share-close { font-size: 24px; color: var(--text-primary); cursor: pointer; padding: 4px; line-height: 1; flex-shrink: 0; }
+.aipk-share-body { padding: var(--space-md); overflow-y: auto; text-align: center; }
+.aipk-share-loading { padding: var(--space-xl) 0; color: var(--text-secondary); font-size: 15px; }
+.aipk-share-img { width: 100%; height: auto; border: 1px solid #eee; display: block; }
+.aipk-share-hint { font-size: 13px; color: var(--text-secondary); margin: var(--space-sm) 0; }
+.aipk-share-save-btn {
+  display: block;
+  width: 100%;
+  padding: 10px;
+  font-size: 15px;
+  font-weight: 700;
+  color: #fff;
+  background: #1d70b8;
+  border: none;
+  border-radius: 2px;
+  cursor: pointer;
+  margin-top: var(--space-sm);
+}
+.aipk-share-save-btn-ghost { background: #fff; color: #1d70b8; border: 1px solid #1d70b8; }
 </style>
