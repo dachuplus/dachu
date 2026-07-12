@@ -262,6 +262,42 @@ def call_wenxin(model_id, prompt_messages, key):
     return r.json()["choices"][0]["message"]["content"]
 
 
+def call_wenxin(model_id, prompt_messages, key):
+    # 百度智能云千帆 OpenAI 兼容端点
+    # 注意：ernie-5.1 不支持 response_format json_object，依赖 prompt 指令输出 JSON
+    url = "https://qianfan.baidubce.com/v2/chat/completions"
+    body = {
+        "model": model_id,
+        "messages": prompt_messages,
+        "temperature": 0.7,
+        "max_tokens": 4096,
+    }
+    r = requests.post(url, headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
+                      json=body, timeout=150)
+    r.raise_for_status()
+    return r.json()["choices"][0]["message"]["content"]
+
+
+def call_zhipu(model_id, prompt_messages, key):
+    # 智谱 OpenAI 兼容端点（bigmodel / glm-4 系列支持 response_format json_object）
+    url = "https://open.bigmodel.cn/api/paas/v4/chat/completions"
+    body = {
+        "model": model_id,
+        "messages": prompt_messages,
+        "temperature": 0.7,
+        "max_tokens": 4096,
+        "response_format": {"type": "json_object"},
+    }
+    r = requests.post(url, headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
+                      json=body, timeout=150)
+    if r.status_code != 200:
+        raise RuntimeError(f"智谱 API 返回 {r.status_code}: {r.text[:400]}")
+    try:
+        return r.json()["choices"][0]["message"]["content"]
+    except Exception as e:
+        raise RuntimeError(f"智谱返回解析失败: {e}; 原始: {r.text[:400]}")
+
+
 def call_model(model, prompt_messages):
     provider = model.get("api_provider")
     keyenv = model.get("api_key_env")
@@ -274,6 +310,8 @@ def call_model(model, prompt_messages):
         return call_qwen(model.get("api_model") or "qwen-plus", prompt_messages, key)
     if provider == "wenxin":
         return call_wenxin(model.get("api_model") or "ernie-4.5-8k-preview", prompt_messages, key)
+    if provider == "zhipu":
+        return call_zhipu(model.get("api_model") or "glm-4-plus", prompt_messages, key)
     if provider == "volc-ark":
         apimodel = model.get("api_model") or ""
         if not apimodel.startswith("ep-"):

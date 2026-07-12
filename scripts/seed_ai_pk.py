@@ -86,6 +86,7 @@ _API_CONFIG = {
     "doubao": {"api_provider": "volc-ark", "api_model": "ep-20260712083200-pjvq9", "api_key_env": "ARK_API_KEY"},
     "qwen": {"api_provider": "qwen", "api_model": "qwen-plus", "api_key_env": "QWEN_API_KEY"},
     "wenxin": {"api_provider": "wenxin", "api_model": "ernie-5.1", "api_key_env": "WENXIN_API_KEY"},
+    "zhipu": {"api_provider": "zhipu", "api_model": "glm-4-plus", "api_key_env": "ZHIPU_API_KEY"},
 }
 for m in MODELS:
     cfg = _API_CONFIG.get(m["id"])
