@@ -71,11 +71,17 @@ export async function getCategoryRankInfo(codes) {
       return result
     }
     // ② 一次性拉取这些品类下的全部 (t1_tt, k_all)
+    //    失败时降级：返回步骤①的基础信息，rank=null
     const { data: all, error: e2 } = await supabase
       .from('fund_scores')
       .select('t1_tt,k_all')
       .in('t1_tt', cats)
-    if (e2 || !all) return {}
+    if (e2 || !all) {
+      console.warn('[getCategoryRankInfo] 品类排名查询失败，降级为仅显示分类（无排名）')
+      const result = {}
+      for (const f of data) result[f.c] = { cat: info[f.c].cat, rank: null, total: 0 }
+      return result
+    }
     // 按品类聚合 k_all（升序），用于二分查找排名
     const byCat = {}
     for (const f of all) {
@@ -147,16 +153,22 @@ export async function getCategoryRankInfoByScore(codes, scoreCol = 'k1') {
       return result
     }
     // ② 批量取这些品类下的全部 (t1_tt, 评分) —— 分页拉全量后内存排序算排名（避免 1000 行上限截断导致排名错）
+    //    注意：此步骤失败不应丢弃步骤①已获取的基金基础信息，降级返回 rank=null 即可
     const all = []
     let from = 0
     const PAGE = 1000
+    let rankQueryOk = true
     while (true) {
       const { data: page, error: e2 } = await supabase
         .from('fund_scores')
         .select(`t1_tt,${scoreCol}`)
         .in('t1_tt', cats)
         .range(from, from + PAGE - 1)
-      if (e2) { console.error('[getCategoryRankInfoByScore] cats query', e2); return {} }
+      if (e2) {
+        console.warn('[getCategoryRankInfoByScore] 品类排名查询失败，降级为仅显示分类+评分（无排名）:', e2.message || e2)
+        rankQueryOk = false
+        break
+      }
       if (!page || page.length === 0) break
       all.push(...page)
       if (page.length < PAGE) break
@@ -175,7 +187,16 @@ export async function getCategoryRankInfoByScore(codes, scoreCol = 'k1') {
       totals[cat] = byCat[cat].length
     }
     // ③ 计算排名：品类内 score 严格大于本基金的只数 + 1（降序名次），纯内存计算
+    //    若步骤②失败（rankQueryOk=false），则返回步骤①的基础信息，rank=null
     const result = {}
+    if (!rankQueryOk || all.length === 0) {
+      // 降级：只返回分类+评分，无排名数据
+      for (const f of data) {
+        const r = info[f.c]
+        result[f.c] = { cat: r.cat, score: r.score, rank: null, total: 0 }
+      }
+      return result
+    }
     for (const f of data) {
       const r = info[f.c]
       if (!r.cat || r.score == null) {
@@ -188,7 +209,7 @@ export async function getCategoryRankInfoByScore(codes, scoreCol = 'k1') {
     }
     return result
   } catch (e) {
-    console.error('[getCategoryRankInfoByScore]', e)
+    console.error('[getCategoryRankInfoByScore] 异常，降级返回空（分类/排名均不可用）:', e)
     return {}
   }
 }

@@ -11,8 +11,9 @@
       </div>
       <p class="card-desc">
         让多个大模型各自挑选 5 只基金、每只 20% 等权，每月 1 日调仓，比一比谁的收益更好。
-        <b>已接入真实大模型</b>的模型（如 DeepSeek）由模型自己从 ALLFUND.CN 真实基金库中选品类、选单基，
-        并给出两层选基逻辑；其余模型暂以规则版运行（待接入各家 API Key 后改由真实模型选基）。
+        <b>全部 7 个模型均已接入真实大模型</b>，由模型自己从 ALLFUND.CN 真实基金库中选品类、选单基，
+        并给出两层选基逻辑；各模型按自身推理逻辑自主决策，目标只有一个——跑赢对手。
+        通过「千问百炼」聚合平台调用的模型已在卡片上标注<span class="aipk-ds-badge">百炼</span>徽标。
         所有选基因均来自 fund_scores 真实表，无编造、无模拟。
       </p>
       <div class="aipk-src">数据来源：ALLFUND.CN 靠谱指数基金库（真实收益，非模拟）</div>
@@ -29,8 +30,9 @@
           <span class="aipk-model-mode" :class="m.mode === 'real' ? 'is-real' : 'is-rule'">
             {{ m.mode === 'real' ? '真实' : '规则' }}
           </span>
+          <span v-if="m.api_provider === 'qwen'" class="aipk-ds-badge">百炼</span>
         </div>
-        <div class="aipk-model-persona">{{ m.persona }}</div>
+        <div class="aipk-model-persona">{{ modelTagline(m) }}</div>
         <div class="aipk-model-ret" :class="retClass(modelReturns[m.id]?.r1y)">
           近1年组合收益 {{ fmtRet(modelReturns[m.id]?.r1y) }}
         </div>
@@ -239,6 +241,22 @@ function modelName(id) {
   return models.value.find(m => m.id === id)?.name || id
 }
 
+// 各模型的「调用通道 / 聚合平台」中文标签（用于卡片标语，明确展示百炼等聚合平台）
+const PROVIDER_LABEL = {
+  ds: 'DeepSeek 直连',
+  doubao: '豆包 · 火山方舟',
+  qwen: '千问百炼聚合',
+  wenxin: '文心 · 百度千帆',
+  zhipu: '智谱 · 百度千帆',
+  kimi: 'Kimi · 千问百炼',
+  minimax: 'MiniMax · 千问百炼',
+}
+// 取代旧的固定「人设」文案：现在每个模型都按自身推理逻辑自主选基
+function modelTagline(m) {
+  const label = PROVIDER_LABEL[m.api_provider] || m.api_provider || '真实大模型'
+  return `${label} · 自主推理选基`
+}
+
 function fmtRet(v) {
   if (v == null) return '--'
   return (v > 0 ? '+' : '') + v.toFixed(2) + '%'
@@ -361,6 +379,9 @@ onBeforeUnmount(() => {
 .aipk-model-mode { font-size: 12px; font-weight: 700; padding: 1px 8px; margin-left: auto; }
 .aipk-model-mode.is-real { color: #fff; background: #1d70b8; }
 .aipk-model-mode.is-rule { color: #505a66; background: #f3f2f1; border: 1px solid var(--border); }
+
+/* 千问百炼聚合平台徽标 */
+.aipk-ds-badge { font-size: 12px; font-weight: 700; padding: 1px 8px; margin-left: 6px; color: #fff; background: #b8860b; }
 
 /* 时间线模式注记 */
 .aipk-tl-mode-note { font-size: 13px; font-weight: 400; color: var(--text-secondary); }
