@@ -83,7 +83,7 @@ MODELS = [
 # 真实模型 API 配置（规则版种子仍写 mode='rule'，api_* 仅记录能力，待 ai_pk_real.py 真实跑）
 _API_CONFIG = {
     "ds": {"api_provider": "deepseek", "api_model": "deepseek-chat", "api_key_env": "DEEPSEEK_API_KEY"},
-    "doubao": {"api_provider": "volc-ark", "api_model": "待创建_火山方舟推理接入点", "api_key_env": "ARK_API_KEY"},
+    "doubao": {"api_provider": "volc-ark", "api_model": "ep-20260712083200-pjvq9", "api_key_env": "ARK_API_KEY"},
 }
 for m in MODELS:
     cfg = _API_CONFIG.get(m["id"])
