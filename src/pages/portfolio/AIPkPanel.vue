@@ -128,7 +128,7 @@
         <div class="aipk-tl-pending" v-if="m.mode === 'pending'">待接入</div>
         <template v-else>
           <div class="aipk-tl-layer">
-            <span class="aipk-tl-tag">第一层 · 模型独立研究（宏观/策略/行业/流动性/金融工程/胜率赔率 六维度）</span>
+            <span class="aipk-tl-tag">第一层 · 基于 fund_scores 选二级分类(t1)品类（真实收益/回撤/夏普统计）</span>
             <p class="aipk-tl-text">{{ m.category_logic || '—' }}</p>
           </div>
           <div class="aipk-tl-layer">

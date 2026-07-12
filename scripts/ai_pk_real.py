@@ -53,7 +53,7 @@ MGMT_HEADERS = {"Authorization": f"Bearer {PAT}", "Content-Type": "application/j
 # ===== 候选池参数 =====
 POOL_PER_CAT = 25          # 每个二级分类取 Top N（按 k_all 倒序）作为单品候选
 CANDIDATE_SELECT = "c,n,t0,t1,k_all,r1y,r3y,r5y,dd1y,sr1y,fund_scale"
-ARK_MAX_TOKENS = 4096      # 火山方舟：放宽以避免第一层长推理把 JSON 截断
+ARK_MAX_TOKENS = 2048      # 火山方舟：API 层强制短输出（配合 prompt 字数限制，避免超时/截断）
 
 # 最高风控规则：识别「持有期 / 定开 / 定期开放」等带锁定期、月度调仓时卖不掉的产品（按名称，fund_scores 无专用列）
 _LOCKED_RE = re.compile(r'(持有期|定开|定期开放|最短持有|\d+\s*(年|个月|月|天|日)\s*持有|持有\s*\d+\s*(年|个月|月))')
@@ -169,6 +169,9 @@ def build_category_messages(model, cat_summary):
         "你是一名顶级基金投顾 AI，参加「AI 大 PK」选基竞赛。"
         "你必须严格基于下方提供的 fund_scores 真实品类统计做决策，只输出 JSON，"
         "不编造、不引用任何表外或网络信息。"
+        "【时间锚点】今天是 2026 年，所有数据均来自 fund_scores 表（数据截至 2026 年），"
+        "严禁外推到任何未提供的年份/时段（如 2024E、2025E 等虚假预测）。"
+        "【字数限制】category_logic 中文输出严格控制在 200 字以内。"
     )
     user = f"""你代表「{model.get('name')}」，正在与其他 6 个模型同台竞技。
 
@@ -182,7 +185,7 @@ def build_category_messages(model, cat_summary):
 
 【输出严格 JSON（不要任何多余文字）】：
 {{
-  "category_logic": "第一层完整推理：结合真实品类统计+宏观/策略/行业/流动性/金融工程/胜率赔率，说明为何超配这些品类、低配哪些（8-15句，须有真实数字支撑）",
+  "category_logic": "第一层完整推理：结合真实品类统计+宏观/策略/行业/流动性/金融工程/胜率赔率，说明为何超配这些品类、低配哪些（≤200字，须有真实数字支撑，禁止外推未提供的年份）",
   "categories": [
     {{"t1": "选中的二级分类名称（必须来自上方列表）", "reason": "为何选该品类的简短理由（须结合真实统计）"}},
     ... 共 5~8 个
@@ -220,6 +223,8 @@ def build_single_messages(model, cat_logic, pool):
         "你是一名顶级基金投顾 AI，参加「AI 大 PK」选基竞赛。"
         "你必须严格基于下方提供的 fund_scores 真实基金数据做单品选择，只输出 JSON，"
         "严禁引用任何表外/网络信息（尤其不得提及基金经理、公司历史等表外内容——这些不在提供的数据中，纯属臆测，判为无效）。"
+        "【时间锚点】今天是 2026 年，数据来自 fund_scores，严禁外推未提供的年份/时段。"
+        "【字数限制】每个 reason 中文输出严格控制在 120 字以内。"
     )
     user = f"""你代表「{model.get('name')}」。第一层品类选择已完成，结论如下：
 {cat_logic}
@@ -244,7 +249,7 @@ def build_single_messages(model, cat_logic, pool):
 【输出严格 JSON（不要任何多余文字）】：
 {{
   "picks": [
-    {{"code": "基金code(必须来自上方候选列表)", "reason": "第二层单品推理：基于真实数据①②③④⑤⑥说明为何选它（禁止表外信息）"}},
+    {{"code": "基金code(必须来自上方候选列表)", "reason": "第二层单品推理：基于真实数据①②③④⑤⑥说明为何选它（≤120字，禁止表外信息）"}},
     ... 共 5 个
   ]
 }}
