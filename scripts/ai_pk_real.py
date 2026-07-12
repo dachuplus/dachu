@@ -298,6 +298,26 @@ def call_zhipu(model_id, prompt_messages, key):
         raise RuntimeError(f"智谱返回解析失败: {e}; 原始: {r.text[:400]}")
 
 
+def call_kimi(model_id, prompt_messages, key):
+    # 月之暗面 Kimi / Moonshot OpenAI 兼容端点（kimi-k2 / moonshot-v1 系列支持 response_format json_object）
+    url = "https://api.moonshot.cn/v1/chat/completions"
+    body = {
+        "model": model_id,
+        "messages": prompt_messages,
+        "temperature": 0.7,
+        "max_tokens": 4096,
+        "response_format": {"type": "json_object"},
+    }
+    r = requests.post(url, headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
+                      json=body, timeout=150)
+    if r.status_code != 200:
+        raise RuntimeError(f"Kimi API 返回 {r.status_code}: {r.text[:400]}")
+    try:
+        return r.json()["choices"][0]["message"]["content"]
+    except Exception as e:
+        raise RuntimeError(f"Kimi 返回解析失败: {e}; 原始: {r.text[:400]}")
+
+
 def call_model(model, prompt_messages):
     provider = model.get("api_provider")
     keyenv = model.get("api_key_env")
@@ -312,6 +332,8 @@ def call_model(model, prompt_messages):
         return call_wenxin(model.get("api_model") or "ernie-4.5-8k-preview", prompt_messages, key)
     if provider == "zhipu":
         return call_zhipu(model.get("api_model") or "glm-4-plus", prompt_messages, key)
+    if provider == "kimi":
+        return call_kimi(model.get("api_model") or "kimi-k2", prompt_messages, key)
     if provider == "volc-ark":
         apimodel = model.get("api_model") or ""
         if not apimodel.startswith("ep-"):
