@@ -189,16 +189,36 @@ def build_messages(model, pool_text):
 
 
 def extract_json(text):
-    # 去掉 ```json  fences
-    text = re.sub(r"^```(?:json)?\s*", "", text.strip())
-    text = re.sub(r"\s*```$", "", text.strip())
+    # 去掉 markdown 代码块围栏（可能出现在任意位置、多行）
+    text = re.sub(r"```(?:json)?\s*", "", text)
+    text = re.sub(r"\s*```", "", text)
+    text = text.strip()
+    # 直接解析
     try:
         return json.loads(text)
     except Exception:
-        m = re.search(r"\{.*\}", text, re.DOTALL)
-        if m:
-            return json.loads(m.group(0))
-        raise
+        pass
+    # 提取第一个完整 JSON 对象（容错：允许截断）
+    m = re.search(r"\{.*\}", text, re.DOTALL)
+    if m:
+        candidate = m.group(0)
+        try:
+            return json.loads(candidate)
+        except Exception:
+            pass
+    # 兜底：尝试修复常见问题后重试（截断的尾部补全）
+    m2 = re.search(r"\{", text)
+    if m2:
+        tail = text[m2.start():]
+        # 补齐未闭合的引号和括号
+        open_quotes = tail.count('"') % 2
+        open_braces = tail.count('{') - tail.count('}')
+        fixed = tail + ('"' * open_quotes) + ('}' * max(0, open_braces))
+        try:
+            return json.loads(fixed)
+        except Exception:
+            pass
+    raise ValueError(f"无法从返回文本中提取JSON: {text[:200]}…")
 
 
 def call_deepseek(prompt_messages, key):
@@ -231,19 +251,25 @@ def call_ark(model_id, prompt_messages, key):
 
 
 def call_qwen(model_id, prompt_messages, key):
-    # 阿里云百炼 OpenAI 兼容端点
+    # 阿里云百炼 OpenAI 兼容端点（支持自研qwen+第三方智谱/MiniMax/Kimi等）
     url = "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions"
     body = {
         "model": model_id,
         "messages": prompt_messages,
         "temperature": 0.7,
-        "max_tokens": 1600,
+        "max_tokens": 8192,
         "response_format": {"type": "json_object"},
     }
     r = requests.post(url, headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
                       json=body, timeout=150)
-    r.raise_for_status()
-    return r.json()["choices"][0]["message"]["content"]
+    if r.status_code != 200:
+        raise RuntimeError(f"百炼 API 返回 {r.status_code}: {r.text[:400]}")
+    content = r.json()["choices"][0]["message"]["content"]
+    if not content:
+        # 推理模型可能把输出放在 reasoning_content 里（finish_reason=length 时）
+        rc = r.json()["choices"][0]["message"].get("reasoning_content", "")
+        raise RuntimeError(f"百炼模型({model_id})返回空内容，reasoning={rc[:200]}… 可能需要更大 max_tokens")
+    return content
 
 
 def call_wenxin(model_id, prompt_messages, key):
