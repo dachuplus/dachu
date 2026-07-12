@@ -82,11 +82,11 @@ MODELS = [
 
 # 真实模型 API 配置（规则版种子仍写 mode='rule'，api_* 仅记录能力，待 ai_pk_real.py 真实跑）
 _API_CONFIG = {
-    "ds": {"api_provider": "deepseek", "api_model": "deepseek-chat", "api_key_env": "DEEPSEEK_API_KEY"},
+    "ds": {"api_provider": "qwen", "api_model": "vanchin/deepseek-v3", "api_key_env": "QWEN_API_KEY"},
     "doubao": {"api_provider": "volc-ark", "api_model": "ep-20260712083200-pjvq9", "api_key_env": "ARK_API_KEY"},
     "qwen": {"api_provider": "qwen", "api_model": "qwen-plus", "api_key_env": "QWEN_API_KEY"},
     "wenxin": {"api_provider": "wenxin", "api_model": "ernie-5.1", "api_key_env": "WENXIN_API_KEY"},
-    "zhipu": {"api_provider": "wenxin", "api_model": "glm-5.2", "api_key_env": "WENXIN_API_KEY"},
+    "zhipu": {"api_provider": "qwen", "api_model": "ZHIPU/GLM-5.2", "api_key_env": "QWEN_API_KEY"},
     "kimi": {"api_provider": "qwen", "api_model": "kimi/kimi-k2.5", "api_key_env": "QWEN_API_KEY"},
     "minimax": {"api_provider": "qwen", "api_model": "MiniMax/MiniMax-M3", "api_key_env": "QWEN_API_KEY"},
 }
@@ -138,6 +138,12 @@ def norm_name(n):
     return n
 
 
+# 最高风控规则：识别「持有期 / 定开 / 定期开放」等带锁定期、月度调仓时卖不掉的产品（按名称，无需额外列）
+_LOCKED_RE = re.compile(r'(持有期|定开|定期开放|最短持有|\d+\s*(年|个月|月|天|日)\s*持有|持有\s*\d+\s*(年|个月|月))')
+def is_locked_fund(name):
+    return bool(name) and bool(_LOCKED_RE.search(name))
+
+
 def dedupe_pool(pool):
     """同一基金只保留一个主代码：优先 A 份额，否则取规模更大者。"""
     groups = {}
@@ -170,6 +176,10 @@ def fetch_pool():
     }
     data = rest_select(params)
     print(f"[POOL] 原始候选基金数: {len(data)}")
+    # 最高风控规则：剔除持有期/定开等带锁定期产品（按名称识别，规则版兜底也须遵守）
+    before = len(data)
+    data = [f for f in data if not is_locked_fund(f.get('n'))]
+    print(f"[POOL] 已剔除持有期/定开产品: {before - len(data)} 只（规则版候选）")
     deduped = dedupe_pool(data)
     print(f"[POOL] 份额去重后候选基金数: {len(deduped)}（已屏蔽同基金其他份额）")
     return deduped

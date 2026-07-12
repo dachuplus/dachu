@@ -243,17 +243,17 @@ function modelName(id) {
 
 // 各模型的「调用通道 / 聚合平台」中文标签（用于卡片标语，明确展示百炼等聚合平台）
 const PROVIDER_LABEL = {
-  ds: 'DeepSeek 直连',
+  ds: 'DeepSeek · 千问百炼',
   doubao: '豆包 · 火山方舟',
   qwen: '千问百炼聚合',
   wenxin: '文心 · 百度千帆',
-  zhipu: '智谱 · 百度千帆',
+  zhipu: '智谱 · 千问百炼',
   kimi: 'Kimi · 千问百炼',
   minimax: 'MiniMax · 千问百炼',
 }
 // 取代旧的固定「人设」文案：现在每个模型都按自身推理逻辑自主选基
 function modelTagline(m) {
-  const label = PROVIDER_LABEL[m.api_provider] || m.api_provider || '真实大模型'
+  const label = PROVIDER_LABEL[m.id] || PROVIDER_LABEL[m.api_provider] || m.api_provider || '真实大模型'
   return `${label} · 自主推理选基`
 }
 

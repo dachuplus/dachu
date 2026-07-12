@@ -55,6 +55,11 @@ POOL_CATEGORIES = ["混合型", "指数型", "债券型", "股票型", "QDII", "
 POOL_PER_CAT = 40
 SELECT_FIELDS = "c,n,t0,t1_tt,k_all,r1y,r3y,r5y,dd1y,dd3y,sr1y,fund_scale"
 
+# 最高风控规则：识别「持有期 / 定开 / 定期开放」等带锁定期、月度调仓时卖不掉的产品（按名称，无需额外列）
+_LOCKED_RE = re.compile(r'(持有期|定开|定期开放|最短持有|\d+\s*(年|个月|月|天|日)\s*持有|持有\s*\d+\s*(年|个月|月))')
+def is_locked_fund(name):
+    return bool(name) and bool(_LOCKED_RE.search(name))
+
 # 份额归一化（同 seed_ai_pk.py）
 _SHARE_SET = set("ACEFIHBDYRF")
 _ACRONYM_SUFFIXES = ("ETF", "LOF", "QDII")
@@ -115,6 +120,13 @@ def build_candidate_pool():
     })
     collected.extend(top)
 
+    # ===== 最高风控规则：剔除持有期/定开等带锁定期产品 =====
+    # 这类产品带锁定期，月度调仓时根本卖不掉，会破坏组合流动性，绝不允许进入候选池。
+    # fund_scores 无持有期专用列，按基金名称识别（与 FundRankPage 定开筛选口径一致）。
+    before_filter = len(collected)
+    collected = [f for f in collected if not is_locked_fund(f.get('n'))]
+    print(f"[POOL] 已剔除持有期/定开产品: {before_filter - len(collected)} 只（剩余 {len(collected)}）")
+
     # 份额去重：同基金只留一个主代码（优先 A 份额，否则规模大者）
     groups = {}
     for f in collected:
@@ -167,7 +179,8 @@ def build_messages(model, pool_text):
 - 你的目标是：在所有参赛模型中，让这个组合的实际收益率尽可能高。
 - 给出令人信服的两层逻辑（为什么选这些品类、为什么选这只），用真实指标数字支撑。
 
-硬性要求：
+硬性要求（最高风控规则优先，绝不违反）：
+- 【最高规则·不可违反】严禁选择任何「持有期」或「定开」类基金（即带有锁定期、在锁定期内无法赎回的产品）。这类产品在月度调仓时根本卖不掉，会直接破坏组合的流动性。候选池已预先剔除此类产品，你也必须再次确认不在候选池之外引入任何带锁定期的产品。
 1. 只能从下方候选池挑选（code 必须出现在列表中），不可编造基金。
 2. 恰好 5 只，权重各 20%。
 3. 同一基金的不同份额（A/C/E 等）视为同一标的，不要同时选 A 和 C。

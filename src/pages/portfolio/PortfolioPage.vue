@@ -667,6 +667,12 @@ function loadAiFromHistory(pf) { aiPortfolio.value = pf; enrichRanks(); if (pf.f
 const showCustomDialog = ref(false)
 const customRequirement = ref('')
 
+// 最高风控规则：识别「持有期 / 定开 / 定期开放」等带锁定期、月度调仓时卖不掉的产品（按名称，与 FundRankPage 口径一致）
+const LOCKED_FUND_RE = /(持有期|定开|定期开放|最短持有|\d+\s*(年|个月|月|天|日)\s*持有|持有\s*\d+\s*(年|个月|月))/
+function isLockedFund(name) {
+  return !!name && LOCKED_FUND_RE.test(name)
+}
+
 async function generateAiPortfolio() {
   if (aiGenerating.value) return
   aiGenerating.value = true
@@ -700,6 +706,8 @@ async function generateAiPortfolio() {
       fundPool = (data || []).map(f => ({
         c: f.c, n: f.n, t0: f.t0, t1tt: f.t1_tt, kall: f.k_all, k1: f.k1, grade: f.score_grade
       }))
+      // 最高风控规则：剔除持有期/定开等锁定期产品（候选池查询层无法用名称过滤，内存二次剔除）
+      fundPool = fundPool.filter(f => !isLockedFund(f.n))
     }
     // 没有真实产品数据时，明确提示，绝不退回示例基金
     if (fundPool.length === 0) {
@@ -740,7 +748,9 @@ ${reqHint}${catHint}
 { "strategyName": "${strategyName}", "summary": "一句话概述（50字内）",
   "funds": [{"code":"基金代码","name":"基金名称","weight":10,"reason":"推荐理由（15字内）"}],
   "backtest": {"annualReturn":预估年化收益率,"maxDrawdown":预估最大回撤,"sharpe":预估夏普比率,"winRate":预估月度胜率} }
-要求：必须从上述基金池中选择真实存在的产品，挑${targetN}只，每只权重${Math.round(100 / targetN)}%，权重和=100%。不得编造代码，只能从上述清单中选。`
+要求：
+【最高风控规则·不可违反】严禁选择任何「持有期」或「定开」类基金（带锁定期、锁定期内无法赎回的产品）。这类产品在月度调仓时根本卖不掉，会破坏组合流动性。候选池已预先剔除此类产品，你必须再次确认不引入。
+必须从上述基金池中选择真实存在的产品，挑${targetN}只，每只权重${Math.round(100 / targetN)}%，权重和=100%。不得编造代码，只能从上述清单中选。`
 
     aiStatusText.value = 'AI 正在生成组合...'
     const response = await fetch('https://api.deepseek.com/v1/chat/completions', {
@@ -951,6 +961,7 @@ async function generateRiskParityPortfolio() {
     const prompt = `你是一位专业基金投顾，精通风险平价配置。
 我已用 Kan & Zhou (2007) 增强型风险平价模型计算出各大类资产的目标权重，并为你准备好了每个大类下的高分靠谱基金池（已按1年靠谱指数降序）。
 请严格按以下规则生成组合：
+0. 【最高风控规则·不可违反】严禁选择任何「持有期」或「定开」类基金（带锁定期、锁定期内无法赎回的产品）。这类产品在月度调仓时根本卖不掉，会破坏组合流动性。各大类基金池已预先剔除此类产品，你必须再次确认不引入。
 1. 对每一个目标权重>0的大类，从该大类的基金池中精选 2~3 只基金；
 2. 大类内部按风险平价思想分配权重（可参考基金靠谱指数高低微调），使该大类内基金权重之和 ≈ 该大类目标权重；
 3. 所有基金权重之和 = 100%；
@@ -1008,7 +1019,8 @@ async function fetchCategoryFunds(cfg, limit) {
   if (!supabase) { console.warn('[fetchCategoryFunds] supabase client is null'); return [] }
   // 基础查询：按 t0（一级分类）或名称关键字定位品类，按 k1 降序
   const base = () => {
-    let q = supabase.from('fund_scores').select('c,n,t0,t2,k1,k3,r3y').not('k1', 'is', null)
+    let q = supabase.from('fund_scores').select('c,n,t0,t2,k1,k3,r3y')
+      .not('k1', 'is', null)   // 最高风控规则在内存层按名称剔除持有期/定开产品
     if (cfg.t0) q = q.eq('t0', cfg.t0)
     else if (cfg.nameKeyword) q = q.ilike('n', `%${cfg.nameKeyword}%`)
     return q
@@ -1092,7 +1104,8 @@ async function fetchCategoryFunds(cfg, limit) {
       }
     }
   } catch (e) { console.error('[fetchCategoryFunds]', cfg.category, e) }
-  return funds.slice(0, limit)
+  // 最高风控规则：剔除持有期/定开等锁定期产品（名称匹配，月度调仓时卖不掉）
+  return funds.filter(f => !isLockedFund(f.n)).slice(0, limit)
 }
 
 onMounted(() => {
