@@ -246,6 +246,22 @@ def call_qwen(model_id, prompt_messages, key):
     return r.json()["choices"][0]["message"]["content"]
 
 
+def call_wenxin(model_id, prompt_messages, key):
+    # 百度智能云千帆 OpenAI 兼容端点
+    # 注意：ernie-5.1 不支持 response_format json_object，依赖 prompt 指令输出 JSON
+    url = "https://qianfan.baidubce.com/v2/chat/completions"
+    body = {
+        "model": model_id,
+        "messages": prompt_messages,
+        "temperature": 0.7,
+        "max_tokens": 4096,
+    }
+    r = requests.post(url, headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
+                      json=body, timeout=150)
+    r.raise_for_status()
+    return r.json()["choices"][0]["message"]["content"]
+
+
 def call_model(model, prompt_messages):
     provider = model.get("api_provider")
     keyenv = model.get("api_key_env")
@@ -256,6 +272,8 @@ def call_model(model, prompt_messages):
         return call_deepseek(prompt_messages, key)
     if provider == "qwen":
         return call_qwen(model.get("api_model") or "qwen-plus", prompt_messages, key)
+    if provider == "wenxin":
+        return call_wenxin(model.get("api_model") or "ernie-4.5-8k-preview", prompt_messages, key)
     if provider == "volc-ark":
         apimodel = model.get("api_model") or ""
         if not apimodel.startswith("ep-"):
