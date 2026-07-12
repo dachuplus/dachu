@@ -139,7 +139,7 @@ const props = defineProps({
 })
 
 // ========== 状态 ==========
-const activeTab = ref('concept') // 'concept' | 'industry'
+const activeTab = ref('all') // 'all' | 'concept' | 'industry'
 const allTags = ref([]) // [{ name, tag_type, return_pct, sort_order }]
 const loading = ref(false)
 const selectedTag = ref(null) // 当前选中的标签

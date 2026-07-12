@@ -4,14 +4,15 @@
 AI大PK —— 真实大模型自选脚本
 
 功能：
-  让已配置 API 的大模型（目前 DeepSeek / 豆包）从 ALLFUND.CN 真实基金库（fund_scores 表）
-  中「自己」挑选 5 只基金（每只 20% 等权），并产出两层选基逻辑：
-      第一层 category_logic：为何选这些品类、为何不选其他品类。
-      第二层 picks[].reason：为何选这只而非候选池里同品类的其他基金（基于真实指标）。
+  让已配置 API 的真实大模型（DeepSeek / 豆包 / 千问 / 文心 / 智谱 / Kimi / MiniMax）
+  基于自身研究「独立提名」5 只真实公募基金（每只 20% 等权），并产出两层选基逻辑：
+      第一层 category_logic：模型独立研究的品类配置逻辑。
+      第二层 picks[].reason：为何选这只而非其他基金（多维度）。
 
 约束（用户硬性要求）：
-  - 只能在 fund_scores 表内选基金，不编造、不引入表外数据。
-  - 不强制按靠谱指数(k_all)排序——模型按自己的风格自由选品类与单基。
+  - 模型必须独立提名基金，不基于数据库任何表来引导选择；脚本仅用 fund_combined 做
+    事后真实性校验，不向模型提供候选池、不泄露任何数据。
+  - 不强制按靠谱指数(k_all)排序——模型按自己的研究框架自由选品类与单基。
 
 工作流程：
   1. 读 ai_pk_models，挑出 enabled 且配置了 api_provider 的模型。
@@ -20,9 +21,10 @@ AI大PK —— 真实大模型自选脚本
   4. 解析模型返回的 JSON（5 个 code + 两层理由），校验 code 真实存在、份额去重。
   5. 写入 ai_pk_picks（mode='real'），并把模型 mode 置为 'real'。
 
-豆包(规则模型)特别说明：
-  - 豆包并非真实大模型，而是规则模型，不参与真实选基；脚本直接将其置为「待接入」，
-    前端展示「待接入」而不展示任何基金，不影响其他 6 个真实模型的 PK。
+豆包(火山方舟)特别说明：
+  - 豆包已接入真实大模型（火山方舟推理接入点 ep-20260712083200-pjvq9，api_key=ARK_API_KEY），
+    与其他模型一样由 call_ark 真实调用、独立提名基金，不再置「待接入」。
+  - 若火山方舟接入点或 key 未配置（api_model 非 ep- 前缀或缺 ARK_API_KEY），call_model 抛错跳过，不影响其他模型。
 
 用法：
   python3 scripts/ai_pk_real.py                 # 跑所有已配置模型
@@ -97,48 +99,8 @@ def rest_select(params, table="fund_scores"):
     return r.json()
 
 
-def build_lookup_index():
-    """构建全市场基金「校验字典」（仅用于事后校验/归一化，绝不作为候选池）。
-
-    用户硬性要求：模型必须「独立选基金」，不基于数据库任何表来引导选择。
-    因此本脚本不向模型提供候选池，而是由模型基于自身研究自由提名基金；
-    这里仅拉取 fund_combined 的（c, name）全量，建立 code→基金、name→code 索引，
-    用于：① 校验模型提名是否真实存在；② 归一化名称/代码（统一补 .OF 后缀）。
-    该字典不参与任何选基决策，也不向模型泄露。
-    """
-    print("[LOOKUP] 构建全市场基金校验字典（仅校验/归一化，不作候选池）...")
-    by_code = {}
-    name_index = []
-    offset = 0
-    page = 2000
-    while True:
-        params = {
-            "select": LOOKUP_FIELDS,
-            "order": "c.asc",
-            "limit": str(page),
-            "offset": str(offset),
-        }
-        rows = rest_select(params, table="fund_combined")
-        if not rows:
-            break
-        for f in rows:
-            c = f.get("c")
-            if not c:
-                continue
-            rec = {"c": c, "name": f.get("name")}
-            by_code[c] = rec
-            if c.endswith(".OF"):
-                by_code[c[:-3]] = rec
-            else:
-                by_code[c + ".OF"] = rec
-            nn = norm_name(f.get("name"))
-            if nn:
-                name_index.append((nn, c))
-        offset += len(rows)
-        if len(rows) < page:
-            break
-    print(f"[LOOKUP] 校验字典规模: {len(by_code)} 个代码映射、{len(name_index)} 个名称索引")
-    return by_code, name_index
+# build_lookup_index() 已移除：原内存字典分页有 bug（只加载首段导致漏校验）。
+# 改为 resolve_fund() 直接按 code/name 查库校验，见下方。
 
 
 def fmt_num(v, pct=False):
@@ -147,30 +109,29 @@ def fmt_num(v, pct=False):
     return (f"{v:+.2f}%" if pct else f"{v:.2f}")
 
 
-def resolve_fund(qname, qcode, by_code, name_index):
-    """校验模型提名的基金是否真实存在，并返回归一化基金记录。
-    解析顺序：① code（多种形态）→ ② 归一化名称精确匹配 → ③ 子串模糊匹配。
-    返回 fund_combined 记录（含 c/name），或 None（无法校验）。
+def resolve_fund(qname, qcode):
+    """校验模型提名的基金是否真实存在于 fund_combined，并返回归一化记录（含 c/name）。
+    解析顺序：① code（多种形态精确匹配）→ ② 归一化名称精确匹配 → ③ 子串模糊匹配。
+    直接查库（每只最多几次小查询），避免内存字典分页不全导致的漏校验。
     """
-    cands = []
+    def _one(params):
+        rows = rest_select(params, table="fund_combined")
+        return rows[0] if rows else None
     if qcode:
         cq = qcode.strip()
-        cands = [cq, cq.replace(".OF", ""), (cq + ".OF") if not cq.endswith(".OF") else cq]
-    for c in cands:
-        if c in by_code:
-            return by_code[c]
+        for cand in [cq, cq.replace(".OF", ""), (cq + ".OF") if not cq.endswith(".OF") else cq]:
+            r = _one({"select": "c,name", "c": f"eq.{cand}"})
+            if r:
+                return {"c": r.get("c"), "name": r.get("name")}
     qn = norm_name(qname)
     if qn:
-        for kn, code in name_index:
-            if kn == qn and code in by_code:
-                return by_code[code]
-    best = None
-    for kn, code in name_index:
-        if len(kn) >= 3 and (kn in qn or qn in kn):
-            if kn in qn:          # 模型写了更完整的名称 → 直接命中
-                return by_code.get(code)
-            best = code
-    return by_code.get(best) if best else None
+        r = _one({"select": "c,name", "name": f"eq.{qname}"})
+        if r:
+            return {"c": r.get("c"), "name": r.get("name")}
+        r = _one({"select": "c,name", "name": f"ilike.%{qn}%"})
+        if r:
+            return {"c": r.get("c"), "name": r.get("name")}
+    return None
 
 
 def build_messages(model):
@@ -433,7 +394,7 @@ def resolve_names(codes):
     return {r["c"]: r.get("n") or r["c"] for r in (rows or [])}
 
 
-def run_model(model, by_code, name_index, period_month, dry_run):
+def run_model(model, period_month, dry_run):
     print(f"\n===== [{model['id']}] {model['name']} ({model.get('api_provider')}) =====")
     messages = build_messages(model)
     try:
@@ -460,7 +421,7 @@ def run_model(model, by_code, name_index, period_month, dry_run):
     for p in picks:
         qname = (p.get("name") or "").strip()
         qcode = (p.get("code") or "").strip()
-        rec = resolve_fund(qname, qcode, by_code, name_index)
+        rec = resolve_fund(qname, qcode)
         if not rec:
             print(f"  [WARN] 无法校验基金（name={qname}, code={qcode}），跳过")
             continue
@@ -514,14 +475,7 @@ def run_model(model, by_code, name_index, period_month, dry_run):
     return True
 
 
-def handle_doubao_pending(period_month):
-    """豆包为规则模型（非真实大模型），不展示真实选基，置为「待接入」。"""
-    print(f"\n===== [doubao] 豆包（规则模型，非真实大模型）→ 待接入 =====")
-    mgmt_query(f"DELETE FROM public.ai_pk_picks WHERE model_id='doubao' AND period_month='{period_month}';")
-    mgmt_query(
-        f"UPDATE public.ai_pk_models SET mode='pending', category_logic=NULL WHERE id='doubao';"
-    )
-    print("  [PENDING] 豆包已置为待接入（前端显示「待接入」，不展示选基）")
+# handle_doubao_pending() 已移除：豆包现已接入真实大模型（火山方舟），由 run_model 正常处理。
 
 
 def main():
@@ -548,22 +502,11 @@ def main():
         sys.exit(1)
     print(f"待跑模型: {', '.join(m['id'] for m in models)}（豆包将置为待接入）")
 
-    # 构建全市场校验字典（仅校验/归一化，绝不作为候选池）
-    by_code, name_index = build_lookup_index()
-    if not by_code:
-        print("[ERR] 校验字典为空，无法校验")
-        sys.exit(1)
-
     ok = 0
     for m in models:
-        if m["id"] == "doubao":
-            # 豆包是规则模型，非真实大模型：不调用、不展示，置待接入
-            handle_doubao_pending(period_month)
-            continue
-        if run_model(m, by_code, name_index, period_month, args.dry_run):
+        if run_model(m, period_month, args.dry_run):
             ok += 1
-    real_count = len([x for x in models if x["id"] != "doubao"])
-    print(f"\n=== 完成：{ok}/{real_count} 个真实模型成功生成独立选基（豆包已置待接入） ===")
+    print(f"\n=== 完成：{ok}/{len(models)} 个模型成功生成独立选基（含豆包·火山方舟真实模型） ===")
 
 
 if __name__ == "__main__":
