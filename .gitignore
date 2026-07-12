@@ -12,3 +12,33 @@ __pycache__/
 # Vite 构建临时产物（node 重命名占位）
 vite.config.js.timestamp-*.mjs
 *.timestamp-*.mjs
+
+# 导出/临时数据（本地保留，不入git）
+exports/fund_combined.xlsx
+exports/fund_combined_new_scores.xlsx
+exports/fund_raw_sample_classification.xlsx
+exports/fund_raw_sample_full.xlsx
+exports/k_scores_backup_before_recompute.json
+fund_raw_sample.xlsx
+fund_raw_sample_full.xlsx
+fund_raw_sample_scored.xlsx
+public/downloads/config.xlsx
+public/downloads/fund_combined.xlsx
+public/downloads/fund_indices.xlsx
+public/downloads/fund_quarterly_scores.xlsx
+public/downloads/fund_scores.xlsx
+public/downloads/fund_scores_meta.xlsx
+public/downloads/fund_scores_test.xlsx
+public/downloads/index_eva.xlsx
+public/downloads/index_eva_test.xlsx
+public/downloads/index_pe_history.xlsx
+public/downloads/macro_history.xlsx
+public/downloads/site_stats.xlsx
+public/downloads/tougu_products.xlsx
+public/downloads/user_portfolios.xlsx
+public/downloads/user_profiles.xlsx
+public/fund_combined.xlsx
+
+# 本地工具态（不入git）
+.workbuddy/automations/
+.workbuddy/memory/2026-07-11.md
