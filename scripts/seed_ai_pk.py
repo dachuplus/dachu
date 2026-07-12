@@ -84,6 +84,7 @@ MODELS = [
 _API_CONFIG = {
     "ds": {"api_provider": "deepseek", "api_model": "deepseek-chat", "api_key_env": "DEEPSEEK_API_KEY"},
     "doubao": {"api_provider": "volc-ark", "api_model": "ep-20260712083200-pjvq9", "api_key_env": "ARK_API_KEY"},
+    "qwen": {"api_provider": "qwen", "api_model": "qwen-plus", "api_key_env": "QWEN_API_KEY"},
 }
 for m in MODELS:
     cfg = _API_CONFIG.get(m["id"])

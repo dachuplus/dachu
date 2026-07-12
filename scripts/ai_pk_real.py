@@ -230,6 +230,22 @@ def call_ark(model_id, prompt_messages, key):
     return r.json()["choices"][0]["message"]["content"]
 
 
+def call_qwen(model_id, prompt_messages, key):
+    # 阿里云百炼 OpenAI 兼容端点
+    url = "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions"
+    body = {
+        "model": model_id,
+        "messages": prompt_messages,
+        "temperature": 0.7,
+        "max_tokens": 1600,
+        "response_format": {"type": "json_object"},
+    }
+    r = requests.post(url, headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
+                      json=body, timeout=150)
+    r.raise_for_status()
+    return r.json()["choices"][0]["message"]["content"]
+
+
 def call_model(model, prompt_messages):
     provider = model.get("api_provider")
     keyenv = model.get("api_key_env")
@@ -238,6 +254,8 @@ def call_model(model, prompt_messages):
         raise RuntimeError(f"缺少环境变量 {keyenv}（{provider} 需要 API Key）")
     if provider == "deepseek":
         return call_deepseek(prompt_messages, key)
+    if provider == "qwen":
+        return call_qwen(model.get("api_model") or "qwen-plus", prompt_messages, key)
     if provider == "volc-ark":
         apimodel = model.get("api_model") or ""
         if not apimodel.startswith("ep-"):
