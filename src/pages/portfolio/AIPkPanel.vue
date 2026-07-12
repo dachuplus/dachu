@@ -11,10 +11,10 @@
       </div>
       <p class="card-desc">
         让多个大模型各自挑选 5 只基金、每只 20% 等权，每月 1 日调仓，比一比谁的收益更好。
-        <b>全部 7 个模型均已接入真实大模型</b>，由模型自己从 ALLFUND.CN 真实基金库中选品类、选单基，
-        并给出两层选基逻辑；各模型按自身推理逻辑自主决策，目标只有一个——跑赢对手。
+        <b>全部 7 个模型均已接入真实大模型</b>，由模型自己从 ALLFUND.CN 全市场真实基金库中，独立选品类、选单品，
+        并给出两层逻辑（第一层模型独立研究 · 第二层单品逻辑）；各模型按自身推理逻辑自主决策，目标只有一个——跑赢对手。
         通过「千问百炼」聚合平台调用的模型已在卡片上标注<span class="aipk-ds-badge">百炼</span>徽标。
-        所有选基因均来自 fund_scores 真实表，无编造、无模拟。
+        所有选品均来自 ALLFUND.CN 全市场真实基金库，无编造、无模拟。
       </p>
       <div class="aipk-src">数据来源：ALLFUND.CN 靠谱指数基金库（真实收益，非模拟）</div>
     </div>
@@ -123,11 +123,11 @@
           <span class="aipk-tl-model-short" :style="{ color: m.color }">{{ m.name_short }}</span>
         </div>
         <div class="aipk-tl-layer">
-          <span class="aipk-tl-tag">第一层 · 品类逻辑</span>
+          <span class="aipk-tl-tag">第一层 · 模型独立研究（宏观/策略/行业/流动性/金融工程/胜率赔率 六维度）</span>
           <p class="aipk-tl-text">{{ m.category_logic || '—' }}</p>
         </div>
         <div class="aipk-tl-layer">
-          <span class="aipk-tl-tag">第二层 · 个基逻辑</span>
+          <span class="aipk-tl-tag">第二层 · 单品逻辑（多维度分析）</span>
           <div class="aipk-tl-funds">
             <div class="aipk-tl-fund" v-for="(f, i) in (picksMap[m.id]?.picks || [])" :key="f.code">
               <span class="aipk-tl-fund-idx">{{ i + 1 }}</span>

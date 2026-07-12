@@ -34,6 +34,7 @@ import os
 import re
 import sys
 import json
+import time
 import datetime
 import argparse
 import requests
@@ -50,10 +51,12 @@ os.environ["SUPABASE_PAT"] = PAT
 MGMT_URL = f"https://api.supabase.com/v1/projects/{REF}/database/query"
 MGMT_HEADERS = {"Authorization": f"Bearer {PAT}", "Content-Type": "application/json"}
 
-# ===== 候选池：各大类 Top，保证模型能自由选择品类 =====
+# ===== 候选池：全市场 fund_combined 各大类中立抽样，保证模型能自由选择品类 =====
+# 注意：数据源改为 fund_combined（全市场基金，约 2 万条）；排序用「基金规模」而非 k_all，
+# 避免用历史评分引导模型，让模型基于研究独立判断品类与单品。
 POOL_CATEGORIES = ["混合型", "指数型", "债券型", "股票型", "QDII", "FOF"]
-POOL_PER_CAT = 40
-SELECT_FIELDS = "c,n,t0,t1_tt,k_all,r1y,r3y,r5y,dd1y,dd3y,sr1y,fund_scale"
+POOL_PER_CAT = 55
+SELECT_FIELDS = "c,name,t0,t1,k_all,r1y,r3y,r5y,dd1y,sr1y,fund_scale"
 
 # 最高风控规则：识别「持有期 / 定开 / 定期开放」等带锁定期、月度调仓时卖不掉的产品（按名称，无需额外列）
 _LOCKED_RE = re.compile(r'(持有期|定开|定期开放|最短持有|\d+\s*(年|个月|月|天|日)\s*持有|持有\s*\d+\s*(年|个月|月))')
@@ -85,8 +88,8 @@ def mgmt_query(sql, expect_ok=(200, 201)):
         return None
 
 
-def rest_select(params):
-    url = f"{SUPABASE_URL}/rest/v1/fund_scores"
+def rest_select(params, table="fund_scores"):
+    url = f"{SUPABASE_URL}/rest/v1/{table}"
     headers = {"apikey": ANON_KEY, "Authorization": f"Bearer {ANON_KEY}", "Accept": "application/json"}
     r = requests.get(url, headers=headers, params=params, timeout=120)
     if r.status_code != 200:
@@ -96,7 +99,11 @@ def rest_select(params):
 
 
 def build_candidate_pool():
-    """各大类 Top N，份额去重，返回 (list, code->fund)。"""
+    """全市场 fund_combined 各大类中立抽样，份额去重，返回 (list, code->fund)。
+
+    数据源改为 fund_combined（全市场），排序按基金规模(fund_scale)倒序（中性，不按 k_all），
+    避免用历史评分引导模型。候选 code 统一追加 .OF 后缀，与下游 fund_scores / 前端保持一致。
+    """
     collected = []
     for cat in POOL_CATEGORIES:
         params = {
@@ -104,39 +111,33 @@ def build_candidate_pool():
             "t0": f"eq.{cat}",
             "fund_scale": "gt.2",
             "r1y": "not.is.null",
-            "order": "k_all.desc",
+            "order": "fund_scale.desc",
             "limit": str(POOL_PER_CAT),
         }
-        data = rest_select(params)
+        data = rest_select(params, table="fund_combined")
+        # fund_combined.c 不带 .OF 后缀，下游 fund_scores 校验 / 前端 / picks 存储均期望带 .OF
+        for row in data:
+            if row.get("c") and not row["c"].endswith(".OF"):
+                row["c"] = row["c"] + ".OF"
         collected.extend(data)
-    # 全市场 Top 补强（含跨类，避免漏掉头部）
-    top = rest_select({
-        "select": SELECT_FIELDS,
-        "t0": "neq.货币型",
-        "fund_scale": "gt.2",
-        "r1y": "not.is.null",
-        "order": "k_all.desc",
-        "limit": "30",
-    })
-    collected.extend(top)
 
     # ===== 最高风控规则：剔除持有期/定开等带锁定期产品 =====
     # 这类产品带锁定期，月度调仓时根本卖不掉，会破坏组合流动性，绝不允许进入候选池。
-    # fund_scores 无持有期专用列，按基金名称识别（与 FundRankPage 定开筛选口径一致）。
+    # fund_combined 无持有期专用列，按基金名称识别（与 FundRankPage 定开筛选口径一致）。
     before_filter = len(collected)
-    collected = [f for f in collected if not is_locked_fund(f.get('n'))]
+    collected = [f for f in collected if not is_locked_fund(f.get('name'))]
     print(f"[POOL] 已剔除持有期/定开产品: {before_filter - len(collected)} 只（剩余 {len(collected)}）")
 
     # 份额去重：同基金只留一个主代码（优先 A 份额，否则规模大者）
     groups = {}
     for f in collected:
-        groups.setdefault(norm_name(f.get('n')), []).append(f)
+        groups.setdefault(norm_name(f.get('name')), []).append(f)
     out = []
     for items in groups.values():
         if len(items) == 1:
             out.append(items[0])
             continue
-        a_items = [x for x in items if (x.get('n') or '').rstrip().endswith('A')]
+        a_items = [x for x in items if (x.get('name') or '').rstrip().endswith('A')]
         out.append(max(a_items, key=lambda x: (x.get('fund_scale') or 0)) if a_items
                    else max(items, key=lambda x: (x.get('fund_scale') or 0)))
     by_code = {f["c"]: f for f in out}
@@ -154,10 +155,10 @@ def pool_to_text(pool):
     lines = []
     for f in pool:
         lines.append(
-            f"- code={f['c']} | 名称={f.get('n')} | 大类={f.get('t0')}/{f.get('t1_tt')} | "
+            f"- code={f['c']} | 名称={f.get('name')} | 大类={f.get('t0')}/{f.get('t1')} | "
             f"k_all={fmt_num(f.get('k_all'))} | 近1年={fmt_num(f.get('r1y'), True)} | "
             f"近3年={fmt_num(f.get('r3y'), True)} | 近1年回撤={fmt_num(f.get('dd1y'), True)} | "
-            f"近3年回撤={fmt_num(f.get('dd3y'), True)} | 夏普1y={fmt_num(f.get('sr1y'))} | "
+            f"夏普1y={fmt_num(f.get('sr1y'))} | "
             f"规模={fmt_num(f.get('fund_scale'))}亿"
         )
     return "\n".join(lines)
@@ -166,18 +167,41 @@ def pool_to_text(pool):
 def build_messages(model, pool_text):
     system = (
         "你是一名顶级基金投顾 AI，正在参加一场「AI 大 PK」选基竞赛。"
-        "你的核心目标：从候选池中选出 5 只基金构建组合，最大化收益，打败其他参赛模型。"
-        "你必须严格基于用户提供的真实基金数据做决策，绝不编造基金或指标。"
-        "你只能从用户给出的候选池中选择，输出严格 JSON。"
+        "你的核心目标：从候选池中选出 5 只基金（每只 20% 等权）构建组合。"
+        "你必须严格基于候选池真实数据决策，绝不编造基金或指标；缺失数据处注明『以最新定期报告为准』。"
+        "你只能从候选池选择，输出严格 JSON。"
     )
     user = f"""你代表「{model.get('name')}」——一个独立思考的大语言模型。
 你的任务：从下方候选基金池中挑选恰好 5 只基金，每只等权 20%，构建一个投资组合。
 
 核心原则：
-- 你拥有完全的自主权，不受任何预设风格、角色或策略限制。
-- 请根据你对候选池数据的独立分析，按你认为最优的逻辑选择品类和单品。
-- 你的目标是：在所有参赛模型中，让这个组合的实际收益率尽可能高。
-- 给出令人信服的两层逻辑（为什么选这些品类、为什么选这只），用真实指标数字支撑。
+- 你拥有完全的自主权，不受任何预设风格、角色或策略限制，应基于你作为投顾的研究框架独立判断。
+- 候选池来自全市场抽样（已是全市场范围），你可以自由地从候选池中选任何基金，不要被历史评分引导。
+- 你的目标是：在所有参赛模型中，让这个组合的实际收益率尽可能高、回撤可控。
+- 给出清晰、有研究支撑、可执行的两层逻辑，并用真实指标数字支撑。
+
+第一层（category_logic）——品类配置逻辑：
+请结合以下研究维度，独立判断本期应超配 / 低配哪些基金品类（混合型 / 指数型 / 债券型 / 股票型 / QDII / FOF）：
+  · 宏观研究：利率、通胀、货币政策、经济增长（美林时钟 / 宏观象限）。
+  · 策略研究：动量、价值、质量、成长等风格因子的相对强弱。
+  · 行业研究：行业景气度、估值分位、产业政策导向。
+  · 流动性研究：市场资金面、成交换手、资金流入流出。
+  · 金融工程：因子暴露、风险模型、组合相关性。
+  · 胜率与赔率研究：盈亏比、历史胜率统计、预期收益风险比。
+明确要求：不要仅依赖候选池里罗列的历史评分表，要基于上述研究独立判断，并给出清晰可执行的配置结论（哪些品类超配、哪些低配、为什么）。
+
+第二层（picks[].reason）——单品逻辑：
+对所选的每一只基金，请从以下维度逐一说明「为什么选它」：
+  ① 同类对比：同类排名、风格定位（如跑赢基准 / 同类前 10%）。
+  ② 收益：中长期业绩（近 1/3/5 年），相对指数或同类。
+  ③ 回撤：最大回撤控制能力、下行风险。
+  ④ 规模：基金规模是否合理（过大影响灵活性 / 过小有清盘风险）。
+  ⑤ 持仓：前十大持仓、行业集中度、与配置逻辑是否吻合。
+  ⑥ 费率：管理费 + 托管费合计，相对同类是否低廉。
+  ⑦ 基金经理：任职年限、历史管理业绩、投资理念。
+  ⑧ 基金公司：平台投研实力、管理规模。
+  ⑨ 综合结论：为何最终入选组合。
+若候选池数据缺失某维度（如持仓 / 费率 / 基金经理），允许基于公开常识合理描述，但不得编造具体数字，缺失处请注明「以最新定期报告为准」。
 
 硬性要求（最高风控规则优先，绝不违反）：
 - 【最高规则·不可违反】严禁选择任何「持有期」或「定开」类基金（即带有锁定期、在锁定期内无法赎回的产品）。这类产品在月度调仓时根本卖不掉，会直接破坏组合的流动性。候选池已预先剔除此类产品，你也必须再次确认不在候选池之外引入任何带锁定期的产品。
@@ -186,9 +210,9 @@ def build_messages(model, pool_text):
 3. 同一基金的不同份额（A/C/E 等）视为同一标的，不要同时选 A 和 C。
 4. 输出严格 JSON（不要任何多余文字/解释），结构如下：
 {{
-  "category_logic": "第一层：你为什么选择这些品类、为何不选其他品类（2-4句，用真实指标支撑）",
+  "category_logic": "第一层：结合宏观/策略/行业/流动性/金工/胜率赔率研究，独立给出本期品类超配低配逻辑（4-8句，清晰可执行）",
   "picks": [
-    {{"code": "基金code", "reason": "第二层：为什么选这只而非候选池里同品类的其他基金（基于真实指标，1-2句）"}},
+    {{"code": "基金code", "reason": "第二层：按①同类②收益③回撤④规模⑤持仓⑥费率⑦基金经理⑧基金公司⑨综合，逐维度说明为何选它"}},
     ... 共 5 个
   ]
 }}
@@ -248,7 +272,7 @@ def call_deepseek(prompt_messages, key):
     return r.json()["choices"][0]["message"]["content"]
 
 
-def call_ark(model_id, prompt_messages, key):
+def call_ark(model_id, prompt_messages, key, timeout=300, max_retries=2):
     url = "https://ark.cn-beijing.volces.com/api/v3/chat/completions"
     body = {
         "model": model_id,
@@ -256,10 +280,22 @@ def call_ark(model_id, prompt_messages, key):
         "temperature": 0.7,
         "max_tokens": 1600,
     }
-    r = requests.post(url, headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
-                      json=body, timeout=150)
-    r.raise_for_status()
-    return r.json()["choices"][0]["message"]["content"]
+    last_err = None
+    for attempt in range(max_retries + 1):
+        try:
+            r = requests.post(url, headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
+                              json=body, timeout=timeout)
+            r.raise_for_status()
+            return r.json()["choices"][0]["message"]["content"]
+        except (requests.exceptions.Timeout, requests.exceptions.RequestException) as e:
+            last_err = e
+            if attempt < max_retries:
+                wait = 2 ** attempt * 5  # 指数退避：5s, 10s
+                print(f"  [ARK RETRY] 第 {attempt + 1} 次调用失败({e})，{wait}s 后重试")
+                time.sleep(wait)
+            else:
+                raise
+    raise last_err
 
 
 def call_qwen(model_id, prompt_messages, key):

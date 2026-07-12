@@ -186,6 +186,11 @@
           </div>
           <p class="ai-summary">{{ aiPortfolio.summary }}</p>
 
+          <div class="ai-category-logic" v-if="aiPortfolio.category_logic">
+            <div class="ai-cl-title">品类逻辑</div>
+            <p class="ai-cl-text">{{ aiPortfolio.category_logic }}</p>
+          </div>
+
           <div class="ai-funds">
             <div class="ai-fund-item" v-for="f in aiPortfolio.funds" :key="f.code">
               <div class="ai-fund-left">
@@ -678,34 +683,29 @@ async function generateAiPortfolio() {
   aiGenerating.value = true
   aiStatusText.value = '正在查询靠谱指数产品...'
   try {
-    // 1. 真实基金池：fund_scores 中高分靠谱产品（规模>2亿；可按二级分类筛选；k_all 降序）
+    // 1. 真实基金池：全市场候选，从 fund_combined 拉取，按二级分类(t1_tt)分组，
+    //    每类中性排序（规模/近1年收益倒序），每类约 50-60 只（不再用 k_all 引导排序）
     let fundPool = []
     if (supabase) {
-      const buildQ = (withScale) => {
-        let q = supabase.from('fund_scores')
-          .select('c,n,t0,t1_tt,k_all,k1,score_grade')
-        if (withScale) q = q.gt('fund_scale', 2)   // 规模 > 2亿
-        if (aiCategory.value) {
-          q = (aiCategory.value === '货币型') ? q.eq('t0', '货币型') : q.eq('t1_tt', aiCategory.value)
-        } else {
-          q = q.not('k_all', 'is', null).gte('k_all', 70)
+      const perCat = 55
+      const catList = aiCategory.value ? [aiCategory.value] : AI_ALL_CATEGORIES
+      const queries = catList.map(cat => {
+        let q = supabase.from('fund_combined')
+          .select('c,n,t0,t1_tt,fund_scale,r1y,k_all,k1,score_grade')
+        q = (cat === '货币型') ? q.eq('t0', '货币型') : q.eq('t1_tt', cat)
+        return q.order('fund_scale', { ascending: false }).limit(perCat)
+      })
+      const results = await Promise.all(queries)
+      const rows = results.flatMap(r => r.data || [])
+      fundPool = rows.map(f => {
+        const raw = (f.c || '').trim()
+        const code = raw.endsWith('.OF') ? raw : raw + '.OF'   // fund_combined.c 不带 .OF，补齐以保持与展示一致
+        return {
+          c: code, n: f.n, t0: f.t0, t1tt: f.t1_tt,
+          fundScale: f.fund_scale, r1y: f.r1y,
+          kall: f.k_all, k1: f.k1, grade: f.score_grade
         }
-        return q
-      }
-      let { data } = await buildQ(true).order('k_all', { ascending: false }).limit(40)
-      // 分类模式下若该品类规模>2亿的基金不足，放宽规模限制兜底
-      if ((!data || data.length === 0) && aiCategory.value) {
-        const r2 = await buildQ(false).order('k_all', { ascending: false }).limit(40)
-        data = r2.data || []
-      }
-      // 兜底：仍为空则完全忽略规模限制，确保有真实产品可选
-      if (!data || data.length === 0) {
-        const r3 = await buildQ(false).order('k_all', { ascending: false }).limit(40)
-        data = r3.data || []
-      }
-      fundPool = (data || []).map(f => ({
-        c: f.c, n: f.n, t0: f.t0, t1tt: f.t1_tt, kall: f.k_all, k1: f.k1, grade: f.score_grade
-      }))
+      })
       // 最高风控规则：剔除持有期/定开等锁定期产品（候选池查询层无法用名称过滤，内存二次剔除）
       fundPool = fundPool.filter(f => !isLockedFund(f.n))
     }
@@ -722,7 +722,7 @@ async function generateAiPortfolio() {
     const strategyName = isCatMode ? `分类组合·${aiCategory.value}` : (strategy?.label || '均衡配置')
     const customReq = customRequirement.value.trim()
     const reqHint = customReq ? `\n用户额外要求：${customReq}` : ''
-    const catHint = aiCategory.value ? `\n基金池已限定在「${aiCategory.value}」细分品类内（规模>2亿的高分靠谱产品），请从该品类挑选。` : ''
+    const catHint = aiCategory.value ? `\n基金池已限定在「${aiCategory.value}」细分品类内（全市场该品类高分靠谱产品），请从该品类挑选。` : ''
 
     // 按二级分类分组展示，便于 DeepSeek 按分类挑选分散化组合
     const catMap = {}
@@ -746,9 +746,13 @@ ${poolText}
 ${reqHint}${catHint}
 请返回纯JSON（不要markdown）：
 { "strategyName": "${strategyName}", "summary": "一句话概述（50字内）",
-  "funds": [{"code":"基金代码","name":"基金名称","weight":10,"reason":"推荐理由（15字内）"}],
+  "category_logic": "【第一层·品类选择逻辑】结合宏观研究、策略研究、行业研究、流动性研究、金融工程，以及胜率与赔率的研究，独立做出品类选择并给出清晰逻辑（说明为何选择这些品类、为何这样配比）。",
+  "funds": [{"code":"基金代码","name":"基金名称","weight":10,
+    "reason":"【第二层·单品多维度】逐维度说明，每行一个维度，覆盖：同类/收益/回撤/规模/持仓/费率/基金经理/基金公司/综合。数据缺失的维度请注明'以最新定期报告为准'，不得编造。示例格式：\\n同类：...\\n收益：...\\n回撤：...\\n规模：...\\n持仓：...\\n费率：...\\n基金经理：...\\n基金公司：...\\n综合：..."}],
   "backtest": {"annualReturn":预估年化收益率,"maxDrawdown":预估最大回撤,"sharpe":预估夏普比率,"winRate":预估月度胜率} }
 要求：
+【第一层·品类逻辑】category_logic 必须由你结合上述研究独立给出，清晰说明品类选择的依据与逻辑，不可为空。
+【第二层·单品逻辑】每个所选基金均须从多个维度说明（同类/收益/回撤/规模/持仓/费率/基金经理/基金公司/综合），数据缺失维度注明"以最新定期报告为准"，严禁编造。
 【最高风控规则·不可违反】严禁选择任何「持有期」或「定开」类基金（带锁定期、锁定期内无法赎回的产品）。这类产品在月度调仓时根本卖不掉，会破坏组合流动性。候选池已预先剔除此类产品，你必须再次确认不引入。
 必须从上述基金池中选择真实存在的产品，挑${targetN}只，每只权重${Math.round(100 / targetN)}%，权重和=100%。不得编造代码，只能从上述清单中选。`
 
@@ -756,7 +760,7 @@ ${reqHint}${catHint}
     const response = await fetch('https://api.deepseek.com/v1/chat/completions', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${import.meta.env.VITE_DEEPSEEK_API_KEY || ''}` },
-      body: JSON.stringify({ model: 'deepseek-chat', messages: [{ role: 'system', content: '你是专业基金投顾，只从给定基金池选择真实产品，只返回JSON，不得编造代码。' }, { role: 'user', content: prompt }], temperature: 0.3, max_tokens: 2000 })
+      body: JSON.stringify({ model: 'deepseek-chat', messages: [{ role: 'system', content: '你是专业基金投顾，只从给定基金池选择真实产品，只返回JSON，不得编造代码。' }, { role: 'user', content: prompt }], temperature: 0.3, max_tokens: 3000 })
     })
     if (!response.ok) throw new Error(`API调用失败: ${response.status}`)
     const result = await response.json()
@@ -774,6 +778,7 @@ ${reqHint}${catHint}
       id: Date.now().toString(),
       strategyName: parsed.strategyName || strategyName,
       summary: parsed.summary || '',
+      category_logic: parsed.category_logic || '',
       funds: validated,
       backtest: parsed.backtest ? { annualReturn: Number(parsed.backtest.annualReturn) || 0, maxDrawdown: Number(parsed.backtest.maxDrawdown) || 0, sharpe: Number(parsed.backtest.sharpe) || 0, winRate: Number(parsed.backtest.winRate) || 0 } : null,
       createdAt: `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`
@@ -1235,6 +1240,9 @@ watch(customPortfolios, (newVal) => {
 .ai-result-title { font-size: 19px; font-weight: 700; }
 .ai-result-date { font-size: 14px; color: var(--text-secondary); }
 .ai-summary { font-size: 16px; color: var(--text-secondary); margin-bottom: var(--space-md); line-height: 1.6; }
+.ai-category-logic { margin-bottom: var(--space-md); padding: var(--space-md); background: #eaf2fb; border-left: 4px solid #1d70b8; }
+.ai-cl-title { font-size: 16px; font-weight: 700; color: #1d70b8; margin-bottom: var(--space-sm); }
+.ai-cl-text { font-size: 14px; color: var(--text-primary); line-height: 1.7; white-space: pre-wrap; margin: 0; }
 .ai-funds { display: flex; flex-direction: column; gap: var(--space-sm); margin-bottom: var(--space-md); }
 .ai-fund-item { display: flex; justify-content: space-between; align-items: center; padding: var(--space-sm) var(--space-md); border: 1px solid var(--border); }
 .ai-fund-left { display: flex; flex-direction: column; }
