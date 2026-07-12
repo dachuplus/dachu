@@ -87,7 +87,7 @@ _API_CONFIG = {
     "qwen": {"api_provider": "qwen", "api_model": "qwen-plus", "api_key_env": "QWEN_API_KEY"},
     "wenxin": {"api_provider": "wenxin", "api_model": "ernie-5.1", "api_key_env": "WENXIN_API_KEY"},
     "zhipu": {"api_provider": "zhipu", "api_model": "glm-4-plus", "api_key_env": "ZHIPU_API_KEY"},
-    "kimi": {"api_provider": "kimi", "api_model": "kimi-k2", "api_key_env": "KIMI_API_KEY"},
+    "kimi": {"api_provider": "kimi", "api_model": "moonshot-v1-32k", "api_key_env": "KIMI_API_KEY"},
 }
 for m in MODELS:
     cfg = _API_CONFIG.get(m["id"])
