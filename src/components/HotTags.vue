@@ -130,7 +130,7 @@
                       <span
                         class="ft-manager"
                         :class="{ 'ft-empty': !f.fund_manager }"
-                        :title="f.fund_manager ? '' : '场内基金（ETF/LOF）暂无经理数据'"
+                        :title="f.fund_manager ? '' : '暂无基金经理数据'"
                       >经理：{{ f.fund_manager || '—' }}</span>
                     </div>
                   </div>
@@ -396,7 +396,7 @@ async function loadTagFunds(tag) {
     // 1) 拉取该标签关联的全部基金（东财 ZTJJ 全量映射，sync_tag_funds_full.py 分页重拉）
     const { data: mappings, error: err1 } = await supabase
       .from('fund_tag_funds')
-      .select('fund_code,fund_name,fund_type,syl_1n,sort_order')
+      .select('fund_code,fund_name,fund_type,syl_1n,sort_order,fund_manager')
       .eq('tag_name', tag.name)
       .order('sort_order', { ascending: true })
     // 无数据时直接显示空状态，不做任何兜底
@@ -458,7 +458,7 @@ async function loadTagFunds(tag) {
         t1_tt: sc.t1_tt,
         k1: sc.k1,
         r1y: sc.r1y ?? m.syl_1n,  // fund_scores优先，否则用东财近1年收益
-        fund_manager: sc.fund_manager || '',  // 场内 ETF/LOF 基金不在 fund_scores（仅收录 .OF），经理为空时优雅降级
+        fund_manager: m.fund_manager || sc.fund_manager || '',  // 优先用 fund_tag_funds 已回填的经理（覆盖 ETF）；否则兜底 fund_scores
         fund_scale: sc.fund_scale,
         nav_date: sc.date || '',  // fund_scores 的净值日期，作为底部「截止时间」的兜底来源
         _ftype: m.fund_type,
