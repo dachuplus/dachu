@@ -187,22 +187,16 @@ const props = defineProps({
   maxRows: { type: Number, default: 0 },
 })
 
-// ========== 新增：阶段与排序配置（参考天天基金 ztjj 页面） ==========
-// 每个阶段映射到 fund_scores 表的收益率字段：
-//   - 实时：  daily_change（当日涨跌，东财注入）
-//   - 近1周： r0w
-//   - 近1月： r1m
-//   - 近3月： r3m
-//   - 近1年： r1y（与 fund_tags.return_pct 口径一致）
-//   - 今年来： ytd
-// 说明：fund_tag_funds 表当前仅含近1年收益(return_pct)，其余周期通过联查 fund_scores 补充。
+// ========== 阶段与排序配置（数据来源：东财 ZTJJ GetBKDetailInfoNew 板块级接口） ==========
+// 每个阶段映射到 fund_tag_perf 表字段：
+//   d=日涨幅, w=近1周, m=近1月, q=近3月, y=近1年, sy=今年来
 const STAGES = [
-  { key: 'd',   label: '实时',   field: 'daily_change' },
-  { key: 'w1',  label: '近1周',  field: 'r0w' },
-  { key: 'm1',  label: '近1月',  field: 'r1m' },
-  { key: 'm3',  label: '近3月',  field: 'r3m' },
-  { key: 'y1',  label: '近1年',  field: 'r1y' },
-  { key: 'ytd', label: '今年来',  field: 'ytd' },
+  { key: 'd',   label: '实时',   field: 'd' },
+  { key: 'w1',  label: '近1周',  field: 'w' },
+  { key: 'm1',  label: '近1月',  field: 'm' },
+  { key: 'm3',  label: '近3月',  field: 'q' },
+  { key: 'y1',  label: '近1年',  field: 'y' },
+  { key: 'ytd', label: '今年来',  field: 'sy' },
 ]
 
 // ========== 状态 ==========
@@ -258,7 +252,7 @@ const displayTags = computed(() => {
 // 当前阶段中文名（用于脚注）
 const stageLabel = computed(() => STAGES.find(s => s.key === activeStage.value)?.label || '近1年')
 // 动态脚注文案
-const stageFootnote = computed(() => `板块收益为该标签关联基金${stageLabel.value}收益率均值，`)
+const stageFootnote = computed(() => `板块收益为东财主题板块${stageLabel.value}涨跌幅，`)
 
 // 取某标签在当前阶段的聚合均值（无数据返回 null）
 function stageValue(name) {
@@ -282,13 +276,9 @@ function stageSortVal(tag) {
 }
 
 // 某阶段是否可用（有任一标签含该阶段数据）；数据未就绪前先放行避免闪烁
-function stageAvailable(key) {
-  if (!stageReturnsReady.value) return true
-  for (const name in tagStageReturns.value) {
-    const v = tagStageReturns.value[name]?.[key]
-    if (v != null && !isNaN(v)) return true
-  }
-  return false
+// fund_tag_perf 表对所有标签均含6周期数据，始终可用
+function stageAvailable(_key) {
+  return true
 }
 
 // 带正负号的百分比格式化（如 +2.79% / -1.00%）
@@ -300,104 +290,39 @@ function fmtPctSigned(v) {
 }
 
 /**
- * 新增：为所有标签聚合各阶段收益率（用于排序 / 阶段切换展示）
- * 数据来源：fund_tag_funds（标签→基金映射）+ fund_scores（各周期收益）
- * 策略：优先 fund_tag_funds 已有字段；缺的周期通过联查 fund_scores 补充。
- * 聚合方式：每个标签取其关联基金的各周期收益均值。
+ * 从 fund_tag_perf 表加载所有标签的板块级各周期涨跌幅
+ * 数据来源：东财 ZTJJ::GetBKDetailInfoNew 接口，由 ETL 脚本 sync_tag_performance.py 定时拉取
+ * 字段：d(日涨幅), w(近1周), m(近1月), q(近3月), y(近1年), sy(今年来)
  */
 async function loadTagStageReturns() {
   try {
     const { supabase } = await import('../api/supabase.js')
     if (!supabase) { stageReturnsReady.value = true; return }
 
-    // 1) 拉取全部标签→基金映射（仅取必要字段，分页避免 1000 行上限截断）
-    const mappings = []
-    let from = 0
-    const PAGE = 1000
-    while (true) {
-      const { data, error } = await supabase
-        .from('fund_tag_funds')
-        .select('tag_name,fund_code')
-        .range(from, from + PAGE - 1)
-      if (error) { console.warn('[HotTags] loadTagStageReturns mappings error', error); break }
-      if (!data || data.length === 0) break
-      mappings.push(...data)
-      if (data.length < PAGE) break
-      from += PAGE
-    }
-    if (mappings.length === 0) { stageReturnsReady.value = true; return }
+    const { data, error } = await supabase
+      .from('fund_tag_perf')
+      .select('tag_index_code,tag_name,d,w,m,q,y,sy')
 
-    // 2) 收集去重基金代码，分批联查 fund_scores 各周期收益
-    const allCodes = [...new Set(mappings.map(m => m.fund_code).filter(Boolean))]
-    const norm = c => (c.endsWith('.OF') || c.endsWith('.of')) ? c : c + '.OF'
-    const codesParam = allCodes.map(norm)
-    const scoreMap = {} // 归一化代码(去 .OF 后缀) -> 收益对象
-    const BATCH = 200
-
-    // 核心周期字段（均存在于 fund_scores 表 DDL：r0w/r1m/r3m/r1y/ytd）
-    const coreFields = ['r0w', 'r1m', 'r3m', 'r1y', 'ytd']
-    for (let i = 0; i < codesParam.length; i += BATCH) {
-      const chunk = codesParam.slice(i, i + BATCH)
-      const { data: scores, error } = await supabase
-        .from('fund_scores')
-        .select('c,' + coreFields.join(','))
-        .in('c', chunk)
-      if (error) { console.warn('[HotTags] loadTagStageReturns scores error', error); continue }
-      if (scores) {
-        for (const s of scores) scoreMap[s.c.replace(/\.OF$/i, '')] = { ...s }
-      }
+    if (error || !data || data.length === 0) {
+      console.warn('[HotTags] fund_tag_perf 无数据（ETL可能未运行），阶段排序将降级', error)
+      stageReturnsReady.value = true
+      return
     }
 
-    // 实时(daily_change) 为可选字段：东财可能未注入该列，单独 best-effort 查询，
-    // 即便失败也不影响其它阶段（实时 tab 退化为显示 "—"）
-    let hasDaily = false
-    try {
-      for (let i = 0; i < codesParam.length; i += BATCH) {
-        const chunk = codesParam.slice(i, i + BATCH)
-        const { data: scores } = await supabase
-          .from('fund_scores')
-          .select('c,daily_change')
-          .in('c', chunk)
-        if (scores) {
-          for (const s of scores) {
-            const key = s.c.replace(/\.OF$/i, '')
-            if (!scoreMap[key]) scoreMap[key] = {}
-            scoreMap[key].daily_change = s.daily_change
-          }
-          hasDaily = true
-        }
-      }
-    } catch (e) {
-      console.warn('[HotTags] daily_change 不可用，实时阶段将显示 —', e)
-    }
-    const scoreFields = hasDaily ? [...coreFields, 'daily_change'] : coreFields
-
-    // 3) 按标签聚合各阶段均值
-    const acc = {} // name -> { field: [values] }
-    for (const m of mappings) {
-      const sc = scoreMap[m.fund_code]
-      if (!sc) continue
-      if (!acc[m.tag_name]) acc[m.tag_name] = {}
-      for (const f of scoreFields) {
-        const v = sc[f]
-        if (v == null) continue
-        if (!acc[m.tag_name][f]) acc[m.tag_name][f] = []
-        acc[m.tag_name][f].push(Number(v))
-      }
-    }
-    const result = {}
+    // 按 tag_name 建索引，供 cellReturn / displayTags 排序使用
     const fieldToKey = Object.fromEntries(STAGES.map(s => [s.field, s.key]))
-    for (const name in acc) {
+    const result = {}
+    for (const row of data) {
+      const name = row.tag_name
+      if (!name) continue
       result[name] = {}
-      for (const f of scoreFields) {
-        const arr = acc[name][f]
-        if (arr && arr.length) {
-          result[name][fieldToKey[f]] =
-            Math.round((arr.reduce((s, x) => s + x, 0) / arr.length) * 100) / 100
-        }
+      for (const s of STAGES) {
+        const v = row[s.field]
+        result[name][s.key] = (v == null || v === '') ? null : Number(v)
       }
     }
     tagStageReturns.value = result
+    console.log(`[HotTags] fund_tag_perf 加载完成: ${data.length} 个标签`)
   } catch (e) {
     console.error('[HotTags] loadTagStageReturns error', e)
   } finally {

@@ -310,6 +310,20 @@ jobs:
           python scripts/fetch_etf_returns.py
           echo "场内基金区间收益更新完成: $(date '+%Y-%m-%d %H:%M:%S')"
 
+      - name: 步骤5f — 拉取主题板块各周期涨跌幅（东财ZTJJ，写入 fund_tag_perf 表）
+        timeout-minutes: 15
+        continue-on-error: true
+        env:
+          SUPABASE_PAT: ${{ secrets.SUPABASE_MGMT_TOKEN }}
+        run: |
+          echo "============================================"
+          echo "  步骤5f: 拉取主题板块日/周/月/季/年/今年涨跌幅（东财ZTJJ GetBKDetailInfoNew）"
+          echo "  开始时间: $(date '+%Y-%m-%d %H:%M:%S')"
+          echo "============================================"
+          pip install requests
+          python scripts/sync_tag_performance.py
+          echo "主题板块涨跌幅更新完成: $(date '+%Y-%m-%d %H:%M:%S')"
+
       - name: 步骤6 — 安装 Node.js
         uses: actions/setup-node@v4
         with:
