@@ -371,6 +371,11 @@
     <div v-if="activeTab === 'tools'">
       <MediaTools />
     </div>
+
+    <!-- ==================== 9. 行情（原 HomePage） ==================== -->
+    <div v-if="activeTab === 'market'">
+      <HomePage />
+    </div>
   </div>
 </template>
 
@@ -385,6 +390,7 @@ import { COLORS } from '../../utils/echarts-theme'
 import { supabase } from '../../api/supabase'
 import HelpTip from '../../components/HelpTip.vue'
 import MediaTools from '../../components/MediaTools.vue'
+import HomePage from '../../pages/home/HomePage.vue'
 
 // ===== Tab 结构 =====
 const tabs = [
@@ -396,6 +402,7 @@ const tabs = [
   { key: 'industry', label: '行业估值' },
   { key: 'jqr',      label: '特色指标' },
   { key: 'tools',    label: '个人工具' },
+  { key: 'market',   label: '行情' },
 ]
 // ===== 标签页持久化（Req6）：刷新后保留浏览位置 =====
 const ACTIVE_TAB_KEY = 'af_signal_active_tab'

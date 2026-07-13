@@ -208,8 +208,11 @@
         <span class="filter-result-count">
           筛选结果：<strong>{{ totalCount != null ? totalCount : funds.length }}</strong> 只，已加载 <strong>{{ funds.length }}</strong> 只
         </span>
-        <span class="data-refresh" :class="{ refreshing }" @click="refreshData">
-          {{ refreshing ? '刷新中' : '刷新' }}
+        <span class="result-actions">
+          <span class="data-refresh" :class="{ refreshing }" @click="refreshData">
+            {{ refreshing ? '刷新中' : '刷新' }}
+          </span>
+          <button class="export-btn" @click="exportCsv">导出 CSV</button>
         </span>
       </div>
     </div>
@@ -1163,6 +1166,54 @@ function clearSearch() {
   loadData(true)
 }
 
+// ========== 导出 CSV（导出当前已加载的筛选+排序结果） ==========
+function exportCsv() {
+  if (!sortedFunds.value.length) {
+    toast('暂无数据可导出', 'error')
+    return
+  }
+  const headers = ['基金代码', '基金简称', '基金经理', '二级分类', '基金规模(亿)', '管理费%', '近1年收益%', '近2年收益%', '近3年收益%', '近5年收益%']
+  const periodHeaders = displayPeriods.value.map(p => p.label + '评分')
+  const allHeaders = [...headers, ...periodHeaders]
+
+  const rows = sortedFunds.value.map(f => {
+    const base = [
+      f.c,
+      f.n || '',
+      f.fund_manager || '',
+      f.t1_tt || f.t1 || '',
+      f.fund_scale != null ? f.fund_scale : '',
+      f.manage_fee != null ? f.manage_fee : '',
+      f.r1y != null ? f.r1y : '',
+      f.r2y != null ? f.r2y : '',
+      f.r3y != null ? f.r3y : '',
+      f.r5y != null ? f.r5y : '',
+    ]
+    const scores = displayPeriods.value.map(p => (f[p.key] != null ? Number(f[p.key]).toFixed(1) : ''))
+    return [...base, ...scores]
+  })
+
+  const escapeCsv = v => {
+    const s = String(v == null ? '' : v)
+    return /[",\n\r]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s
+  }
+  const csv = [allHeaders, ...rows].map(r => r.map(escapeCsv).join(',')).join('\r\n')
+  // 加 UTF-8 BOM，确保 Excel 正确识别中文
+  const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  const ts = new Date()
+  const pad = n => String(n).padStart(2, '0')
+  const fname = `allfund_靠谱指数_${ts.getFullYear()}${pad(ts.getMonth() + 1)}${pad(ts.getDate())}_${pad(ts.getHours())}${pad(ts.getMinutes())}${pad(ts.getSeconds())}.csv`
+  a.href = url
+  a.download = fname
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  URL.revokeObjectURL(url)
+  toast(`已导出 ${rows.length} 只基金`, 'success')
+}
+
 function loadMore() {
   if (!loading.value && hasMore.value) {
     page.value++
@@ -1235,6 +1286,13 @@ onUnmounted(() => {
   font-size: 14px; color: var(--link); cursor: pointer; text-decoration: underline;
 }
 .data-refresh.refreshing { opacity: 0.5; }
+
+.result-actions { display: flex; align-items: center; gap: var(--space-md); }
+.export-btn {
+  padding: 4px 14px; font-size: 14px; color: #fff; background: #1d70b8;
+  border: none; cursor: pointer; font-weight: 600;
+}
+.export-btn:hover { background: #155a96; }
 
 /* 筛选区 */
 .filter-section { background: #ffffff; border-bottom: 1px solid var(--border); }

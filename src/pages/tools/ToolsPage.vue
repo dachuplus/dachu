@@ -5,6 +5,9 @@
       <div class="tool-grid">
         <router-link to="/tools/tougu"       class="tool-item">投顾产品精选</router-link>
         <router-link to="/tools/fund-rank"   class="tool-item">靠谱基金指数</router-link>
+        <router-link to="/compare"           class="tool-item">基金对比</router-link>
+        <router-link to="/calc"              class="tool-item">定投计算器</router-link>
+        <router-link to="/watchlist"         class="tool-item">我的关注</router-link>
       </div>
     </div>
   </div>

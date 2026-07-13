@@ -62,13 +62,43 @@ const routes = [
     }
   },
   {
-    path: '/lab',
-    component: () => import('../pages/lab/LabPage.vue'),
+    path: '/fund/:code',
+    component: () => import('../pages/fund-detail/FundDetailPage.vue'),
     meta: {
-      tab: 'lab',
-      title: '实验室',
-      description: 'ALLFUND.CN 实验室：基金投资策略、量化模型与数据实验的尝鲜区。',
-      keywords: '基金实验室,量化策略,投资模型'
+      tab: 'tools',
+      title: '基金详情',
+      description: '单只基金详情：靠谱指数评分构成、各周期收益与同类排名。',
+      keywords: '基金详情,基金评分,基金收益'
+    }
+  },
+  {
+    path: '/watchlist',
+    component: () => import('../pages/watchlist/WatchlistPage.vue'),
+    meta: {
+      tab: 'profile',
+      title: '我的关注',
+      description: '自选关注基金列表：快速查看评分与各周期收益。',
+      keywords: '自选基金,关注列表,基金关注'
+    }
+  },
+  {
+    path: '/compare',
+    component: () => import('../pages/compare/CompareToolPage.vue'),
+    meta: {
+      tab: 'tools',
+      title: '基金对比',
+      description: '多只基金同维度对比：评分、收益、回撤与同类排名。',
+      keywords: '基金对比,基金比较,基金筛选'
+    }
+  },
+  {
+    path: '/calc',
+    component: () => import('../pages/calc/SipCalcPage.vue'),
+    meta: {
+      tab: 'tools',
+      title: '定投计算器',
+      description: '基金定投收益计算器：输入定投金额与期限，估算期末本息与总收益。',
+      keywords: '定投计算器,基金定投,收益计算'
     }
   },
   {

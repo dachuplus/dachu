@@ -23,9 +23,9 @@
       成分数量 = 该二级分类下的基金只数。
     </div>
     <div class="fi-note fi-note--em" v-if="sub === 'em_index'">
-      数据说明：东财基金指数来自<b>东方财富数据中心</b>公开行情接口，为市场上<b>真实发布的基金指数产品</b>
-      （上证基金指数 / 国证基金 / 深证ETF指数），展示其各周期收益率，
-      与上方「分类聚合」口径不同，仅供横向参考。
+      数据说明：基金指数来自<b>腾讯财经</b>实时行情接口（qt.gtimg.cn）与日 K 线数据（web.ifzq.gtimg.cn），
+      为市场上<b>真实发布的基金指数产品</b>（上证基金指数 / 深证基金指数 / 深证ETF / 国证基金 / 国证ETF / 乐富指数）。
+      各周期收益按指数收盘价计算，与上方「分类聚合」口径不同，仅供横向参考。
     </div>
 
     <div class="fi-loading" v-if="loading">加载中…</div>
@@ -57,13 +57,14 @@
       </table>
     </div>
 
-    <!-- 东财基金指数表 -->
+    <!-- 基金指数表 -->
     <div class="fi-table-wrap" v-else>
       <table class="fi-table">
         <thead>
           <tr>
             <th class="fi-th">指数名称</th>
             <th class="fi-th">分类</th>
+            <th class="fi-th">当前点位</th>
             <th
               v-for="c in EM_COLS"
               :key="c.key"
@@ -77,9 +78,10 @@
           </tr>
         </thead>
         <tbody>
-          <tr v-for="r in emDisplayRows" :key="r.wind_code">
+          <tr v-for="r in emDisplayRows" :key="r.code">
             <td class="fi-pri-name">{{ r.name }}</td>
             <td>{{ r.category || '—' }}</td>
+            <td :class="trendCls(r.changePct)">{{ r.current != null ? Number(r.current).toFixed(2) : '—' }}</td>
             <td v-for="c in EM_COLS" :key="c.key" :class="trendCls(r[c.key])">{{ pct(r[c.key]) }}</td>
           </tr>
         </tbody>
@@ -95,7 +97,7 @@ import { supabase } from '../../api/supabase'
 const subTabs = [
   { key: 'primary', label: '一级分类' },
   { key: 'secondary', label: '二级分类' },
-  { key: 'em_index', label: '东财基金指数' },
+  { key: 'em_index', label: '基金指数' },
 ]
 const sub = ref('primary')
 const loading = ref(true)
@@ -176,28 +178,115 @@ const emDisplayRows = computed(() => {
   })
 })
 
-// ===== 东财基金指数：从 fund_indices 表读取真实基金指数产品 =====
+// ===== 基金指数：腾讯财经实时行情 + 日 K 线（真实基金指数产品） =====
+// 可用代码（均为市场上真实发布的基金指数）：
+//   sh000011 上证基金指数 / sz399305 深证基金指数 / sz399306 深证ETF
+//   sz399379 国证基金 / sz399380 国证ETF / sz399103 乐富指数
+// inceptEnd：每只指数成立日所在窗口的截止日，配合 count=2000 可拉到「成立以来」首根 K 线
+const GTIMG_CODES = [
+  { code: 'sh000011', name: '上证基金指数', category: '交易所', inceptEnd: '2001-12-31' },
+  { code: 'sz399305', name: '深证基金指数', category: '交易所', inceptEnd: '2001-12-31' },
+  { code: 'sz399306', name: '深证ETF',     category: '交易所', inceptEnd: '2018-12-31' },
+  { code: 'sz399379', name: '国证基金',     category: '国证',   inceptEnd: '2018-12-31' },
+  { code: 'sz399380', name: '国证ETF',      category: '国证',   inceptEnd: '2018-12-31' },
+  { code: 'sz399103', name: '乐富指数',     category: '国证',   inceptEnd: '2018-12-31' },
+]
+
+// 解析 qt.gtimg.cn 快照行：v_sh000011="1~名称~代码~当前~昨收~今开~...~涨跌点~涨跌幅%~最高~最低~"
+// 注意：字段含 GBK 中文，浏览器按 UTF-8 解码会乱码，故只取 ASCII 数值字段，名称用本地硬编码
+function parseQtLine(line) {
+  const m = line.match(/="([^"]*)"/)
+  if (!m) return null
+  const f = m[1].split('~')
+  return {
+    current: parseFloat(f[3]),
+    prevClose: parseFloat(f[4]),
+    open: parseFloat(f[5]),
+    change: parseFloat(f[31]),
+    changePct: parseFloat(f[32]),
+    high: parseFloat(f[33]),
+    low: parseFloat(f[34]),
+  }
+}
+
+// (to - from) / from * 100，缺失或除零返回 null
+function pctFromTo(from, to) {
+  if (from == null || to == null || !isFinite(from) || from === 0) return null
+  return +(((to - from) / from) * 100).toFixed(2)
+}
+
+// 日期字符串按年偏移：'2026-07-10' + (-5) -> '2021-07-10'
+function shiftYears(dateStr, dy) {
+  const y = parseInt(dateStr.slice(0, 4), 10) + dy
+  return `${y}${dateStr.slice(4)}`
+}
+
+// 在 K 线数组中找第一根日期 >= target 的收盘价（用于今年以来 / 近N年基准）
+function closeOnOrAfter(bars, target) {
+  for (const b of bars) {
+    if (b[0] >= target) return parseFloat(b[2])
+  }
+  return null
+}
+
+// 拉取日 K 线：字段顺序 [日期, 开盘, 收盘, 最高, 最低, 成交量]（收盘 index=2）
+async function fetchKline(code, end, count) {
+  const url = `https://web.ifzq.gtimg.cn/appstock/app/fqkline/get?param=${code},day,2000-01-01,${end},${count},qfq`
+  const r = await fetch(url, { mode: 'cors' })
+  const d = await r.json()
+  const data = d.data
+  if (!data || Array.isArray(data)) return []
+  const node = data[code]
+  if (!node) return []
+  return node.day || node.qfqday || []
+}
+
 async function loadEmIndex() {
-  if (!supabase) return
   try {
-    const { data, error } = await supabase
-      .from('fund_indices')
-      .select('wind_code, name_cn, category, market_perf')
-      .order('category')
-    if (error) { console.warn('[FundIndexPanel] em_index query error', error); return }
-    const rows = (data || []).map(r => {
-      const mp = r.market_perf || {}
-      return {
-        wind_code: r.wind_code,
-        name: r.name_cn,
-        category: r.category,
-        ytd: mp.ytd,
-        r1y: mp.r1y,
-        r3y: mp.r3y,
-        r5y: mp.r5y,
-        since_inception: mp.since_inception,
-      }
+    // 1) 实时行情快照（qt.gtimg.cn，CORS 可用）
+    const snapRes = await fetch('https://qt.gtimg.cn/q=' + GTIMG_CODES.map(c => c.code).join(','), { mode: 'cors' })
+    const snapText = await snapRes.text()
+    const snapMap = {}
+    snapText.split(';').forEach(line => {
+      const p = line.indexOf('=')
+      if (p < 0) return
+      const code = line.slice(0, p).replace('v_', '').trim()
+      const info = parseQtLine(line)
+      if (info) snapMap[code] = info
     })
+
+    // 2) 逐指数拉取日 K 线：近期窗口(算各周期收益) + 成立来窗口(算成立以来)
+    const rows = await Promise.all(GTIMG_CODES.map(async (meta) => {
+      const [histBars, inceptBars] = await Promise.all([
+        fetchKline(meta.code, '2026-12-31', 2000),
+        fetchKline(meta.code, meta.inceptEnd, 2000),
+      ])
+      if (!histBars.length) {
+        return { code: meta.code, name: meta.name, category: meta.category, current: null, changePct: null, ytd: null, r1y: null, r3y: null, r5y: null, since_inception: null }
+      }
+      const last = histBars[histBars.length - 1]
+      const lastClose = parseFloat(last[2])
+      const lastDate = last[0]
+      const ytdTarget = lastDate.slice(0, 4) + '-01-01'
+      const ytdClose = closeOnOrAfter(histBars, ytdTarget)
+      const r1yClose = closeOnOrAfter(histBars, shiftYears(lastDate, -1))
+      const r3yClose = closeOnOrAfter(histBars, shiftYears(lastDate, -3))
+      const r5yClose = closeOnOrAfter(histBars, shiftYears(lastDate, -5))
+      const inceptClose = inceptBars.length ? parseFloat(inceptBars[0][2]) : null
+      const snap = snapMap[meta.code] || {}
+      return {
+        code: meta.code,
+        name: meta.name,
+        category: meta.category,
+        current: snap.current != null ? snap.current : lastClose,
+        changePct: snap.changePct != null ? snap.changePct : null,
+        ytd: pctFromTo(ytdClose, lastClose),
+        r1y: pctFromTo(r1yClose, lastClose),
+        r3y: pctFromTo(r3yClose, lastClose),
+        r5y: pctFromTo(r5yClose, lastClose),
+        since_inception: pctFromTo(inceptClose, lastClose),
+      }
+    }))
     emRows.value = rows
   } catch (e) {
     console.error('[FundIndexPanel] em_index', e)
