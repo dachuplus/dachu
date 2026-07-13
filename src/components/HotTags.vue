@@ -22,23 +22,65 @@
       </div>
     </div>
 
+    <!-- 新增：排序类别 + 阶段选择控件（参考天天基金 ztjj 页面） -->
+    <div class="hot-controls" v-if="displayTags.length > 0">
+      <!-- 排序类别：按涨幅 / 按资金流入（资金流入数据源待接入，暂禁用） -->
+      <div class="control-row">
+        <span class="control-label">排序类别</span>
+        <div class="sort-group" role="group" aria-label="排序类别">
+          <button
+            class="sort-btn"
+            :class="{ active: sortMode === 'byReturn' }"
+            @click="sortMode = 'byReturn'"
+          >按涨幅</button>
+          <button
+            class="sort-btn"
+            :class="{ active: sortMode === 'byInflow' }"
+            :disabled="true"
+            :title="inflowDisabledHint"
+            @click="sortMode = 'byInflow'"
+          >按资金流入（开发中）</button>
+        </div>
+      </div>
+      <!-- 阶段选择：实时 / 近1周 / 近1月 / 近3月 / 近1年 / 今年来 -->
+      <div class="control-row">
+        <span class="control-label">阶段</span>
+        <div class="stage-tabs" role="tablist" aria-label="阶段选择">
+          <button
+            v-for="s in STAGES"
+            :key="s.key"
+            class="stage-tab"
+            :class="{ active: activeStage === s.key, disabled: !stageAvailable(s.key) }"
+            :disabled="!stageAvailable(s.key)"
+            @click="activeStage = s.key"
+          >{{ s.label }}</button>
+        </div>
+      </div>
+    </div>
+
     <!-- 标签网格 -->
     <div class="tags-grid" v-if="displayTags.length > 0">
       <div
         v-for="tag in displayTags"
         :key="tag.name"
         class="tag-cell"
-        :style="{ background: tagColor(tag.return_pct) }"
+        :style="{ background: tagColor(cellReturn(tag)) }"
         @click="openTagDetail(tag)"
       >
         <span class="tag-name" style="color:#1a1a1a">{{ tag.name }}</span>
-        <span class="tag-return" v-if="tag.return_pct != null" style="color:#1a1a1a;opacity:0.88">{{ fmtPct(tag.return_pct) }}</span>
+        <!-- 新增：数值跟随所选阶段变化；正收益红色、负收益绿色（中国股市惯例） -->
+        <span
+          class="tag-return"
+          v-if="cellReturn(tag) != null"
+          :class="cellReturn(tag) >= 0 ? 'positive' : 'negative'"
+        >{{ fmtPctSigned(cellReturn(tag)) }}</span>
+        <span class="tag-return" v-else>—</span>
       </div>
     </div>
 
-    <!-- 数据来源说明 -->
+    <!-- 数据来源说明（随阶段动态变化） -->
     <div class="tags-footnote" v-if="displayTags.length > 0">
-      板块收益为该标签关联基金近1年收益率均值，数据来源：ALLFUND.CN
+      {{ stageFootnote }}数据来源：ALLFUND.CN
     </div>
 
     <!-- 加载中 -->
@@ -85,7 +127,11 @@
                       <a class="ft-name" :href="eastMoneyUrl(f.c)" target="_blank">{{ f.n || ('基金' + f.c) }}</a>
                     </div>
                     <div class="ft-line2">
-                      <span class="ft-manager">经理：{{ f.fund_manager || '—' }}</span>
+                      <span
+                        class="ft-manager"
+                        :class="{ 'ft-empty': !f.fund_manager }"
+                        :title="f.fund_manager ? '' : '场内基金（ETF/LOF）暂无经理数据'"
+                      >经理：{{ f.fund_manager || '—' }}</span>
                     </div>
                   </div>
                   <div class="ft-right">
@@ -102,7 +148,7 @@
             </div>
             <!-- 数据来源 -->
             <div class="data-source-line">
-              数据来源：ALLFUND.CN &nbsp;|&nbsp; 截止时间：{{ fundMetaUpdateTime || '—' }}
+              数据来源：ALLFUND.CN &nbsp;|&nbsp; 截止时间：{{ bottomUpdateTime || '—' }}
             </div>
           </div>
         </div>
@@ -141,6 +187,24 @@ const props = defineProps({
   maxRows: { type: Number, default: 0 },
 })
 
+// ========== 新增：阶段与排序配置（参考天天基金 ztjj 页面） ==========
+// 每个阶段映射到 fund_scores 表的收益率字段：
+//   - 实时：  daily_change（当日涨跌，东财注入）
+//   - 近1周： r0w
+//   - 近1月： r1m
+//   - 近3月： r3m
+//   - 近1年： r1y（与 fund_tags.return_pct 口径一致）
+//   - 今年来： ytd
+// 说明：fund_tag_funds 表当前仅含近1年收益(return_pct)，其余周期通过联查 fund_scores 补充。
+const STAGES = [
+  { key: 'd',   label: '实时',   field: 'daily_change' },
+  { key: 'w1',  label: '近1周',  field: 'r0w' },
+  { key: 'm1',  label: '近1月',  field: 'r1m' },
+  { key: 'm3',  label: '近3月',  field: 'r3m' },
+  { key: 'y1',  label: '近1年',  field: 'r1y' },
+  { key: 'ytd', label: '今年来',  field: 'ytd' },
+]
+
 // ========== 状态 ==========
 const activeTab = ref('all') // 'all' | 'concept' | 'industry'
 const allTags = ref([]) // [{ name, tag_type, return_pct, sort_order }]
@@ -153,15 +217,28 @@ const shareGenerating = ref(false)
 const shareUpdateTime = ref('') // 分享图数据截止时间（弹窗可见）
 const fundMetaUpdateTime = ref('') // fund_scores 更新时间
 
+// ========== 新增：排序/阶段状态 ==========
+const sortMode = ref('byReturn') // 'byReturn'（按涨幅，默认）| 'byInflow'（按资金流入，开发中）
+const activeStage = ref('y1')    // 默认选中阶段：近1年
+const tagStageReturns = ref({})  // { [tagName]: { d, w1, m1, m3, y1, ytd } } 各阶段均值
+const stageReturnsReady = ref(false) // 阶段聚合数据是否加载完成
+const inflowDisabledHint = '资金流入排序开发中（数据源待接入）'
+
 // ========== 计算属性 ==========
 const displayTags = computed(() => {
   let list
   if (activeTab.value === 'all') {
-    // 全部：概念 + 行业 合并，按近1年涨幅（return_pct）降序排序
-    list = allTags.value.slice().sort((a, b) => (b.return_pct ?? -Infinity) - (a.return_pct ?? -Infinity))
+    // 全部：概念 + 行业 合并
+    list = allTags.value.slice()
   } else {
     list = allTags.value.filter(t => t.tag_type === activeTab.value)
   }
+  // 新增：按涨幅排序（默认）——按当前选中阶段的收益值降序，缺失值排末尾
+  // 注：阶段聚合数据未加载完成前，近1年阶段回退使用 fund_tags.return_pct，避免闪烁
+  if (sortMode.value === 'byReturn') {
+    list.sort((a, b) => (stageSortVal(b) ?? -Infinity) - (stageSortVal(a) ?? -Infinity))
+  }
+  // 按资金流入排序：当前 fund_tag_funds 无 relation 字段，按钮已禁用，暂未实现
   // 去重：同名标签只保留一个。all tab 已按收益降序，保留收益最高的；概念/行业 tab 保持原序保留首个
   const seen = new Set()
   const deduped = []
@@ -175,6 +252,169 @@ const displayTags = computed(() => {
     return list.slice(0, props.maxRows * 8) // 每行8个
   }
   return list
+})
+
+// ========== 新增：阶段收益取值 / 展示辅助 ==========
+// 当前阶段中文名（用于脚注）
+const stageLabel = computed(() => STAGES.find(s => s.key === activeStage.value)?.label || '近1年')
+// 动态脚注文案
+const stageFootnote = computed(() => `板块收益为该标签关联基金${stageLabel.value}收益率均值，`)
+
+// 取某标签在当前阶段的聚合均值（无数据返回 null）
+function stageValue(name) {
+  const m = tagStageReturns.value[name]
+  if (!m) return null
+  const v = m[activeStage.value]
+  return (v == null || isNaN(v)) ? null : v
+}
+
+// 网格展示用的收益值：优先用阶段聚合值；近1年阶段若聚合缺失则回退 fund_tags.return_pct
+function cellReturn(tag) {
+  const v = stageValue(tag.name)
+  if (v != null) return v
+  if (activeStage.value === 'y1' && tag.return_pct != null) return tag.return_pct
+  return null
+}
+
+// 排序用取值（与 cellReturn 逻辑一致，但仅用于排序比较）
+function stageSortVal(tag) {
+  return cellReturn(tag)
+}
+
+// 某阶段是否可用（有任一标签含该阶段数据）；数据未就绪前先放行避免闪烁
+function stageAvailable(key) {
+  if (!stageReturnsReady.value) return true
+  for (const name in tagStageReturns.value) {
+    const v = tagStageReturns.value[name]?.[key]
+    if (v != null && !isNaN(v)) return true
+  }
+  return false
+}
+
+// 带正负号的百分比格式化（如 +2.79% / -1.00%）
+function fmtPctSigned(v) {
+  if (v == null) return ''
+  const n = parseFloat(v)
+  if (isNaN(n)) return ''
+  return (n >= 0 ? '+' : '') + n.toFixed(2) + '%'
+}
+
+/**
+ * 新增：为所有标签聚合各阶段收益率（用于排序 / 阶段切换展示）
+ * 数据来源：fund_tag_funds（标签→基金映射）+ fund_scores（各周期收益）
+ * 策略：优先 fund_tag_funds 已有字段；缺的周期通过联查 fund_scores 补充。
+ * 聚合方式：每个标签取其关联基金的各周期收益均值。
+ */
+async function loadTagStageReturns() {
+  try {
+    const { supabase } = await import('../api/supabase.js')
+    if (!supabase) { stageReturnsReady.value = true; return }
+
+    // 1) 拉取全部标签→基金映射（仅取必要字段，分页避免 1000 行上限截断）
+    const mappings = []
+    let from = 0
+    const PAGE = 1000
+    while (true) {
+      const { data, error } = await supabase
+        .from('fund_tag_funds')
+        .select('tag_name,fund_code')
+        .range(from, from + PAGE - 1)
+      if (error) { console.warn('[HotTags] loadTagStageReturns mappings error', error); break }
+      if (!data || data.length === 0) break
+      mappings.push(...data)
+      if (data.length < PAGE) break
+      from += PAGE
+    }
+    if (mappings.length === 0) { stageReturnsReady.value = true; return }
+
+    // 2) 收集去重基金代码，分批联查 fund_scores 各周期收益
+    const allCodes = [...new Set(mappings.map(m => m.fund_code).filter(Boolean))]
+    const norm = c => (c.endsWith('.OF') || c.endsWith('.of')) ? c : c + '.OF'
+    const codesParam = allCodes.map(norm)
+    const scoreMap = {} // 归一化代码(去 .OF 后缀) -> 收益对象
+    const BATCH = 200
+
+    // 核心周期字段（均存在于 fund_scores 表 DDL：r0w/r1m/r3m/r1y/ytd）
+    const coreFields = ['r0w', 'r1m', 'r3m', 'r1y', 'ytd']
+    for (let i = 0; i < codesParam.length; i += BATCH) {
+      const chunk = codesParam.slice(i, i + BATCH)
+      const { data: scores, error } = await supabase
+        .from('fund_scores')
+        .select('c,' + coreFields.join(','))
+        .in('c', chunk)
+      if (error) { console.warn('[HotTags] loadTagStageReturns scores error', error); continue }
+      if (scores) {
+        for (const s of scores) scoreMap[s.c.replace(/\.OF$/i, '')] = { ...s }
+      }
+    }
+
+    // 实时(daily_change) 为可选字段：东财可能未注入该列，单独 best-effort 查询，
+    // 即便失败也不影响其它阶段（实时 tab 退化为显示 "—"）
+    let hasDaily = false
+    try {
+      for (let i = 0; i < codesParam.length; i += BATCH) {
+        const chunk = codesParam.slice(i, i + BATCH)
+        const { data: scores } = await supabase
+          .from('fund_scores')
+          .select('c,daily_change')
+          .in('c', chunk)
+        if (scores) {
+          for (const s of scores) {
+            const key = s.c.replace(/\.OF$/i, '')
+            if (!scoreMap[key]) scoreMap[key] = {}
+            scoreMap[key].daily_change = s.daily_change
+          }
+          hasDaily = true
+        }
+      }
+    } catch (e) {
+      console.warn('[HotTags] daily_change 不可用，实时阶段将显示 —', e)
+    }
+    const scoreFields = hasDaily ? [...coreFields, 'daily_change'] : coreFields
+
+    // 3) 按标签聚合各阶段均值
+    const acc = {} // name -> { field: [values] }
+    for (const m of mappings) {
+      const sc = scoreMap[m.fund_code]
+      if (!sc) continue
+      if (!acc[m.tag_name]) acc[m.tag_name] = {}
+      for (const f of scoreFields) {
+        const v = sc[f]
+        if (v == null) continue
+        if (!acc[m.tag_name][f]) acc[m.tag_name][f] = []
+        acc[m.tag_name][f].push(Number(v))
+      }
+    }
+    const result = {}
+    const fieldToKey = Object.fromEntries(STAGES.map(s => [s.field, s.key]))
+    for (const name in acc) {
+      result[name] = {}
+      for (const f of scoreFields) {
+        const arr = acc[name][f]
+        if (arr && arr.length) {
+          result[name][fieldToKey[f]] =
+            Math.round((arr.reduce((s, x) => s + x, 0) / arr.length) * 100) / 100
+        }
+      }
+    }
+    tagStageReturns.value = result
+  } catch (e) {
+    console.error('[HotTags] loadTagStageReturns error', e)
+  } finally {
+    stageReturnsReady.value = true
+  }
+}
+
+// 底部「截止时间」展示值：
+// 优先用系统级 meta 时间（fund_scores_meta 的 tsq/update_time/nav_date，由 openTagDetail 写入 fundMetaUpdateTime）；
+// 若系统 meta 取不到，则兜底取该标签下「有数据的基金」（.OF 类）的最新净值日期 nav_date，避免显示「—」。
+const bottomUpdateTime = computed(() => {
+  if (fundMetaUpdateTime.value) return fundMetaUpdateTime.value
+  const dates = tagFunds.value.map(f => f.nav_date).filter(Boolean)
+  if (dates.length === 0) return ''
+  let max = dates[0]
+  for (const d of dates) if (d > max) max = d
+  return max
 })
 
 // ========== 方法 ==========
@@ -238,7 +478,7 @@ async function loadTagFunds(tag) {
     const codesWithOF = allMapCodes.map(c => c.endsWith('.OF') ? c : c + '.OF')
     const { data: scores } = await supabase
       .from('fund_scores')
-      .select('c,n,fund_manager,r1y,k1,fund_scale')
+      .select('c,n,fund_manager,r1y,k1,fund_scale,date')
       .in('c', [...allMapCodes, ...codesWithOF])
     const scoreMap = {}
     if (scores) {
@@ -286,8 +526,9 @@ async function loadTagFunds(tag) {
         t1_tt: sc.t1_tt,
         k1: sc.k1,
         r1y: sc.r1y ?? m.syl_1n,  // fund_scores优先，否则用东财近1年收益
-        fund_manager: sc.fund_manager || '',
+        fund_manager: sc.fund_manager || '',  // 场内 ETF/LOF 基金不在 fund_scores（仅收录 .OF），经理为空时优雅降级
         fund_scale: sc.fund_scale,
+        nav_date: sc.date || '',  // fund_scores 的净值日期，作为底部「截止时间」的兜底来源
         _ftype: m.fund_type,
       }
     })
@@ -481,6 +722,15 @@ async function generateShareImage() {
           updateTimeStr = d.toLocaleString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false })
         }
       }
+      // 兜底：系统 meta 无时间时，取标签下「有数据的基金」(.OF 类) 的最新净值日期
+      if (!updateTimeStr) {
+        const dates = list.map(f => f.nav_date).filter(Boolean)
+        if (dates.length > 0) {
+          let max = dates[0]
+          for (const d of dates) if (d > max) max = d
+          updateTimeStr = max
+        }
+      }
     } catch { /* ignore */ }
     shareUpdateTime.value = updateTimeStr
 
@@ -658,6 +908,7 @@ function saveShareImage() {
 // ========== 生命周期 ==========
 onMounted(() => {
   loadTags()
+  loadTagStageReturns()
 })
 
 defineExpose({ refresh: loadTags })
@@ -703,6 +954,104 @@ defineExpose({ refresh: loadTags })
   border-color: #1d70b8;
   font-weight: 700;
 }
+
+/* ===== 新增：排序类别 + 阶段选择控件（gov.uk 风格，品牌色 #1d70b8） ===== */
+.hot-controls {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  padding: var(--space-sm) var(--space-md);
+  border-top: 1px solid var(--border);
+}
+.control-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.control-label {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-secondary);
+  flex-shrink: 0;
+}
+/* 排序类别按钮组 */
+.sort-group {
+  display: inline-flex;
+  gap: 8px;
+}
+.sort-btn {
+  padding: 4px 12px;
+  font-size: 13px;
+  color: var(--text-primary);
+  background: #f3f2f1;       /* 未选中：灰底黑字 */
+  border: 1px solid var(--border);
+  border-radius: 2px;        /* 小圆角 */
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.sort-btn:hover:not(:disabled) {
+  border-color: #1d70b8;
+}
+.sort-btn.active {
+  color: #fff;               /* 选中：蓝底白字 */
+  background: #1d70b8;
+  border-color: #1d70b8;
+  font-weight: 700;
+}
+.sort-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+/* 阶段 tabs */
+.stage-tabs {
+  display: flex;
+  gap: 16px;                 /* tab 间距 16px */
+  flex-wrap: wrap;
+}
+.stage-tab {
+  position: relative;
+  padding: 4px 0;
+  font-size: 13px;
+  color: var(--text-secondary);  /* 未选中：灰字 */
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: color 0.15s;
+}
+.stage-tab:hover:not(:disabled) {
+  color: #1d70b8;
+}
+.stage-tab.active {
+  color: #1d70b8;            /* 选中：蓝字 */
+  font-weight: 700;
+}
+/* 选中态底部 2px 蓝色横线 */
+.stage-tab.active::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -2px;
+  height: 2px;
+  background: #1d70b8;
+}
+.stage-tab.disabled {
+  color: #b1b4b6;            /* 无数据源时灰置 */
+  cursor: not-allowed;
+}
+.stage-tab:disabled {
+  cursor: not-allowed;
+}
+@media (max-width: 767px) {
+  .control-row { gap: 8px; }
+  .stage-tabs { gap: 12px; }
+  .stage-tab { font-size: 12px; }
+}
+
+/* 标签数值：正收益红色、负收益绿色（中国股市惯例） */
+.tag-return.positive { color: #d4351c; }
+.tag-return.negative { color: #00703c; }
 
 /* 标签网格：8列布局 */
 .tags-grid {
@@ -935,6 +1284,12 @@ defineExpose({ refresh: loadTags })
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+/* 场内 ETF/LOF 基金暂无经理数据：灰色斜体，不显眼，不报异常 */
+.ft-manager.ft-empty {
+  font-style: italic;
+  color: #9b9b9b;
+  cursor: help;
 }
 .ft-right {
   display: flex;

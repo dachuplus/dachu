@@ -41,11 +41,10 @@
                 <span class="pf-hold-idx">{{ idx + 1 }}</span>
                 <span class="pf-hold-name">{{ h.name }}</span>
                 <span class="pf-hold-code">{{ h.code }}</span>
-                <span class="pf-hold-cat" v-if="holdMetaMap[h.code]">
-                  <span class="pf-meta-cat" :title="'基金二级分类'">{{ holdMetaMap[h.code].cat }}</span>
-                  <span class="pf-meta-score">1年评分 {{ fmtScore2(holdMetaMap[h.code].score) }}</span>
-                  <span class="pf-meta-rank" v-if="holdMetaMap[h.code].rank != null">1年评分排名 {{ holdMetaMap[h.code].rank }}/{{ holdMetaMap[h.code].total }}</span>
-                  <span class="pf-meta-rank pf-meta-na" v-else>1年评分排名 --</span>
+                <span class="pf-hold-cat" v-if="holdTypeMap[h.code]">
+                  <span class="pf-meta-cat" :title="'基金类型'">{{ holdTypeMap[h.code].type || '--' }}</span>
+                  <span class="pf-meta-rank" v-if="holdTypeMap[h.code].kAll != null">排名 {{ fmtKAll(holdTypeMap[h.code]) }}</span>
+                  <span class="pf-meta-rank pf-meta-na" v-else>排名 --</span>
                 </span>
               </div>
               <div class="pf-hold-right">
@@ -374,7 +373,7 @@
 import { ref, computed, onMounted, watch, nextTick } from 'vue'
 import { supabase } from '../../api/supabase'
 import { fetchValue500All } from '../../utils/api'
-import { getCategoryRankInfo, getCategoryRankInfoByScore } from '../../api/data.js'
+import { getCategoryRankInfo, getCategoryRankInfoByScore, fetchFundMeta } from '../../api/data.js'
 import { getIndexQuotes, buildMarketData, parseValue500Data } from '../../utils/market-data'
 import { calcAllExpectedReturns, calcEnhancedRiskParityWeights } from '../../utils/calc'
 import { useAuth } from '../../composables/useAuth'
@@ -435,6 +434,48 @@ async function enrichRanks() {
   }
 }
 
+// 自建组合持仓的「类型(t0/t1_tt) + 全市场排名(k_all)」映射（与 AI 组合共用的 holdMetaMap 互不干扰）
+const holdTypeMap = ref({})
+// 收集自建组合全部持仓基金代码
+function collectCustomCodes() {
+  const codes = []
+  customPortfolios.value.forEach(pf => (pf.portfolio_data || []).forEach(h => h.code && codes.push(h.code)))
+  return codes
+}
+// 从 fund_scores 拉取每只持仓基金的类型与全市场排名(k_all)
+async function loadHoldTypeRank(codes) {
+  if (!supabase || !codes || codes.length === 0) { holdTypeMap.value = {}; return }
+  const unique = [...new Set(codes.filter(Boolean))]
+  try {
+    const { data, error } = await supabase
+      .from('fund_scores')
+      .select('c,t0,t1_tt,k_all')
+      .in('c', unique)
+    if (error || !data) { holdTypeMap.value = {}; return }
+    // 全市场基金总数（排名分母），来自 fund_scores_meta.total_count；缺失则只显示分子
+    let total = null
+    try {
+      const meta = await fetchFundMeta()
+      if (meta && meta.total_count) total = meta.total_count
+    } catch (e) { /* 忽略，降级为仅显示排名分子 */ }
+    const map = {}
+    for (const f of data) {
+      const type = (f.t1_tt && String(f.t1_tt).trim()) ? f.t1_tt : (f.t0 || '')
+      const kAll = f.k_all == null ? null : Number(f.k_all)
+      map[f.c] = { type, kAll, total }
+    }
+    holdTypeMap.value = map
+  } catch (e) {
+    console.error('[loadHoldTypeRank]', e)
+    holdTypeMap.value = {}
+  }
+}
+// 全市场排名格式化：#1234/20850（无分母时仅显示 #1234）
+function fmtKAll(meta) {
+  if (!meta || meta.kAll == null) return null
+  return meta.total ? `#${meta.kAll}/${meta.total}` : `#${meta.kAll}`
+}
+
 // ===== 自建组合 =====
 const showCreateModal = ref(false)
 const newPfName = ref('')
@@ -442,6 +483,7 @@ const newPfName = ref('')
 async function loadCustomPortfolios() {
   await refreshUserData()
   await enrichRanks()
+  await loadHoldTypeRank(collectCustomCodes())
   loadPortfolioReturns()
 }
 
@@ -898,6 +940,7 @@ async function addPortfolioToCustom(pf) {
     activeTab.value = 'custom'
     await nextTick()
     await enrichRanks()
+    await loadHoldTypeRank(collectCustomCodes())
     loadPortfolioReturns()
   } catch (err) {
     console.error('[addPortfolioToCustom]', err)
