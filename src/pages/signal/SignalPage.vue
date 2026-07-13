@@ -340,27 +340,16 @@
     <div v-if="activeTab === 'jqr'">
       <div class="card">
         <div class="card-title">特色指标<span class="card-subtitle">自建复合算法 · 每日更新</span></div>
-        <p class="card-desc">恐贪指数衡量市场短期情绪，市场温度反映估值冷热，基金发行热度体现权益基金募集景气——三者互补，辅助判断市场所处阶段。</p>
+        <p class="card-desc">恐贪指数衡量市场短期情绪，市场温度反映估值冷热，基金发行热度体现权益基金募集景气——三者互补，辅助判断市场所处阶段。仪表盘弧线颜色代表信号区间（绿=机会 / 灰=中性 / 红=风险）。</p>
         <div class="jqr-grid">
-          <div class="jqr-card" v-for="c in jqrCards" :key="c.key">
-            <div class="jqr-card-name">{{ c.name }}</div>
-            <div class="jqr-value" :style="{ color: c.color }">{{ c.valueLabel }}</div>
-            <div class="jqr-signal" :class="c.signalClass">{{ c.signalLabel }}</div>
-            <div class="jqr-thermo" v-if="c.tempLevel">
-              <div class="jqr-thermo-bar"><div class="jqr-thermo-fill" :style="{ width: c.valueLabel + '%', background: c.tempColor }"></div></div>
-              <span class="jqr-thermo-label" :style="{ color: c.tempColor }">{{ c.tempLevel }}</span>
-            </div>
-            <div class="jqr-range">取值范围：{{ c.range }}</div>
-            <div class="jqr-date">数据日期：{{ c.date }}</div>
-            <div class="jqr-sub" v-if="c.subLines.length">
-              <div class="jqr-sub-row" v-for="s in c.subLines" :key="s.k"><span>{{ s.k }}</span><span>{{ s.v }}</span></div>
-            </div>
-          </div>
+          <JqrIndicator
+            v-for="c in jqrCards"
+            :key="c.key"
+            :card="c"
+            :series="jqrSeries[c.key] || []"
+            :zones="JQR_META[c.key].zones"
+          />
         </div>
-      </div>
-      <div class="card" v-for="c in jqrCards" :key="'chart-' + c.key">
-        <div class="card-title">{{ c.name }} · 历史走势</div>
-        <div class="jqr-chart" :ref="el => setJqrChartRef(c.key, el)"></div>
       </div>
       <p class="data-source">数据来源：ALLFUND.CN（沪深300日线 / 全市场市盈率 / 新发基金），自建复合算法，仅供参考研究，不构成投资建议。</p>
       <p v-if="jqrCards.length === 0" class="data-source" style="color:#b95900">暂无特色指标数据。</p>
@@ -384,6 +373,7 @@ import { COLORS } from '../../utils/echarts-theme'
 import { supabase } from '../../api/supabase'
 import HelpTip from '../../components/HelpTip.vue'
 import MediaTools from '../../components/MediaTools.vue'
+import JqrIndicator from '../../components/JqrIndicator.vue'
 
 // ===== Tab 结构 =====
 const tabs = [
@@ -1537,16 +1527,20 @@ async function loadCommodityFactors() {
 // ===== 特色指标（自建复合算法，数据存 jqr_indicators 表） =====
 const jqrCards = ref([])
 const jqrSeries = reactive({})
-const jqrChartRefs = {}
-function setJqrChartRef(key, el) { if (el) jqrChartRefs[key] = el }
 
 const JQR_META = {
-  fear_greed:    { name: '恐贪指数',   desc: '波动率·动量·估值多因子综合情绪', color: '#d4351c', range: '0 - 100' },
-  market_temp:   { name: '估值温度计', desc: '全市场 PE/PB 历史百分位', color: '#1d70b8', range: '0 - 100' },
-  fund_issuance: { name: '资金流向信号', desc: '基金发行·募集资金面情绪（代理）', color: '#00703c', range: '0 - 100' },
-  equity_bond_gap: { name: '股债风险溢价', desc: '股票盈利收益率与10年国债收益率之差（越高股越优）', color: '#f47738', range: '0 - 100' },
-  below_nav:      { name: '破净股占比',   desc: 'PB<1 个股占全市场比例（越高越恐慌）', color: '#d4351c', range: '0 - 100' },
-  mcap_gdp:       { name: '市值GDP比',    desc: '全市场总市值与GDP之比（巴菲特指标）', color: '#1d70b8', range: '0 - 100' },
+  fear_greed:    { name: '恐贪指数',   desc: '波动率·动量·估值多因子综合情绪', color: '#d4351c', range: '0 - 100',
+    zones: [[0.45, '#00703c'], [0.55, '#b1b4b6'], [1, '#d4351c']] },
+  market_temp:   { name: '估值温度计', desc: '全市场 PE/PB 历史百分位', color: '#1d70b8', range: '0 - 100',
+    zones: [[0.30, '#00703c'], [0.70, '#b1b4b6'], [1, '#d4351c']] },
+  fund_issuance: { name: '资金流向信号', desc: '基金发行·募集资金面情绪（代理）', color: '#00703c', range: '0 - 100',
+    zones: [[0.45, '#00703c'], [0.55, '#b1b4b6'], [1, '#d4351c']] },
+  equity_bond_gap: { name: '股债风险溢价', desc: '股票盈利收益率与10年国债收益率之差（越高股越优）', color: '#f47738', range: '0 - 100',
+    zones: [[0.45, '#00703c'], [0.55, '#b1b4b6'], [1, '#d4351c']] },
+  below_nav:      { name: '破净股占比',   desc: 'PB<1 个股占全市场比例（越高越恐慌）', color: '#d4351c', range: '0 - 100',
+    zones: [[0.25, '#d4351c'], [0.55, '#b1b4b6'], [1, '#00703c']] },
+  mcap_gdp:       { name: '市值GDP比',    desc: '全市场总市值与GDP之比（巴菲特指标）', color: '#1d70b8', range: '0 - 100',
+    zones: [[0.30, '#00703c'], [0.85, '#b1b4b6'], [1, '#d4351c']] },
 }
 
 function buildJqrCard(metric, row) {
@@ -1631,7 +1625,7 @@ function buildJqrCard(metric, row) {
   }
   return {
     key: metric, name: meta.name, desc: meta.desc,
-    valueLabel: v != null ? v : '--', color: meta.color, range: meta.range,
+    value: v, valueLabel: v != null ? v : '--', color: meta.color, range: meta.range,
     signalLabel, signalClass, date: row.date || '--', subLines,
     tempLevel, tempColor,
   }
@@ -1660,36 +1654,12 @@ async function loadJqr() {
     jqrCards.value = cards
     Object.assign(jqrSeries, series)
     await nextTick()
-    drawJqrCharts()
   } catch (e) {
     console.error('特色指标加载失败', e)
   }
 }
 
-function drawJqrCharts() {
-  if (!jqrCards.value.length) return
-  jqrCards.value.forEach(c => {
-    const el = jqrChartRefs[c.key]
-    if (!el) return
-    const chart = echarts.getInstanceByDom(el) || echarts.init(el)
-    const hist = (jqrSeries[c.key] || []).slice(-500)
-    const dates = hist.map(d => d.date)
-    const values = hist.map(d => d.value)
-    const total = dates.length
-    const useDataZoom = total > 250
-    const startPct = useDataZoom ? Math.max(0, Math.round((1 - 500 / total) * 100)) : 0
-    const labelStep = Math.max(1, Math.floor(total / 8))
-    chart.setOption({
-      grid: { left: 45, right: 15, top: 20, bottom: useDataZoom ? 35 : 20 },
-      xAxis: { type: 'category', data: dates, axisLine: { lineStyle: { color: '#b1b4b6' } }, axisTick: { show: false }, axisLabel: { fontSize: 9, color: '#505a5f', interval: labelStep - 1 } },
-      yAxis: { type: 'value', min: 0, max: 100, splitLine: { lineStyle: { color: '#f3f2f1' } }, axisLine: { show: false }, axisLabel: { fontSize: 9, color: '#505a5f' } },
-      dataZoom: useDataZoom ? [{ type: 'slider', show: true, xAxisIndex: 0, start: startPct, end: 100, height: 18, bottom: 0, borderColor: '#b1b4b6', fillerColor: 'rgba(29,112,184,0.12)', handleStyle: { color: '#1d70b8' }, textStyle: { fontSize: 9, color: '#505a5f' } }] : [],
-      series: [{ type: 'line', data: values, lineStyle: { width: 2, color: c.color }, symbol: 'none', areaStyle: { color: c.color + '1a' }, smooth: false }],
-      tooltip: { trigger: 'axis', formatter: p => `${p[0].axisValue}<br/>${c.name}: ${p[0].value}` }
-    }, true)
-    chart.resize()
-  })
-}
+
 
 // ===== 资产配比饼图 =====
 function drawPie() {
@@ -1729,7 +1699,6 @@ function redrawCurrentCharts() {
     }
     else if (tab === 'jqr') {
       if (jqrCards.value.length === 0) loadJqr()
-      else nextTick(drawJqrCharts)
     }
   })
 }
@@ -1755,10 +1724,6 @@ function handleResize() {
   const charts = [gaugeChart, pieChart, radarChart, bondCurveChart, fedHistChart, compareIdxChart]
   charts.forEach(c => c?.resize())
   Object.values(chartRefs).forEach(el => {
-    const instance = echarts.getInstanceByDom(el)
-    if (instance) instance.resize()
-  })
-  Object.values(jqrChartRefs).forEach(el => {
     const instance = echarts.getInstanceByDom(el)
     if (instance) instance.resize()
   })

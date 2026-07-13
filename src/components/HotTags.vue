@@ -72,7 +72,7 @@
             <!-- 关联基金列表（前3只） -->
             <div class="funds-loading" v-if="tagFundsLoading">加载中...</div>
             <template v-else-if="tagFunds.length > 0">
-              <div class="funds-count">相关基金 TOP {{ tagFunds.length }}</div>
+              <div class="funds-count">相关基金（共 {{ tagFunds.length }} 只）</div>
               <div class="fund-tag-list">
                 <div
                   v-for="f in tagFunds"
@@ -146,7 +146,7 @@ const activeTab = ref('all') // 'all' | 'concept' | 'industry'
 const allTags = ref([]) // [{ name, tag_type, return_pct, sort_order }]
 const loading = ref(false)
 const selectedTag = ref(null) // 当前选中的标签
-const tagFunds = ref([]) // 标签关联的基金列表（前3只）
+const tagFunds = ref([]) // 标签关联基金列表（按主代码去重，≤7 只或展示实际数量）
 const tagFundsLoading = ref(false)
 const shareImage = ref(null) // 生成的分享图 dataURL
 const shareGenerating = ref(false)
@@ -214,37 +214,32 @@ function openTagDetail(tag) {
   })
 }
 
-/** 从 fund_tag_funds 表查询标签关联基金（东财 ZTJJ 真实映射），再补充 fund_scores 的经理字段 */
+/** 从 fund_tag_funds 表查询标签关联基金（东财 ZTJJ 真实映射），按主代码去重后展示（≤7 只；关联不足 10 只则展示全部） */
 async function loadTagFunds(tag) {
   tagFundsLoading.value = true
   try {
     const { supabase } = await import('../api/supabase.js')
     if (!supabase) { tagFundsLoading.value = false; return }
 
-    // 1) 从 fund_tag_funds 获取东财 ZTJJ 接口映射的基金列表
+    // 1) 拉取该标签关联的全部基金（东财 ZTJJ 映射，单标签至多 15 只）
     const { data: mappings, error: err1 } = await supabase
       .from('fund_tag_funds')
-      .select('fund_code,fund_name,fund_type,syl_1n')
+      .select('fund_code,fund_name,fund_type,syl_1n,sort_order')
       .eq('tag_name', tag.name)
       .order('sort_order', { ascending: true })
-    .limit(5)
-
     // 无数据时直接显示空状态，不做任何兜底
     if (err1 || !mappings || mappings.length === 0) {
       tagFunds.value = []
       return
     }
 
-    // 2) 用基金代码从 fund_scores 补充经理信息（fund_scores 的 c 字段带 .OF 后缀）
-    const codes = mappings.map(m => m.fund_code).filter(Boolean)
-    const codesWithOF = codes.map(c => c.endsWith('.OF') ? c : c + '.OF')
-    // 同时查原始码和带.OF的码，确保能匹配到
-    const allCodes = [...codes, ...codesWithOF]
+    // 2) 用基金代码从 fund_scores 补充经理/规模/收益字段（一次性查全部，供去重时比规模）
+    const allMapCodes = [...new Set(mappings.map(m => m.fund_code).filter(Boolean))]
+    const codesWithOF = allMapCodes.map(c => c.endsWith('.OF') ? c : c + '.OF')
     const { data: scores } = await supabase
       .from('fund_scores')
-      .select('c,n,fund_manager,r1y,k1')
-      .in('c', allCodes)
-
+      .select('c,n,fund_manager,r1y,k1,fund_scale')
+      .in('c', [...allMapCodes, ...codesWithOF])
     const scoreMap = {}
     if (scores) {
       for (const s of scores) {
@@ -254,18 +249,45 @@ async function loadTagFunds(tag) {
       }
     }
 
-    // 3) 合并：用 fund_scores 的 r1y（近1年收益，来自CI计算），缺失时用东财 syl_1n
-    tagFunds.value = mappings.map(m => {
+    // 3) 按主代码去重：同一基金的 A/C/E 多份额归为一组，每组保留主份额
+    //    规则：A 类优先；无 A 类时取 fund_scale 最大者；同组取热度最高（sort_order 最小）
+    const groups = new Map() // baseKey -> { m, share, sortOrder, scale }
+    for (const m of mappings) {
+      const key = baseFundKey(m.fund_name)
+      const share = shareClassOf(m.fund_name)
+      const so = m.sort_order ?? 999
+      const sc = scoreMap[m.fund_code] || {}
+      const scale = (typeof sc.fund_scale === 'number') ? sc.fund_scale : -1
+      let g = groups.get(key)
+      if (!g) {
+        groups.set(key, { m, share, sortOrder: so, scale })
+        continue
+      }
+      if (so < g.sortOrder) g.sortOrder = so // 热度最高（sort_order 最小）
+      if (share === 'A' && g.share !== 'A') {
+        g.m = m; g.share = 'A'; g.scale = scale // 主份额 A 优先
+      } else if (share !== 'A' && g.share !== 'A' && scale > g.scale) {
+        g.m = m; g.scale = scale // 无 A 时取规模更大者
+      }
+    }
+    // 关联基金不足 10 只则全部展示，否则取热度前 7
+    const distinct = [...groups.values()].sort((a, b) => a.sortOrder - b.sortOrder)
+    const cap = distinct.length < 10 ? distinct.length : 7
+    const kept = distinct.slice(0, cap).map(g => g.m)
+
+    // 4) 合并输出
+    tagFunds.value = kept.map(m => {
       const sc = scoreMap[m.fund_code] || {}
       return {
         c: m.fund_code,
-        n: m.fund_name,  // 直接使用东财官方名称
+        n: m.fund_name,  // 直接使用东财官方名称（已为主份额）
         t0: sc.t0,
         t1: sc.t1,
         t1_tt: sc.t1_tt,
         k1: sc.k1,
         r1y: sc.r1y ?? m.syl_1n,  // fund_scores优先，否则用东财近1年收益
         fund_manager: sc.fund_manager || '',
+        fund_scale: sc.fund_scale,
         _ftype: m.fund_type,
       }
     })
@@ -322,6 +344,20 @@ function eastMoneyUrl(code) {
 
 function eastmoneyTopicUrl(topicName) {
   return `https://fund.eastmoney.com/ztjj/#!syl/Y/curr/zf-${encodeURIComponent(topicName)}/fst/DESC`
+}
+
+// 份额类别：取基金名末尾的 A/C/E/B/D/I/H/F/Y（前一位须为中文/数字/)/空格，避免误伤 ETF/LOF/QDII 等缩写）
+function shareClassOf(name) {
+  if (!name) return ''
+  const m = name.trim().replace(/类$/, '').match(/^(.+[一-龥0-9)\s])\s*([ACEFBDHIY])$/)
+  return m ? m[2] : ''
+}
+// 主基金 key：去掉末尾份额字母，把 A/C/E 等多份额归为同一只基金
+function baseFundKey(name) {
+  if (!name) return ''
+  const s = name.trim().replace(/类$/, '')
+  const m = s.match(/^(.+[一-龥0-9)\s])\s*([ACEFBDHIY])$/)
+  return m ? m[1] : s
 }
 
 /** 截断文本（canvas 绘制用） */
