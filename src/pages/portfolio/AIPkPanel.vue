@@ -102,12 +102,18 @@
         <table class="aipk-table">
           <thead>
             <tr>
-              <th class="aipk-th-model">模型</th>
-              <th v-for="col in RETURN_COLS" :key="col.key">{{ col.label }}</th>
+              <th class="aipk-th-model" @click="toggleTableSort('name')">
+                模型<span class="sort-arrow" v-if="tableSort.key === 'name'">{{ tableSort.dir === 'desc' ? ' ▼' : ' ▲' }}</span>
+              </th>
+              <th v-for="col in RETURN_COLS" :key="col.key"
+                  class="aipk-th-sort"
+                  @click="toggleTableSort(col.key)">
+                {{ col.label }}<span class="sort-arrow" v-if="tableSort.key === col.key">{{ tableSort.dir === 'desc' ? ' ▼' : ' ▲' }}</span>
+              </th>
             </tr>
           </thead>
           <tbody>
-            <tr v-for="m in orderedModels" :key="m.id">
+            <tr v-for="m in tableSortedModels" :key="m.id">
               <td class="aipk-td-model">
                 <span class="aipk-dot" :style="{ background: m.color }"></span>{{ m.name }}
               </td>
@@ -251,6 +257,31 @@ const orderedModels = computed(() => {
   const map = {}
   models.value.forEach(m => { map[m.id] = m })
   return MODEL_ORDER.map(id => map[id]).filter(Boolean)
+})
+
+// ---- 收益对比表排序 ----
+const tableSort = ref({ key: null, dir: 'desc' }) // dir: 'asc' | 'desc'
+function toggleTableSort(key) {
+  if (tableSort.value.key === key) {
+    tableSort.value.dir = tableSort.value.dir === 'desc' ? 'asc' : 'desc'
+  } else {
+    tableSort.value.key = key
+    tableSort.value.dir = 'desc'
+  }
+}
+const tableSortedModels = computed(() => {
+  const { key, dir } = tableSort.value
+  if (!key) return orderedModels.value
+  const mult = dir === 'desc' ? -1 : 1
+  return [...orderedModels.value].sort((a, b) => {
+    const va = modelReturns.value[a.id]?.[key]
+    const vb = modelReturns.value[b.id]?.[key]
+    // null/缺失排到最后
+    if (va == null && vb == null) return 0
+    if (va == null) return 1
+    if (vb == null) return -1
+    return mult * ((+va) - (+vb))
+  })
 })
 
 const realModels = computed(() => orderedModels.value.filter(m => m.mode === 'real'))
@@ -819,6 +850,9 @@ function saveShareImage() {
 .aipk-table { width: 100%; border-collapse: collapse; font-size: 13px; min-width: 720px; }
 .aipk-table th, .aipk-table td { padding: 8px 6px; text-align: center; border: 1px solid var(--border); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .aipk-table thead th { background: #f3f2f1; font-weight: 700; }
+.aipk-th-model, .aipk-th-sort { cursor: pointer; user-select: none; }
+.aipk-th-sort:hover, .aipk-th-model:hover { background: #e2e2e1; }
+.sort-arrow { font-size: 10px; margin-left: 2px; color: #1d70b8; }
 .aipk-th-model { text-align: left !important; }
 .aipk-td-model { text-align: left !important; font-weight: 700; white-space: nowrap; }
 .aipk-td-model .aipk-dot { margin-right: 6px; vertical-align: middle; }
