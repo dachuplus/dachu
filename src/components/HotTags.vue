@@ -458,7 +458,7 @@ async function loadTagFunds(tag) {
         t1_tt: sc.t1_tt,
         k1: sc.k1,
         r1y: sc.r1y ?? m.syl_1n,  // fund_scores优先，否则用东财近1年收益
-        fund_manager: m.fund_manager || sc.fund_manager || '',  // 优先用 fund_tag_funds 已回填的经理（覆盖 ETF）；否则兜底 fund_scores
+        fund_manager: sc.fund_manager || m.fund_manager || '',  // 统一从 fund_scores 取经理（已含场内 ETF/LOF）；fund_tag_funds 仅作兜底
         fund_scale: sc.fund_scale,
         nav_date: sc.date || '',  // fund_scores 的净值日期，作为底部「截止时间」的兜底来源
         _ftype: m.fund_type,

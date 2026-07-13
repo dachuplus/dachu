@@ -338,19 +338,22 @@ jobs:
           python scripts/sync_fund_tags_full.py
           echo "标签列表同步完成: $(date '+%Y-%m-%d %H:%M:%S')"
 
-      - name: 步骤5h — 回填标签关联基金的基金经理（fund_tag_funds.fund_manager）
-        timeout-minutes: 10
+      - name: 步骤5h — 将标签关联的场内 ETF/LOF 补充进 fund_scores 主表
+        timeout-minutes: 15
         continue-on-error: true
         env:
           SUPABASE_PAT: ${{ secrets.SUPABASE_MGMT_TOKEN }}
         run: |
           echo "============================================"
-          echo "  步骤5h: 回填标签关联基金基金经理（覆盖 ETF/LOF，复用 fund_scores + 东财 fundf10）"
+          echo "  步骤5h: 标签关联 ETF/LOF 补充进 fund_scores（统一数据源）"
+          echo "  说明: promote_staging 仅重建 .OF 场外基金；本步把 fund_tag_funds 中缺失的"
+          echo "        场内 ETF/LOF（及少量场外缺口）追加进 fund_scores（幂等 UPSERT），"
+          echo "        使标签弹窗统一从 fund_scores 取基金 + 基金经理。"
           echo "  开始时间: $(date '+%Y-%m-%d %H:%M:%S')"
           echo "============================================"
           pip install requests
-          python scripts/backfill_tag_fund_manager.py
-          echo "基金经理回填完成: $(date '+%Y-%m-%d %H:%M:%S')"
+          python scripts/sync_etfs_to_fund_scores.py --workers 6 --delay 0.25
+          echo "ETF/LOF 补充完成: $(date '+%Y-%m-%d %H:%M:%S')"
 
       - name: 步骤6 — 安装 Node.js
         uses: actions/setup-node@v4
