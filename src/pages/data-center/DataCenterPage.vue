@@ -23,7 +23,7 @@
 
     <!-- 数据库表列表 -->
     <div class="card">
-      <div class="card-title">数据库表 ({{ tables.length }} 张)</div>
+      <div class="card-title">数据库表 ({{ visibleTables.length }} 张)</div>
       <table class="data-table">
         <thead>
           <tr>
@@ -665,14 +665,46 @@ const tables = [
   { key: 'site_stats', name: '站点统计表', desc: '网站访问量统计', rows: 1 },
   { key: 'user_portfolios', name: '用户组合表', desc: '用户自建智能组合（含portfolio_data JSON）', rows: 3, sensitive: true },
   { key: 'user_profiles', name: '用户档案表', desc: '用户注册信息', rows: 0, sensitive: true },
+  { key: 'fund_tags', name: '热门标签表', desc: '热门基金标签（行业/概念），含标签名/类型/近1年板块收益/排序，来源东财 ZTJJ 接口', rows: 158 },
+  { key: 'fund_tag_funds', name: '标签-基金映射表', desc: '每个热门标签关联的基金列表（代码/名称/类型/近1年收益/排序），来源东财 ZTJJ GetBKRelTopicFundNew 接口', rows: 1847 },
+  { key: 'ai_pk_models', name: 'AI大PK 模型表', desc: 'AI 大PK 参赛模型信息（模型名/厂商/描述/状态）', rows: 0 },
+  { key: 'ai_pk_picks', name: 'AI大PK 选基表', desc: '各 AI 模型每期选出的基金及权重（基于 fund_scores 真实数据）', rows: 0 },
+  { key: 'factor_scores', name: '风格因子评分表（生产）', desc: '股票/债券/商品风格因子性价比评分（估值分/动量分/综合信号）', rows: 0 },
+  { key: 'factor_scores_test', name: '风格因子评分测试表', desc: 'factor_scores 的测试副本，抓取数据先写入此表验证', rows: 0 },
+  { key: 'style_factors', name: '风格因子明细表', desc: '风格因子原始明细数据（指数代码/名称/PE/PB/历史分位/收益）', rows: 0 },
+  { key: 'jqr_indicators', name: '特色指标表（生产）', desc: '市场情绪特色指标（恐惧贪婪/估值温度计/新发基金/股债差/破净率/证券化率）', rows: 0 },
+  { key: 'jqr_indicators_test', name: '特色指标测试表', desc: 'jqr_indicators 的测试副本，抓取数据先写入此表验证', rows: 0 },
+  { key: 'etf_returns', name: 'ETF 收益率表', desc: 'ETF 各周期收益率数据（代码/名称/近1周~成立以来/规模）', rows: 0 },
+  { key: 'fund_category_indices', name: '基金分类指数表', desc: '各基金分类对应的指数行情（分类名/指数代码/点位/各周期收益）', rows: 0 },
+  { key: 'fund_scores_staging', name: '评分暂存表（staging）', desc: 'fund_scores 的 staging 暂存表，每日抓取先写入并经严格校验后原子切换到生产，通常为临时状态', rows: 0 },
 ]
 
 const visibleTables = computed(() => {
-  return tables.map(t => ({
+  const idx = tableData.value || {}
+  const idxKeys = Object.keys(idx)
+  let base
+  if (idxKeys.length > 0) {
+    // 以 index.json（导出脚本产物）为准，自动包含所有已导出表（含后续新建表）
+    base = idxKeys.slice().sort().map(key => {
+      const meta = idx[key] || {}
+      const local = tables.find(t => t.key === key) || {}
+      return {
+        key,
+        name: meta.name || local.name || key,
+        desc: meta.desc || local.desc || '',
+        rows: meta.rows != null ? meta.rows : (local.rows ?? null),
+        sensitive: meta.sensitive != null ? meta.sensitive : (local.sensitive || false),
+        size: meta.size_mb != null ? meta.size_mb : null,
+      }
+    })
+  } else {
+    // 索引文件未加载时回退到内置表清单
+    base = tables.map(t => ({ ...t, size: null }))
+  }
+  return base.map(t => ({
     ...t,
     downloadable: isLoggedIn.value,
     downloadUrl: `/downloads/${t.key}.xlsx`,
-    size: tableData.value[t.key]?.size_mb || null,
   }))
 })
 

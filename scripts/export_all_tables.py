@@ -149,6 +149,99 @@ TABLES = {
         'update': '用户操作时实时更新',
         'scoring': False,
     },
+    'fund_tags': {
+        'name': '热门标签表',
+        'desc': '热门基金标签（行业 hy + 概念 gn），含标签名/类型/近1年板块收益/排序',
+        'source': '东财 ZTJJ GetBKListByBKTypeNew 接口（行业/概念标签清单）',
+        'update': '通过 scripts/fetch_tag_funds_v2.py 抓取更新',
+        'scoring': False,
+    },
+    'fund_tag_funds': {
+        'name': '标签-基金映射表',
+        'desc': '每个热门标签关联的基金列表（基金代码/名称/类型/近1年收益/日涨跌/排序）',
+        'source': '东财 ZTJJ GetBKRelTopicFundNew 接口（标签关联基金）',
+        'update': '通过 scripts/fetch_tag_funds_v2.py 抓取更新',
+        'scoring': False,
+    },
+    'ai_pk_models': {
+        'name': 'AI大PK 模型表',
+        'desc': 'AI 大PK 参赛模型信息（模型名/厂商/头像/描述/状态等）',
+        'source': 'ALLFUND.CN 内部配置 + 各大模型 API',
+        'update': '按需更新',
+        'scoring': False,
+    },
+    'ai_pk_picks': {
+        'name': 'AI大PK 选基表',
+        'desc': '各 AI 模型每期选出的基金及权重（基于 fund_scores 真实数据）',
+        'source': '各大模型 API（DeepSeek/豆包/智谱等）基于 fund_scores 选基',
+        'update': '按调仓周期更新',
+        'scoring': False,
+    },
+    'factor_scores': {
+        'name': '风格因子评分表（生产）',
+        'desc': '股票/债券/商品风格因子性价比评分（估值分/动量分/综合信号等）',
+        'source': '中证指数 + 东财行情，经性价比模型计算',
+        'update': '每日通过 GitHub Actions CI 自动更新（北京时间 21:30）',
+        'scoring': False,
+    },
+    'factor_scores_test': {
+        'name': '风格因子评分测试表',
+        'desc': 'factor_scores 的测试副本，结构一致，抓取数据先写入此表验证',
+        'source': 'CI 抓取流程写入（验证用）',
+        'update': '每次抓取数据时先写入此表',
+        'scoring': False,
+    },
+    'style_factors': {
+        'name': '风格因子明细表',
+        'desc': '风格因子原始明细数据（指数代码/名称/PE/PB/历史分位/收益等多维度）',
+        'source': '中证指数官网 + 蛋卷/东财估值',
+        'update': '每日通过 GitHub Actions CI 自动更新（北京时间 21:30）',
+        'scoring': False,
+    },
+    'jqr_indicators': {
+        'name': '特色指标表（生产）',
+        'desc': '市场情绪特色指标（恐惧贪婪/估值温度计/新发基金/股债差/破净率/证券化率等）',
+        'source': '东财 push2 + value500 + 蛋卷等公开数据计算',
+        'update': '每日通过 GitHub Actions CI 自动更新（北京时间 21:30）',
+        'scoring': False,
+    },
+    'jqr_indicators_test': {
+        'name': '特色指标测试表',
+        'desc': 'jqr_indicators 的测试副本，结构一致，抓取数据先写入此表验证',
+        'source': 'CI 抓取流程写入（验证用）',
+        'update': '每次抓取数据时先写入此表',
+        'scoring': False,
+    },
+    'etf_returns': {
+        'name': 'ETF 收益率表',
+        'desc': 'ETF 各周期收益率数据（代码/名称/近1周~成立以来/规模等）',
+        'source': '天天基金 / 东财行情',
+        'update': '每日通过 GitHub Actions CI 自动更新（北京时间 21:30）',
+        'scoring': False,
+    },
+    'fund_category_indices': {
+        'name': '基金分类指数表',
+        'desc': '各基金分类对应的指数行情（分类名/指数代码/点位/各周期收益）',
+        'source': '腾讯行情 qt.gtimg.cn + 东财',
+        'update': '每日通过 GitHub Actions CI 自动更新（北京时间 21:30）',
+        'scoring': False,
+    },
+    'fund_scores_staging': {
+        'name': '评分暂存表（staging）',
+        'desc': 'fund_scores 的 staging 暂存表，每日抓取先写入此表，经 promote_staging.py 严格校验后原子切换到生产，通常为临时状态',
+        'source': 'CI 抓取流程写入（staging 管道）',
+        'update': '每日抓取时写入，promote 后清空',
+        'scoring': True,
+    },
+}
+
+# 无元数据表的通用兜底说明（自动发现的新表）
+GENERIC_META = {
+    'name': '数据表',
+    'desc': 'ALLFUND.CN 数据库表（暂无详细说明）',
+    'source': 'ALLFUND.CN',
+    'update': '按需更新',
+    'scoring': False,
 }
 
 # 敏感表 / 含用户数据 — 仅在"我的"页面已登录时可见下载
@@ -307,7 +400,7 @@ def export_to_excel(table_name, rows, output_path):
     
     # ===== 添加"数据说明" sheet =====
     ws_meta = wb.create_sheet('数据说明')
-    meta = TABLES.get(table_name, {})
+    meta = TABLES.get(table_name) or dict(GENERIC_META, name=table_name)
     export_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     
     # 样式
@@ -388,14 +481,46 @@ def export_to_excel(table_name, rows, output_path):
     wb.save(output_path)
     return len(rows)
 
+def discover_tables():
+    """通过 Supabase Management API 自动发现 public schema 下所有基础表。
+    成功则返回表名列表；无 PAT 或失败则返回 None（回退到 TABLES 硬编码清单）。
+    这样后续新建的表会被自动纳入数据下载中心，无需改代码。"""
+    pat = os.environ.get('SUPABASE_MGMT_TOKEN') or os.environ.get('SUPABASE_PAT')
+    if not pat:
+        print('  ℹ️ 未提供 SUPABASE_MGMT_TOKEN/PAT，跳过自动发现，使用内置表清单')
+        return None
+    ref = SUPABASE_URL.replace('https://', '').replace('http://', '').split('.')[0]
+    sql = ("select table_name from information_schema.tables "
+           "where table_schema='public' and table_type='BASE TABLE' order by table_name;")
+    try:
+        r = requests.post(
+            f'https://api.supabase.com/v1/projects/{ref}/database/query',
+            headers={'Authorization': f'Bearer {pat}', 'Content-Type': 'application/json'},
+            json={'query': sql}, timeout=60,
+        )
+        if r.status_code == 200:
+            names = [row['table_name'] for row in r.json()]
+            print(f'  🔎 自动发现 {len(names)} 张 public 表')
+            return names
+        print(f'  ⚠️ 自动发现失败 HTTP {r.status_code}，回退内置表清单')
+    except Exception as e:
+        print(f'  ⚠️ 自动发现异常 {type(e).__name__}，回退内置表清单')
+    return None
+
+
 def main():
     print(f'📊 导出 allfund 数据库全部表到 {OUTPUT_DIR}/')
     print(f'⏰ {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}\n')
     
+    # 优先自动发现全部 public 表（含后续新建表）；失败则回退内置清单
+    discovered = discover_tables()
+    table_list = sorted(set(discovered) | set(TABLES.keys())) if discovered else sorted(TABLES.keys())
+    print(f'📋 待导出 {len(table_list)} 张表\n')
+    
     results = {}
     total_size = 0
     
-    for table_name in sorted(TABLES.keys()):
+    for table_name in table_list:
         print(f'⬇️ 导出 {table_name} ...')
         rows = get_table_data(table_name)
         
@@ -404,7 +529,15 @@ def main():
         
         size_mb = os.path.getsize(output_path) / (1024 * 1024)
         total_size += size_mb
-        results[table_name] = {'rows': count, 'size_mb': size_mb, 'path': f'/downloads/{table_name}.xlsx'}
+        meta = TABLES.get(table_name) or dict(GENERIC_META, name=table_name)
+        results[table_name] = {
+            'rows': count,
+            'size_mb': size_mb,
+            'path': f'/downloads/{table_name}.xlsx',
+            'name': meta.get('name', table_name),
+            'desc': meta.get('desc', ''),
+            'sensitive': table_name in SENSITIVE_TABLES,
+        }
         print(f'  ✅ {table_name}: {count} rows, {size_mb:.2f}MB → {table_name}.xlsx')
     
     # 保存 JSON 索引文件（供前端读取）

@@ -267,7 +267,7 @@ jobs:
       - name: 步骤5b — 导出全部数据表到数据中心
         run: |
           echo "============================================"
-          echo "  步骤5b: 导出全部11张表到 public/downloads/"
+          echo "  步骤5b: 自动发现并导出全部数据库表到 public/downloads/"
           echo "  开始时间: $(date '+%Y-%m-%d %H:%M:%S')"
           echo "============================================"
           mkdir -p public/downloads

@@ -50,11 +50,13 @@
         <div class="mask" @click="selectedTag = null"></div>
         <div class="tag-detail-panel">
           <div class="detail-header">
-            <span class="detail-title">
-              {{ selectedTag.name }}
-              <span class="detail-type-badge" :class="selectedTag.tag_type">{{ selectedTag.tag_type === 'concept' ? '概念' : '行业' }}</span>
-              <span class="detail-return" :class="selectedTag.return_pct >= 0 ? 'positive' : 'negative'" v-if="selectedTag.return_pct != null">近1年 {{ fmtPct(selectedTag.return_pct) }}</span>
-            </span>
+            <div class="detail-title-wrap">
+              <span class="detail-title">
+                {{ selectedTag.name }}
+                <span class="detail-type-badge" :class="selectedTag.tag_type">{{ selectedTag.tag_type === 'concept' ? '概念' : '行业' }}</span>
+              </span>
+              <span class="detail-return" :class="selectedTag.return_pct >= 0 ? 'positive' : 'negative'" v-if="selectedTag.return_pct != null">近1年收益 {{ fmtPct(selectedTag.return_pct) }}</span>
+            </div>
             <div class="detail-header-actions">
               <button
                 class="detail-share"
@@ -118,6 +120,7 @@
           </div>
           <div class="share-body">
             <img class="share-img" :src="shareImage" alt="分享图" />
+            <p class="share-source">数据来源：ALLFUND.CN &nbsp;|&nbsp; 截止时间：{{ shareUpdateTime || '—' }}</p>
             <p class="share-hint">长按图片可保存到相册，或分享到朋友圈</p>
             <button class="share-save-btn" @click="saveShareImage">保存图片</button>
           </div>
@@ -147,6 +150,7 @@ const tagFunds = ref([]) // 标签关联的基金列表（前3只）
 const tagFundsLoading = ref(false)
 const shareImage = ref(null) // 生成的分享图 dataURL
 const shareGenerating = ref(false)
+const shareUpdateTime = ref('') // 分享图数据截止时间（弹窗可见）
 const fundMetaUpdateTime = ref('') // fund_scores 更新时间
 
 // ========== 计算属性 ==========
@@ -158,6 +162,15 @@ const displayTags = computed(() => {
   } else {
     list = allTags.value.filter(t => t.tag_type === activeTab.value)
   }
+  // 去重：同名标签只保留一个。all tab 已按收益降序，保留收益最高的；概念/行业 tab 保持原序保留首个
+  const seen = new Set()
+  const deduped = []
+  for (const t of list) {
+    if (!t || !t.name || seen.has(t.name)) continue
+    seen.add(t.name)
+    deduped.push(t)
+  }
+  list = deduped
   if (props.maxRows > 0) {
     return list.slice(0, props.maxRows * 8) // 每行8个
   }
@@ -425,11 +438,15 @@ async function generateShareImage() {
     let updateTimeStr = ''
     try {
       const meta = await fetchFundMeta()
-      if (meta?.tsq) {
-        const d = new Date(meta.tsq)
-        updateTimeStr = d.toLocaleString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false })
+      const rawTime = meta?.tsq || meta?.update_time || meta?.nav_date
+      if (rawTime) {
+        const d = new Date(rawTime)
+        if (!isNaN(d.getTime())) {
+          updateTimeStr = d.toLocaleString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false })
+        }
       }
     } catch { /* ignore */ }
+    shareUpdateTime.value = updateTimeStr
 
     let H = headerH + titleGap + 20
     H += list.length * (fundH + fundGap)
@@ -659,10 +676,18 @@ defineExpose({ refresh: loadTags })
   padding: var(--space-sm) var(--space-md) var(--space-md);
 }
 @media (max-width: 767px) {
+  /* 手机版固定四列，保持均衡舒适的点按区域 */
   .tags-grid {
     grid-template-columns: repeat(4, 1fr);
-    gap: 3px;
+    gap: 4px;
+    padding: var(--space-sm) var(--space-sm) var(--space-md);
   }
+  .tag-cell {
+    padding: 7px 2px;
+    min-height: 48px;
+  }
+  .tag-name { font-size: 12px; }
+  .tag-return { font-size: 10px; }
 }
 
 .tag-cell {
@@ -740,6 +765,13 @@ defineExpose({ refresh: loadTags })
   background: #f3f2f1;
   flex-shrink: 0;
 }
+.detail-title-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+  min-width: 0;
+}
 .detail-title {
   font-size: 18px;
   font-weight: 700;
@@ -747,7 +779,6 @@ defineExpose({ refresh: loadTags })
   display: flex;
   align-items: center;
   gap: var(--space-sm);
-  flex: 1;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -764,9 +795,10 @@ defineExpose({ refresh: loadTags })
 .detail-type-badge.concept { background: #d4351c; }
 .detail-type-badge.industry { background: #1d70b8; }
 .detail-return {
-  font-size: 16px;
+  font-size: 15px;
   font-weight: 700;
   flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
 }
 /* 正收益红色，负收益绿色 */
 .detail-return.positive { color: #d4351c; }
@@ -945,10 +977,16 @@ defineExpose({ refresh: loadTags })
   border: 1px solid #eee;
   display: block;
 }
+.share-source {
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin: var(--space-sm) 0 4px;
+  text-align: center;
+}
 .share-hint {
   font-size: 13px;
   color: var(--text-secondary);
-  margin: var(--space-sm) 0;
+  margin: 4px 0 var(--space-sm);
 }
 .share-save-btn {
   display: block;
