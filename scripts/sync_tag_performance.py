@@ -65,15 +65,22 @@ def mgmt_query(sql):
 
 
 def fetch_tag_list():
-    """从 fund_tag_funds 表获取所有标签的 INDEXCODE（去重）"""
-    result = mgmt_query("""
-        SELECT DISTINCT tag_index_code, tag_name
-        FROM fund_tag_funds
-        WHERE tag_index_code IS NOT NULL AND tag_index_code != ''
-        ORDER BY tag_index_code
-    """)
-    rows = result.get('result', {}).get('rows', [])
-    print(f'[INFO] fund_tag_funds 共 {len(rows)} 个标签')
+    """从东财 ZTJJ 完整标签列表获取所有标签（与 sync_fund_tags_full.py 同源）"""
+    url = 'http://api.fund.eastmoney.com/ZTJJ/GetBKListByBKTypeNew?callback=?'
+    h = {'User-Agent': 'Mozilla/5.0', 'Referer': 'https://fund.eastmoney.com/ztjj/'}
+    r = requests.get(url, headers=h, timeout=15)
+    r.raise_for_status()
+    t = r.text
+    s = t.index('(') + 1
+    e = t.rindex(')')
+    data = json.loads(t[s:e])['Data']
+
+    rows = []
+    for group in [data.get('hy1', []), data.get('hy2', []), data.get('gn', [])]:
+        for item in group:
+            rows.append({'tag_index_code': item['INDEXCODE'], 'tag_name': item['INDEXNAME']})
+
+    print(f'[INFO] 东财 ZTJJ 共 {len(rows)} 个标签')
     return rows
 
 

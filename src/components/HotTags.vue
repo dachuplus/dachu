@@ -64,15 +64,15 @@
         v-for="tag in displayTags"
         :key="tag.name"
         class="tag-cell"
+        :class="cellReturnClass(tag)"
         :style="{ background: tagColor(cellReturn(tag)) }"
         @click="openTagDetail(tag)"
       >
-        <span class="tag-name" style="color:#1a1a1a">{{ tag.name }}</span>
+        <span class="tag-name">{{ tag.name }}</span>
         <!-- 新增：数值跟随所选阶段变化；正收益红色、负收益绿色（中国股市惯例） -->
         <span
           class="tag-return"
           v-if="cellReturn(tag) != null"
-          :class="cellReturn(tag) >= 0 ? 'positive' : 'negative'"
         >{{ fmtPctSigned(cellReturn(tag)) }}</span>
         <span class="tag-return" v-else>—</span>
       </div>
@@ -273,6 +273,13 @@ function cellReturn(tag) {
 // 排序用取值（与 cellReturn 逻辑一致，但仅用于排序比较）
 function stageSortVal(tag) {
   return cellReturn(tag)
+}
+
+// 标签格子的涨跌CSS类（控制文字颜色：正=红字、负=绿字、空=灰字）
+function cellReturnClass(tag) {
+  const v = cellReturn(tag)
+  if (v == null) return 'cell-null'
+  return v >= 0 ? 'cell-pos' : 'cell-neg'
 }
 
 // 某阶段是否可用（有任一标签含该阶段数据）；数据未就绪前先放行避免闪烁
@@ -974,9 +981,13 @@ defineExpose({ refresh: loadTags })
   .stage-tab { font-size: 12px; }
 }
 
-/* 标签数值：正收益红色、负收益绿色（中国股市惯例） */
-.tag-return.positive { color: #d4351c; }
-.tag-return.negative { color: #00703c; }
+/* 标签格子文字颜色：参考天天基金（正=深红字、负=深绿字、空=灰色） */
+.tag-cell.cell-pos { color: #b01e1e; }   /* 正收益：深红（对标天天基金红字） */
+.tag-cell.cell-neg { color: #0a6e31; }   /* 负收益：深绿（对标天天基金绿字） */
+.tag-cell.cell-null { color: #999999; }  /* 无数据：灰色 */
+
+/* 标签数值：继承父级颜色，不再单独设色 */
+.tag-return.positive, .tag-return.negative { color: inherit; }
 
 /* 标签网格：8列布局 */
 .tags-grid {

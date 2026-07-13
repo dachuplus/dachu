@@ -462,10 +462,45 @@
         <p class="api-note">⚠️ tsdata 的夏普比率与 pingzhongdata 计算的夏普比率可能存在微小差异（计算窗口/无风险利率不同），优先使用 pingzhongdata，tsdata 仅作为补充数据源。</p>
       </div>
 
+      <!-- 东财 ZTJJ GetBKDetailInfoNew -->
+      <div class="api-item">
+        <h3 class="api-name">6. GetBKDetailInfoNew — 主题板块(行业/概念)实时涨跌接口</h3>
+        <table class="api-meta-table">
+          <tr><td class="meta-label">URL</td><td><code>http://api.fund.eastmoney.com/ztjj/GetBKDetailInfoNew</code></td></tr>
+          <tr><td class="meta-label">方法</td><td>GET（JSONP，需 callback 参数）</td></tr>
+          <tr><td class="meta-label">用途</td><td>获取单个主题板块（行业/概念）的各周期涨跌幅、区间排名、同类总数。热门基金「实时 / 近1周 / 近1月 / 近3月 / 近1年 / 今年来」排序即来源于此接口的<strong>板块级</strong>数据</td></tr>
+          <tr><td class="meta-label">实时性</td><td><code>D</code>（日涨跌）为板块当日涨跌幅，<strong>盘中实时更新</strong>；其余周期字段（W/M/Q/Y/SY）为历史阶段涨跌幅，每日收盘更新（非实时）</td></tr>
+        </table>
+        <p class="api-subtitle">请求参数</p>
+        <table class="field-table">
+          <thead><tr><th>参数</th><th>类型</th><th>必填</th><th>说明</th></tr></thead>
+          <tbody>
+            <tr><td><code>callback</code></td><td>string</td><td>是</td><td>JSONP 回调名，固定 <code>cb</code>，返回 <code>cb({...})</code></td></tr>
+            <tr><td><code>tp</code></td><td>string</td><td>是</td><td>板块指数代码，如 <code>BK000092</code>（中药）/ <code>BK000157</code>（航天装备）</td></tr>
+          </tbody>
+        </table>
+        <p class="api-subtitle">返回字段（Data 对象，单位为 %）</p>
+        <table class="field-table">
+          <thead><tr><th>字段</th><th>含义</th><th>说明</th></tr></thead>
+          <tbody>
+            <tr><td><code>SEC_NAME</code></td><td>板块名称</td><td>如「中药」「航天装备」</td></tr>
+            <tr><td><code>D</code></td><td>日涨跌(%)</td><td>当天涨跌幅，热门基金「实时」排序使用此值</td></tr>
+            <tr><td><code>W</code></td><td>近1周(%)</td><td>热门基金「近1周」排序使用此值</td></tr>
+            <tr><td><code>M</code></td><td>近1月(%)</td><td>热门基金「近1月」排序使用此值</td></tr>
+            <tr><td><code>Q</code></td><td>近3月(%)</td><td>热门基金「近3月」排序使用此值</td></tr>
+            <tr><td><code>Y</code></td><td>近1年(%)</td><td>热门基金「近1年」排序使用此值</td></tr>
+            <tr><td><code>SY</code></td><td>今年以来(%)</td><td>热门基金「今年来」排序使用此值</td></tr>
+            <tr><td><code>RANKW / RANKM / RANKQ / RANKY / RANKSY</code></td><td>各周期排名</td><td>板块在全部板块中的涨幅排名</td></tr>
+            <tr><td><code>WSC</code></td><td>板块总数</td><td>参与排名的板块总数</td></tr>
+          </tbody>
+        </table>
+        <p class="api-note">⚠️ 板块级数据（行业/概念整体涨跌）与「基金个体收益」不同：热门基金此前曾误用基金个体收益均值，已纠正为东财板块级接口的真实板块涨跌。<code>D</code> 为盘中实时数据，但本站存储与展示的 <code>fund_tag_perf</code> 表每日 21:30（北京）刷新，展示的是最近一个交易日收盘值，并非逐秒跳动行情。</p>
+      </div>
+
       <!-- 东方财富 push2 -->
       <h2 class="api-group-title">二、东方财富行情 API</h2>
       <div class="api-item">
-        <h3 class="api-name">6. push2 — 板块实时行情接口</h3>
+        <h3 class="api-name">7. push2 — 板块实时行情接口</h3>
         <table class="api-meta-table">
           <tr><td class="meta-label">URL</td><td><code>https://push2.eastmoney.com/api/qt/clist/get</code></td></tr>
           <tr><td class="meta-label">方法</td><td>GET</td></tr>
@@ -499,7 +534,7 @@
       <!-- 腾讯行情 -->
       <h2 class="api-group-title">三、腾讯行情 API</h2>
       <div class="api-item">
-        <h3 class="api-name">7. qt.gtimg.cn — 实时行情接口</h3>
+        <h3 class="api-name">8. qt.gtimg.cn — 实时行情接口</h3>
         <table class="api-meta-table">
           <tr><td class="meta-label">URL</td><td><code>https://qt.gtimg.cn/q={指数代码列表}</code></td></tr>
           <tr><td class="meta-label">方法</td><td>GET</td></tr>
@@ -541,7 +576,7 @@
       <!-- 蛋卷基金 -->
       <h2 class="api-group-title">四、蛋卷基金 API</h2>
       <div class="api-item">
-        <h3 class="api-name">8. danjuanfunds — 指数估值接口</h3>
+        <h3 class="api-name">9. danjuanfunds — 指数估值接口</h3>
         <table class="api-meta-table">
           <tr><td class="meta-label">URL</td><td><code>https://danjuanfunds.com/djapi/index_eva/dj</code></td></tr>
           <tr><td class="meta-label">方法</td><td>GET</td></tr>
@@ -570,7 +605,7 @@
       <!-- value500 -->
       <h2 class="api-group-title">五、value500.com 宏观数据</h2>
       <div class="api-item">
-        <h3 class="api-name">9. value500.com — 宏观指标页面</h3>
+        <h3 class="api-name">10. value500.com — 宏观指标页面</h3>
         <table class="api-meta-table">
           <tr><td class="meta-label">方法</td><td>GET（HTML 页面解析）</td></tr>
           <tr><td class="meta-label">用途</td><td>获取中国宏观指标数据，通过解析页面 ECharts title 文本提取数值</td></tr>
@@ -593,7 +628,7 @@
       <!-- akshare -->
       <h2 class="api-group-title">六、akshare 开源库</h2>
       <div class="api-item">
-        <h3 class="api-name">10. akshare — 上证指数历史日线</h3>
+        <h3 class="api-name">11. akshare — 上证指数历史日线</h3>
         <table class="api-meta-table">
           <tr><td class="meta-label">方法</td><td><code>akshare.stock_zh_index_daily(symbol="sh000001")</code></td></tr>
           <tr><td class="meta-label">用途</td><td>获取上证指数历史日线数据（date, open, close, high, low, volume）</td></tr>
@@ -605,7 +640,7 @@
       <!-- Supabase -->
       <h2 class="api-group-title">七、Supabase 后端服务</h2>
       <div class="api-item">
-        <h3 class="api-name">11. Supabase REST API + Management API + Edge Function</h3>
+        <h3 class="api-name">12. Supabase REST API + Management API + Edge Function</h3>
         <table class="field-table">
           <thead><tr><th>接口类型</th><th>URL</th><th>用途</th></tr></thead>
           <tbody>
@@ -626,12 +661,13 @@
           <tr><td>3</td><td>pingzhongdata</td><td>净值历史/回撤/夏普/风险评级</td><td>GET</td></tr>
           <tr><td>4</td><td>fundf10 (jbgk)</td><td>基金经理/管理人/分类/规模/费率/成立日期</td><td>GET</td></tr>
           <tr><td>5</td><td>fundf10 (tsdata)</td><td>夏普比率+标准差+风险等级（补充数据源）</td><td>GET</td></tr>
-          <tr><td>6</td><td>push2 API</td><td>申万行业板块实时行情</td><td>GET</td></tr>
-          <tr><td>7</td><td>qt.gtimg.cn</td><td>指数实时行情</td><td>GET</td></tr>
-          <tr><td>8</td><td>danjuanfunds</td><td>指数估值评级</td><td>GET</td></tr>
-          <tr><td>9</td><td>value500.com</td><td>宏观指标（6个子页面）</td><td>GET</td></tr>
-          <tr><td>10</td><td>akshare</td><td>上证指数历史日线</td><td>库调用</td></tr>
-          <tr><td>11</td><td>Supabase</td><td>数据库 + SQL + 代理函数</td><td>REST/SQL</td></tr>
+          <tr><td>6</td><td>GetBKDetailInfoNew (ZTJJ)</td><td>主题板块(行业/概念)各周期实时涨跌 + 排名</td><td>GET(JSONP)</td></tr>
+          <tr><td>7</td><td>push2 API</td><td>申万行业板块实时行情</td><td>GET</td></tr>
+          <tr><td>8</td><td>qt.gtimg.cn</td><td>指数实时行情</td><td>GET</td></tr>
+          <tr><td>9</td><td>danjuanfunds</td><td>指数估值评级</td><td>GET</td></tr>
+          <tr><td>10</td><td>value500.com</td><td>宏观指标（6个子页面）</td><td>GET</td></tr>
+          <tr><td>11</td><td>akshare</td><td>上证指数历史日线</td><td>库调用</td></tr>
+          <tr><td>12</td><td>Supabase</td><td>数据库 + SQL + 代理函数</td><td>REST/SQL</td></tr>
         </tbody>
       </table>
     </div>
@@ -667,6 +703,7 @@ const tables = [
   { key: 'user_profiles', name: '用户档案表', desc: '用户注册信息', rows: 0, sensitive: true },
   { key: 'fund_tags', name: '热门标签表', desc: '热门基金标签（行业/概念），含标签名/类型/近1年板块收益/排序，来源东财 ZTJJ 接口', rows: 158 },
   { key: 'fund_tag_funds', name: '标签-基金映射表', desc: '每个热门标签关联的基金列表（代码/名称/类型/近1年收益/排序），来源东财 ZTJJ GetBKRelTopicFundNew 接口', rows: 1847 },
+  { key: 'fund_tag_perf', name: '主题板块涨跌表', desc: '154个热门行业/概念板块的板块级涨跌幅：日涨跌(D)/近1周(W)/近1月(M)/近3月(Q)/近1年(Y)/今年来(SY) + 各周期排名 + 板块总数，来源东财 ZTJJ GetBKDetailInfoNew 接口（板块级真实涨跌，非基金个体均值），热门基金排序/阶段选择的数据基础', rows: 154 },
   { key: 'ai_pk_models', name: 'AI大PK 模型表', desc: 'AI 大PK 参赛模型信息（模型名/厂商/描述/状态）', rows: 0 },
   { key: 'ai_pk_picks', name: 'AI大PK 选基表', desc: '各 AI 模型每期选出的基金及权重（基于 fund_scores 真实数据）', rows: 0 },
   { key: 'factor_scores', name: '风格因子评分表（生产）', desc: '股票/债券/商品风格因子性价比评分（估值分/动量分/综合信号）', rows: 0 },

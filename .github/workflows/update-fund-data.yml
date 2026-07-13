@@ -324,6 +324,20 @@ jobs:
           python scripts/sync_tag_performance.py
           echo "主题板块涨跌幅更新完成: $(date '+%Y-%m-%d %H:%M:%S')"
 
+      - name: 步骤5g — 同步完整标签列表（东财ZTJJ，重建 fund_tags 表）
+        timeout-minutes: 10
+        continue-on-error: true
+        env:
+          SUPABASE_PAT: ${{ secrets.SUPABASE_MGMT_TOKEN }}
+        run: |
+          echo "============================================"
+          echo "  步骤5g: 同步完整标签列表（东财ZTJJ GetBKListByBKTypeNew → fund_tags）"
+          echo "  开始时间: $(date '+%Y-%m-%d %H:%M:%S')"
+          echo "============================================"
+          pip install requests
+          python scripts/sync_fund_tags_full.py
+          echo "标签列表同步完成: $(date '+%Y-%m-%d %H:%M:%S')"
+
       - name: 步骤6 — 安装 Node.js
         uses: actions/setup-node@v4
         with:

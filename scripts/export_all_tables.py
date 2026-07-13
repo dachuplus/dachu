@@ -163,6 +163,13 @@ TABLES = {
         'update': '通过 scripts/fetch_tag_funds_v2.py 抓取更新',
         'scoring': False,
     },
+    'fund_tag_perf': {
+        'name': '主题板块涨跌表',
+        'desc': '154个热门行业/概念板块的板块级涨跌幅：日涨跌(D)/近1周(W)/近1月(M)/近3月(Q)/近1年(Y)/今年来(SY) + 各周期排名 + 板块总数。热门基金「实时/近1周/近1月/近3月/近1年/今年来」排序的数据基础',
+        'source': '东财 ZTJJ GetBKDetailInfoNew 接口（板块级真实涨跌，非基金个体收益均值）',
+        'update': '通过 scripts/sync_tag_performance.py 抓取更新，每日 GitHub Actions CI 自动刷新（北京时间 21:30）',
+        'scoring': False,
+    },
     'ai_pk_models': {
         'name': 'AI大PK 模型表',
         'desc': 'AI 大PK 参赛模型信息（模型名/厂商/头像/描述/状态等）',
