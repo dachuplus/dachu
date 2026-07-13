@@ -1051,20 +1051,17 @@ async function fetchCategoryFunds(cfg, limit) {
       const { data: etf, error: e1 } = await base().ilike('n', '%ETF%').order('k1', { ascending: false }).limit(limit)
       if (e1) console.error(`[fetchCategoryFunds] ${cfg.category} step1 ETF error:`, e1.message)
       funds = uniq(etf || [])
-      console.log(`[fetchCategoryFunds] ${cfg.category} step1 ETF: ${funds.length} results`)
       // 2) 同 t0 内，指数型产品补充
       if (funds.length < limit) {
         const { data: idx, error: e2 } = await base().ilike('n', '%指数%').order('k1', { ascending: false }).limit(limit)
         if (e2) console.error(`[fetchCategoryFunds] ${cfg.category} step2 idx error:`, e2.message)
         funds = funds.concat(uniq(idx || [], new Set(funds.map(f => f.c))))
-        console.log(`[fetchCategoryFunds] ${cfg.category} step2 idx: total=${funds.length}`)
       }
       // 3) 同 t0 内，主动管理型兜底（不限名称，仍严格限定本 t0）
       if (funds.length < limit) {
         const { data: act, error: e3 } = await base().order('k1', { ascending: false }).limit(limit)
         if (e3) console.error(`[fetchCategoryFunds] ${cfg.category} step3 active error:`, e3.message)
         funds = funds.concat(uniq(act || [], new Set(funds.map(f => f.c))))
-        console.log(`[fetchCategoryFunds] ${cfg.category} step3 active: total=${funds.length}`)
       }
       // 4) k1 稀疏时，同 t0 内按 k3(3年评分)降序补充，仍严格限定本一级分类
       if (funds.length < limit) {
@@ -1074,7 +1071,6 @@ async function fetchCategoryFunds(cfg, limit) {
           .eq('t0', cfg.t0).order('k3', { ascending: false }).limit(limit)
         if (e4) console.error(`[fetchCategoryFunds] ${cfg.category} step4 k3 error:`, e4.message)
         funds = funds.concat(uniq(k3q || [], have))
-        console.log(`[fetchCategoryFunds] ${cfg.category} step4 k3: total=${funds.length}`)
       }
       // 5) 跨相关一级分类补充（如股票→指数型），仅在同 t0 严重不足时启用，且指数型仍属权益大类
       if (funds.length < limit && cfg.fallbackT0) {
@@ -1084,7 +1080,6 @@ async function fetchCategoryFunds(cfg, limit) {
           .eq('t0', cfg.fallbackT0).order('k1', { ascending: false }).limit(limit)
         if (e5) console.error(`[fetchCategoryFunds] ${cfg.category} step5 fallback(${cfg.fallbackT0}) error:`, e5.message)
         funds = funds.concat(uniq(fb || [], have))
-        console.log(`[fetchCategoryFunds] ${cfg.category} step5 fallback: total=${funds.length}`)
       }
       // 6) 终极兜底：同 t0 内全量按 k1 降序取 —— 绝不跨一级分类（确保货币基金/债券基金等保持品类纯粹）
       if (funds.length === 0) {
@@ -1094,14 +1089,12 @@ async function fetchCategoryFunds(cfg, limit) {
           .eq('t0', cfg.t0).order('k1', { ascending: false }).limit(limit)
         if (e6) console.error(`[fetchCategoryFunds] ${cfg.category} emergency error:`, e6.message)
         funds = em || []
-        console.log(`[fetchCategoryFunds] ${cfg.category} emergency fallback: ${funds.length} results`)
       }
     } else if (cfg.nameKeyword) {
       // 商品/黄金/REIT 等以名称关键字识别的品类
       const { data, error: e0 } = await base().order('k1', { ascending: false }).limit(limit)
       if (e0) console.error(`[fetchCategoryFunds] ${cfg.category} nameKeyword error:`, e0.message)
       funds = data || []
-      console.log(`[fetchCategoryFunds] ${cfg.category} nameKeyword: ${funds.length} results`)
       if (funds.length < limit && cfg.fallbackKeywords && cfg.fallbackKeywords.length) {
         const have = new Set(funds.map(f => f.c))
         for (const kw of cfg.fallbackKeywords) {
@@ -1112,7 +1105,6 @@ async function fetchCategoryFunds(cfg, limit) {
           if (ek) console.error(`[fetchCategoryFunds] ${cfg.category} fallbackKeyword(${kw}) error:`, ek.message)
           funds = funds.concat(uniq(fb || [], have))
         }
-        console.log(`[fetchCategoryFunds] ${cfg.category} after fallbackKeywords: ${funds.length}`)
       }
     }
   } catch (e) { console.error('[fetchCategoryFunds]', cfg.category, e) }
