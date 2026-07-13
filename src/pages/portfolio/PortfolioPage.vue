@@ -690,14 +690,14 @@ async function generateAiPortfolio() {
   aiGenerating.value = true
   aiStatusText.value = '正在查询靠谱指数产品...'
   try {
-    // 1. 真实基金池：全市场候选，从 fund_combined 拉取，按二级分类(t1_tt)分组，
-    //    每类中性排序（规模/近1年收益倒序），每类约 50-60 只（不再用 k_all 引导排序）
+    // 1. 真实基金池：全市场候选，从 fund_scores 拉取（最高风控规则：所有取基金均查 fund_scores，fund_combined 仅用于下载验证），
+    //    按二级分类(t1_tt)分组，每类中性排序（规模/近1年收益倒序），每类约 50-60 只（不再用 k_all 引导排序）
     let fundPool = []
     if (supabase) {
       const perCat = 55
       const catList = aiCategory.value ? [aiCategory.value] : AI_ALL_CATEGORIES
       const queries = catList.map(cat => {
-        let q = supabase.from('fund_combined')
+        let q = supabase.from('fund_scores')
           .select('c,n,t0,t1_tt,fund_scale,r1y,k_all,k1,score_grade')
         q = (cat === '货币型') ? q.eq('t0', '货币型') : q.eq('t1_tt', cat)
         return q.order('fund_scale', { ascending: false }).limit(perCat)
@@ -706,7 +706,7 @@ async function generateAiPortfolio() {
       const rows = results.flatMap(r => r.data || [])
       fundPool = rows.map(f => {
         const raw = (f.c || '').trim()
-        const code = raw.endsWith('.OF') ? raw : raw + '.OF'   // fund_combined.c 不带 .OF，补齐以保持与展示一致
+        const code = raw.endsWith('.OF') ? raw : raw + '.OF'   // fund_scores.c 已带 .OF，此处保持幂等
         return {
           c: code, n: f.n, t0: f.t0, t1tt: f.t1_tt,
           fundScale: f.fund_scale, r1y: f.r1y,

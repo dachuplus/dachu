@@ -217,7 +217,25 @@ def main():
     hb_after = pg("SELECT count(*) AS tot, count(k_all) AS scored FROM fund_scores WHERE t0='货币型'")[0]
     print(f'  ✓ 货币型评分: {hb_after["scored"]}/{hb_after["tot"]} 有 k_all', flush=True)
 
-    # ── 4. 重建 fund_combined（复用已验证的增量同步脚本，非破坏性）──────
+    # ── 2.5 重新应用标签（tags）到 fund_scores ──────────────────────────
+    # fund_scores.tags 由 fund_tag_funds 派生，不在 PROMOTE_COLS 内（staging 无该列），
+    # 故每次切换后需从 fund_tag_funds 重新聚合写入，保证夜跑后标签不丢。
+    # （nightly 工作流不重跑标签脚本，fund_tag_funds 由 sync_tag_funds_full.py 单独维护，稳定。）
+    print('\n[2.5] 重新应用标签到 fund_scores（来源 fund_tag_funds）', flush=True)
+    try:
+        pg("ALTER TABLE fund_scores ADD COLUMN IF NOT EXISTS tags text[];", timeout=120)
+        pg("UPDATE fund_scores SET tags = NULL;", timeout=300)
+        pg("""UPDATE fund_scores fs
+              SET tags = sub.tags
+              FROM (SELECT fund_code, array_agg(DISTINCT tag_name) AS tags
+                    FROM fund_tag_funds GROUP BY fund_code) sub
+              WHERE fs.c = sub.fund_code OR fs.c = sub.fund_code || '.OF';""", timeout=600)
+        tagged = pg("SELECT count(*) AS cnt FROM fund_scores WHERE tags IS NOT NULL")[0]['cnt']
+        print(f'  ✓ 已为 {tagged} 只基金标记标签', flush=True)
+    except Exception as e:
+        print(f'  [WARN] 标签重新应用失败（不影响评分切换）: {e}', flush=True)
+
+    # ── 3. 重建 fund_combined（复用已验证的增量同步脚本，非破坏性）──────
     if not args.skip_combined:
         print('\n[3] 重建 fund_combined（复用 sync_fund_combined_scores.py）', flush=True)
         rc = subprocess.run(

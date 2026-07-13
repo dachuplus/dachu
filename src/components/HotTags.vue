@@ -221,7 +221,7 @@ async function loadTagFunds(tag) {
     const { supabase } = await import('../api/supabase.js')
     if (!supabase) { tagFundsLoading.value = false; return }
 
-    // 1) 拉取该标签关联的全部基金（东财 ZTJJ 映射，单标签至多 15 只）
+    // 1) 拉取该标签关联的全部基金（东财 ZTJJ 全量映射，sync_tag_funds_full.py 分页重拉）
     const { data: mappings, error: err1 } = await supabase
       .from('fund_tag_funds')
       .select('fund_code,fund_name,fund_type,syl_1n,sort_order')

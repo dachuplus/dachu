@@ -35,3 +35,11 @@
 - **后续新建的任何表都必须自动纳入**：导出脚本 `scripts/export_all_tables.py` 通过 Supabase Management API 自动发现全部 public 表并导出，前端 `DataCenterPage.vue` 依据导出产物 `index.json` 动态渲染表清单——新建表无需改代码即自动出现。
 - 若因权限等原因自动发现失败，回退到内置表清单；内置清单必须与数据库实际表保持同步，发现遗漏须及时补齐。
 - 用户数据表（user_portfolios / user_profiles 等敏感表）仅对授权账户开放下载。
+
+## 规则 6：所有「提取基金」查询一律查 fund_scores（fund_combined 仅用于下载验证）
+
+- allfund 前端/运行期凡是需要「提取/检索基金产品」的场景（组合生成、基金详情、榜单、筛选、AI 选基等），**只能查询 `fund_scores` 表**，不得查询 `fund_combined`。
+- `fund_scores` 含完整字段（`c` 带 `.OF` 后缀、`n` 名称、`t0`/`t1`/`t1_tt` 分类、`company` 公司、`fund_scale` 规模、各周期收益/回撤/夏普、`k_all`/`score_grade` 评分等），足以支撑所有取数需求。
+- `fund_combined` 是**下游派生/校验表**（由 `fund_scores` 同步分类、补充详情、重算评分后生成），定位为「下载验证用」——只在数据下载中心展示、导出 Excel 供人工核对，不参与任何运行期取数。
+- 历史坑：曾误用 `supabase.from('fund_combined')` 取 AI 组合候选池，但 `fund_combined` 无 `t1_tt` 列（该列只在 `fund_scores`），导致 `.eq('t1_tt', cat)` 返回空集、组合无法生成。凡取数一律走 `fund_scores` 即可避免此类列名错配。
+- 后端 ETL/同步脚本（sync_fund_combined_scores、create_fund_combined、各类 fix_*、export_*）对 `fund_combined` 的读写属于「维护该派生表本身」，不在本规则禁止范围内，但其产出的下游数据最终仍须源自 `fund_scores`。

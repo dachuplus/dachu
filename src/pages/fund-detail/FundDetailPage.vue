@@ -84,10 +84,10 @@ async function fetchFund(code) {
 
   if (!data) return null
 
-  // 取公司名（容错）
+  // 取公司名（容错；最高风控规则：所有取基金均查 fund_scores）
   const { data: cb } = await supabase
-    .from('fund_combined')
-    .select('c,name,t0,t1,company')
+    .from('fund_scores')
+    .select('c,company')
     .eq('c', data.c)
     .single()
   company.value = cb?.company ?? null
