@@ -72,9 +72,8 @@
       <!-- 隐含夏普仪表盘 -->
       <div class="card" v-if="dashData">
         <div class="card-title">宏观信号<HelpTip :text="MACRO_SIGNAL_HELP" /></div>
-        <p class="card-desc">全市场风险平价加权隐含夏普，正值 = 整体有超额收益吸引力</p>
         <div class="gauge-wrap" ref="gaugeEl"></div>
-        <div class="gauge-range">取值范围：−1 ~ 1</div>
+        <p class="gauge-desc" :style="{ color: gaugeZoneColor }">全市场风险平价加权隐含夏普，正值 = 整体有超额收益吸引力</p>
       </div>
 
       <!-- 宏观指标 6 个 + 10年历史 -->
@@ -1111,6 +1110,16 @@ function drawGauge() {
   })
 }
 
+// 仪表盘下方说明文字颜色：与仪表盘 axisLine 区间颜色一致
+const gaugeZoneColor = computed(() => {
+  const dv = dashData.value?.value
+  if (dv == null || Number.isNaN(dv)) return 'var(--text-secondary)'
+  if (dv <= -0.5) return '#00703c'   // 区间 [−1, −0.5] 绿
+  if (dv <= 0) return '#f47738'      // 区间 (−0.5, 0] 橙
+  if (dv <= 0.5) return '#b1b4b6'    // 区间 (0, 0.5] 灰
+  return '#d4351c'                   // 区间 (0.5, 1] 红
+})
+
 // Vue ref 绑定到图表容器（Vue3 不会把 template ref 渲染成 DOM 属性，必须用 ref 变量）
 const gaugeEl = ref(null)
 const pieEl = ref(null)
@@ -1800,7 +1809,7 @@ function handleResize() {
 
 /* 仪表盘 */
 .gauge-wrap { width: 100%; height: 280px; }
-.gauge-range { text-align: center; font-size: 13px; color: var(--text-secondary); margin-top: 4px; }
+.gauge-desc { text-align: center; font-size: 14px; font-weight: 600; margin-top: 8px; line-height: 1.5; }
 
 /* 宏观指标 */
 .macro-indicators { display: flex; flex-direction: column; gap: var(--space-lg); }

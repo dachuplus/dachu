@@ -1677,8 +1677,8 @@ onUnmounted(() => {
 .filter-scale-presets { display: flex; flex-wrap: wrap; gap: 0; flex: 1; }
 
 .detail-panel {
-  position: fixed; bottom: 0; left: 50%; transform: translateX(-50%);
-  width: 100%; max-width: 600px; max-height: 88vh;
+  position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+  width: calc(100% - 32px); max-width: 600px; max-height: 88vh;
   background: #ffffff; border: 1px solid var(--border);
   overflow: hidden; display: flex; flex-direction: column; z-index: 101;
 }
@@ -1735,8 +1735,8 @@ onUnmounted(() => {
 
 /* 帮助弹窗 */
 .help-panel {
-  position: fixed; bottom: 0; left: 50%; transform: translateX(-50%);
-  width: 100%; max-width: 600px; max-height: 70vh;
+  position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+  width: calc(100% - 32px); max-width: 600px; max-height: 80vh;
   background: #ffffff; border: 1px solid var(--border);
   overflow: hidden; display: flex; flex-direction: column; z-index: 101;
 }
@@ -1791,8 +1791,8 @@ onUnmounted(() => {
 
 /* ===== 组合选择器弹窗 ===== */
 .picker-panel {
-  position: fixed; bottom: 0; left: 50%; transform: translateX(-50%);
-  width: 100%; max-width: 440px; max-height: 70vh;
+  position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+  width: calc(100% - 32px); max-width: 440px; max-height: 80vh;
   background: #ffffff; border: 2px solid #1d70b8;
   overflow: hidden; display: flex; flex-direction: column; z-index: 101;
 }

@@ -314,12 +314,12 @@ onMounted(loadData)
 /* 弹窗 */
 .help-mask { position: fixed; inset: 0; background: rgba(29,112,184,0.6); z-index: 100; }
 .help-panel {
-  position: fixed; bottom: 0; left: 50%; transform: translateX(-50%);
-  width: 100%; max-width: 600px; max-height: 70vh;
+  position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+  width: calc(100% - 32px); max-width: 600px; max-height: 80vh;
   background: #ffffff; border: 1px solid var(--border);
   overflow: hidden; display: flex; flex-direction: column; z-index: 101;
 }
-.item-help-panel { max-height: 60vh; }
+.item-help-panel { max-height: 72vh; }
 .help-header {
   display: flex; justify-content: space-between; align-items: center;
   padding: var(--space-md) var(--space-lg); border-bottom: 1px solid var(--border);
