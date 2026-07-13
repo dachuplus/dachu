@@ -28,7 +28,7 @@ const AXIS_STYLE = {
   fontFamily: 'inherit',
 }
 
-export function createGovukChart(dom, option) {
+export function createGovukChart(option) {
   const baseOption = {
     backgroundColor: '#ffffff',
     color: COLORS,
