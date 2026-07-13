@@ -17,7 +17,7 @@ def api_request(method, path, body=None):
     data = json.dumps(body).encode() if body else None
     req = Request(url, data=data, headers=headers, method=method)
     try:
-        with urlopen(req, timeout=30) as r:
+        with urlopen(req, timeout=60) as r:
             raw = r.read().decode()
             return json.loads(raw) if raw and r.status < 300 else None
     except HTTPError as e:
@@ -31,11 +31,24 @@ def get_commit_tree(sha):
     data = api_request("GET", f"/repos/{REPO_OWNER}/{REPO_NAME}/git/commits/{sha}")
     return data["tree"]["sha"] if data else None
 
+def get_base_tree_paths(base_tree_sha):
+    """Return the set of blob paths present in the given base tree (recursive=1)."""
+    data = api_request("GET", f"/repos/{REPO_OWNER}/{REPO_NAME}/git/trees/{base_tree_sha}?recursive=1")
+    if not data:
+        return set()
+    return {t["path"] for t in data.get("tree", []) if t.get("type") == "blob"}
+
 def create_blob(content):
     return api_request("POST", f"/repos/{REPO_OWNER}/{REPO_NAME}/git/blobs", {"content": content, "encoding": "utf-8"})["sha"]
 
 def create_tree(base_tree, items):
-    tree = [{"path": p, "mode": "100644", "type": "blob", "sha": s} for p,s in items]
+    tree = []
+    for p, s in items:
+        if s is None:
+            # sha=None 表示该路径从仓库中删除
+            tree.append({"path": p, "mode": "100644", "type": "blob", "sha": None})
+        else:
+            tree.append({"path": p, "mode": "100644", "type": "blob", "sha": s})
     return api_request("POST", f"/repos/{REPO_OWNER}/{REPO_NAME}/git/trees", {"base_tree": base_tree, "tree": tree})["sha"]
 
 def create_commit(tree_sha, parent_sha, message):
@@ -49,24 +62,38 @@ def main():
     print(f"📡 推送 {REPO_OWNER}/{REPO_NAME}")
     parent = get_sha("main")
     print(f"  ✓ 远程 HEAD: {parent[:8]}")
+    base_tree = get_commit_tree(parent)
+    base_paths = get_base_tree_paths(base_tree)
 
-    # Use git status --porcelain to detect ALL changes:
+    # Use `git status --porcelain -uall` to detect ALL changes:
     #   staged (A/M/D), unstaged (M/D), and untracked (??)
-    # This replaces the old approach (git diff-tree HEAD + git ls-files)
-    # which missed untracked files that were never git add-ed.
+    # The `-uall` flag is critical: without it, git collapses a brand-new
+    # directory (e.g. src/pages/calc/) into a single `?? src/pages/calc/`
+    # entry, which the file-upload loop would then skip because it is a
+    # directory, not a file — silently dropping every file inside.
     result = subprocess.run(
-        ["git", "status", "--porcelain"],
+        ["git", "status", "--porcelain", "-uall"],
         capture_output=True, text=True, check=False
     )
     changed = []
+    deletions = []
     for line in result.stdout.strip().split("\n"):
         if not line:
             continue
         status = line[:2]
-        filepath = line[3:]
-        # Skip deleted files (can't upload them as blobs)
+        # git porcelain status is exactly 2 chars (XY). The path follows, but
+        # the separator layout varies: an unstaged change is " M path" (path at
+        # index 3) while a STAGED change is "M  path" / "M path" (path at index
+        # 2). Robustly strip the 2-char status then any leading separator space.
+        filepath = line[2:].lstrip(' ')
+        # 删除的文件：记录到 deletions，稍后通过 tree entry sha=None 从仓库移除
+        # 但若该路径在「基准树」中已不存在（之前已删过），再删会触发
+        # GitHub "GitRPC::BadObjectState" 422 错误 —— 直接跳过。
         if "D" in status:
-            print(f"    ⏭ 跳过已删除: {filepath}")
+            if filepath in base_paths:
+                deletions.append(filepath)
+            else:
+                print(f"    ⏭ 跳过已不存在的删除(远端无此文件): {filepath}")
             continue
         # Skip files that don't exist on disk
         if not os.path.isfile(filepath):
@@ -100,9 +127,9 @@ def main():
         filtered.append(f)
     changed = filtered
 
-    if not changed:
+    if not changed and not deletions:
         print("  无改动，跳过"); return
-    print(f"  ✓ 检测到 {len(changed)} 个文件")
+    print(f"  ✓ 检测到 {len(changed)} 个改动文件，{len(deletions)} 个删除文件")
     items = []
     for f in changed:
         try:
@@ -112,6 +139,10 @@ def main():
             print(f"    ✓ {f} → blob {blob_sha[:8]}")
         except Exception as e:
             print(f"    ✗ {f}: {e}")
+    # 删除项：sha=None 会在 Git 树中移除该路径
+    for f in deletions:
+        items.append((f, None))
+        print(f"    🗑 删除 {f}")
     if not items:
         print("  无有效文件"); return
     tree = create_tree(get_commit_tree(parent), items)
