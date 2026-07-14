@@ -85,6 +85,7 @@
             <th class="col-ua-name">用户名</th>
             <th class="col-ua-ip">IP 地址</th>
             <th class="col-ua-region">地区</th>
+            <th class="col-ua-login">登录时间</th>
             <th class="col-ua-duration">在线时长</th>
             <th class="col-ua-paths">访问路径</th>
           </tr>
@@ -94,6 +95,7 @@
             <td class="col-ua-name"><code>{{ v.name }}</code></td>
             <td class="col-ua-ip">{{ v.ip }}</td>
             <td class="col-ua-region">{{ v.region }}</td>
+            <td class="col-ua-login">{{ v.loginTime ? fmtTime(v.loginTime) : '—' }}</td>
             <td class="col-ua-duration">{{ v.durationMin > 0 ? v.durationMin + ' 分钟' : '—' }}</td>
             <td class="col-ua-paths">
               <span class="path-tag" v-for="(p, j) in v.paths" :key="j">{{ p }}</span>
@@ -1056,6 +1058,7 @@ async function loadUserAnalytics() {
       name: (u.email && u.email !== 'anonymous') ? u.email : '匿名访客',
       ip: u.ip || '—',
       region: u.region || '—',
+      loginTime: (u.email && u.email !== 'anonymous') ? u.min : null,
       durationMin: Math.max(0, Math.round((new Date(u.max) - new Date(u.min)) / 60000)),
       paths: [...u.paths]
     }))
@@ -1216,6 +1219,7 @@ onMounted(() => {
 .col-ua-name { width: 200px; }
 .col-ua-ip { width: 140px; font-family: monospace; }
 .col-ua-region { width: 120px; }
+.col-ua-login { width: 150px; font-family: monospace; }
 .col-ua-duration { width: 100px; text-align: right; font-family: monospace; }
 .col-ua-paths { min-width: 240px; }
 .path-tag {
