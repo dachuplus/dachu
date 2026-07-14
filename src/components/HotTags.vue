@@ -24,7 +24,7 @@
 
     <!-- 新增：排序类别 + 阶段选择控件（参考天天基金 ztjj 页面） -->
     <div class="hot-controls" v-if="displayTags.length > 0">
-      <!-- 排序类别：按涨幅 / 按资金流入（资金流入数据源待接入，暂禁用） -->
+      <!-- 排序类别：按涨幅 / 按资金流入 -->
       <div class="control-row">
         <span class="control-label">排序类别</span>
         <div class="sort-group" role="group" aria-label="排序类别">
@@ -36,14 +36,12 @@
           <button
             class="sort-btn"
             :class="{ active: sortMode === 'byInflow' }"
-            :disabled="true"
-            :title="inflowDisabledHint"
             @click="sortMode = 'byInflow'"
-          >按资金流入（开发中）</button>
+          >按资金流入</button>
         </div>
       </div>
       <!-- 阶段选择：实时 / 近1周 / 近1月 / 近3月 / 近1年 / 今年来 -->
-      <div class="control-row">
+      <div class="control-row" v-if="sortMode === 'byReturn'">
         <span class="control-label">阶段</span>
         <div class="stage-tabs" role="tablist" aria-label="阶段选择">
           <button
@@ -65,16 +63,12 @@
         :key="tag.name"
         class="tag-cell"
         :class="cellReturnClass(tag)"
-        :style="{ background: tagColor(cellReturn(tag)) }"
+        :style="cellStyle(tag)"
         @click="openTagDetail(tag)"
       >
         <span class="tag-name">{{ tag.name }}</span>
-        <!-- 新增：数值跟随所选阶段变化；正收益红色、负收益绿色（中国股市惯例） -->
-        <span
-          class="tag-return"
-          v-if="cellReturn(tag) != null"
-        >{{ fmtPctSigned(cellReturn(tag)) }}</span>
-        <span class="tag-return" v-else>—</span>
+        <!-- 数值：涨幅模式显示阶段涨跌；资金流入模式显示主力净流入(亿元) -->
+        <span class="tag-return">{{ cellNumberText(tag) }}</span>
       </div>
     </div>
 
@@ -212,11 +206,11 @@ const shareUpdateTime = ref('') // 分享图数据截止时间（弹窗可见）
 const fundMetaUpdateTime = ref('') // fund_scores 更新时间
 
 // ========== 新增：排序/阶段状态 ==========
-const sortMode = ref('byReturn') // 'byReturn'（按涨幅，默认）| 'byInflow'（按资金流入，开发中）
+const sortMode = ref('byReturn') // 'byReturn'（按涨幅，默认）| 'byInflow'（按资金流入）
 const activeStage = ref('y1')    // 默认选中阶段：近1年
 const tagStageReturns = ref({})  // { [tagName]: { d, w1, m1, m3, y1, ytd } } 各阶段均值
+const tagInflow = ref({})        // { [tagName]: { net, pct } } 主力净流入(亿元)/占比
 const stageReturnsReady = ref(false) // 阶段聚合数据是否加载完成
-const inflowDisabledHint = '资金流入排序开发中（数据源待接入）'
 
 // ========== 计算属性 ==========
 const displayTags = computed(() => {
@@ -231,8 +225,10 @@ const displayTags = computed(() => {
   // 注：阶段聚合数据未加载完成前，近1年阶段回退使用 fund_tags.return_pct，避免闪烁
   if (sortMode.value === 'byReturn') {
     list.sort((a, b) => (stageSortVal(b) ?? -Infinity) - (stageSortVal(a) ?? -Infinity))
+  } else if (sortMode.value === 'byInflow') {
+    // 按资金流入排序：主力净流入(亿元)降序，缺失值排末尾
+    list.sort((a, b) => (inflowValue(b) ?? -Infinity) - (inflowValue(a) ?? -Infinity))
   }
-  // 按资金流入排序：当前 fund_tag_funds 无 relation 字段，按钮已禁用，暂未实现
   // 去重：同名标签只保留一个。all tab 已按收益降序，保留收益最高的；概念/行业 tab 保持原序保留首个
   const seen = new Set()
   const deduped = []
@@ -251,8 +247,13 @@ const displayTags = computed(() => {
 // ========== 新增：阶段收益取值 / 展示辅助 ==========
 // 当前阶段中文名（用于脚注）
 const stageLabel = computed(() => STAGES.find(s => s.key === activeStage.value)?.label || '近1年')
-// 动态脚注文案
-const stageFootnote = computed(() => `板块收益为东财主题板块${stageLabel.value}涨跌幅，`)
+// 动态脚注文案：随排序类别变化（涨幅 / 资金流入）
+const stageFootnote = computed(() => {
+  if (sortMode.value === 'byInflow') {
+    return '数值为东财板块当日主力净流入(亿元)；'
+  }
+  return `板块收益为东财主题板块${stageLabel.value}涨跌幅，`
+})
 
 // 取某标签在当前阶段的聚合均值（无数据返回 null）
 function stageValue(name) {
@@ -282,6 +283,44 @@ function cellReturnClass(tag) {
   return v >= 0 ? 'cell-pos' : 'cell-neg'
 }
 
+// 取某标签的主力净流入(亿元)；无数据返回 null
+function inflowValue(tag) {
+  const m = tagInflow.value[tag.name]
+  if (!m) return null
+  const v = m.net
+  return (v == null || isNaN(v)) ? null : v
+}
+
+// 网格数值展示文本：涨幅模式显示阶段涨跌；资金流入模式显示主力净流入(亿元)
+function cellNumberText(tag) {
+  if (sortMode.value === 'byInflow') {
+    const v = inflowValue(tag)
+    if (v == null) return '—'
+    return (v >= 0 ? '+' : '') + v.toFixed(2) + '亿'
+  }
+  const v = cellReturn(tag)
+  return v == null ? '—' : fmtPctSigned(v)
+}
+
+// 根据背景色亮度自动决定文字颜色（深色背景→白字，浅色背景→语义色），保证对比度
+function cellTextColor(ret) {
+  const bg = tagColor(ret)
+  const m = bg.match(/rgb\((\d+),\s*(\d+),\s*(\d+)\)/)
+  if (!m) return '#333333'
+  const R = +m[1], G = +m[2], B = +m[3]
+  // YIQ 亮度公式
+  const yiq = (R * 299 + G * 587 + B * 114) / 1000
+  if (yiq < 150) return '#ffffff' // 深背景（如光模块 +505% 深红）→ 白字
+  if (ret == null) return '#999999'
+  return ret >= 0 ? '#b01e1e' : '#0a6e31'
+}
+
+// 标签格子内联样式：背景色 + 自动文字色
+function cellStyle(tag) {
+  const ret = cellReturn(tag)
+  return { background: tagColor(ret), color: cellTextColor(ret) }
+}
+
 // 某阶段是否可用（有任一标签含该阶段数据）；数据未就绪前先放行避免闪烁
 // fund_tag_perf 表对所有标签均含6周期数据，始终可用
 function stageAvailable(_key) {
@@ -297,9 +336,9 @@ function fmtPctSigned(v) {
 }
 
 /**
- * 从 fund_tag_perf 表加载所有标签的板块级各周期涨跌幅
- * 数据来源：东财 ZTJJ::GetBKDetailInfoNew 接口，由 ETL 脚本 sync_tag_performance.py 定时拉取
- * 字段：d(日涨幅), w(近1周), m(近1月), q(近3月), y(近1年), sy(今年来)
+ * 从 fund_tag_perf 表加载所有标签的板块级各周期涨跌幅 + 主力净流入
+ * 数据来源：东财 ZTJJ::GetBKDetailInfoNew（涨跌幅）+ 东财板块资金流接口（主力净流入，net_inflow）
+ * 字段：d(日涨幅), w(近1周), m(近1月), q(近3月), y(近1年), sy(今年来), net_inflow(主力净流入/亿元), net_inflow_pct(占比)
  */
 async function loadTagStageReturns() {
   try {
@@ -308,7 +347,7 @@ async function loadTagStageReturns() {
 
     const { data, error } = await supabase
       .from('fund_tag_perf')
-      .select('tag_index_code,tag_name,d,w,m,q,y,sy')
+      .select('tag_index_code,tag_name,d,w,m,q,y,sy,net_inflow,net_inflow_pct')
 
     if (error || !data || data.length === 0) {
       console.warn('[HotTags] fund_tag_perf 无数据（ETL可能未运行），阶段排序将降级', error)
@@ -319,6 +358,7 @@ async function loadTagStageReturns() {
     // 按 tag_name 建索引，供 cellReturn / displayTags 排序使用
     const fieldToKey = Object.fromEntries(STAGES.map(s => [s.field, s.key]))
     const result = {}
+    const inflow = {}
     for (const row of data) {
       const name = row.tag_name
       if (!name) continue
@@ -327,8 +367,13 @@ async function loadTagStageReturns() {
         const v = row[s.field]
         result[name][s.key] = (v == null || v === '') ? null : Number(v)
       }
+      inflow[name] = {
+        net: (row.net_inflow == null || row.net_inflow === '') ? null : Number(row.net_inflow),
+        pct: (row.net_inflow_pct == null || row.net_inflow_pct === '') ? null : Number(row.net_inflow_pct),
+      }
     }
     tagStageReturns.value = result
+    tagInflow.value = inflow
     console.log(`[HotTags] fund_tag_perf 加载完成: ${data.length} 个标签`)
   } catch (e) {
     console.error('[HotTags] loadTagStageReturns error', e)

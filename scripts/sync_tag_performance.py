@@ -112,6 +112,16 @@ def to_int(v):
     return int(round(f))
 
 
+def norm_board_name(name):
+    """归一化板块名：去除东财 push2 接口常见的后缀（概念/板块/行业/主题/指数），
+    使与我们 ZTJJ 标签名（如 'CPO' vs 'CPO概念'）能匹配上。"""
+    s = (name or '').strip()
+    for suf in ('概念', '板块', '行业', '主题', '指数'):
+        if s.endswith(suf):
+            s = s[: -len(suf)]
+    return s
+
+
 def fetch_block_perf(index_code):
     """调用东财接口获取单个板块的各周期涨跌"""
     try:
@@ -131,6 +141,84 @@ def fetch_block_perf(index_code):
     except Exception as e:
         print(f'  [WARN] {index_code} 请求失败: {e}')
         return None
+
+
+# ── 板块资金流（主力净流入）——东财 push2 clist 接口 ────────────
+# GetBKDetailInfoNew 不含资金流字段，改用东财行情中心板块资金流排行接口，
+# 按板块中文名与我们的标签名匹配（东财板块命名跨产品一致）。
+# f62 = 当日主力净流入净额(元)；f184 = 主力净流入净占比(%)
+PUSH2_HOSTS = [
+    'push2.eastmoney.com',
+    '1.push2.eastmoney.com',
+    '19.push2.eastmoney.com',
+    '48.push2.eastmoney.com',
+]
+HEADERS_PUSH2 = {
+    'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
+    'Referer': 'https://data.eastmoney.com/',
+    'Accept': '*/*',
+}
+
+
+def _push2_get(path, tries=4):
+    """带主机轮换 + 重试的 push2 GET，返回解析后的 JSON（失败返回 {}）"""
+    for attempt in range(tries):
+        host = PUSH2_HOSTS[attempt % len(PUSH2_HOSTS)]
+        try:
+            r = requests.get('https://' + host + path, headers=HEADERS_PUSH2, timeout=15)
+            r.raise_for_status()
+            return r.json()
+        except Exception:
+            time.sleep(2 + attempt)
+    return {}
+
+
+def fetch_board_flows(board_type):
+    """拉取某类板块（3=概念, 2=行业）全量资金流，返回 {板块名: (净流入元, 占比%)}"""
+    out = {}
+    for pn in range(1, 9):
+        path = (
+            f'/api/qt/clist/get?fid=f62&po=1&pz=100&pn={pn}&np=1'
+            f'&fs=m:90+t:{board_type}&fields=f12,f14,f62,f184'
+        )
+        j = _push2_get(path)
+        diff = (j.get('data') or {}).get('diff') or []
+        if not diff:
+            break
+        for it in diff:
+            name = (it.get('f14') or '').strip()
+            if not name:
+                continue
+            f62 = it.get('f62')
+            f184 = it.get('f184')
+            # 东财偶尔返回 '-' 占位
+            net = to_float(f62)
+            pct = to_float(f184)
+            out[name] = (net, pct)
+        time.sleep(0.8)
+    return out
+
+
+def fetch_all_board_flows():
+    """合并概念+行业板块资金流，返回 {板块名: (净流入亿元, 占比%)}"""
+    print('\n[STEP 2b] 拉取东财板块资金流（主力净流入）...')
+    flows = {}
+    try:
+        industry = fetch_board_flows(2)
+        time.sleep(1)
+        concept = fetch_board_flows(3)
+    except Exception as e:
+        print(f'  [WARN] 板块资金流拉取异常: {e}')
+        return {}
+    merged = {**industry, **concept}  # 概念优先覆盖同名
+    for name, (net, pct) in merged.items():
+        # net 单位元 -> 亿元，保留 2 位；pct 东财返回已是百分数
+        flows[name] = (
+            round(net / 1e8, 4) if net is not None else None,
+            round(pct, 2) if pct is not None else None,
+        )
+    print(f'  [INFO] 资金流板块数: 行业 {len(industry)} + 概念 {len(concept)} = {len(merged)} 个')
+    return flows
 
 
 def main():
@@ -191,6 +279,31 @@ def main():
         print('[ERROR] 所有请求均失败')
         sys.exit(1)
 
+    # Step 2b: 拉取板块资金流并按名称匹配挂到 results
+    flows = fetch_all_board_flows()
+    if flows:
+        # 归一化索引：东财 push2 板块名常带 '概念/板块' 后缀，去掉后与 ZTJJ 标签名对齐
+        flows_norm = {}
+        for nm, (net, pct) in flows.items():
+            flows_norm.setdefault(norm_board_name(nm), (net, pct))
+        flow_ok = 0
+        for row in results:
+            key = norm_board_name(row['tag_name'])
+            fv = flows_norm.get(key)
+            if fv:
+                row['net_inflow'] = fv[0]
+                row['net_inflow_pct'] = fv[1]
+                flow_ok += 1
+            else:
+                row['net_inflow'] = None
+                row['net_inflow_pct'] = None
+        print(f'  [INFO] 资金流匹配成功 {flow_ok}/{len(results)} 个标签')
+    else:
+        print('  [WARN] 未获取到板块资金流，net_inflow 本轮保持 NULL（不影响涨跌幅写入）')
+        for row in results:
+            row['net_inflow'] = None
+            row['net_inflow_pct'] = None
+
     # Step 3: TRUNCATE + 批量写入 fund_tag_perf 表
     print('\n[STEP 3] 写入 fund_tag_perf 表 ...')
 
@@ -211,9 +324,15 @@ def main():
             rank_y INTEGER,   -- 近1年排名
             rank_sy INTEGER,  -- 今年来排名
             total_count INTEGER, -- 标签总数(用于排名分母)
+            net_inflow REAL,      -- 当日主力净流入(亿元)
+            net_inflow_pct REAL,  -- 主力净流入净占比(%)
             updated_at TIMESTAMPTZ DEFAULT now()
         )
     """)
+
+    # 兼容已存在的旧表：补齐资金流字段
+    mgmt_query("ALTER TABLE public.fund_tag_perf ADD COLUMN IF NOT EXISTS net_inflow REAL")
+    mgmt_query("ALTER TABLE public.fund_tag_perf ADD COLUMN IF NOT EXISTS net_inflow_pct REAL")
 
     # 清空旧数据
     mgmt_query('TRUNCATE TABLE public.fund_tag_perf')
@@ -239,7 +358,7 @@ def main():
             f"({esc(row['tag_index_code'])}, {esc(row['tag_name'])}, "
             f"{esc(row['d'])}, {esc(row['w'])}, {esc(row['m'])}, {esc(row['q'])}, {esc(row['y'])}, {esc(row['sy'])}, "
             f"{esc(row['rank_w'])}, {esc(row['rank_m'])}, {esc(row['rank_q'])}, {esc(row['rank_y'])}, {esc(row['rank_sy'])}, "
-            f"{esc(row['total_count'])}, now())"
+            f"{esc(row['total_count'])}, {esc(row.get('net_inflow'))}, {esc(row.get('net_inflow_pct'))}, now())"
         )
 
     # 分批 UPSERT（每批20条，ON CONFLICT 幂等，避免重复键报错；小批量降低 Management API 限流概率）
@@ -248,13 +367,14 @@ def main():
         batch = values_parts[i:i + BATCH]
         sql = (
             f"INSERT INTO public.fund_tag_perf "
-            f"(tag_index_code, tag_name, d, w, m, q, y, sy, rank_w, rank_m, rank_q, rank_y, rank_sy, total_count, updated_at) "
+            f"(tag_index_code, tag_name, d, w, m, q, y, sy, rank_w, rank_m, rank_q, rank_y, rank_sy, total_count, net_inflow, net_inflow_pct, updated_at) "
             f"VALUES {','.join(batch)} "
             f"ON CONFLICT (tag_index_code) DO UPDATE SET "
             f"tag_name=EXCLUDED.tag_name, d=EXCLUDED.d, w=EXCLUDED.w, m=EXCLUDED.m, q=EXCLUDED.q, "
             f"y=EXCLUDED.y, sy=EXCLUDED.sy, rank_w=EXCLUDED.rank_w, rank_m=EXCLUDED.rank_m, "
             f"rank_q=EXCLUDED.rank_q, rank_y=EXCLUDED.rank_y, rank_sy=EXCLUDED.rank_sy, "
-            f"total_count=EXCLUDED.total_count, updated_at=now()"
+            f"total_count=EXCLUDED.total_count, net_inflow=EXCLUDED.net_inflow, "
+            f"net_inflow_pct=EXCLUDED.net_inflow_pct, updated_at=now()"
         )
         try:
             mgmt_query(sql)
