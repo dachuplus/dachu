@@ -236,6 +236,7 @@ def main():
     print(f'\n[3] UPSERT 进 fund_scores（幂等）...', flush=True)
     n = upsert(rows)
     print(f'\n完成：向 fund_scores 写入/更新 {n} 只 ETF/LOF。', flush=True)
+    print(f'ROWS_AFFECTED={n}', flush=True)
     print('   这些基金现在与其他场外基金一样，标签弹窗可统一从 fund_scores 取经理与收益。', flush=True)
 
 

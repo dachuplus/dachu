@@ -6,13 +6,15 @@
     </div>
     <div class="jqr-gauge" ref="gaugeEl"></div>
     <div class="jqr-spark" ref="sparkEl"></div>
-    <div class="jqr-meta">
-      <span>取值范围：{{ card.range }}</span>
-      <span>数据日期：{{ card.date }}</span>
-    </div>
-    <div class="jqr-sub" v-if="card.subLines.length">
-      <div class="jqr-sub-row" v-for="s in card.subLines" :key="s.k">
-        <span>{{ s.k }}</span><span>{{ s.v }}</span>
+    <div class="jqr-notes">
+      <div class="jqr-meta">
+        <span>取值范围：{{ card.range }}</span>
+        <span>数据日期：{{ card.date }}</span>
+      </div>
+      <div class="jqr-sub" v-if="card.subLines.length">
+        <div class="jqr-sub-row" v-for="s in card.subLines" :key="s.k">
+          <span>{{ s.k }}</span><span>{{ s.v }}</span>
+        </div>
       </div>
     </div>
   </div>
@@ -117,7 +119,7 @@ window.addEventListener('resize', onResize)
 .jqr-card-head {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: center;
   gap: 8px;
   margin-bottom: 2px;
 }
@@ -135,6 +137,13 @@ window.addEventListener('resize', onResize)
 .jqr-signal.neutral { color: #fff; background: #505a5f; }
 .jqr-gauge { width: 100%; height: 112px; }
 .jqr-spark { width: 100%; height: 40px; margin-top: 2px; }
+/* 说明文字组（取值范围/数据日期/明细）统一推到卡片底部、靠左，保证各卡底部对齐 */
+.jqr-notes {
+  margin-top: auto;
+  text-align: left;
+  border-top: 1px solid var(--border);
+  padding-top: 6px;
+}
 .jqr-meta {
   display: flex;
   justify-content: space-between;
@@ -144,8 +153,6 @@ window.addEventListener('resize', onResize)
 }
 .jqr-sub {
   margin-top: 8px;
-  border-top: 1px solid var(--border);
-  padding-top: 6px;
   text-align: left;
 }
 .jqr-sub-row {

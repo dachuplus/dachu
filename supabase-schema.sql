@@ -181,3 +181,24 @@ CREATE POLICY "Users read own portfolios" ON user_portfolios FOR SELECT TO authe
 CREATE POLICY "Users insert own portfolios" ON user_portfolios FOR INSERT TO authenticated WITH CHECK (auth.uid() = user_id);
 CREATE POLICY "Users update own portfolios" ON user_portfolios FOR UPDATE TO authenticated USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
 CREATE POLICY "Users delete own portfolios" ON user_portfolios FOR DELETE TO authenticated USING (auth.uid() = user_id);
+
+-- ============================================================
+-- 8. user_ai_models - 用户自建 AI 选基模型（AI 大 PK 模型管理）
+-- ============================================================
+CREATE TABLE IF NOT EXISTS public.user_ai_models (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id TEXT,                    -- 手机号或匿名ID（后续接登录）
+    model_name TEXT NOT NULL,        -- 模型名称（如 '我的GPT-4'）
+    model_provider TEXT NOT NULL,    -- 提供商（openai/deepseek/anthropic/custom）
+    api_endpoint TEXT,               -- API 端点URL
+    api_key_encrypted TEXT,          -- 加密存储的API Key
+    system_prompt TEXT DEFAULT '',   -- 系统提示词（如何选基金的指令）
+    is_active BOOLEAN DEFAULT true,
+    created_at TIMESTAMPTZ DEFAULT now(),
+    updated_at TIMESTAMPTZ DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_user_ai_models_user_id ON public.user_ai_models(user_id);
+
+-- 当前未启用 RLS：匿名(anon)用户可直接对自己创建的模型做增删改查（前端用 user_id 隔离）
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.user_ai_models TO anon;

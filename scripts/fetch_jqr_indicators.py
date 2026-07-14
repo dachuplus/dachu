@@ -211,6 +211,51 @@ def calc_fund_issuance():
     return heat, detail, today_s
 
 
+# ============ 4. 股债风险溢价 (equity_bond_gap) ============
+# 用 macro_history 同源的真实数据计算：盈利收益率(1/沪深300PE) − 10Y国债收益率(cn10y)。
+# cn10y 与 macro_history 表同源(均为 akshare bond_zh_us_rate)；沪深300 PE 取全市场滚动市盈率。
+def calc_equity_bond_gap():
+    import akshare as ak
+    # 沪深300 滚动市盈率历史
+    pe = ak.stock_index_pe_lg().sort_values('日期')
+    pe_map = {}
+    for _, r in pe.iterrows():
+        v = r['滚动市盈率']
+        if v == v and v and v > 0:
+            pe_map[str(r['日期'])[:10]] = float(v)
+    # 10Y 国债收益率（与 macro_history cn10y 同源）
+    bd = ak.bond_zh_us_rate().sort_values('日期')
+    cn_map = {}
+    for _, r in bd.iterrows():
+        v = r['中国国债收益率10年']
+        if v == v and v is not None:
+            cn_map[str(r['日期'])[:10]] = float(v)
+    # 逐日风险溢价 = 盈利收益率(1/PE) − 10Y国债收益率(%)，历史分位 -> 0~100
+    series = []
+    for d, pev in pe_map.items():
+        if d in cn_map:
+            series.append((d, 1.0 / pev * 100 - cn_map[d]))
+    if not series:
+        return None, {}, None
+    series.sort()
+    dates = [s[0] for s in series]
+    vals = [s[1] for s in series]
+    cur = vals[-1]
+    pct = pct_rank(vals, cur) or 50
+    e_yield = 1.0 / pe_map[dates[-1]] * 100
+    bond_yield = cn_map[dates[-1]]
+    detail = {
+        'e_yield': round(e_yield, 2),
+        'bond_yield': round(bond_yield, 2),
+        'gap': round(cur, 2),
+        'score': pct,
+        'history_min': round(min(vals), 2),
+        'history_max': round(max(vals), 2),
+        'count': len(vals),
+    }
+    return pct, detail, dates[-1]
+
+
 def main():
     print("=== 计算韭圈特色指标 ===")
     fg, fg_d, fg_date = calc_fear_greed()
@@ -227,6 +272,11 @@ def main():
     print(f"基金发行热度: {fi} ({fi_date})")
     if fi is not None:
         write_metric('fund_issuance', fi_date, fi, fi_d)
+
+    ebg, ebg_d, ebg_date = calc_equity_bond_gap()
+    print(f"股债风险溢价: {ebg} ({ebg_date})")
+    if ebg is not None:
+        write_metric('equity_bond_gap', ebg_date, ebg, ebg_d)
     print("=== 完成 ===")
 
 

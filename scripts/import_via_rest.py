@@ -596,6 +596,7 @@ else:
 # 6. 验证
 result = pg(f'SELECT count(*) as cnt FROM {TARGET_TABLE}')
 print(f'  验证: {TARGET_TABLE} 有 {result[0]["cnt"]} 条', flush=True)
+print(f'ROWS_AFFECTED={result[0]["cnt"]}', flush=True)
 result = pg(f"SELECT t0, count(*) as cnt FROM {TARGET_TABLE} WHERE t0 IS NOT NULL GROUP BY t0 ORDER BY cnt DESC")
 print('  t0 分布:', flush=True)
 for row in result:

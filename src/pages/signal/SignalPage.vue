@@ -59,9 +59,11 @@
             <span class="ov-pct">{{ c.pct }}%</span>
           </div>
           <div class="ov-signal" :class="c.signal">{{ c.signalLabel }}</div>
-          <div class="ov-signal-label" :class="adviceClass(c.advice)">信号：{{ c.adviceLabel }}</div>
-          <div class="ov-benchmark" v-if="c.benchmark">统计基准：{{ c.benchmark }}</div>
-          <div class="ov-card-hint" v-if="c.hint">{{ c.hint }}</div>
+          <div class="ov-notes">
+            <div class="ov-signal-label" :class="adviceClass(c.advice)">信号：{{ c.adviceLabel }}</div>
+            <div class="ov-benchmark" v-if="c.benchmark">统计基准：{{ c.benchmark }}</div>
+            <div class="ov-card-hint" v-if="c.hint">{{ c.hint }}</div>
+          </div>
         </div>
       </div>
       <p class="ov-hint">信号基于公开宏观与市场数据计算，仅供参考研究，不构成投资建议。</p>
@@ -1058,6 +1060,16 @@ function drawMiniHistoryChart(el, rawData, label, isPercent = true) {
 }
 
 // ===== 仪表盘 =====
+// 仪表盘区间配色（与 axisLine 完全一致）：−1~1 分为 4 个信号区间
+// axisLine 用 range 比例（0.25/0.5/0.75/1），对应数值 −0.5 / 0 / 0.5 / 1
+function gaugeZoneColorOf(dv) {
+  if (dv == null || Number.isNaN(dv)) return null
+  if (dv <= -0.5) return '#00703c'   // 区间 [−1, −0.5] 绿 = 机会
+  if (dv <= 0) return '#f47738'      // 区间 (−0.5, 0] 橙 = 偏谨慎
+  if (dv <= 0.5) return '#b1b4b6'    // 区间 (0, 0.5] 灰 = 中性
+  return '#d4351c'                   // 区间 (0.5, 1] 红 = 风险
+}
+
 function drawGauge() {
   const el = gaugeEl.value
   if (!el) return
@@ -1093,21 +1105,17 @@ function drawGauge() {
         formatter: '{value}',
         fontSize: 36, fontWeight: 700,
         offsetCenter: [0, '65%'],
-        color: val > 0 ? '#00703c' : '#d4351c'
+        color: gaugeZoneColorOf(val) || '#00703c'
       },
       data: [{ value: +val.toFixed(3), name: '隐含夏普' }]
     }]
   })
 }
 
-// 仪表盘下方说明文字颜色：与仪表盘 axisLine 区间颜色一致
+// 仪表盘下方说明文字颜色：与仪表盘 axisLine 区间颜色一致（复用 gaugeZoneColorOf）
 const gaugeZoneColor = computed(() => {
   const dv = dashData.value?.value
-  if (dv == null || Number.isNaN(dv)) return 'var(--text-secondary)'
-  if (dv <= -0.5) return '#00703c'   // 区间 [−1, −0.5] 绿
-  if (dv <= 0) return '#f47738'      // 区间 (−0.5, 0] 橙
-  if (dv <= 0.5) return '#b1b4b6'    // 区间 (0, 0.5] 灰
-  return '#d4351c'                   // 区间 (0.5, 1] 红
+  return gaugeZoneColorOf(dv) || 'var(--text-secondary)'
 })
 
 // Vue ref 绑定到图表容器（Vue3 不会把 template ref 渲染成 DOM 属性，必须用 ref 变量）
@@ -1917,10 +1925,19 @@ function handleResize() {
 .ov-banner-title { font-size: 14px; font-weight: 700; opacity: 0.9; margin-bottom: 6px; }
 .ov-banner-text { font-size: 18px; font-weight: 700; margin: 0; line-height: 1.5; }
 .ov-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--space-md); margin-bottom: var(--space-xl); }
-.ov-card { border: 1px solid var(--border); padding: var(--space-md); background: #fff; }
+/* 卡片：上部分（标题/大数值/信号标签）居中靠上，下部分说明文字统一靠底靠左 */
+.ov-card {
+  border: 1px solid var(--border);
+  padding: var(--space-md);
+  background: #fff;
+  display: flex;
+  flex-direction: column;
+  text-align: center;
+  min-height: 168px;
+}
 .ov-card-name { font-size: 13px; color: var(--text-secondary); font-weight: 700; }
 .ov-card-value { font-size: 24px; font-weight: 700; color: var(--text-primary); margin: 4px 0 8px; }
-.ov-bar-wrap { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; }
+.ov-bar-wrap { display: flex; align-items: center; justify-content: center; gap: 6px; margin-bottom: 6px; }
 .ov-bar { flex: 1; height: 8px; background: #f3f2f1; }
 .ov-fill { height: 100%; }
 .ov-pct { font-size: 12px; color: var(--text-secondary); width: 38px; text-align: right; }
@@ -1928,7 +1945,14 @@ function handleResize() {
 .ov-signal.hot { color: var(--color-up); }
 .ov-signal.cold { color: var(--color-down); }
 .ov-signal.neutral { color: var(--text-secondary); }
-.ov-signal-label { font-size: 14px; font-weight: 700; }
+/* 说明文字组：推到卡片底部、靠左显示，保证 6 张卡片底部对齐 */
+.ov-notes {
+  margin-top: auto;
+  text-align: left;
+  border-top: 1px solid var(--border);
+  padding-top: var(--space-sm);
+}
+.ov-signal-label { font-size: 14px; font-weight: 700; text-align: left; }
 .ov-hint { font-size: 12px; color: var(--text-secondary); }
 
 @media (max-width: 768px) {
@@ -1958,7 +1982,7 @@ function handleResize() {
 .market-notice__icon { display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px; border-radius: 50%; background: var(--brand); color: #fff; font-size: 12px; font-style: normal; font-weight: 700; flex: 0 0 auto; }
 
 /* 信号总览卡片注释（问号悬浮 + 统计基准） */
-.ov-card-head { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
+.ov-card-head { display: flex; align-items: center; justify-content: center; gap: 6px; }
 .ov-help { display: inline-flex; align-items: center; justify-content: center; width: 16px; height: 16px; border-radius: 50%; border: 1px solid var(--text-secondary); color: var(--text-secondary); font-size: 11px; font-weight: 700; cursor: help; flex: 0 0 auto; }
 .ov-benchmark { font-size: 11px; color: var(--text-muted); margin-top: 4px; line-height: 1.4; }
 .ov-card-hint { font-size: 11px; color: #b95900; margin-top: 4px; line-height: 1.4; }

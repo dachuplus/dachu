@@ -131,6 +131,7 @@ def main():
     result = mgmt_query('SELECT count(*) AS c FROM public.fund_tags')
     cnt = result[0]['c'] if result else 0
     print(f'\n[DONE] fund_tags 重建完成: {cnt} 条记录')
+    print(f'ROWS_AFFECTED={cnt}')
 
     # 抽查中药
     zy = mgmt_query("SELECT id, name, tag_type FROM public.fund_tags WHERE name = '中药'")

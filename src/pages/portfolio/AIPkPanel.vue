@@ -22,10 +22,16 @@
     <!-- 模型阵容 -->
     <div class="aipk-section-title aipk-section-title-row">
       <span>模型阵容（各 5 只 · 等权 20%）</span>
-      <button class="aipk-share-btn" @click="openShare('lineup')" title="分享到朋友圈">
+      <div class="aipk-section-actions">
+        <button class="aipk-manage-btn" @click="openManage" title="管理自建模型">
+          <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><path fill="currentColor" d="M19.14 12.94a7.49 7.49 0 0 0 .05-.94 7.49 7.49 0 0 0-.05-.94l2.03-1.58a.5.5 0 0 0 .12-.64l-1.92-3.32a.5.5 0 0 0-.61-.22l-2.39.96a7.3 7.3 0 0 0-1.62-.94l-.36-2.54a.5.5 0 0 0-.5-.42h-3.84a.5.5 0 0 0-.5.42l-.36 2.54c-.59.24-1.13.56-1.62.94l-2.39-.96a.5.5 0 0 0-.61.22L2.7 8.84a.5.5 0 0 0 .12.64l2.03 1.58c-.03.31-.05.62-.05.94s.02.63.05.94l-2.03 1.58a.5.5 0 0 0-.12.64l1.92 3.32c.14.24.42.34.61.22l2.39-.96c.49.38 1.03.7 1.62.94l.36 2.54c.04.24.25.42.5.42h3.84c.25 0 .46-.18.5-.42l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.19.12.47.02.61-.22l1.92-3.32a.5.5 0 0 0-.12-.64l-2.03-1.58ZM12 15.5A3.5 3.5 0 1 1 12 8.5a3.5 3.5 0 0 1 0 7Z"/></svg>
+          模型管理
+        </button>
+        <button class="aipk-share-btn" @click="openShare('lineup')" title="分享到朋友圈">
         <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><path fill="currentColor" d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81 1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9c-1.66 0-3 1.34-3 3s1.34 3 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.16c-.05.21-.08.43-.08.65 0 1.61 1.31 2.92 2.92 2.92s2.92-1.31 2.92-2.92-1.31-2.92-2.92-2.92z"/></svg>
         分享
       </button>
+      </div>
     </div>
     <div class="aipk-models">
       <div class="aipk-model" v-for="m in orderedModels" :key="m.id" :style="{ borderTopColor: m.color }">
@@ -34,7 +40,7 @@
           <span class="aipk-model-name">{{ m.name }}</span>
           <span class="aipk-model-short" :style="{ color: m.color }">{{ m.name_short }}</span>
           <span class="aipk-model-mode" :class="m.mode === 'real' ? 'is-real' : m.mode === 'pending' ? 'is-pending' : 'is-rule'">
-            {{ m.mode === 'real' ? '真实' : m.mode === 'pending' ? '待接入' : '规则' }}
+            {{ m.is_custom ? '自建' : (m.mode === 'real' ? '真实' : m.mode === 'pending' ? '待接入' : '规则') }}
           </span>
           <span v-if="m.api_provider === 'qwen'" class="aipk-ds-badge">百炼</span>
         </div>
@@ -194,11 +200,127 @@
         </div>
       </template>
     </Teleport>
+
+    <!-- 模型管理 弹窗 -->
+    <Teleport to="body">
+      <template v-if="showManage">
+        <div class="mask" @click="closeManage"></div>
+        <div class="aipk-manage-panel">
+          <div class="aipk-manage-header">
+            <span class="aipk-manage-title">⚙️ 模型管理</span>
+            <span class="aipk-manage-close" @click="closeManage">&#x2715;</span>
+          </div>
+
+          <div class="aipk-manage-body">
+            <!-- 已有模型列表 -->
+            <div class="aipk-manage-sub">已有模型（{{ manageModels.length }}）</div>
+            <div class="aipk-manage-list">
+              <div
+                v-for="m in manageModels" :key="m.id"
+                class="aipk-manage-item"
+                :class="{ 'is-system': !m.is_custom, 'is-off': m.is_custom && !m.is_active }"
+              >
+                <div class="aipk-manage-item-main">
+                  <span class="aipk-manage-item-name">{{ m.name }}</span>
+                  <span class="aipk-manage-item-provider">{{ providerLabel(m.model_provider || m.api_provider) }}</span>
+                  <span v-if="!m.is_custom" class="aipk-manage-tag aipk-manage-tag-sys">系统</span>
+                  <span v-else-if="m.is_active" class="aipk-manage-tag aipk-manage-tag-on">已启用</span>
+                  <span v-else class="aipk-manage-tag aipk-manage-tag-off">已禁用</span>
+                </div>
+                <div class="aipk-manage-item-actions" v-if="m.is_custom">
+                  <button class="aipk-manage-mini" @click="editModel(m)">编辑</button>
+                  <button class="aipk-manage-mini" @click="toggleModelActive(m)">{{ m.is_active ? '禁用' : '启用' }}</button>
+                  <button class="aipk-manage-mini aipk-manage-mini-danger" @click="deleteModel(m)">删除</button>
+                </div>
+                <div v-else class="aipk-manage-item-actions aipk-manage-item-readonly">系统预设 · 不可编辑</div>
+              </div>
+              <div class="aipk-manage-empty" v-if="!manageModels.length">暂无模型</div>
+            </div>
+
+            <!-- 新增 / 编辑 表单 -->
+            <div class="aipk-manage-sub">{{ editingId ? '编辑模型' : '新增自建模型' }}</div>
+            <form class="aipk-manage-form" @submit.prevent="saveModel">
+              <label class="aipk-field">
+                <span class="aipk-field-label">模型名称 <i class="aipk-req">*</i></span>
+                <input
+                  class="aipk-input" type="text" v-model.trim="form.model_name"
+                  placeholder="如：我的GPT-4" maxlength="40"
+                />
+                <span class="aipk-field-err" v-if="errors.model_name">{{ errors.model_name }}</span>
+              </label>
+
+              <label class="aipk-field">
+                <span class="aipk-field-label">提供商 <i class="aipk-req">*</i></span>
+                <select class="aipk-input" v-model="form.model_provider">
+                  <option value="openai">OpenAI</option>
+                  <option value="deepseek">DeepSeek</option>
+                  <option value="anthropic">Anthropic</option>
+                  <option value="custom">自定义</option>
+                </select>
+              </label>
+
+              <label class="aipk-field">
+                <span class="aipk-field-label">
+                  API Key <i class="aipk-req">*</i>
+                  <span class="aipk-field-hint" v-if="editingId">（留空则不修改）</span>
+                </span>
+                <div class="aipk-input-wrap">
+                  <input
+                    class="aipk-input aipk-input-pw" :type="showKey ? 'text' : 'password'"
+                    v-model.trim="form.api_key" :placeholder="editingId ? '••••••••（留空保持不变）' : 'sk-... 或 ark-...'"
+                    autocomplete="off"
+                  />
+                  <button type="button" class="aipk-pw-toggle" @click="showKey = !showKey">
+                    {{ showKey ? '隐藏' : '显示' }}
+                  </button>
+                </div>
+                <span class="aipk-field-err" v-if="errors.api_key">{{ errors.api_key }}</span>
+              </label>
+
+              <label class="aipk-field">
+                <span class="aipk-field-label">API 端点 URL <span class="aipk-field-hint">（可选，有默认值）</span></span>
+                <input
+                  class="aipk-input" type="text" v-model.trim="form.api_endpoint"
+                  :placeholder="endpointPlaceholder"
+                />
+              </label>
+
+              <label class="aipk-field">
+                <span class="aipk-field-label">选基策略提示词 / Prompt</span>
+                <textarea
+                  class="aipk-input aipk-textarea" v-model="form.system_prompt" rows="5"
+                  placeholder="系统提示词，用于指导模型如何选基金"
+                ></textarea>
+                <span class="aipk-field-hint">为不同模型设置不同的选基策略，例如风险偏好、品类侧重等。</span>
+              </label>
+
+              <div class="aipk-manage-form-actions">
+                <button type="submit" class="aipk-manage-save-btn" :disabled="saving">
+                  {{ saving ? '保存中...' : (editingId ? '保存修改' : '保存模型') }}
+                </button>
+                <button type="button" class="aipk-manage-save-btn aipk-manage-save-btn-ghost" @click="resetForm" v-if="editingId">
+                  取消编辑
+                </button>
+                <button type="button" class="aipk-manage-save-btn aipk-manage-save-btn-ghost" @click="resetForm" v-else>
+                  重置
+                </button>
+              </div>
+              <div class="aipk-manage-msg" v-if="formMsg" :class="formMsgOk ? 'is-ok' : 'is-err'">{{ formMsg }}</div>
+            </form>
+
+            <p class="aipk-manage-note">
+              说明：自建模型会出现在「模型阵容」中。API Key 不会在列表中明文展示，仅本地加密存储于服务端。
+              当前为匿名使用，模型与你的浏览器标识（{{ userId }}）绑定。
+            </p>
+          </div>
+        </div>
+      </template>
+    </Teleport>
   </div>
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onBeforeUnmount, watch, nextTick } from 'vue'
+import { ref, reactive, computed, onMounted, onBeforeUnmount, watch, nextTick } from 'vue'
 import { supabase } from '../../api/supabase'
 import echarts from '../../utils/echarts-setup'
 import { BarChart, LineChart } from 'echarts/charts'
@@ -221,6 +343,50 @@ const SHARE_SECTION_TITLE = {
 const shareSectionTitle = computed(() => SHARE_SECTION_TITLE[shareSection.value] || '')
 
 const MODEL_ORDER = ['ds', 'doubao', 'qwen', 'wenxin', 'zhipu', 'kimi', 'minimax']
+
+// ========== 模型管理（用户自建 AI 选基模型） ==========
+const PROVIDER_LABELS = {
+  openai: 'OpenAI',
+  deepseek: 'DeepSeek',
+  anthropic: 'Anthropic',
+  custom: '自定义',
+}
+const PROVIDER_ENDPOINTS = {
+  openai: 'https://api.openai.com/v1/chat/completions',
+  deepseek: 'https://api.deepseek.com/v1/chat/completions',
+  anthropic: 'https://api.anthropic.com/v1/messages',
+  custom: '',
+}
+const DEFAULT_SYSTEM_PROMPT =
+  '你是一个专业的基金分析师。请根据以下指标（收益、最大回撤、夏普比率、基金规模、成立年限等）综合评估基金，' +
+  '挑选 5 只基金并给出每只的选基理由，每只建议等权配置（20%）。' +
+  '只基于给出的真实数据做判断，不要引用任何表外或网络信息，不编造、不模拟。'
+
+// 匿名用户标识（localStorage），后续接登录后可替换为手机号/用户ID
+const USER_ID_KEY = 'allfund_anon_uid'
+function getUserId() {
+  let id = ''
+  try { id = localStorage.getItem(USER_ID_KEY) || '' } catch (e) {}
+  if (!id) {
+    id = 'anon_' + (crypto?.randomUUID?.() || Date.now() + '-' + Math.random().toString(16).slice(2))
+    try { localStorage.setItem(USER_ID_KEY, id) } catch (e) {}
+  }
+  return id
+}
+const userId = ref(getUserId())
+
+// API Key 轻量混淆存储（非明文入库；真实加密需后端 KMS/密钥管理）
+function obfuscate(str) {
+  if (!str) return ''
+  try { return 'obf:' + btoa(unescape(encodeURIComponent('af#' + str))) } catch (e) { return '' }
+}
+function deobfuscate(str) {
+  if (!str || !str.startsWith('obf:')) return ''
+  try { return decodeURIComponent(escape(atob(str.slice(4)))).replace(/^af#/, '') } catch (e) { return '' }
+}
+function providerLabel(p) {
+  return PROVIDER_LABELS[p] || (p ? String(p).toUpperCase() : '未知')
+}
 
 const models = ref([])
 const picksMap = ref({})      // { model_id: { period_month, picks:[{code,name,weight}] } }
@@ -256,8 +422,14 @@ let chartInstance = null
 const orderedModels = computed(() => {
   const map = {}
   models.value.forEach(m => { map[m.id] = m })
-  return MODEL_ORDER.map(id => map[id]).filter(Boolean)
+  const presets = MODEL_ORDER.map(id => map[id]).filter(Boolean)
+  // 用户自建且启用中的模型，自动出现在 PK 阵容中
+  const custom = models.value.filter(m => m.is_custom && m.is_active)
+  return [...presets, ...custom]
 })
+
+// 模型管理面板中展示的模型（系统预设 + 用户自建，含已禁用）
+const manageModels = computed(() => models.value)
 
 // ---- 收益对比表排序 ----
 const tableSort = ref({ key: null, dir: 'desc' }) // dir: 'asc' | 'desc'
@@ -359,7 +531,9 @@ async function loadAll() {
   loading.value = true
   try {
     const { data: m } = await supabase.from('ai_pk_models').select('*').eq('enabled', true)
-    models.value = m || []
+    models.value = (m || []).map(x => ({ ...x, is_custom: false }))
+    // 合并用户自建模型（出现在「模型阵容」中）
+    await loadUserModels()
     const { data: p } = await supabase.from('ai_pk_picks').select('*').order('period_month', { ascending: false })
     const byModel = {}
     for (const row of (p || [])) {
@@ -771,6 +945,180 @@ function saveShareImage() {
   document.body.removeChild(a)
 }
 
+// ========== 模型管理：状态 ==========
+const showManage = ref(false)
+const showKey = ref(false)
+const saving = ref(false)
+const editingId = ref(null)
+const formMsg = ref('')
+const formMsgOk = ref(true)
+const userModels = ref([])   // 用户自建模型原始行（来自 user_ai_models）
+
+const form = reactive({
+  model_name: '',
+  model_provider: 'custom',
+  api_key: '',
+  api_endpoint: '',
+  system_prompt: DEFAULT_SYSTEM_PROMPT,
+})
+const errors = reactive({ model_name: '', api_key: '' })
+
+const endpointPlaceholder = computed(
+  () => PROVIDER_ENDPOINTS[form.model_provider] || 'https://your-api.example.com/v1/chat/completions'
+)
+
+function openManage() { showManage.value = true }
+function closeManage() { showManage.value = false }
+
+function resetForm() {
+  editingId.value = null
+  form.model_name = ''
+  form.model_provider = 'custom'
+  form.api_key = ''
+  form.api_endpoint = ''
+  form.system_prompt = DEFAULT_SYSTEM_PROMPT
+  errors.model_name = ''
+  errors.api_key = ''
+  formMsg.value = ''
+}
+
+function validate() {
+  errors.model_name = ''
+  errors.api_key = ''
+  let ok = true
+  if (!form.model_name) {
+    errors.model_name = '请填写模型名称'
+    ok = false
+  } else if (form.model_name.length > 40) {
+    errors.model_name = '名称过长（≤40 字）'
+    ok = false
+  }
+  // 新增时 API Key 必填；编辑时允许留空（表示不修改）
+  if (!editingId.value) {
+    if (!form.api_key) { errors.api_key = '请填写 API Key'; ok = false }
+    else if (form.api_key.length < 8) { errors.api_key = 'API Key 格式不正确（至少 8 位）'; ok = false }
+  } else if (form.api_key && form.api_key.length < 8) {
+    errors.api_key = 'API Key 格式不正确（至少 8 位）'; ok = false
+  }
+  return ok
+}
+
+function rowToModel(row) {
+  return {
+    id: row.id,
+    name: row.model_name,
+    name_short: (row.model_name || '').slice(0, 2),
+    color: '#59788a',
+    mode: 'rule',
+    api_provider: row.model_provider,
+    model_provider: row.model_provider,
+    endpoint: row.api_endpoint,
+    system_prompt: row.system_prompt,
+    is_active: row.is_active,
+    is_custom: true,
+  }
+}
+
+async function loadUserModels() {
+  if (!supabase) return
+  try {
+    const { data } = await supabase
+      .from('user_ai_models')
+      .select('*')
+      .eq('user_id', userId.value)
+      .order('created_at', { ascending: true })
+    userModels.value = data || []
+    const custom = userModels.value.map(rowToModel)
+    const presets = models.value.filter(x => !x.is_custom)
+    models.value = [...presets, ...custom]
+  } catch (e) {
+    console.error('[AIPkPanel] loadUserModels', e)
+  }
+}
+
+async function saveModel() {
+  if (!validate()) return
+  if (!supabase) {
+    formMsg.value = 'Supabase 未配置，无法保存'
+    formMsgOk.value = false
+    return
+  }
+  saving.value = true
+  formMsg.value = ''
+  const wasEdit = !!editingId.value
+  try {
+    const payload = {
+      user_id: userId.value,
+      model_name: form.model_name,
+      model_provider: form.model_provider,
+      api_endpoint: form.api_endpoint || PROVIDER_ENDPOINTS[form.model_provider] || null,
+      system_prompt: form.system_prompt || '',
+      updated_at: new Date().toISOString(),
+    }
+    // 仅当填写了 API Key 才更新（编辑时留空 = 不修改）
+    if (form.api_key) payload.api_key_encrypted = obfuscate(form.api_key)
+
+    if (wasEdit) {
+      await supabase.from('user_ai_models').update(payload).eq('id', editingId.value).eq('user_id', userId.value)
+    } else {
+      await supabase.from('user_ai_models').insert(payload)
+    }
+    await loadUserModels()
+    resetForm()
+    formMsg.value = wasEdit ? '已保存修改' : '已添加模型，已出现在「模型阵容」'
+    formMsgOk.value = true
+  } catch (e) {
+    console.error('[AIPkPanel] saveModel', e)
+    formMsg.value = '保存失败：' + (e?.message || e)
+    formMsgOk.value = false
+  } finally {
+    saving.value = false
+  }
+}
+
+function editModel(m) {
+  editingId.value = m.id
+  form.model_name = m.name
+  form.model_provider = m.model_provider || 'custom'
+  form.api_key = ''   // 不回显明文
+  form.api_endpoint = m.endpoint || PROVIDER_ENDPOINTS[form.model_provider] || ''
+  form.system_prompt = m.system_prompt || DEFAULT_SYSTEM_PROMPT
+  errors.model_name = ''
+  errors.api_key = ''
+  formMsg.value = ''
+}
+
+async function deleteModel(m) {
+  if (typeof window !== 'undefined' && !window.confirm(`确认删除模型「${m.name}」？此操作不可恢复。`)) return
+  if (!supabase) return
+  try {
+    await supabase.from('user_ai_models').delete().eq('id', m.id).eq('user_id', userId.value)
+    if (editingId.value === m.id) resetForm()
+    await loadUserModels()
+    formMsg.value = '已删除模型'
+    formMsgOk.value = true
+  } catch (e) {
+    console.error('[AIPkPanel] deleteModel', e)
+    formMsg.value = '删除失败：' + (e?.message || e)
+    formMsgOk.value = false
+  }
+}
+
+async function toggleModelActive(m) {
+  if (!supabase) return
+  try {
+    const next = !m.is_active
+    await supabase
+      .from('user_ai_models')
+      .update({ is_active: next, updated_at: new Date().toISOString() })
+      .eq('id', m.id)
+      .eq('user_id', userId.value)
+    await loadUserModels()
+  } catch (e) {
+    console.error('[AIPkPanel] toggleModelActive', e)
+  }
+}
+
 </script>
 
 <style scoped>
@@ -963,4 +1311,158 @@ function saveShareImage() {
   margin-top: var(--space-sm);
 }
 .aipk-share-save-btn-ghost { background: #fff; color: #1d70b8; border: 1px solid #1d70b8; }
+
+/* ===== 模型管理按钮（与分享按钮同风格，gov.uk） ===== */
+.aipk-section-actions { display: flex; align-items: center; gap: var(--space-sm); flex-wrap: wrap; margin-left: auto; }
+.aipk-manage-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 13px;
+  font-weight: 700;
+  color: #1d70b8;
+  background: #fff;
+  border: 1px solid #1d70b8;
+  border-radius: 2px;
+  padding: 5px 12px;
+  cursor: pointer;
+  flex: none;
+}
+.aipk-manage-btn svg { color: #1d70b8; }
+.aipk-manage-btn:hover { background: #1d70b8; color: #fff; }
+.aipk-manage-btn:hover svg { color: #fff; }
+
+/* ===== 模型管理弹窗 ===== */
+.aipk-manage-panel {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: calc(100% - 32px);
+  max-width: 560px;
+  background: #ffffff;
+  border: 1px solid var(--border);
+  z-index: 102;
+  display: flex;
+  flex-direction: column;
+  max-height: 92vh;
+}
+.aipk-manage-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--space-sm) var(--space-lg);
+  border-bottom: 1px solid var(--border);
+  background: #f3f2f1;
+  flex-shrink: 0;
+}
+.aipk-manage-title { font-size: 16px; font-weight: 700; color: var(--text-primary); }
+.aipk-manage-close { font-size: 24px; color: var(--text-primary); cursor: pointer; padding: 4px; line-height: 1; flex-shrink: 0; }
+.aipk-manage-body { padding: var(--space-md) var(--space-lg); overflow-y: auto; }
+
+.aipk-manage-sub { font-size: 15px; font-weight: 700; color: #1d70b8; margin: var(--space-md) 0 var(--space-sm); }
+.aipk-manage-sub:first-child { margin-top: 0; }
+
+/* 模型列表 */
+.aipk-manage-list { display: flex; flex-direction: column; gap: var(--space-xs); margin-bottom: var(--space-md); }
+.aipk-manage-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-md);
+  padding: var(--space-sm) var(--space-md);
+  border: 1px solid var(--border);
+  background: #fff;
+  flex-wrap: wrap;
+}
+.aipk-manage-item.is-off { background: #fafafa; opacity: 0.75; }
+.aipk-manage-item-main { display: flex; align-items: center; gap: var(--space-sm); flex-wrap: wrap; }
+.aipk-manage-item-name { font-size: 15px; font-weight: 700; color: var(--text-primary); }
+.aipk-manage-item-provider { font-size: 12px; font-weight: 700; color: #505a66; background: #f3f2f1; padding: 1px 8px; }
+.aipk-manage-tag { font-size: 12px; font-weight: 700; padding: 1px 8px; }
+.aipk-manage-tag-sys { color: #505a66; background: #f3f2f1; border: 1px solid var(--border); }
+.aipk-manage-tag-on { color: #fff; background: #1d70b8; }
+.aipk-manage-tag-off { color: #943c0c; background: #fff4e0; border: 1px solid #f0c89a; }
+.aipk-manage-item-actions { display: flex; gap: var(--space-xs); flex-wrap: wrap; }
+.aipk-manage-item-readonly { font-size: 12px; color: var(--text-secondary); }
+.aipk-manage-mini {
+  font-size: 12px;
+  font-weight: 700;
+  color: #1d70b8;
+  background: #fff;
+  border: 1px solid #1d70b8;
+  border-radius: 2px;
+  padding: 3px 10px;
+  cursor: pointer;
+}
+.aipk-manage-mini:hover { background: #1d70b8; color: #fff; }
+.aipk-manage-mini-danger { color: #d4351c; border-color: #d4351c; }
+.aipk-manage-mini-danger:hover { background: #d4351c; color: #fff; }
+.aipk-manage-empty { font-size: 13px; color: var(--text-secondary); padding: var(--space-sm) 0; }
+
+/* 表单 */
+.aipk-manage-form { display: flex; flex-direction: column; gap: var(--space-md); }
+.aipk-field { display: flex; flex-direction: column; gap: 4px; }
+.aipk-field-label { font-size: 14px; font-weight: 700; color: var(--text-primary); }
+.aipk-req { color: #d4351c; font-style: normal; }
+.aipk-field-hint { font-size: 12px; font-weight: 400; color: var(--text-secondary); }
+.aipk-input {
+  font-size: 14px;
+  color: var(--text-primary);
+  background: #fff;
+  border: 1px solid #505a66;
+  border-radius: 0;
+  padding: 8px 10px;
+  width: 100%;
+  font-family: inherit;
+}
+.aipk-input:focus { outline: 3px solid #ffdd00; outline-offset: 0; border-color: #1d70b8; }
+.aipk-textarea { resize: vertical; line-height: 1.6; }
+.aipk-input-wrap { display: flex; gap: var(--space-xs); align-items: stretch; }
+.aipk-input-pw { flex: 1; }
+.aipk-pw-toggle {
+  font-size: 12px;
+  font-weight: 700;
+  color: #1d70b8;
+  background: #fff;
+  border: 1px solid #1d70b8;
+  border-radius: 2px;
+  padding: 0 12px;
+  cursor: pointer;
+  flex: none;
+}
+.aipk-pw-toggle:hover { background: #1d70b8; color: #fff; }
+.aipk-field-err { font-size: 12px; color: #d4351c; font-weight: 700; }
+
+.aipk-manage-form-actions { display: flex; gap: var(--space-sm); flex-wrap: wrap; margin-top: var(--space-xs); }
+.aipk-manage-save-btn {
+  font-size: 15px;
+  font-weight: 700;
+  color: #fff;
+  background: #1d70b8;
+  border: 1px solid #1d70b8;
+  border-radius: 2px;
+  padding: 9px 18px;
+  cursor: pointer;
+}
+.aipk-manage-save-btn:disabled { opacity: 0.6; cursor: default; }
+.aipk-manage-save-btn-ghost { background: #fff; color: #1d70b8; }
+.aipk-manage-save-btn-ghost:hover { background: #1d70b8; color: #fff; }
+
+.aipk-manage-msg { font-size: 13px; font-weight: 700; margin-top: var(--space-sm); }
+.aipk-manage-msg.is-ok { color: #00703c; }
+.aipk-manage-msg.is-err { color: #d4351c; }
+
+.aipk-manage-note {
+  font-size: 12px;
+  color: var(--text-secondary);
+  line-height: 1.7;
+  margin-top: var(--space-lg);
+  border-top: 1px solid var(--border);
+  padding-top: var(--space-md);
+}
+
+@media (max-width: 768px) {
+  .aipk-section-actions { width: 100%; margin-left: 0; justify-content: flex-end; }
+}
 </style>

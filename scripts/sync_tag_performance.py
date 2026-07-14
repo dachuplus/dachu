@@ -173,13 +173,23 @@ def _push2_get(path, tries=4):
     return {}
 
 
-def fetch_board_flows(board_type):
-    """拉取某类板块（3=概念, 2=行业）全量资金流，返回 {板块名: (净流入元, 占比%)}"""
+def fetch_board_flows_multi_period(board_type):
+    """拉取某类板块（3=概念, 2=行业）今日/近5日/近10日主力净流入。
+
+    返回 {板块名: (今日净流入元, 今日占比%, 近5日净流入元, 近10日净流入元)}。
+
+    字段映射（来源：东财板块资金流 bkzj 页面 /newstatic/js/bkzj/list.js 的
+    period->fid 映射：今日=f62，5日=f164，10日=f174）：
+      f62  = 当日主力净流入净额(元)
+      f164 = 近5日主力净流入净额(元)
+      f174 = 近10日主力净流入净额(元)
+      f184 = 当日主力净流入净占比(%)
+    """
     out = {}
     for pn in range(1, 9):
         path = (
-            f'/api/qt/clist/get?fid=f62&po=1&pz=100&pn={pn}&np=1'
-            f'&fs=m:90+t:{board_type}&fields=f12,f14,f62,f184'
+            f'/api/qt/clist/get?fid=f62&po=1&pz=100&pn={pn}&np=1&fltt=2&invt=2'
+            f'&fs=m:90+t:{board_type}&fields=f12,f14,f62,f184,f164,f174'
         )
         j = _push2_get(path)
         diff = (j.get('data') or {}).get('diff') or []
@@ -189,33 +199,35 @@ def fetch_board_flows(board_type):
             name = (it.get('f14') or '').strip()
             if not name:
                 continue
-            f62 = it.get('f62')
-            f184 = it.get('f184')
-            # 东财偶尔返回 '-' 占位
-            net = to_float(f62)
-            pct = to_float(f184)
-            out[name] = (net, pct)
+            net = to_float(it.get('f62'))      # 今日主力净流入(元)
+            pct = to_float(it.get('f184'))     # 今日主力净占比(%)
+            net_5d = to_float(it.get('f164'))  # 近5日主力净流入(元)
+            net_10d = to_float(it.get('f174')) # 近10日主力净流入(元)
+            out[name] = (net, pct, net_5d, net_10d)
         time.sleep(0.8)
     return out
 
 
 def fetch_all_board_flows():
-    """合并概念+行业板块资金流，返回 {板块名: (净流入亿元, 占比%)}"""
-    print('\n[STEP 2b] 拉取东财板块资金流（主力净流入）...')
+    """合并概念+行业板块资金流（今日/近5日/近10日），
+    返回 {板块名: (今日亿元, 占比%, 近5日亿元, 近10日亿元)}"""
+    print('\n[STEP 2b] 拉取东财板块资金流（今日/近5日/近10日主力净流入）...')
     flows = {}
     try:
-        industry = fetch_board_flows(2)
+        industry = fetch_board_flows_multi_period(2)
         time.sleep(1)
-        concept = fetch_board_flows(3)
+        concept = fetch_board_flows_multi_period(3)
     except Exception as e:
         print(f'  [WARN] 板块资金流拉取异常: {e}')
         return {}
     merged = {**industry, **concept}  # 概念优先覆盖同名
-    for name, (net, pct) in merged.items():
-        # net 单位元 -> 亿元，保留 2 位；pct 东财返回已是百分数
+    for name, (net, pct, net5, net10) in merged.items():
+        # net 单位元 -> 亿元，保留 4 位；pct 东财返回已是百分数
         flows[name] = (
             round(net / 1e8, 4) if net is not None else None,
             round(pct, 2) if pct is not None else None,
+            round(net5 / 1e8, 4) if net5 is not None else None,
+            round(net10 / 1e8, 4) if net10 is not None else None,
         )
     print(f'  [INFO] 资金流板块数: 行业 {len(industry)} + 概念 {len(concept)} = {len(merged)} 个')
     return flows
@@ -284,8 +296,8 @@ def main():
     if flows:
         # 归一化索引：东财 push2 板块名常带 '概念/板块' 后缀，去掉后与 ZTJJ 标签名对齐
         flows_norm = {}
-        for nm, (net, pct) in flows.items():
-            flows_norm.setdefault(norm_board_name(nm), (net, pct))
+        for nm, (net, pct, net5, net10) in flows.items():
+            flows_norm.setdefault(norm_board_name(nm), (net, pct, net5, net10))
         flow_ok = 0
         for row in results:
             key = norm_board_name(row['tag_name'])
@@ -293,16 +305,22 @@ def main():
             if fv:
                 row['net_inflow'] = fv[0]
                 row['net_inflow_pct'] = fv[1]
+                row['net_inflow_5d'] = fv[2]
+                row['net_inflow_10d'] = fv[3]
                 flow_ok += 1
             else:
                 row['net_inflow'] = None
                 row['net_inflow_pct'] = None
+                row['net_inflow_5d'] = None
+                row['net_inflow_10d'] = None
         print(f'  [INFO] 资金流匹配成功 {flow_ok}/{len(results)} 个标签')
     else:
-        print('  [WARN] 未获取到板块资金流，net_inflow 本轮保持 NULL（不影响涨跌幅写入）')
+        print('  [WARN] 未获取到板块资金流，net_inflow* 本轮保持 NULL（不影响涨跌幅写入）')
         for row in results:
             row['net_inflow'] = None
             row['net_inflow_pct'] = None
+            row['net_inflow_5d'] = None
+            row['net_inflow_10d'] = None
 
     # Step 3: TRUNCATE + 批量写入 fund_tag_perf 表
     print('\n[STEP 3] 写入 fund_tag_perf 表 ...')
@@ -326,6 +344,8 @@ def main():
             total_count INTEGER, -- 标签总数(用于排名分母)
             net_inflow REAL,      -- 当日主力净流入(亿元)
             net_inflow_pct REAL,  -- 主力净流入净占比(%)
+            net_inflow_5d REAL,   -- 近5日主力净流入(亿元)
+            net_inflow_10d REAL,  -- 近10日主力净流入(亿元)
             updated_at TIMESTAMPTZ DEFAULT now()
         )
     """)
@@ -333,6 +353,8 @@ def main():
     # 兼容已存在的旧表：补齐资金流字段
     mgmt_query("ALTER TABLE public.fund_tag_perf ADD COLUMN IF NOT EXISTS net_inflow REAL")
     mgmt_query("ALTER TABLE public.fund_tag_perf ADD COLUMN IF NOT EXISTS net_inflow_pct REAL")
+    mgmt_query("ALTER TABLE public.fund_tag_perf ADD COLUMN IF NOT EXISTS net_inflow_5d REAL")
+    mgmt_query("ALTER TABLE public.fund_tag_perf ADD COLUMN IF NOT EXISTS net_inflow_10d REAL")
 
     # 清空旧数据
     mgmt_query('TRUNCATE TABLE public.fund_tag_perf')
@@ -358,7 +380,8 @@ def main():
             f"({esc(row['tag_index_code'])}, {esc(row['tag_name'])}, "
             f"{esc(row['d'])}, {esc(row['w'])}, {esc(row['m'])}, {esc(row['q'])}, {esc(row['y'])}, {esc(row['sy'])}, "
             f"{esc(row['rank_w'])}, {esc(row['rank_m'])}, {esc(row['rank_q'])}, {esc(row['rank_y'])}, {esc(row['rank_sy'])}, "
-            f"{esc(row['total_count'])}, {esc(row.get('net_inflow'))}, {esc(row.get('net_inflow_pct'))}, now())"
+            f"{esc(row['total_count'])}, {esc(row.get('net_inflow'))}, {esc(row.get('net_inflow_pct'))}, "
+            f"{esc(row.get('net_inflow_5d'))}, {esc(row.get('net_inflow_10d'))}, now())"
         )
 
     # 分批 UPSERT（每批20条，ON CONFLICT 幂等，避免重复键报错；小批量降低 Management API 限流概率）
@@ -367,14 +390,15 @@ def main():
         batch = values_parts[i:i + BATCH]
         sql = (
             f"INSERT INTO public.fund_tag_perf "
-            f"(tag_index_code, tag_name, d, w, m, q, y, sy, rank_w, rank_m, rank_q, rank_y, rank_sy, total_count, net_inflow, net_inflow_pct, updated_at) "
+            f"(tag_index_code, tag_name, d, w, m, q, y, sy, rank_w, rank_m, rank_q, rank_y, rank_sy, total_count, net_inflow, net_inflow_pct, net_inflow_5d, net_inflow_10d, updated_at) "
             f"VALUES {','.join(batch)} "
             f"ON CONFLICT (tag_index_code) DO UPDATE SET "
             f"tag_name=EXCLUDED.tag_name, d=EXCLUDED.d, w=EXCLUDED.w, m=EXCLUDED.m, q=EXCLUDED.q, "
             f"y=EXCLUDED.y, sy=EXCLUDED.sy, rank_w=EXCLUDED.rank_w, rank_m=EXCLUDED.rank_m, "
             f"rank_q=EXCLUDED.rank_q, rank_y=EXCLUDED.rank_y, rank_sy=EXCLUDED.rank_sy, "
             f"total_count=EXCLUDED.total_count, net_inflow=EXCLUDED.net_inflow, "
-            f"net_inflow_pct=EXCLUDED.net_inflow_pct, updated_at=now()"
+            f"net_inflow_pct=EXCLUDED.net_inflow_pct, net_inflow_5d=EXCLUDED.net_inflow_5d, "
+            f"net_inflow_10d=EXCLUDED.net_inflow_10d, updated_at=now()"
         )
         try:
             mgmt_query(sql)
@@ -403,8 +427,10 @@ def main():
         print(f'  [WARN] 有 {len(failed_batches)} 个批次写入失败，建议检查上方 DEBUG 输出')
 
     print(f'[DONE] fund_tag_perf 写入完成: {cnt} 条记录')
-    print(f'       数据来源: 东财 ZTJJ::GetBKDetailInfoNew')
+    print(f'ROWS_AFFECTED={cnt}')
+    print(f'       数据来源: 东财 ZTJJ::GetBKDetailInfoNew + 东财板块资金流(push2 clist)')
     print(f'       含字段: d(日涨幅), w(近1周), m(近1月), q(近3月), y(近1年), sy(今年来) + 各周期排名')
+    print(f'       资金流: net_inflow(今日), net_inflow_5d(近5日), net_inflow_10d(近10日) 主力净流入(亿元)')
 
 
 if __name__ == '__main__':
