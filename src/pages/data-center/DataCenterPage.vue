@@ -12,9 +12,9 @@
     <template v-else>
     <p class="page-desc">ALLFUND.CN 数据库全部表一览。选择需要下载的数据表，点击下载 Excel 文件。数据每日 21:30（北京时间）自动更新。</p>
 
-    <!-- 每日自动更新任务简报 -->
+    <!-- 更新简报 -->
     <div class="card" v-if="etlBriefReady">
-      <div class="card-title">每日自动更新结果</div>
+      <div class="card-title">更新简报</div>
       <div class="brief-summary" v-if="etlLogs.length > 0">
         <span class="ok">完成 {{ etlLogs.filter(l => l.status === 'success').length }} 项</span>
         <span class="sep">／</span>
@@ -40,7 +40,12 @@
               <div class="progress" :class="'pg-' + stepView(log).state">
                 <div class="progress-bar" :style="{ width: stepView(log).pct + '%' }"></div>
               </div>
-              <div class="step-reason" v-if="stepView(log).reason">{{ stepView(log).reason }}</div>
+              <div class="step-reason" v-if="stepView(log).reason">
+                <span class="reason-label">失败原因：</span>{{ stepView(log).reason }}
+              </div>
+              <div class="step-suggestion" v-if="stepView(log).suggestion">
+                <span class="reason-label">解决建议：</span>{{ stepView(log).suggestion }}
+              </div>
             </td>
             <td class="col-etl-status">
               <span class="status-badge" :class="log.status === 'success' ? 'status-ok' : (log.status === 'error' ? 'status-error' : (log.status === 'running' ? 'status-running' : 'status-pending'))">{{ statusLabel(log.status) }}</span>
@@ -771,7 +776,7 @@ const { isLoggedIn, isOwner, showLogin } = useAuth()
 const updateTime = ref('')
 const tableData = ref({})
 
-// 每日自动更新任务简报
+// 更新简报（ETL 运行记录）
 const etlBriefReady = ref(false)
 const etlLogs = ref([])
 const etlLastRunTime = ref('')
@@ -891,10 +896,34 @@ function stepInfo(name) {
   return ETL_STEP_INFO[name] || { title: name || '未知步骤', desc: 'ETL 数据处理步骤' }
 }
 const ETL_OVERTIME_MIN = 30
+// 根据真实报错信息推断解决建议
+function inferSuggestion(err, stepName) {
+  const e = String(err || '').toLowerCase()
+  if (!e) return '查看 ETL 运行日志定位错误，必要时手动重跑该步骤。'
+  if (e.includes('rate') || e.includes('429') || e.includes('限流') || e.includes('too many')) {
+    return '数据源（东财）触发限流，建议稍后重跑或降低并发请求频率。'
+  }
+  if (e.includes('timeout') || e.includes('timed out') || e.includes('超时') || e.includes('etimedout')) {
+    return '请求超时，建议检查服务器到数据源 / Supabase 的网络连通性后重跑。'
+  }
+  if (e.includes('econnrefused') || e.includes('enotfound') || e.includes('connection') || e.includes('连接') || e.includes('refused')) {
+    return '数据库连接失败，请检查 Supabase 连接串与网络，确认服务可达后重跑。'
+  }
+  if (e.includes('401') || e.includes('403') || e.includes('unauthorized') || e.includes('鉴权') || e.includes('token') || e.includes('forbidden') || e.includes('过期')) {
+    return '接口鉴权失败，请检查 API Token / 密钥是否过期或被重置。'
+  }
+  if (e.includes('500') || e.includes('502') || e.includes('503') || e.includes('504') || e.includes('服务器') || e.includes('bad gateway') || e.includes('service unavailable')) {
+    return '上游服务器异常，建议稍后重试该步骤。'
+  }
+  if (e.includes('empty') || e.includes('no data') || e.includes('null') || e.includes('空') || e.includes('无数据')) {
+    return '数据源返回为空，可能当日数据尚未发布或接口字段变更，确认后重跑。'
+  }
+  return `查看 ETL 运行日志定位具体错误，必要时手动重跑该步骤（${stepName || '对应'}）。`
+}
 function stepView(log) {
   const info = stepInfo(log.step_name)
   const status = log.status
-  let pct = 0, state = 'pending', reason = ''
+  let pct = 0, state = 'pending', reason = '', suggestion = ''
   const start = log.start_time ? new Date(log.start_time).getTime() : null
   const elapsedMin = start != null ? (Date.now() - start) / 60000 : null
   if (status === 'success') {
@@ -902,18 +931,20 @@ function stepView(log) {
   } else if (status === 'error') {
     pct = 100; state = 'error'
     reason = log.error_message || '执行失败，详见 ETL 运行日志'
+    suggestion = inferSuggestion(log.error_message, log.step_name)
   } else if (status === 'running') {
     state = 'running'
     if (elapsedMin != null && elapsedMin > ETL_OVERTIME_MIN) {
       state = 'overtime'
-      reason = `任务疑似超时：自 ${fmtTime(log.start_time)} 起已约 ${Math.round(elapsedMin)} 分钟仍未完成（单步通常几分钟内结束）。常见原因：数据源限流(东财 push2)、网络超时、Supabase 连接中断或服务进程异常，建议重跑 ETL 或检查服务。`
+      reason = `任务疑似超时：自 ${fmtTime(log.start_time)} 起已约 ${Math.round(elapsedMin)} 分钟仍未完成（单步通常几分钟内结束）。`
+      suggestion = '常见原因：数据源限流(东财 push2)、网络超时、Supabase 连接中断或服务进程异常。建议重跑 ETL 或检查服务。'
     } else {
       pct = 100
     }
   } else {
     state = 'pending'; pct = 0
   }
-  return { title: info.title, desc: info.desc, pct, state, reason, status }
+  return { title: info.title, desc: info.desc, pct, state, reason, suggestion, status }
 }
 
 async function loadIndex() {
@@ -1168,6 +1199,11 @@ onMounted(() => {
   font-size: 12px; color: #d4351c; line-height: 1.5; margin-top: 6px;
   background: #fdf2f0; border-left: 3px solid #d4351c; padding: 4px 8px;
 }
+.step-suggestion {
+  font-size: 12px; color: #1d70b8; line-height: 1.5; margin-top: 4px;
+  background: #eaf2fb; border-left: 3px solid #1d70b8; padding: 4px 8px;
+}
+.reason-label { font-weight: 700; }
 
 /* 用户分析 */
 .analytics-summary { display: flex; gap: var(--space-lg); margin: 0 0 var(--space-lg); flex-wrap: wrap; }
