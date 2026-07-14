@@ -1,0 +1,57 @@
+name: 构建微信小程序包（allfund 更新触发）
+
+# 当 allfund（H5）源码更新时，自动拉取 allfund-max 小程序仓库并构建打包
+# 产物 allfund-max-mp-weixin.zip 可直接下载，解压后用微信开发者工具导入预览/上传
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'src/**'
+      - 'scripts/**'
+  workflow_dispatch:
+
+jobs:
+  build-mp:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout allfund (H5)
+        uses: actions/checkout@v4
+
+      - name: Checkout allfund-max (小程序)
+        uses: actions/checkout@v4
+        continue-on-error: true
+        with:
+          repository: maoshanbo/allfund-max
+          path: ../allfund-max
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Build WeChat Mini Program
+        run: |
+          if [ ! -d ../allfund-max ]; then
+            echo "allfund-max 仓库未找到，跳过小程序构建"
+            exit 0
+          fi
+          cd ../allfund-max
+          npm install
+          npm run build:mp-weixin
+
+      - name: Package artifact
+        run: |
+          if [ ! -d ../allfund-max/dist/build/mp-weixin ]; then
+            echo "小程序构建产物缺失，跳过打包"
+            exit 0
+          fi
+          cd ../allfund-max/dist/build
+          zip -r ../../../allfund-max-mp-weixin.zip mp-weixin
+
+      - name: Upload artifact
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: allfund-max-mp-weixin
+          path: allfund-max-mp-weixin.zip
