@@ -24,9 +24,11 @@ import json
 import requests
 
 # ── 配置 ──────────────────────────────────────────────
-PAT = os.environ.get('SUPABASE_PAT', '')
+# 优先 SUPABASE_PAT（沙箱/本地用真实 PAT），回退 SUPABASE_MGMT_TOKEN（CI 以该 Secret 注入）。
+# 顺序关键：沙箱 profile 可能注入过期 SUPABASE_MGMT_TOKEN，故 PAT 必须优先。
+PAT = os.environ.get('SUPABASE_PAT') or os.environ.get('SUPABASE_MGMT_TOKEN', '')
 if not PAT:
-    print('ERROR: SUPABASE_PAT not set')
+    print('ERROR: SUPABASE_PAT / SUPABASE_MGMT_TOKEN not set')
     sys.exit(1)
 
 MGMT_URL = 'https://api.supabase.com/v1/projects/tqhtegazxykkqfcpejky/database/query'
