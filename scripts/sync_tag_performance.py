@@ -235,6 +235,27 @@ def fetch_all_board_flows():
     return flows
 
 
+def fetch_existing_net_inflow():
+    """TRUNCATE 前读取历史 net_inflow*（限流保护用）。
+    仅读取、不修改任何数据源；命中率低时回退到这些值，避免好数据被 NULL 覆盖。"""
+    try:
+        resp = mgmt_query(
+            "SELECT tag_index_code, net_inflow, net_inflow_pct, net_inflow_5d, net_inflow_10d "
+            "FROM public.fund_tag_perf"
+        )
+        rows = (resp.get('result') or {}).get('rows') or []
+        out = {}
+        for r in rows:
+            out[r['tag_index_code']] = (
+                r.get('net_inflow'), r.get('net_inflow_pct'),
+                r.get('net_inflow_5d'), r.get('net_inflow_10d'),
+            )
+        return out
+    except Exception as e:
+        print(f'  [WARN] 读取历史 net_inflow 失败: {e}')
+        return {}
+
+
 def main():
     print('=' * 60)
     print('sync_tag_performance.py - 板块涨跌幅全量同步')
@@ -251,6 +272,10 @@ def main():
     ok = 0
     fail = 0
     total = len(tags)
+
+    # Step 2b（前置）：先拉板块资金流，趁东财限流预算最充足，提升覆盖率
+    flows = fetch_all_board_flows()
+    flows_norm = {norm_board_name(nm): v for nm, v in flows.items()} if flows else {}
 
     for i, tag in enumerate(tags):
         code = tag['tag_index_code']
@@ -293,32 +318,35 @@ def main():
         print('[ERROR] 所有请求均失败')
         sys.exit(1)
 
-    # Step 2b: 拉取板块资金流并按名称匹配挂到 results
-    flows = fetch_all_board_flows()
-    if flows:
-        # 归一化索引：东财 push2 板块名常带 '概念/板块' 后缀，去掉后与 ZTJJ 标签名对齐
-        flows_norm = {}
-        for nm, (net, pct, net5, net10) in flows.items():
-            flows_norm.setdefault(norm_board_name(nm), (net, pct, net5, net10))
-        flow_ok = 0
+    # Step 2b: 按名称匹配板块资金流，并做限流保护（绝不把历史好数据覆盖成 NULL）
+    MIN_MATCHED = 15  # 匹配数低于此阈值视为东财限流抓空，保留历史值
+    prev = fetch_existing_net_inflow()
+    matched = 0
+    if flows_norm:
         for row in results:
             key = norm_board_name(row['tag_name'])
             fv = flows_norm.get(key)
+            row['_new'] = fv
             if fv:
-                row['net_inflow'] = fv[0]
-                row['net_inflow_pct'] = fv[1]
-                row['net_inflow_5d'] = fv[2]
-                row['net_inflow_10d'] = fv[3]
-                flow_ok += 1
-            else:
-                row['net_inflow'] = None
-                row['net_inflow_pct'] = None
-                row['net_inflow_5d'] = None
-                row['net_inflow_10d'] = None
-        print(f'  [INFO] 资金流匹配成功 {flow_ok}/{len(results)} 个标签')
+                matched += 1
+        use_new = matched >= MIN_MATCHED
+        if use_new:
+            print(f'  [INFO] 资金流匹配成功 {matched}/{len(results)} 个，采用本轮数据')
+        else:
+            print(f'  [WARN] 资金流匹配仅 {matched} 个 < 阈值 {MIN_MATCHED}，本轮视为限流失败，保留历史值')
     else:
-        print('  [WARN] 未获取到板块资金流，net_inflow* 本轮保持 NULL（不影响涨跌幅写入）')
-        for row in results:
+        use_new = False
+        print('  [WARN] 未获取到板块资金流（东财限流），保留历史值')
+
+    # 赋值规则：命中且采用新值 -> 新值；否则 -> 历史值；皆无 -> NULL（前端显"数据更新中…"）
+    for row in results:
+        code = row['tag_index_code']
+        nv = row.pop('_new', None)
+        if use_new and nv:
+            row['net_inflow'], row['net_inflow_pct'], row['net_inflow_5d'], row['net_inflow_10d'] = nv
+        elif code in prev:
+            row['net_inflow'], row['net_inflow_pct'], row['net_inflow_5d'], row['net_inflow_10d'] = prev[code]
+        else:
             row['net_inflow'] = None
             row['net_inflow_pct'] = None
             row['net_inflow_5d'] = None
