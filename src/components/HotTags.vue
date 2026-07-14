@@ -41,7 +41,7 @@
         </div>
       </div>
       <!-- 阶段选择：实时 / 近1周 / 近1月 / 近3月 / 近1年 / 今年来 -->
-      <div class="control-row" v-if="sortMode === 'byReturn'">
+      <div class="control-row">
         <span class="control-label">阶段</span>
         <div class="stage-tabs" role="tablist" aria-label="阶段选择">
           <button
@@ -54,19 +54,6 @@
           >{{ s.label }}</button>
         </div>
       </div>
-      <!-- 资金流入阶段：今日 / 5日 / 10日（参考东财板块资金流 bkzj 页面） -->
-      <div class="control-row" v-if="sortMode === 'byInflow'">
-        <span class="control-label">阶段</span>
-        <div class="stage-tabs" role="tablist" aria-label="资金流入阶段">
-          <button
-            v-for="p in INFLOW_PERIODS"
-            :key="p.key"
-            class="stage-tab"
-            :class="{ active: inflowPeriod === p.key }"
-            @click="inflowPeriod = p.key"
-          >{{ p.label }}</button>
-        </div>
-      </div>
     </div>
 
     <!-- 标签网格 -->
@@ -75,13 +62,17 @@
         v-for="tag in displayTags"
         :key="tag.name"
         class="tag-cell"
-        :class="cellReturnClass(tag)"
-        :style="cellStyle(tag)"
+        :class="sortMode === 'byInflow' ? inflowClass(tag) : cellReturnClass(tag)"
+        :style="{ background: sortMode === 'byInflow' ? tagColor(inflowValue(tag)) : tagColor(cellReturn(tag)) }"
         @click="openTagDetail(tag)"
       >
         <span class="tag-name">{{ tag.name }}</span>
-        <!-- 数值：涨幅模式显示阶段涨跌；资金流入模式显示主力净流入(亿元) -->
-        <span class="tag-return">{{ cellNumberText(tag) }}</span>
+        <!-- 新增：数值跟随所选阶段变化；正收益红色、负收益绿色（中国股市惯例） -->
+        <span
+          class="tag-return"
+          v-if="cellReturn(tag) != null"
+        >{{ fmtPctSigned(cellReturn(tag)) }}</span>
+        <span class="tag-return" v-else>—</span>
       </div>
     </div>
 
@@ -105,7 +96,6 @@
                 <span class="detail-type-badge" :class="selectedTag.tag_type">{{ selectedTag.tag_type === 'concept' ? '概念' : '行业' }}</span>
               </span>
               <span class="detail-return" :class="selectedTag.return_pct >= 0 ? 'positive' : 'negative'" v-if="selectedTag.return_pct != null">近1年收益 {{ fmtPct(selectedTag.return_pct) }}</span>
-              <span class="detail-return board-return" :class="boardY1Return != null ? (boardY1Return >= 0 ? 'positive' : 'negative') : 'empty'">板块近1年收益 {{ boardY1Return != null ? fmtPct(boardY1Return) : '—' }}</span>
             </div>
             <div class="detail-header-actions">
               <button
@@ -143,7 +133,6 @@
                     </div>
                   </div>
                   <div class="ft-right">
-                    <span class="ft-ret-label">近1年收益</span>
                     <span class="ft-ret" :style="{ color: retColor(f.r1y) }" v-if="f.r1y != null">{{ fmtRetPlain(f.r1y) }}%</span>
                     <span class="ft-ret" v-else>—</span>
                   </div>
@@ -207,15 +196,6 @@ const STAGES = [
   { key: 'ytd', label: '今年来',  field: 'sy' },
 ]
 
-// ========== 资金流入阶段（参考东财板块资金流 bkzj 页面：今日/5日/10日） ==========
-// 对应 fund_tag_perf 字段：
-//   d=当日主力净流入(亿元), 5d=近5日主力净流入(亿元), 10d=近10日主力净流入(亿元)
-const INFLOW_PERIODS = [
-  { key: 'd',   label: '今日', field: 'net_inflow',     periodText: '当日' },
-  { key: '5d',  label: '5日',  field: 'net_inflow_5d',  periodText: '近5日' },
-  { key: '10d', label: '10日', field: 'net_inflow_10d', periodText: '近10日' },
-]
-
 // ========== 状态 ==========
 const activeTab = ref('all') // 'all' | 'concept' | 'industry'
 const allTags = ref([]) // [{ name, tag_type, return_pct, sort_order }]
@@ -228,14 +208,12 @@ const shareGenerating = ref(false)
 const shareUpdateTime = ref('') // 分享图数据截止时间（弹窗可见）
 const fundMetaUpdateTime = ref('') // fund_scores 更新时间
 
-// ========== 新增：排序/阶段状态 ==========
+// ========== 排序/阶段状态 ==========
 const sortMode = ref('byReturn') // 'byReturn'（按涨幅，默认）| 'byInflow'（按资金流入）
 const activeStage = ref('y1')    // 默认选中阶段：近1年
-const inflowPeriod = ref('d')    // 资金流入阶段：'d'(今日) | '5d'(近5日) | '10d'(近10日)
 const tagStageReturns = ref({})  // { [tagName]: { d, w1, m1, m3, y1, ytd } } 各阶段均值
-const tagInflow = ref({})        // { [tagName]: { net, pct, net_5d, net_10d } } 主力净流入(亿元)/占比
 const stageReturnsReady = ref(false) // 阶段聚合数据是否加载完成
-const perfLoadFailed = ref(false)    // fund_tag_perf 查询失败/无数据（用于优雅降级提示「数据更新中…」）
+const tagInflow = ref({})        // { [tagName]: { net_inflow, net_inflow_5d, net_inflow_10d } } 资金流数据
 
 // ========== 计算属性 ==========
 const displayTags = computed(() => {
@@ -246,13 +224,13 @@ const displayTags = computed(() => {
   } else {
     list = allTags.value.filter(t => t.tag_type === activeTab.value)
   }
-  // 新增：按涨幅排序（默认）——按当前选中阶段的收益值降序，缺失值排末尾
-  // 注：阶段聚合数据未加载完成前，近1年阶段回退使用 fund_tags.return_pct，避免闪烁
+  // 按涨幅排序（默认）——按当前选中阶段的收益值降序，缺失值排末尾
   if (sortMode.value === 'byReturn') {
     list.sort((a, b) => (stageSortVal(b) ?? -Infinity) - (stageSortVal(a) ?? -Infinity))
-  } else if (sortMode.value === 'byInflow') {
-    // 按资金流入排序：主力净流入(亿元)降序，缺失值排末尾
-    list.sort((a, b) => (inflowValue(b) ?? -Infinity) - (inflowValue(a) ?? -Infinity))
+  }
+  // 按资金流入排序——按今日主力净流入降序，缺失值排末尾
+  if (sortMode.value === 'byInflow') {
+    list.sort((a, b) => (inflowSortVal(b) ?? -Infinity) - (inflowSortVal(a) ?? -Infinity))
   }
   // 去重：同名标签只保留一个。all tab 已按收益降序，保留收益最高的；概念/行业 tab 保持原序保留首个
   const seen = new Set()
@@ -272,15 +250,8 @@ const displayTags = computed(() => {
 // ========== 新增：阶段收益取值 / 展示辅助 ==========
 // 当前阶段中文名（用于脚注）
 const stageLabel = computed(() => STAGES.find(s => s.key === activeStage.value)?.label || '近1年')
-// 动态脚注文案：随排序类别变化（涨幅 / 资金流入）
-const stageFootnote = computed(() => {
-  if (sortMode.value === 'byInflow') {
-    const p = INFLOW_PERIODS.find(x => x.key === inflowPeriod.value)
-    const pt = p ? p.periodText : '当日'
-    return `数值为东财板块${pt}主力净流入(亿元)；`
-  }
-  return `板块收益为东财主题板块${stageLabel.value}涨跌幅，`
-})
+// 动态脚注文案
+const stageFootnote = computed(() => `板块收益为东财主题板块${stageLabel.value}涨跌幅，`)
 
 // 取某标签在当前阶段的聚合均值（无数据返回 null）
 function stageValue(name) {
@@ -303,72 +274,120 @@ function stageSortVal(tag) {
   return cellReturn(tag)
 }
 
+// ========== 资金流入排序/展示辅助 ==========
+// 取某标签的今日主力净流入（亿元），无数据返回 null
+function inflowValue(tag) {
+  const d = tagInflow.value[tag.name]
+  if (!d) return null
+  return d.net_inflow
+}
+
+// 标签格子的资金流显示：今日主力净流入格式化
+function inflowText(tag) {
+  const v = inflowValue(tag)
+  return fmtInflow(v) || '—'
+}
+
+// 按资金流入模式下的涨跌CSS类（流入=红、流出=绿、空=灰）
+function inflowClass(tag) {
+  const v = inflowValue(tag)
+  if (v == null) return 'cell-null'
+  return v >= 0 ? 'cell-pos' : 'cell-neg'
+}
+
+// ========== 前端直连东财 push2 板块资金流（概念板优先，与天天基金口径一致）==========
+// 说明：ETL(sync_tag_performance.py) 因服务端 IP 被东财 push2 限流 + Supabase PAT 失效，
+// 无法稳定刷新 fund_tag_perf.net_inflow。改为前端直连东财 push2（JSONP，走用户浏览器 IP，
+// 不受服务端限流），实时获取板块主力净流入，确保「按资金流入」排序与天天基金一致。
+// 数据源仍为东财 push2，符合「不换数据源」约束；ETL 旧值作为兜底。
+const TAG_TO_PUSH2 = {
+  '元件': '元器件',
+  '光通信模块': '光模块',
+  '第三代半导体': '半导体',
+  '消费电子': '消费电子',
+  '计算机设备': '计算机设备',
+  '国产软件': '国产软件',
+  '电网设备': '电网设备',
+  '风电设备': '风电',
+  'PCB': 'PCB',
+  'CPO': 'CPO',
+  '算力': '算力',
+  'AI手机': 'AI手机',
+  '存储芯片': '存储芯片',
+  '光模块': '光模块',
+  '半导体': '半导体',
+}
+const boardInflowReady = ref(false)
+
+function boardRow(it) {
+  return {
+    net_inflow: it.f62 != null ? it.f62 / 1e8 : null,
+    net_inflow_5d: it.f164 != null ? it.f164 / 1e8 : null,
+    net_inflow_10d: it.f174 != null ? it.f174 / 1e8 : null,
+  }
+}
+
+function jsonpPush2(fs) {
+  return new Promise((resolve, reject) => {
+    const cb = 'jp' + Math.random().toString(36).slice(2, 8)
+    const p = new URLSearchParams({
+      pn: '1', pz: '500', po: '1', np: '1', fltt: '2', invt: '2',
+      fs, fields: 'f12,f14,f62,f164,f174,f184', fid: 'f62', callback: cb,
+    })
+    const s = document.createElement('script')
+    const cleanup = () => { if (s.parentNode) s.parentNode.removeChild(s); delete window[cb] }
+    window[cb] = (d) => { cleanup(); resolve((d && d.data && d.data.diff) || []) }
+    s.onerror = () => { cleanup(); reject(new Error('push2 jsonp error ' + fs)) }
+    s.src = 'https://push2.eastmoney.com/api/qt/clist/get?' + p.toString()
+    document.body.appendChild(s)
+    setTimeout(() => { cleanup(); reject(new Error('push2 timeout ' + fs)) }, 12000)
+  })
+}
+
+async function fetchBoardInflow() {
+  try {
+    const concept = await jsonpPush2('m:90+t:3')   // 概念板（优先，与天天基金口径一致）
+    const industry = await jsonpPush2('m:90+t:2')  // 行业板（兜底）
+    const map = {}
+    for (const it of concept) { const nm = it.f14; if (nm) map[nm] = boardRow(it) }
+    for (const it of industry) { const nm = it.f14; if (nm && !map[nm]) map[nm] = boardRow(it) }
+    // 合并：ZTJJ 标签名 → push2 板块名 查 map，覆盖 ETL 兜底值
+    const merged = {}
+    const names = new Set([
+      ...Object.keys(tagInflow.value),
+      ...allTags.value.map((t) => t.name),
+    ].filter(Boolean))
+    for (const name of names) {
+      const bname = TAG_TO_PUSH2[name] || name
+      if (map[bname]) merged[name] = map[bname]
+    }
+    tagInflow.value = Object.assign({}, tagInflow.value, merged)
+    console.log(`[HotTags] 前端直连东财资金流: 命中 ${Object.keys(merged).length} 个标签`)
+  } catch (e) {
+    console.warn('[HotTags] 前端直连东财资金流失败，回退 ETL 值', e)
+  } finally {
+    boardInflowReady.value = true
+  }
+}
+
+// 排序用资金流入值
+function inflowSortVal(tag) {
+  return inflowValue(tag)
+}
+
+// 资金流入格式化：+55.50亿 / -3.20亿
+function fmtInflow(v) {
+  if (v == null) return ''
+  const n = parseFloat(v)
+  if (isNaN(n)) return ''
+  return (n >= 0 ? '+' : '') + n.toFixed(2) + '亿'
+}
+
 // 标签格子的涨跌CSS类（控制文字颜色：正=红字、负=绿字、空=灰字）
 function cellReturnClass(tag) {
   const v = cellReturn(tag)
   if (v == null) return 'cell-null'
   return v >= 0 ? 'cell-pos' : 'cell-neg'
-}
-
-// 取某标签的主力净流入(亿元)，跟随资金流入阶段（今日/近5日/近10日）；无数据返回 null
-function inflowValue(tag) {
-  const m = tagInflow.value[tag.name]
-  if (!m) return null
-  let v
-  if (inflowPeriod.value === '5d') v = m.net_5d
-  else if (inflowPeriod.value === '10d') v = m.net_10d
-  else v = m.net
-  return (v == null || isNaN(v)) ? null : v
-}
-
-// 板块近1年收益（fund_tag_perf.y，板块级收益，区别于基金标签近1年收益 selectedTag.return_pct）
-// 用于标签详情弹窗与分享图；数据缺失时返回 null（前端显示 "—"）
-const boardY1Return = computed(() => {
-  const name = selectedTag.value?.name
-  if (!name) return null
-  const m = tagStageReturns.value[name]
-  if (!m) return null
-  const v = m.y1
-  return (v == null || isNaN(v)) ? null : v
-})
-
-// 资金流入数据是否整体缺失（net_inflow 列全部为 NULL）：用于 byInflow 模式下优雅降级提示
-const inflowDataMissing = computed(() => {
-  const vals = Object.values(tagInflow.value)
-  if (vals.length === 0) return true
-  return vals.every(m => m.net == null)
-})
-
-// 网格数值展示文本：涨幅模式显示阶段涨跌；资金流入模式显示主力净流入(亿元)
-// 当 fund_tag_perf 查询失败或数据整体缺失时（如 CI 未跑完），优雅降级显示「数据更新中…」而非全部"—"
-function cellNumberText(tag) {
-  if (sortMode.value === 'byInflow') {
-    const v = inflowValue(tag)
-    if (v == null) return (perfLoadFailed.value || inflowDataMissing.value) ? '数据更新中…' : '—'
-    return (v >= 0 ? '+' : '') + v.toFixed(2) + '亿'
-  }
-  const v = cellReturn(tag)
-  if (v == null) return perfLoadFailed.value ? '数据更新中…' : '—'
-  return fmtPctSigned(v)
-}
-
-// 根据背景色亮度自动决定文字颜色（深色背景→白字，浅色背景→语义色），保证对比度
-function cellTextColor(ret) {
-  const bg = tagColor(ret)
-  const m = bg.match(/rgb\((\d+),\s*(\d+),\s*(\d+)\)/)
-  if (!m) return '#333333'
-  const R = +m[1], G = +m[2], B = +m[3]
-  // YIQ 亮度公式
-  const yiq = (R * 299 + G * 587 + B * 114) / 1000
-  if (yiq < 150) return '#ffffff' // 深背景（如光模块 +505% 深红）→ 白字
-  if (ret == null) return '#999999'
-  return ret >= 0 ? '#b01e1e' : '#0a6e31'
-}
-
-// 标签格子内联样式：背景色 + 自动文字色
-function cellStyle(tag) {
-  const ret = cellReturn(tag)
-  return { background: tagColor(ret), color: cellTextColor(ret) }
 }
 
 // 某阶段是否可用（有任一标签含该阶段数据）；数据未就绪前先放行避免闪烁
@@ -386,31 +405,29 @@ function fmtPctSigned(v) {
 }
 
 /**
- * 从 fund_tag_perf 表加载所有标签的板块级各周期涨跌幅 + 主力净流入
- * 数据来源：东财 ZTJJ::GetBKDetailInfoNew（涨跌幅）+ 东财板块资金流接口（主力净流入，net_inflow）
- * 字段：d(日涨幅), w(近1周), m(近1月), q(近3月), y(近1年), sy(今年来), net_inflow(今日主力净流入/亿元), net_inflow_pct(占比), net_inflow_5d(近5日), net_inflow_10d(近10日)
+ * 从 fund_tag_perf 表加载所有标签的板块级各周期涨跌幅
+ * 从 fund_tag_perf 表加载所有标签的板块级各周期涨跌幅 + 资金流数据。
+ * 数据来源：东财 ZTJJ::GetBKDetailInfoNew 接口（涨跌）+ push2 板块资金流（资金流入）
+ * 由 ETL 脚本 sync_tag_performance.py 定时拉取
+ * 字段：d(日涨幅), w(近1周), m(近1月), q(近3月), y(近1年), sy(今年来)
+ *       net_inflow(今日主力净流入亿), net_inflow_5d, net_inflow_10d
  */
 async function loadTagStageReturns() {
   try {
     const { supabase } = await import('../api/supabase.js')
     if (!supabase) { stageReturnsReady.value = true; return }
 
-    // 注意：fund_tag_perf 实际仅存在 net_inflow / net_inflow_pct 两列（无 5d/10d 列），
-    // 若 select 包含不存在的列，Supabase 会返回 42703 错误导致整次查询失败、所有标签显示"—"，
-    // 因此这里只 select 真实存在的列。
     const { data, error } = await supabase
       .from('fund_tag_perf')
-      .select('tag_index_code,tag_name,d,w,m,q,y,sy,net_inflow,net_inflow_pct,net_inflow_5d,net_inflow_10d')
+      .select('tag_index_code,tag_name,d,w,m,q,y,sy,net_inflow,net_inflow_5d,net_inflow_10d')
 
     if (error || !data || data.length === 0) {
       console.warn('[HotTags] fund_tag_perf 无数据（ETL可能未运行），阶段排序将降级', error)
-      perfLoadFailed.value = true
       stageReturnsReady.value = true
       return
     }
 
     // 按 tag_name 建索引，供 cellReturn / displayTags 排序使用
-    const fieldToKey = Object.fromEntries(STAGES.map(s => [s.field, s.key]))
     const result = {}
     const inflow = {}
     for (const row of data) {
@@ -421,19 +438,20 @@ async function loadTagStageReturns() {
         const v = row[s.field]
         result[name][s.key] = (v == null || v === '') ? null : Number(v)
       }
-      inflow[name] = {
-        net: (row.net_inflow == null || row.net_inflow === '') ? null : Number(row.net_inflow),
-        pct: (row.net_inflow_pct == null || row.net_inflow_pct === '') ? null : Number(row.net_inflow_pct),
-        net_5d: (row.net_inflow_5d == null || row.net_inflow_5d === '') ? null : Number(row.net_inflow_5d),
-        net_10d: (row.net_inflow_10d == null || row.net_inflow_10d === '') ? null : Number(row.net_inflow_10d),
+      // 资金流数据（可选，缺失时前端显示"数据更新中…"）
+      if (row.net_inflow != null) {
+        inflow[name] = {
+          net_inflow: Number(row.net_inflow),
+          net_inflow_5d: row.net_inflow_5d != null ? Number(row.net_inflow_5d) : null,
+          net_inflow_10d: row.net_inflow_10d != null ? Number(row.net_inflow_10d) : null,
+        }
       }
     }
     tagStageReturns.value = result
     tagInflow.value = inflow
-    console.log(`[HotTags] fund_tag_perf 加载完成: ${data.length} 个标签`)
+    console.log(`[HotTags] fund_tag_perf 加载完成: ${data.length} 个标签, 资金流 ${Object.keys(inflow).length} 个`)
   } catch (e) {
     console.error('[HotTags] loadTagStageReturns error', e)
-    perfLoadFailed.value = true
   } finally {
     stageReturnsReady.value = true
   }
@@ -726,7 +744,7 @@ async function generateShareImage() {
     const W = 750
     const pad = 30
     const headerH = 150
-    const titleGap = 150
+    const titleGap = 110
     const fundH = 150
     const fundGap = 16
     const qrSize = 190
@@ -815,28 +833,6 @@ async function generateShareImage() {
     ctx.fillStyle = '#ffffff'
     ctx.textAlign = 'center'
     ctx.fillText(badgeText, W - pad - bw / 2, y + 13)
-    // 标签收益率（基金标签近1年收益，根据涨跌变色）
-    const tagRet = parseFloat(selectedTag.value.return_pct)
-    const isTagPositive = !isNaN(tagRet) && tagRet >= 0
-    ctx.textAlign = 'left'
-    ctx.fillStyle = isTagPositive ? '#d4351c' : '#00703c'
-    ctx.font = 'bold 24px sans-serif'
-    ctx.fillText('近1年收益 ' + fmtPct(selectedTag.value.return_pct), pad, y + 54)
-
-    // 板块近1年收益（板块级，fund_tag_perf.y，区别于基金标签近1年收益）
-    const boardY1 = (() => {
-      const m = tagStageReturns.value[selectedTag.value.name]
-      const v = m ? m.y1 : null
-      return (v == null || isNaN(v)) ? null : v
-    })()
-    ctx.font = 'bold 20px sans-serif'
-    if (boardY1 != null) {
-      ctx.fillStyle = boardY1 >= 0 ? '#d4351c' : '#00703c'
-      ctx.fillText('板块近1年收益 ' + fmtPct(boardY1), pad, y + 86)
-    } else {
-      ctx.fillStyle = '#999999'
-      ctx.fillText('板块近1年收益 —', pad, y + 86)
-    }
 
     // 基金卡片
     y = headerH + titleGap
@@ -872,9 +868,6 @@ async function generateShareImage() {
       ctx.font = 'bold 32px sans-serif'
       const retStr = r1y == null ? '—' : (r1y >= 0 ? '+' : '') + r1y.toFixed(2) + '%'
       ctx.fillText(retStr, W - pad - 20, y + 44)
-      ctx.fillStyle = '#999999'
-      ctx.font = '17px sans-serif'
-      ctx.fillText('近1年收益', W - pad - 20, y + 92)
 
       y += fundH + fundGap
     }
@@ -958,6 +951,8 @@ function saveShareImage() {
 onMounted(() => {
   loadTags()
   loadTagStageReturns()
+  // 前端直连东财 push2 拉取概念板优先的资金流，覆盖 ETL 旧值（确保「按资金流入」与天天基金一致）
+  fetchBoardInflow()
 })
 
 defineExpose({ refresh: loadTags })
@@ -1241,8 +1236,6 @@ defineExpose({ refresh: loadTags })
 /* 正收益红色，负收益绿色 */
 .detail-return.positive { color: #d4351c; }
 .detail-return.negative { color: #00703c; }
-/* 板块近1年收益缺数据时显示灰色 "—" */
-.detail-return.board-return.empty { color: #999999; }
 .detail-header-actions {
   display: flex;
   align-items: center;
