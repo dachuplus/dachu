@@ -12,6 +12,37 @@
     <template v-else>
     <p class="page-desc">ALLFUND.CN 数据库全部表一览。选择需要下载的数据表，点击下载 Excel 文件。数据每日 21:30（北京时间）自动更新。</p>
 
+    <!-- 每日自动更新任务简报 -->
+    <div class="card" v-if="etlBriefReady">
+      <div class="card-title">每日自动更新简报</div>
+      <table class="data-table" v-if="etlLogs.length > 0">
+        <thead>
+          <tr>
+            <th class="col-etl-step">步骤</th>
+            <th class="col-etl-status">状态</th>
+            <th class="col-etl-rows">影响行数</th>
+            <th class="col-etl-time">执行时间</th>
+            <th class="col-etl-duration">耗时</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="(log, i) in etlLogs" :key="i">
+            <td class="col-etl-step"><code>{{ log.step_name || log.name || log.step || '—' }}</code></td>
+            <td class="col-etl-status">
+              <span class="status-badge" :class="log.status === 'success' ? 'status-ok' : (log.status === 'error' ? 'status-error' : (log.status === 'running' ? 'status-running' : 'status-pending'))">{{ statusLabel(log.status) }}</span>
+            </td>
+            <td class="col-etl-rows">{{ formatNum(log.rows_affected ?? log.rows ?? log.count) }}</td>
+            <td class="col-etl-time">{{ fmtTime(log.start_time ?? log.created_at) }}</td>
+            <td class="col-etl-duration">{{ log.duration_seconds != null ? formatDuration(log.duration_seconds) : '—' }}</td>
+          </tr>
+        </tbody>
+      </table>
+      <p class="section-desc" v-else>暂无运行记录，等待每日 21:30 自动执行。</p>
+      <div class="brief-footer" v-if="etlLastRunTime">
+        最近一次执行：{{ etlLastRunTime }}
+      </div>
+    </div>
+
     <!-- 未登录提示横幅 -->
     <div class="login-banner" v-if="!isLoggedIn">
       <div class="login-banner-text">
@@ -19,48 +50,6 @@
         <span>ALLFUND.CN 数据库每日自动更新，登录后即可导出每张表的 Excel 文件。</span>
       </div>
       <button class="btn-login" @click="showLogin()">登录 / 注册</button>
-    </div>
-
-    <!-- 每日更新状态 -->
-    <div class="card etl-card" v-if="etlSteps.length">
-      <div class="card-title">每日更新状态</div>
-      <div class="etl-summary">
-        <div class="etl-meta">
-          <span>最近更新：<strong>{{ etlLastRunDate }} {{ etlLastRunTime }}</strong></span>
-          <span :class="['etl-overall', 'etl-overall--' + overallStatus.key]">{{ overallStatus.text }}</span>
-        </div>
-        <div class="etl-progress">
-          <div class="etl-progress-bar">
-            <div class="etl-progress-fill" :style="{ width: overallStatus.pct + '%' }"></div>
-          </div>
-          <div class="etl-progress-label">{{ overallStatus.done }}/{{ overallStatus.total }} 步骤完成（{{ overallStatus.pct }}%）</div>
-        </div>
-      </div>
-      <table class="data-table etl-table">
-        <thead>
-          <tr>
-            <th class="col-step">步骤</th>
-            <th class="col-status">状态</th>
-            <th class="col-rows">影响行数</th>
-            <th class="col-dur">耗时</th>
-            <th class="col-err">错误信息</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="s in etlSteps" :key="s.id">
-            <td class="col-step">{{ stepLabel(s.step_name) }}</td>
-            <td class="col-status">
-              <span :class="['etl-badge', 'etl-badge--' + s.status]">
-                {{ statusIcon(s.status) }} {{ statusText(s.status) }}
-              </span>
-            </td>
-            <td class="col-rows">{{ s.rows_affected != null ? formatNum(s.rows_affected) : '—' }}</td>
-            <td class="col-dur">{{ s.duration_seconds != null ? s.duration_seconds + 's' : '—' }}</td>
-            <td class="col-err etl-error" v-if="s.error_message">{{ s.error_message }}</td>
-            <td class="col-err" v-else>—</td>
-          </tr>
-        </tbody>
-      </table>
     </div>
 
     <!-- 数据库表列表 -->
@@ -85,16 +74,8 @@
             <td class="col-rows">{{ formatNum(t.rows) }}</td>
             <td class="col-size">{{ formatSizeMB(t.size) }}</td>
             <td class="col-action">
-              <button
-                v-if="t.dynamic"
-                class="btn-download"
-                :disabled="exporting"
-                @click="exportVisitorLogs"
-              >
-                {{ exporting ? '生成中…' : '下载 Excel' }}
-              </button>
               <a
-                v-else-if="t.downloadable"
+                v-if="t.downloadable"
                 :href="t.downloadUrl"
                 class="btn-download"
                 :download="t.key + '.xlsx'"
@@ -728,100 +709,16 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { useAuth } from '../../composables/useAuth'
-import { supabase } from '../../api/supabase'
-import * as XLSX from 'xlsx'
 
 const { isLoggedIn, isOwner, showLogin } = useAuth()
 
 const updateTime = ref('')
 const tableData = ref({})
 
-// ETL 每日更新状态（读取 public.etl_run_log 表）
-const etlSteps = ref([])
-const etlLastRunDate = ref('')
+// 每日自动更新任务简报
+const etlBriefReady = ref(false)
+const etlLogs = ref([])
 const etlLastRunTime = ref('')
-
-const STEP_LABELS = {
-  fetch_and_import_funds: '拉取天天基金全量数据',
-  fetch_risk_indicators: '抓取风险指标(回撤+夏普)',
-  fetch_tsdata_risk: '补充风险指标(tsdata)',
-  fetch_return_all: '抓取成立以来收益率',
-  export_fund_details: '导出基金详情',
-  fetch_fund_basic_info: '抓取基金基本概况',
-  fetch_currency_funds: '抓取货币基金阶段收益',
-  ensure_basic_info_columns: '确保 fund_scores 新列(DDL)',
-  import_via_rest_staging: '合并靠谱分并写入 STAGING',
-  compute_quarterly_scores: '刷新 fund_quarterly_scores',
-  promote_staging: '原子切换 fund_scores',
-  fix_manager_blanks: '基金经理空值回填',
-  verify_update: '验证数据完整性',
-  validate_fund_data: '数据质量校验',
-  export_fund_combined: '导出 fund_combined.xlsx',
-  export_all_tables: '导出全部数据表',
-  fetch_jqr_indicators: '计算特色指标',
-  fetch_fund_indices: '拉取基金指数',
-  fetch_etf_returns: '拉取场内基金区间收益',
-  sync_tag_performance: '拉取主题板块涨跌幅',
-  sync_fund_tags_full: '同步完整标签列表',
-  sync_etfs_to_fund_scores: 'ETF/LOF 补充进 fund_scores',
-  sync_fund_combined_scores: '重建 fund_combined',
-}
-
-function stepLabel(name) {
-  return STEP_LABELS[name] || name
-}
-function statusIcon(s) {
-  return { success: '✓', failed: '✗', skipped: '⏳', running: '🔄' }[s] || '•'
-}
-function statusText(s) {
-  return { success: '成功', failed: '失败', skipped: '跳过', running: '运行中' }[s] || s
-}
-
-const overallStatus = computed(() => {
-  const steps = etlSteps.value
-  if (!steps.length) return { key: 'none', text: '无记录', pct: 0, done: 0, total: 0 }
-  const total = steps.length
-  const done = steps.filter(s => ['success', 'failed', 'skipped'].includes(s.status)).length
-  const hasFailed = steps.some(s => s.status === 'failed')
-  const hasRunning = steps.some(s => s.status === 'running')
-  const pct = total ? Math.round(done / total * 100) : 0
-  if (hasFailed) return { key: 'failed', text: '存在失败步骤', pct, done, total }
-  if (hasRunning) return { key: 'running', text: '更新进行中', pct, done, total }
-  return { key: 'success', text: '全部成功', pct, done, total }
-})
-
-async function loadEtllog() {
-  if (!supabase) return
-  try {
-    const { data, error } = await supabase
-      .from('etl_run_log')
-      .select('*')
-      .order('run_date', { ascending: false })
-      .order('id', { ascending: false })
-      .limit(300)
-    if (error || !data || !data.length) return
-    // 按 run_date 分组，取最近一次运行的全部步骤
-    const byDate = {}
-    for (const r of data) {
-      if (!byDate[r.run_date]) byDate[r.run_date] = []
-      byDate[r.run_date].push(r)
-    }
-    const dates = Object.keys(byDate).sort().reverse()
-    const latest = byDate[dates[0]].slice().sort((a, b) => a.id - b.id)
-    etlSteps.value = latest
-    const started = latest.find(r => r.start_time)
-    if (started) {
-      const d = new Date(started.start_time)
-      etlLastRunDate.value = d.toLocaleDateString('zh-CN')
-      etlLastRunTime.value = d.toLocaleTimeString('zh-CN')
-    } else {
-      etlLastRunDate.value = byDate[dates[0]][0].run_date
-      etlLastRunTime.value = ''
-    }
-  } catch (e) {
-    console.log('加载 ETL 运行日志失败', e)
-  }
-}
 
 // 表定义
 const tables = [
@@ -877,20 +774,10 @@ const visibleTables = computed(() => {
     // 索引文件未加载时回退到内置表清单
     base = tables.map(t => ({ ...t, size: null }))
   }
-  // 访问日志：动态从 supabase 查询全量并前端生成 xlsx（不依赖预生成静态文件）
-  base.push({
-    key: 'visitor_logs',
-    name: '访问日志',
-    desc: '访客 IP / 邮箱(或匿名标识) / 地区 / 访问页面 / 浏览器 UA 上报记录',
-    rows: null,
-    sensitive: false,
-    size: null,
-    dynamic: true,
-  })
   return base.map(t => ({
     ...t,
     downloadable: isLoggedIn.value,
-    downloadUrl: t.dynamic ? '' : `/downloads/${t.key}.xlsx`,
+    downloadUrl: `/downloads/${t.key}.xlsx`,
   }))
 })
 
@@ -907,6 +794,27 @@ function formatSizeMB(mb) {
   return (mb * 1024).toFixed(0) + ' KB'
 }
 
+// 简报状态标签文案
+function statusLabel(s) {
+  const m = { success: '成功', ok: '完成', done: '已完成', error: '失败', fail: '失败', running: '运行中', pending: '等待', skipped: '跳过' }
+  return m[String(s || '').toLowerCase()] || (s || '—')
+}
+// 时间格式化
+function fmtTime(v) {
+  if (!v) return '—'
+  try { return new Date(v).toLocaleString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false }) }
+  catch { return String(v) }
+}
+// 耗时格式化（秒→可读）
+function formatDuration(sec) {
+  if (!sec) return '—'
+  const n = Number(sec)
+  if (isNaN(n)) return String(sec)
+  if (n < 60) return Math.round(n) + 's'
+  if (n < 3600) return Math.floor(n / 60) + 'm' + Math.round(n % 60) + 's'
+  return Math.floor(n / 3600) + 'h' + Math.round((n % 3600) / 60) + 'm'
+}
+
 async function loadIndex() {
   try {
     const resp = await fetch('/downloads/index.json?' + Date.now())
@@ -920,45 +828,52 @@ async function loadIndex() {
   }
 }
 
-onMounted(() => {
-  loadIndex()
-  loadEtllog()
-})
-
-// ========== 访问日志导出（前端直接查询全量 → xlsx）==========
-const exporting = ref(false)
-async function exportVisitorLogs() {
-  if (!supabase) return
-  exporting.value = true
+// 加载每日 ETL 运行简报（从 etl_run_log 表读取最近一次运行记录）
+async function loadEtlBrief() {
   try {
-    const { data, error } = await supabase
-      .from('visitor_logs')
+    const { supabase } = await import('../../api/supabase.js')
+    if (!supabase) { etlBriefReady.value = true; return }
+
+    // 1) 先取最新一条记录，确定最近的运行批次(run_date)
+    const { data: lastRow, error: errLast } = await supabase
+      .from('etl_run_log')
+      .select('run_date, created_at')
+      .order('created_at', { ascending: false })
+      .limit(1)
+
+    if (errLast || !lastRow || lastRow.length === 0) {
+      etlLogs.value = []
+      etlBriefReady.value = true
+      return
+    }
+
+    const runDate = lastRow[0].run_date
+    etlLastRunTime.value = fmtTime(lastRow[0].created_at || runDate)
+
+    // 2) 取该批次(run_date)的全部步骤，按插入顺序(id 升序)展示
+    const { data: rows, error } = await supabase
+      .from('etl_run_log')
       .select('*')
-      .order('visit_time', { ascending: false })
-    if (error) throw error
-    const rows = data || []
-    const toRow = (r) => ({
-      id: r.id,
-      ip_address: r.ip_address,
-      email: r.email,
-      region: r.region,
-      page_path: r.page_path,
-      user_agent: r.user_agent,
-      visit_time: r.visit_time,
-    })
-    const ws = rows.length
-      ? XLSX.utils.json_to_sheet(rows.map(toRow))
-      : XLSX.utils.json_to_sheet([{ id: '', ip_address: '', email: '', region: '', page_path: '', user_agent: '', visit_time: '' }])
-    const wb = XLSX.utils.book_new()
-    XLSX.utils.book_append_sheet(wb, ws, 'visitor_logs')
-    XLSX.writeFile(wb, 'visitor_logs.xlsx')
+      .eq('run_date', runDate)
+      .order('id', { ascending: true })
+
+    if (error || !rows) {
+      etlLogs.value = []
+      etlBriefReady.value = true
+      return
+    }
+    etlLogs.value = rows || []
+    etlBriefReady.value = true
   } catch (e) {
-    console.error('[DataCenter] 导出访问日志失败', e)
-    alert('导出访问日志失败：' + (e?.message || e))
-  } finally {
-    exporting.value = false
+    console.warn('[DataCenter] 加载 ETL 简报失败', e)
+    etlBriefReady.value = true
   }
 }
+
+onMounted(() => {
+  loadIndex()
+  loadEtlBrief()
+})
 </script>
 
 <style scoped>
@@ -1028,41 +943,34 @@ async function exportVisitorLogs() {
 .table-footer { margin-top: var(--space-md); }
 .update-time { font-size: 14px; color: var(--text-secondary); margin: 0; }
 
-/* ETL 每日更新状态 */
-.etl-summary { margin-bottom: var(--space-md); }
-.etl-meta {
-  display: flex; align-items: center; justify-content: space-between;
-  flex-wrap: wrap; gap: var(--space-sm);
-  font-size: 15px; color: var(--text-secondary); margin-bottom: var(--space-sm);
+/* ETL 简报 */
+.brief-footer {
+  margin-top: var(--space-sm);
+  padding-top: var(--space-sm);
+  border-top: 1px solid var(--border);
+  font-size: 13px; color: var(--text-secondary);
 }
-.etl-meta strong { color: var(--text-primary); font-weight: 700; }
-.etl-overall {
-  padding: 4px 12px; font-size: 14px; font-weight: 700; color: #fff;
+.status-badge {
+  display: inline-block;
+  padding: 2px 10px;
+  font-size: 12px;
+  font-weight: 700;
+  border-radius: 2px;
+  text-align: center;
+  white-space: nowrap;
 }
-.etl-overall--success { background: #00703c; }
-.etl-overall--failed { background: #d4351c; }
-.etl-overall--running { background: #1d70b8; }
-.etl-overall--none { background: #6b7280; }
-.etl-progress-bar {
-  height: 12px; background: #f3f2f1; border: 1px solid var(--border); width: 100%;
+.status-ok { background: #00703c; color: #fff; }
+.status-error { background: #d4351c; color: #fff; }
+.status-running { background: #1d70b8; color: #fff; animation: pulse 1.5s infinite; }
+.status-pending { background: #f3f2f1; color: #6b7280; }
+@keyframes pulse {
+  0%, 100% { opacity: 1; } 50% { opacity: 0.5; }
 }
-.etl-progress-fill { height: 100%; background: #1d70b8; }
-.etl-progress-label { font-size: 13px; color: var(--text-secondary); margin-top: 4px; }
-.etl-table { margin-top: var(--space-md); }
-.col-step { width: 240px; }
-.col-status { width: 120px; }
-.col-rows { width: 90px; text-align: right; font-family: monospace; }
-.col-dur { width: 70px; text-align: right; font-family: monospace; color: var(--text-secondary); }
-.col-err { font-size: 12px; color: #d4351c; }
-.etl-badge {
-  display: inline-block; padding: 2px 8px; font-size: 13px; font-weight: 700;
-  color: #fff; white-space: nowrap;
-}
-.etl-badge--success { background: #00703c; }
-.etl-badge--failed { background: #d4351c; }
-.etl-badge--skipped { background: #6b7280; }
-.etl-badge--running { background: #1d70b8; }
-.etl-error { color: #d4351c; word-break: break-word; }
+.col-etl-step { width: 180px; }
+.col-etl-status { width: 80px; text-align: center; }
+.col-etl-rows { width: 100px; text-align: right; font-family: monospace; }
+.col-etl-time { width: 160px; }
+.col-etl-duration { width: 90px; text-align: right; font-family: monospace; }
 
 /* API 接口文档 */
 .api-group-title {

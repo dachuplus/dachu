@@ -67,12 +67,18 @@
         @click="openTagDetail(tag)"
       >
         <span class="tag-name">{{ tag.name }}</span>
-        <!-- 新增：数值跟随所选阶段变化；正收益红色、负收益绿色（中国股市惯例） -->
-        <span
-          class="tag-return"
-          v-if="cellReturn(tag) != null"
-        >{{ fmtPctSigned(cellReturn(tag)) }}</span>
-        <span class="tag-return" v-else>—</span>
+        <!-- 按涨幅模式：显示阶段涨跌幅百分比 -->
+        <template v-if="sortMode === 'byReturn'">
+          <span
+            class="tag-return"
+            v-if="cellReturn(tag) != null"
+          >{{ fmtPctSigned(cellReturn(tag)) }}</span>
+          <span class="tag-return" v-else>—</span>
+        </template>
+        <!-- 按资金流入模式：显示今日主力净流入金额（亿元） -->
+        <template v-else-if="sortMode === 'byInflow'">
+          <span class="tag-return" :class="inflowClass(tag)">{{ inflowText(tag) }}</span>
+        </template>
       </div>
     </div>
 
