@@ -114,14 +114,102 @@ def to_int(v):
     return int(round(f))
 
 
+# ── 名称归一化与别名映射（ZTJJ 标签名 ↔ push2 板块名）─────────
+# push2 的概念板(t:3)和行业板(t:2)命名与 ZTJJ 标签名存在系统偏差，
+# 导致精确匹配率低。此表覆盖已知差异，提升概念板（t:3）匹配覆盖率。
+TAG_TO_BOARD_ALIAS = {
+    # ZTJJ 标签名 → push2 板块名（优先匹配概念板名）
+    '光通信模块': '光模块',
+    '元器件': '元件',
+    '光刻胶': '光刻胶',
+    '第三代半导体': '半导体',
+    '消费电子': '消费电子',
+    '计算机设备': '计算机设备',
+    '国产软件': '国产软件',
+    '电网设备': '电网设备',
+    '风电设备': '风电',
+    '高端装备': '高端装备',
+    '高端制造': '高端制造',
+    '装修建材': '装修建材',
+    '绿色电力': '绿色电力',
+    '航空航天': '航天装备',  # 可能需要根据实际push2返回调整
+    '脑机接口': '脑机接口',
+    '商业航天': '商业航天',
+    '卫星互联网': '卫星互联网',
+    '低空经济': '低空经济',
+    '人形机器人': '人形机器人',
+    '智能驾驶': '智能驾驶',
+    '无人驾驶': '无人驾驶',
+    '智能穿戴': '智能穿戴',
+    '智能家居': '智能家居',
+    '固态电池': '固态电池',
+    '锂电池': '锂电池',
+    '锂矿': '锂矿',
+    '新能源车': '新能源汽车',
+    '算力': '算力',
+    '数据要素': '数据要素',
+    '数据中心': '数据中心',
+    '云计算': '云计算',
+    '网络安全': '网络安全',
+    '信创': '信创',
+    'AI应用': 'AI应用',
+    'AI眼镜': 'AI眼镜',
+    'AI手机': 'AI手机',
+    'DeepSeek': 'DeepSeek',
+    'HALO': 'HALO',
+    'Web3.0': 'Web3.0',
+    '元宇宙': '元宇宙',
+    '中特估': '中特估',
+    '国企改革': '国企改革',
+    '一带一路': '一带一路',
+    '东数西算': '东数西算',
+    '碳中和': '碳中和',
+    '可控核聚变': '可控核聚变',
+    '猪肉': '猪肉',
+    '农牧主题': '农牧主题',
+    '黄金股': '黄金股',
+}
+
+
 def norm_board_name(name):
-    """归一化板块名：去除东财 push2 接口常见的后缀（概念/板块/行业/主题/指数），
-    使与我们 ZTJJ 标签名（如 'CPO' vs 'CPO概念'）能匹配上。"""
+    """归一化板块名：去除后缀 + 别名查找。"""
     s = (name or '').strip()
     for suf in ('概念', '板块', '行业', '主题', '指数'):
         if s.endswith(suf):
             s = s[: -len(suf)]
     return s
+
+
+def find_best_board_match(tag_name, flows_norm):
+    """多策略匹配：别名 → 精确 → 包含(双向) → 首字前缀。
+    
+    优先匹配概念板（flows_norm 中概念已覆盖同名行业），
+    返回 (normalized_key, value) 或 (None, None)。
+    """
+    # 策略1：别名表直查
+    alias = TAG_TO_BOARD_ALIAS.get(tag_name)
+    if alias and alias in flows_norm:
+        return alias, flows_norm[alias]
+
+    # 策略2：归一化后精确匹配
+    key = norm_board_name(tag_name)
+    if key in flows_norm:
+        return key, flows_norm[key]
+
+    # 策略3：包含匹配（标签名含板名 或 板名含标签名）
+    for bk, val in flows_norm.items():
+        if tag_name == bk:
+            return bk, val
+        if len(bk) >= 2 and (bk in tag_name or tag_name in bk):
+            return bk, val
+
+    # 策略4：首字相同且长度接近（兜底）
+    if key:
+        for bk, val in flows_norm.items():
+            if bk and key[0] == bk[0] and abs(len(key) - len(bk)) <= 2:
+                return bk, val
+
+    return None, None
 
 
 def fetch_block_perf(index_code):
@@ -318,20 +406,33 @@ def main():
         print('[ERROR] 所有请求均失败')
         sys.exit(1)
 
-    # Step 2b: 按名称匹配板块资金流，并做限流保护（绝不把历史好数据覆盖成 NULL）
+    # Step 2b: 按名称匹配板块资金流（多策略：别名→精确→包含→前缀），并做限流保护
     MIN_MATCHED = 15  # 匹配数低于此阈值视为东财限流抓空，保留历史值
     prev = fetch_existing_net_inflow()
     matched = 0
+    match_detail = {'alias': 0, 'exact': 0, 'contains': 0, 'prefix': 0}
     if flows_norm:
         for row in results:
-            key = norm_board_name(row['tag_name'])
-            fv = flows_norm.get(key)
+            key, fv = find_best_board_match(row['tag_name'], flows_norm)
+            row['_match_key'] = key
             row['_new'] = fv
             if fv:
                 matched += 1
+                # 统计匹配策略分布（用于日志）
+                alias = TAG_TO_BOARD_ALIAS.get(row['tag_name'])
+                if alias and key == alias:
+                    match_detail['alias'] += 1
+                elif key == norm_board_name(row['tag_name']):
+                    match_detail['exact'] += 1
+                elif key and (key in row['tag_name'] or row['tag_name'] in key):
+                    match_detail['contains'] += 1
+                else:
+                    match_detail['prefix'] += 1
         use_new = matched >= MIN_MATCHED
         if use_new:
-            print(f'  [INFO] 资金流匹配成功 {matched}/{len(results)} 个，采用本轮数据')
+            print(f'  [INFO] 资金流匹配成功 {matched}/{len(results)} 个'
+                  f'(别名{match_detail["alias"]} 精确{match_detail["exact"]}'
+                  f' 包含{match_detail["contains"]} 前缀{match_detail["prefix"]})，采用本轮数据')
         else:
             print(f'  [WARN] 资金流匹配仅 {matched} 个 < 阈值 {MIN_MATCHED}，本轮视为限流失败，保留历史值')
     else:
