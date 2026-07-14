@@ -90,6 +90,7 @@ import Toast from './components/Toast.vue'
 import ConfirmDialog from './components/ConfirmDialog.vue'
 import LoginDialog from './components/LoginDialog.vue'
 import { useAuth } from './composables/useAuth'
+import { supabase } from './api/supabase'
 
 const route   = useRoute()
 const router  = useRouter()
@@ -100,11 +101,56 @@ const isMobile = ref(window.innerWidth < 769)
 function onResize() {
   isMobile.value = window.innerWidth < 769
 }
-onMounted(() => {
+onMounted(async () => {
   window.addEventListener('resize', onResize)
-  init()  // 初始化全局 auth
+  await init()        // 初始化全局 auth（恢复 session 后再上报，确保能拿到登录邮箱）
+  logVisitor()        // 上报本次访问（IP / 邮箱 / 地区 / 页面）
 })
 onUnmounted(() => window.removeEventListener('resize', onResize))
+
+/* ---- 访客访问记录上报（写入 visitor_logs 表）---- */
+async function logVisitor() {
+  if (!supabase) return
+  const pagePath = route.path || (typeof window !== 'undefined' ? window.location.pathname : '/')
+
+  // 用户身份：已登录用 email，未登录用 localStorage 匿名标识
+  let anonUid = ''
+  try { anonUid = localStorage.getItem('allfund_anon_uid') || '' } catch (e) {}
+  const email = user.value?.email || anonUid || 'anonymous'
+
+  const userAgent = typeof navigator !== 'undefined' ? navigator.userAgent : null
+
+  // 异步获取 IP + 地区（免费服务，可能不可达，失败不阻塞页面）
+  let ip = null
+  let region = ''
+  try {
+    const ipRes = await fetch('https://api.ipify.org?format=json')
+    const ipData = await ipRes.json()
+    ip = ipData.ip || null
+    try {
+      const geoRes = await fetch(`http://ip-api.com/json/${ip}?lang=zh-CN`)
+      const geo = await geoRes.json()
+      region = `${geo.regionName || ''}${geo.city ? ' ' + geo.city : ''}`.trim()
+    } catch (e) {
+      region = ''   // ip-api 不可达时地区留空，正常写入
+    }
+  } catch (e) {
+    ip = null
+  }
+
+  try {
+    await supabase.from('visitor_logs').insert({
+      ip_address: ip,
+      email,
+      region,
+      page_path: pagePath,
+      user_agent: userAgent,
+    })
+  } catch (e) {
+    // 上报失败静默处理，绝不阻塞页面
+    console.error('[visitor_logs] 上报失败', e)
+  }
+}
 
 /* ---- 认证 ---- */
 async function handleLogout() {

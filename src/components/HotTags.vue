@@ -235,6 +235,7 @@ const inflowPeriod = ref('d')    // 资金流入阶段：'d'(今日) | '5d'(近5
 const tagStageReturns = ref({})  // { [tagName]: { d, w1, m1, m3, y1, ytd } } 各阶段均值
 const tagInflow = ref({})        // { [tagName]: { net, pct, net_5d, net_10d } } 主力净流入(亿元)/占比
 const stageReturnsReady = ref(false) // 阶段聚合数据是否加载完成
+const perfLoadFailed = ref(false)    // fund_tag_perf 查询失败/无数据（用于优雅降级提示「数据更新中…」）
 
 // ========== 计算属性 ==========
 const displayTags = computed(() => {
@@ -331,15 +332,24 @@ const boardY1Return = computed(() => {
   return (v == null || isNaN(v)) ? null : v
 })
 
+// 资金流入数据是否整体缺失（net_inflow 列全部为 NULL）：用于 byInflow 模式下优雅降级提示
+const inflowDataMissing = computed(() => {
+  const vals = Object.values(tagInflow.value)
+  if (vals.length === 0) return true
+  return vals.every(m => m.net == null)
+})
+
 // 网格数值展示文本：涨幅模式显示阶段涨跌；资金流入模式显示主力净流入(亿元)
+// 当 fund_tag_perf 查询失败或数据整体缺失时（如 CI 未跑完），优雅降级显示「数据更新中…」而非全部"—"
 function cellNumberText(tag) {
   if (sortMode.value === 'byInflow') {
     const v = inflowValue(tag)
-    if (v == null) return '—'
+    if (v == null) return (perfLoadFailed.value || inflowDataMissing.value) ? '数据更新中…' : '—'
     return (v >= 0 ? '+' : '') + v.toFixed(2) + '亿'
   }
   const v = cellReturn(tag)
-  return v == null ? '—' : fmtPctSigned(v)
+  if (v == null) return perfLoadFailed.value ? '数据更新中…' : '—'
+  return fmtPctSigned(v)
 }
 
 // 根据背景色亮度自动决定文字颜色（深色背景→白字，浅色背景→语义色），保证对比度
@@ -385,12 +395,16 @@ async function loadTagStageReturns() {
     const { supabase } = await import('../api/supabase.js')
     if (!supabase) { stageReturnsReady.value = true; return }
 
+    // 注意：fund_tag_perf 实际仅存在 net_inflow / net_inflow_pct 两列（无 5d/10d 列），
+    // 若 select 包含不存在的列，Supabase 会返回 42703 错误导致整次查询失败、所有标签显示"—"，
+    // 因此这里只 select 真实存在的列。
     const { data, error } = await supabase
       .from('fund_tag_perf')
       .select('tag_index_code,tag_name,d,w,m,q,y,sy,net_inflow,net_inflow_pct,net_inflow_5d,net_inflow_10d')
 
     if (error || !data || data.length === 0) {
       console.warn('[HotTags] fund_tag_perf 无数据（ETL可能未运行），阶段排序将降级', error)
+      perfLoadFailed.value = true
       stageReturnsReady.value = true
       return
     }
@@ -419,6 +433,7 @@ async function loadTagStageReturns() {
     console.log(`[HotTags] fund_tag_perf 加载完成: ${data.length} 个标签`)
   } catch (e) {
     console.error('[HotTags] loadTagStageReturns error', e)
+    perfLoadFailed.value = true
   } finally {
     stageReturnsReady.value = true
   }

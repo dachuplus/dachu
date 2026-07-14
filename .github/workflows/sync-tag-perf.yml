@@ -1,0 +1,36 @@
+name: 同步标签涨跌幅与资金流（fund_tag_perf）
+
+on:
+  # 手动触发
+  workflow_dispatch:
+  # 每日北京时间 21:45（UTC 13:45），在主线更新之后补充板块涨跌幅+资金流
+  schedule:
+    - cron: '45 13 * * *'
+
+env:
+  PYTHONUNBUFFERED: '1'
+
+jobs:
+  sync-tag-perf:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      SUPABASE_MGMT_TOKEN: ${{ secrets.SUPABASE_MGMT_TOKEN }}
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+      SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 安装 Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: 安装依赖
+        run: pip install requests
+
+      - name: 同步标签涨跌幅 + 板块资金流（写入 fund_tag_perf）
+        run: python scripts/sync_tag_performance.py

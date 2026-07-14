@@ -23,7 +23,7 @@
     <div class="aipk-section-title aipk-section-title-row">
       <span>模型阵容（各 5 只 · 等权 20%）</span>
       <div class="aipk-section-actions">
-        <button class="aipk-manage-btn" @click="openManage" title="管理自建模型">
+        <button class="aipk-manage-btn" v-if="isAdmin" @click="openManage" title="管理自建模型">
           <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><path fill="currentColor" d="M19.14 12.94a7.49 7.49 0 0 0 .05-.94 7.49 7.49 0 0 0-.05-.94l2.03-1.58a.5.5 0 0 0 .12-.64l-1.92-3.32a.5.5 0 0 0-.61-.22l-2.39.96a7.3 7.3 0 0 0-1.62-.94l-.36-2.54a.5.5 0 0 0-.5-.42h-3.84a.5.5 0 0 0-.5.42l-.36 2.54c-.59.24-1.13.56-1.62.94l-2.39-.96a.5.5 0 0 0-.61.22L2.7 8.84a.5.5 0 0 0 .12.64l2.03 1.58c-.03.31-.05.62-.05.94s.02.63.05.94l-2.03 1.58a.5.5 0 0 0-.12.64l1.92 3.32c.14.24.42.34.61.22l2.39-.96c.49.38 1.03.7 1.62.94l.36 2.54c.04.24.25.42.5.42h3.84c.25 0 .46-.18.5-.42l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.19.12.47.02.61-.22l1.92-3.32a.5.5 0 0 0-.12-.64l-2.03-1.58ZM12 15.5A3.5 3.5 0 1 1 12 8.5a3.5 3.5 0 0 1 0 7Z"/></svg>
           模型管理
         </button>
@@ -212,6 +212,13 @@
           </div>
 
           <div class="aipk-manage-body">
+            <!-- 非管理员限制提示 -->
+            <div v-if="!isAdmin" class="aipk-manage-restricted">
+              <span class="aipk-manage-restricted-icon">🔒</span>
+              <p class="aipk-manage-restricted-title">该功能仅限管理员使用</p>
+              <p class="aipk-manage-restricted-desc">如需管理自建模型，请使用管理员账号登录。</p>
+            </div>
+            <template v-else>
             <!-- 已有模型列表 -->
             <div class="aipk-manage-sub">已有模型（{{ manageModels.length }}）</div>
             <div class="aipk-manage-list">
@@ -312,6 +319,7 @@
               说明：自建模型会出现在「模型阵容」中。API Key 不会在列表中明文展示，仅本地加密存储于服务端。
               当前为匿名使用，模型与你的浏览器标识（{{ userId }}）绑定。
             </p>
+            </template>
           </div>
         </div>
       </template>
@@ -322,6 +330,7 @@
 <script setup>
 import { ref, reactive, computed, onMounted, onBeforeUnmount, watch, nextTick } from 'vue'
 import { supabase } from '../../api/supabase'
+import { useAuth } from '../../composables/useAuth'
 import echarts from '../../utils/echarts-setup'
 import { BarChart, LineChart } from 'echarts/charts'
 import { GridComponent, TooltipComponent, TitleComponent, LegendComponent } from 'echarts/components'
@@ -330,6 +339,13 @@ import QRCode from 'qrcode'
 
 // 注册本组件所需的 BarChart（不修改共享的 echarts-setup.js）
 echarts.use([BarChart, LineChart, GridComponent, TooltipComponent, TitleComponent, LegendComponent])
+
+// ========== 管理员权限控制 ==========
+// 硬编码管理员邮箱列表（与 useAuth 中 OWNER_EMAIL 保持一致）
+const ADMIN_EMAILS = ['57502460@qq.com']
+const { user: authUser } = useAuth()
+// 已登录且邮箱命中管理员列表才视为管理员；未登录 → false
+const isAdmin = computed(() => ADMIN_EMAILS.includes((authUser.value?.email || '').toLowerCase()))
 
 // ========== 分享到朋友圈 ==========
 const shareSection = ref(null)        // 'pk' | 'lineup' | 'timeline'
@@ -424,6 +440,8 @@ const orderedModels = computed(() => {
   models.value.forEach(m => { map[m.id] = m })
   const presets = MODEL_ORDER.map(id => map[id]).filter(Boolean)
   // 用户自建且启用中的模型，自动出现在 PK 阵容中
+  // 非管理员：自建模型不进入 PK 阵容（仅展示系统预设模型）
+  if (!isAdmin.value) return presets
   const custom = models.value.filter(m => m.is_custom && m.is_active)
   return [...presets, ...custom]
 })
@@ -1037,6 +1055,7 @@ async function loadUserModels() {
 }
 
 async function saveModel() {
+  if (!isAdmin.value) return   // 仅管理员可保存，防止绕过 UI 直接调用
   if (!validate()) return
   if (!supabase) {
     formMsg.value = 'Supabase 未配置，无法保存'
@@ -1077,6 +1096,7 @@ async function saveModel() {
 }
 
 function editModel(m) {
+  if (!isAdmin.value) return
   editingId.value = m.id
   form.model_name = m.name
   form.model_provider = m.model_provider || 'custom'
@@ -1089,6 +1109,7 @@ function editModel(m) {
 }
 
 async function deleteModel(m) {
+  if (!isAdmin.value) return
   if (typeof window !== 'undefined' && !window.confirm(`确认删除模型「${m.name}」？此操作不可恢复。`)) return
   if (!supabase) return
   try {
@@ -1105,6 +1126,7 @@ async function deleteModel(m) {
 }
 
 async function toggleModelActive(m) {
+  if (!isAdmin.value) return
   if (!supabase) return
   try {
     const next = !m.is_active
@@ -1359,6 +1381,18 @@ async function toggleModelActive(m) {
 .aipk-manage-title { font-size: 16px; font-weight: 700; color: var(--text-primary); }
 .aipk-manage-close { font-size: 24px; color: var(--text-primary); cursor: pointer; padding: 4px; line-height: 1; flex-shrink: 0; }
 .aipk-manage-body { padding: var(--space-md) var(--space-lg); overflow-y: auto; }
+
+/* 非管理员限制提示（gov.uk 风格，无圆角无阴影） */
+.aipk-manage-restricted {
+  text-align: center;
+  padding: var(--space-2xl) var(--space-md);
+  border: 1px solid #b1b4b6;
+  border-left: 4px solid #d4351c;
+  background: #fef7f7;
+}
+.aipk-manage-restricted-icon { font-size: 32px; display: block; margin-bottom: var(--space-sm); }
+.aipk-manage-restricted-title { font-size: 18px; font-weight: 700; color: #d4351c; margin: 0 0 var(--space-xs); }
+.aipk-manage-restricted-desc { font-size: 14px; color: var(--text-secondary); margin: 0; line-height: 1.6; }
 
 .aipk-manage-sub { font-size: 15px; font-weight: 700; color: #1d70b8; margin: var(--space-md) 0 var(--space-sm); }
 .aipk-manage-sub:first-child { margin-top: 0; }

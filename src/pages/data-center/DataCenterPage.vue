@@ -85,8 +85,16 @@
             <td class="col-rows">{{ formatNum(t.rows) }}</td>
             <td class="col-size">{{ formatSizeMB(t.size) }}</td>
             <td class="col-action">
+              <button
+                v-if="t.dynamic"
+                class="btn-download"
+                :disabled="exporting"
+                @click="exportVisitorLogs"
+              >
+                {{ exporting ? '生成中…' : '下载 Excel' }}
+              </button>
               <a
-                v-if="t.downloadable"
+                v-else-if="t.downloadable"
                 :href="t.downloadUrl"
                 class="btn-download"
                 :download="t.key + '.xlsx'"
@@ -721,6 +729,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { useAuth } from '../../composables/useAuth'
 import { supabase } from '../../api/supabase'
+import * as XLSX from 'xlsx'
 
 const { isLoggedIn, isOwner, showLogin } = useAuth()
 
@@ -868,10 +877,20 @@ const visibleTables = computed(() => {
     // 索引文件未加载时回退到内置表清单
     base = tables.map(t => ({ ...t, size: null }))
   }
+  // 访问日志：动态从 supabase 查询全量并前端生成 xlsx（不依赖预生成静态文件）
+  base.push({
+    key: 'visitor_logs',
+    name: '访问日志',
+    desc: '访客 IP / 邮箱(或匿名标识) / 地区 / 访问页面 / 浏览器 UA 上报记录',
+    rows: null,
+    sensitive: false,
+    size: null,
+    dynamic: true,
+  })
   return base.map(t => ({
     ...t,
     downloadable: isLoggedIn.value,
-    downloadUrl: `/downloads/${t.key}.xlsx`,
+    downloadUrl: t.dynamic ? '' : `/downloads/${t.key}.xlsx`,
   }))
 })
 
@@ -905,6 +924,41 @@ onMounted(() => {
   loadIndex()
   loadEtllog()
 })
+
+// ========== 访问日志导出（前端直接查询全量 → xlsx）==========
+const exporting = ref(false)
+async function exportVisitorLogs() {
+  if (!supabase) return
+  exporting.value = true
+  try {
+    const { data, error } = await supabase
+      .from('visitor_logs')
+      .select('*')
+      .order('visit_time', { ascending: false })
+    if (error) throw error
+    const rows = data || []
+    const toRow = (r) => ({
+      id: r.id,
+      ip_address: r.ip_address,
+      email: r.email,
+      region: r.region,
+      page_path: r.page_path,
+      user_agent: r.user_agent,
+      visit_time: r.visit_time,
+    })
+    const ws = rows.length
+      ? XLSX.utils.json_to_sheet(rows.map(toRow))
+      : XLSX.utils.json_to_sheet([{ id: '', ip_address: '', email: '', region: '', page_path: '', user_agent: '', visit_time: '' }])
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, ws, 'visitor_logs')
+    XLSX.writeFile(wb, 'visitor_logs.xlsx')
+  } catch (e) {
+    console.error('[DataCenter] 导出访问日志失败', e)
+    alert('导出访问日志失败：' + (e?.message || e))
+  } finally {
+    exporting.value = false
+  }
+}
 </script>
 
 <style scoped>
