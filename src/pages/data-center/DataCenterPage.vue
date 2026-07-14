@@ -33,7 +33,15 @@
         </thead>
         <tbody>
           <tr v-for="(log, i) in etlLogs" :key="i">
-            <td class="col-etl-step"><code>{{ log.step_name || log.name || log.step || '—' }}</code></td>
+            <td class="col-etl-step">
+              <div class="step-name"><code>{{ log.step_name || log.name || log.step || '—' }}</code></div>
+              <div class="step-title">{{ stepView(log).title }}</div>
+              <div class="step-desc">{{ stepView(log).desc }}</div>
+              <div class="progress" :class="'pg-' + stepView(log).state">
+                <div class="progress-bar" :style="{ width: stepView(log).pct + '%' }"></div>
+              </div>
+              <div class="step-reason" v-if="stepView(log).reason">{{ stepView(log).reason }}</div>
+            </td>
             <td class="col-etl-status">
               <span class="status-badge" :class="log.status === 'success' ? 'status-ok' : (log.status === 'error' ? 'status-error' : (log.status === 'running' ? 'status-running' : 'status-pending'))">{{ statusLabel(log.status) }}</span>
             </td>
@@ -869,6 +877,45 @@ function formatDuration(sec) {
   return Math.floor(n / 3600) + 'h' + Math.round((n % 3600) / 60) + 'm'
 }
 
+// ETL 步骤说明 + 进度/超时判定
+const ETL_STEP_INFO = {
+  fetch_return_all: { title: '基金收益数据', desc: '抓取全市场公募基金各周期收益率、回撤与夏普比率' },
+  fetch_tsdata_risk: { title: '风险指标时序', desc: '抓取最大回撤、波动率等风险指标时序数据' },
+  fetch_fund_basic_info: { title: '基金基础信息', desc: '抓取基金规模、费率、经理、成立日期等基础资料' },
+  fetch_currency_funds: { title: '货币型基金', desc: '抓取货币型基金收益与规模数据' },
+  fetch_risk_indicators: { title: '特色风险指标', desc: '抓取恐惧贪婪指数、估值温度计等市场情绪指标' },
+  fetch_and_import_funds: { title: '基金列表导入', desc: '抓取基金列表与分类并导入评分库' },
+  export_fund_details: { title: '导出数据文件', desc: '将最新数据导出为 Excel 并发布到数据下载中心' },
+}
+function stepInfo(name) {
+  return ETL_STEP_INFO[name] || { title: name || '未知步骤', desc: 'ETL 数据处理步骤' }
+}
+const ETL_OVERTIME_MIN = 30
+function stepView(log) {
+  const info = stepInfo(log.step_name)
+  const status = log.status
+  let pct = 0, state = 'pending', reason = ''
+  const start = log.start_time ? new Date(log.start_time).getTime() : null
+  const elapsedMin = start != null ? (Date.now() - start) / 60000 : null
+  if (status === 'success') {
+    pct = 100; state = 'ok'
+  } else if (status === 'error') {
+    pct = 100; state = 'error'
+    reason = log.error_message || '执行失败，详见 ETL 运行日志'
+  } else if (status === 'running') {
+    state = 'running'
+    if (elapsedMin != null && elapsedMin > ETL_OVERTIME_MIN) {
+      state = 'overtime'
+      reason = `任务疑似超时：自 ${fmtTime(log.start_time)} 起已约 ${Math.round(elapsedMin)} 分钟仍未完成（单步通常几分钟内结束）。常见原因：数据源限流(东财 push2)、网络超时、Supabase 连接中断或服务进程异常，建议重跑 ETL 或检查服务。`
+    } else {
+      pct = 100
+    }
+  } else {
+    state = 'pending'; pct = 0
+  }
+  return { title: info.title, desc: info.desc, pct, state, reason, status }
+}
+
 async function loadIndex() {
   try {
     const resp = await fetch('/downloads/index.json?' + Date.now())
@@ -924,6 +971,28 @@ async function loadEtlBrief() {
   }
 }
 
+// 根据 IP 地址补全地区（visitor_logs 中 region 为空时，调用 IP 地理库解析）
+async function enrichRegions(list) {
+  const ips = [...new Set(list.filter(v => v.ip && v.ip !== '—' && (v.region === '—' || !v.region)).map(v => v.ip))]
+  await Promise.all(ips.map(async (ip) => {
+    try {
+      const ctrl = new AbortController()
+      const timer = setTimeout(() => ctrl.abort(), 4000)
+      const r = await fetch('https://ipwho.is/' + encodeURIComponent(ip), { signal: ctrl.signal })
+      clearTimeout(timer)
+      if (!r.ok) return
+      const d = await r.json()
+      if (!d || d.success === false) return
+      const loc = [d.region, d.city].filter(Boolean).join(' ')
+      const text = (d.country === 'China' || d.country_code === 'CN')
+        ? (loc || d.country)
+        : (loc ? loc + ', ' + d.country : d.country)
+      if (!text) return
+      list.forEach(v => { if (v.ip === ip && (v.region === '—' || !v.region)) v.region = text })
+    } catch (e) { /* 忽略，地区留空 */ }
+  }))
+}
+
 // 加载用户分析（从 visitor_logs 读取当日访问，统计活跃用户与清单）
 async function loadUserAnalytics() {
   try {
@@ -952,13 +1021,15 @@ async function loadUserAnalytics() {
       if (r.visit_time < u.min) u.min = r.visit_time
       if (r.visit_time > u.max) u.max = r.visit_time
     }
-    visitorList.value = [...map.values()].map(u => ({
+    const list = [...map.values()].map(u => ({
       name: (u.email && u.email !== 'anonymous') ? u.email : '匿名访客',
       ip: u.ip || '—',
       region: u.region || '—',
       durationMin: Math.max(0, Math.round((new Date(u.max) - new Date(u.min)) / 60000)),
       paths: [...u.paths]
     }))
+    await enrichRegions(list)
+    visitorList.value = list
     userAnalyticsReady.value = true
   } catch (e) {
     console.warn('[DataCenter] 加载用户分析失败', e)
@@ -1063,7 +1134,7 @@ onMounted(() => {
 @keyframes pulse {
   0%, 100% { opacity: 1; } 50% { opacity: 0.5; }
 }
-.col-etl-step { width: 180px; }
+.col-etl-step { width: 300px; vertical-align: top; }
 .col-etl-status { width: 80px; text-align: center; }
 .col-etl-rows { width: 100px; text-align: right; font-family: monospace; }
 .col-etl-time { width: 160px; }
@@ -1074,6 +1145,29 @@ onMounted(() => {
 .brief-summary .ok { color: #00703c; font-weight: 700; }
 .brief-summary .fail { color: #d4351c; font-weight: 700; }
 .brief-summary .sep { margin: 0 8px; color: var(--border); }
+
+/* ETL 步骤说明 + 进度条 */
+.step-name { margin-bottom: 2px; }
+.step-name code { font-size: 12px; color: var(--text-secondary); }
+.step-title { font-weight: 700; color: var(--text-primary); font-size: 14px; margin-top: 2px; }
+.step-desc { font-size: 12px; color: var(--text-secondary); line-height: 1.4; margin-top: 2px; }
+.progress { height: 6px; background: #f3f2f1; border: 1px solid var(--border); margin-top: 6px; overflow: hidden; }
+.progress-bar { height: 100%; background: #1d70b8; transition: width .3s; }
+.pg-ok .progress-bar { background: #00703c; }
+.pg-error .progress-bar { background: #d4351c; }
+.pg-overtime .progress-bar { background: #d4351c; animation: pulse 1.2s infinite; }
+.pg-running .progress-bar {
+  background-color: #1d70b8;
+  background-image: linear-gradient(45deg, rgba(255,255,255,.4) 25%, transparent 25%, transparent 50%, rgba(255,255,255,.4) 50%, rgba(255,255,255,.4) 75%, transparent 75%, transparent);
+  background-size: 18px 18px;
+  animation: pg-slide 1s linear infinite;
+}
+.pg-pending .progress-bar { background: #b1b4b6; }
+@keyframes pg-slide { from { background-position: 0 0; } to { background-position: 18px 0; } }
+.step-reason {
+  font-size: 12px; color: #d4351c; line-height: 1.5; margin-top: 6px;
+  background: #fdf2f0; border-left: 3px solid #d4351c; padding: 4px 8px;
+}
 
 /* 用户分析 */
 .analytics-summary { display: flex; gap: var(--space-lg); margin: 0 0 var(--space-lg); flex-wrap: wrap; }

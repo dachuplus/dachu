@@ -155,13 +155,19 @@ async function _getGeo() {
   if (_geoCache) return _geoCache
   try {
     const ctrl = new AbortController()
-    const timer = setTimeout(() => ctrl.abort(), 3000)
-    const r = await fetch('https://ipapi.co/json/', { signal: ctrl.signal })
+    const timer = setTimeout(() => ctrl.abort(), 4000)
+    const r = await fetch('https://ipwho.is/', { signal: ctrl.signal })
     clearTimeout(timer)
     if (r.ok) {
       const d = await r.json()
-      _geoCache = { ip: d.ip || null, region: [d.region, d.city].filter(Boolean).join(' ') || d.country_name || null }
-      return _geoCache
+      if (d && d.success) {
+        const loc = [d.region, d.city].filter(Boolean).join(' ')
+        const region = (d.country === 'China' || d.country_code === 'CN')
+          ? (loc || d.country)
+          : (loc ? loc + ', ' + d.country : d.country)
+        _geoCache = { ip: d.ip || null, region: region || null }
+        return _geoCache
+      }
     }
   } catch (e) { /* 忽略：geo 仅用于展示，失败则留空 */ }
   _geoCache = { ip: null, region: null }
