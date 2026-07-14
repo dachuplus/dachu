@@ -1,4 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router'
+import { supabase } from '../api/supabase.js'
 
 const routes = [
   {
@@ -146,6 +147,45 @@ const router = createRouter({
   routes,
 })
 
+// ---- 访问日志（数据中心「用户分析」数据来源） ----
+let _geoCache = null
+let _lastTrackPath = ''
+let _lastTrackTs = 0
+async function _getGeo() {
+  if (_geoCache) return _geoCache
+  try {
+    const ctrl = new AbortController()
+    const timer = setTimeout(() => ctrl.abort(), 3000)
+    const r = await fetch('https://ipapi.co/json/', { signal: ctrl.signal })
+    clearTimeout(timer)
+    if (r.ok) {
+      const d = await r.json()
+      _geoCache = { ip: d.ip || null, region: [d.region, d.city].filter(Boolean).join(' ') || d.country_name || null }
+      return _geoCache
+    }
+  } catch (e) { /* 忽略：geo 仅用于展示，失败则留空 */ }
+  _geoCache = { ip: null, region: null }
+  return _geoCache
+}
+async function _trackVisit(path) {
+  try {
+    const now = Date.now()
+    if (path === _lastTrackPath && now - _lastTrackTs < 5000) return // 同路径 5s 内节流，避免刷屏
+    _lastTrackPath = path
+    _lastTrackTs = now
+    const { data: { user } } = await supabase.auth.getUser()
+    const geo = await _getGeo()
+    await supabase.from('visitor_logs').insert({
+      email: user?.email || 'anonymous',
+      page_path: path,
+      user_agent: navigator.userAgent,
+      ip_address: geo.ip,
+      region: geo.region,
+      visit_time: new Date().toISOString()
+    })
+  } catch (e) { /* 静默失败，绝不阻塞页面 */ }
+}
+
 router.afterEach((to) => {
   const baseTitle = 'ALLFUND.CN'
   document.title = (to.meta?.title || '靠谱指数评分工具') + ' | ' + baseTitle
@@ -159,6 +199,8 @@ router.afterEach((to) => {
   setMeta('og:description', meta.description || '用数据辅助基金投资决策：靠谱指数评分、股债性价比、大类资产预期收益。', 'property')
   setMeta('og:type', 'website', 'property')
   setMeta('og:url', location.origin + to.fullPath, 'property')
+  // 记录访问（异步，不阻塞导航）
+  _trackVisit(to.fullPath)
 })
 
 /** 获取或创建 meta 标签（name 或 property 属性）并设值 */

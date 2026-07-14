@@ -14,7 +14,13 @@
 
     <!-- 每日自动更新任务简报 -->
     <div class="card" v-if="etlBriefReady">
-      <div class="card-title">每日自动更新简报</div>
+      <div class="card-title">每日自动更新结果</div>
+      <div class="brief-summary" v-if="etlLogs.length > 0">
+        <span class="ok">完成 {{ etlLogs.filter(l => l.status === 'success').length }} 项</span>
+        <span class="sep">／</span>
+        <span v-if="etlLogs.filter(l => l.status === 'error').length > 0" class="fail">未完成 {{ etlLogs.filter(l => l.status === 'error').length }} 项</span>
+        <span v-else class="ok">全部完成</span>
+      </div>
       <table class="data-table" v-if="etlLogs.length > 0">
         <thead>
           <tr>
@@ -41,6 +47,48 @@
       <div class="brief-footer" v-if="etlLastRunTime">
         最近一次执行：{{ etlLastRunTime }}
       </div>
+    </div>
+
+    <!-- 用户分析 -->
+    <div class="card" v-if="userAnalyticsReady">
+      <div class="card-title">用户分析</div>
+      <div class="analytics-summary">
+        <div class="stat">
+          <div class="stat-num">{{ activeNow }}</div>
+          <div class="stat-label">当前在线活跃用户</div>
+        </div>
+        <div class="stat">
+          <div class="stat-num">{{ activeToday }}</div>
+          <div class="stat-label">当日累计活跃用户</div>
+        </div>
+        <div class="stat">
+          <div class="stat-num">{{ visitorList.length }}</div>
+          <div class="stat-label">活跃用户清单（去重）</div>
+        </div>
+      </div>
+      <table class="data-table" v-if="visitorList.length > 0">
+        <thead>
+          <tr>
+            <th class="col-ua-name">用户名</th>
+            <th class="col-ua-ip">IP 地址</th>
+            <th class="col-ua-region">地区</th>
+            <th class="col-ua-duration">在线时长</th>
+            <th class="col-ua-paths">访问路径</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="(v, i) in visitorList" :key="i">
+            <td class="col-ua-name"><code>{{ v.name }}</code></td>
+            <td class="col-ua-ip">{{ v.ip }}</td>
+            <td class="col-ua-region">{{ v.region }}</td>
+            <td class="col-ua-duration">{{ v.durationMin > 0 ? v.durationMin + ' 分钟' : '—' }}</td>
+            <td class="col-ua-paths">
+              <span class="path-tag" v-for="(p, j) in v.paths" :key="j">{{ p }}</span>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+      <p class="section-desc" v-else>今日暂无访问记录。</p>
     </div>
 
     <!-- 未登录提示横幅 -->
@@ -720,6 +768,12 @@ const etlBriefReady = ref(false)
 const etlLogs = ref([])
 const etlLastRunTime = ref('')
 
+// 用户分析（visitor_logs）
+const userAnalyticsReady = ref(false)
+const activeNow = ref(0)
+const activeToday = ref(0)
+const visitorList = ref([])
+
 // 表定义
 const tables = [
   { key: 'fund_combined', name: '基金综合数据表', desc: '基金分类(t0/t1)、详情(公司/规模/费率)、收益(ytd~r5y)、风险(dd1y/sr1y)、评分(k_all/score_grade/k0w~k10) — 核心合并表，20,860条', rows: 20860 },
@@ -870,9 +924,52 @@ async function loadEtlBrief() {
   }
 }
 
+// 加载用户分析（从 visitor_logs 读取当日访问，统计活跃用户与清单）
+async function loadUserAnalytics() {
+  try {
+    const { supabase } = await import('../../api/supabase.js')
+    if (!supabase) { userAnalyticsReady.value = true; return }
+    const now = new Date()
+    const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString()
+    const fifteenAgo = new Date(now.getTime() - 15 * 60 * 1000).toISOString()
+    const { data, error } = await supabase
+      .from('visitor_logs')
+      .select('email, ip_address, region, page_path, visit_time')
+      .gte('visit_time', startOfDay)
+      .order('visit_time', { ascending: false })
+      .limit(1000)
+    if (error || !data) { userAnalyticsReady.value = true; return }
+    const keyOf = (r) => (r.email && r.email !== 'anonymous') ? ('e:' + r.email) : ('ip:' + (r.ip_address || 'unknown'))
+    const recent = data.filter(r => new Date(r.visit_time) >= new Date(fifteenAgo))
+    activeNow.value = new Set(recent.map(keyOf)).size
+    activeToday.value = new Set(data.map(keyOf)).size
+    const map = new Map()
+    for (const r of data) {
+      const k = keyOf(r)
+      if (!map.has(k)) map.set(k, { email: r.email, ip: r.ip_address, region: r.region, paths: new Set(), min: r.visit_time, max: r.visit_time })
+      const u = map.get(k)
+      if (r.page_path) u.paths.add(r.page_path)
+      if (r.visit_time < u.min) u.min = r.visit_time
+      if (r.visit_time > u.max) u.max = r.visit_time
+    }
+    visitorList.value = [...map.values()].map(u => ({
+      name: (u.email && u.email !== 'anonymous') ? u.email : '匿名访客',
+      ip: u.ip || '—',
+      region: u.region || '—',
+      durationMin: Math.max(0, Math.round((new Date(u.max) - new Date(u.min)) / 60000)),
+      paths: [...u.paths]
+    }))
+    userAnalyticsReady.value = true
+  } catch (e) {
+    console.warn('[DataCenter] 加载用户分析失败', e)
+    userAnalyticsReady.value = true
+  }
+}
+
 onMounted(() => {
   loadIndex()
   loadEtlBrief()
+  loadUserAnalytics()
 })
 </script>
 
@@ -971,6 +1068,31 @@ onMounted(() => {
 .col-etl-rows { width: 100px; text-align: right; font-family: monospace; }
 .col-etl-time { width: 160px; }
 .col-etl-duration { width: 90px; text-align: right; font-family: monospace; }
+
+/* ETL 简报汇总 */
+.brief-summary { font-size: 14px; color: var(--text-secondary); margin: 0 0 var(--space-md); }
+.brief-summary .ok { color: #00703c; font-weight: 700; }
+.brief-summary .fail { color: #d4351c; font-weight: 700; }
+.brief-summary .sep { margin: 0 8px; color: var(--border); }
+
+/* 用户分析 */
+.analytics-summary { display: flex; gap: var(--space-lg); margin: 0 0 var(--space-lg); flex-wrap: wrap; }
+.analytics-summary .stat {
+  flex: 1; min-width: 140px; background: #f3f2f1; border: 1px solid var(--border);
+  padding: var(--space-md); text-align: center;
+}
+.analytics-summary .stat-num { font-size: 28px; font-weight: 700; color: #1d70b8; line-height: 1.1; }
+.analytics-summary .stat-label { font-size: 13px; color: var(--text-secondary); margin-top: 4px; }
+.col-ua-name { width: 200px; }
+.col-ua-ip { width: 140px; font-family: monospace; }
+.col-ua-region { width: 120px; }
+.col-ua-duration { width: 100px; text-align: right; font-family: monospace; }
+.col-ua-paths { min-width: 240px; }
+.path-tag {
+  display: inline-block; background: #f3f2f1; border: 1px solid var(--border);
+  border-radius: 2px; padding: 1px 6px; margin: 2px 4px 2px 0; font-size: 12px;
+  font-family: monospace; color: var(--text-secondary);
+}
 
 /* API 接口文档 */
 .api-group-title {
