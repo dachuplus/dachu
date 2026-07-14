@@ -196,12 +196,7 @@ def fetch_board_flows_multi_period(board_type):
         j = _push2_get(path)
         diff = (j.get('data') or {}).get('diff') or []
         if not diff:
-            # 首页偶发空（东财限流/抖动）：冷却后重试一次，仍空才视为末页跳出
-            time.sleep(5)
-            j = _push2_get(path)
-            diff = (j.get('data') or {}).get('diff') or []
-            if not diff:
-                break
+            break
         for it in diff:
             name = (it.get('f14') or '').strip()
             if not name:
@@ -221,12 +216,9 @@ def fetch_all_board_flows():
     print('\n[STEP 2b] 拉取东财板块资金流（今日/近5日/近10日主力净流入）...')
     flows = {}
     try:
-        # 前置冷却：前序 ZTJJ 请求较多，先停顿避免东财 push2 限流导致首页空
-        time.sleep(3)
-        # 概念先拉（实测返回稳定），行业后拉，两类各带首页空重试
-        concept = fetch_board_flows_multi_period(3)
-        time.sleep(2)
         industry = fetch_board_flows_multi_period(2)
+        time.sleep(1)
+        concept = fetch_board_flows_multi_period(3)
     except Exception as e:
         print(f'  [WARN] 板块资金流拉取异常: {e}')
         return {}
