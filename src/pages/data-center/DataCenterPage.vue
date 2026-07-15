@@ -84,6 +84,7 @@
           <tr>
             <th class="col-ua-name">用户名</th>
             <th class="col-ua-ip">IP 地址</th>
+            <th class="col-ua-region">地区</th>
             <th class="col-ua-firstvisit">首次访问时间</th>
             <th class="col-ua-duration">在线时间</th>
             <th class="col-ua-paths">访问路径</th>
@@ -93,6 +94,7 @@
           <tr v-for="(v, i) in visitorList" :key="i">
             <td class="col-ua-name"><code>{{ v.name }}</code></td>
             <td class="col-ua-ip">{{ v.ip }}</td>
+            <td class="col-ua-region">{{ v.region || '—' }}</td>
             <td class="col-ua-firstvisit">{{ v.firstVisit ? fmtTime(v.firstVisit) : '—' }}</td>
             <td class="col-ua-duration">{{ v.durationMin > 0 ? v.durationMin + ' 分钟' : '—' }}</td>
             <td class="col-ua-paths">
@@ -1068,26 +1070,52 @@ async function loadEtlBrief() {
   }
 }
 
-// 根据 IP 地址补全地区（visitor_logs 中 region 为空时，调用 IP 地理库解析）
+// 根据 IP 地址补全地区（双保险：先 ipwho.is 国际库，失败则用国内库兜底）
 async function enrichRegions(list) {
   const ips = [...new Set(list.filter(v => v.ip && v.ip !== '—' && (v.region === '—' || !v.region)).map(v => v.ip))]
   await Promise.all(ips.map(async (ip) => {
-    try {
-      const ctrl = new AbortController()
-      const timer = setTimeout(() => ctrl.abort(), 4000)
-      const r = await fetch('https://ipwho.is/' + encodeURIComponent(ip), { signal: ctrl.signal })
-      clearTimeout(timer)
-      if (!r.ok) return
-      const d = await r.json()
-      if (!d || d.success === false) return
-      const loc = [d.region, d.city].filter(Boolean).join(' ')
-      const text = (d.country === 'China' || d.country_code === 'CN')
-        ? (loc || d.country)
-        : (loc ? loc + ', ' + d.country : d.country)
-      if (!text) return
-      list.forEach(v => { if (v.ip === ip && (v.region === '—' || !v.region)) v.region = text })
-    } catch (e) { /* 忽略，地区留空 */ }
+    // 第一道防线：ipwho.is（国际，覆盖全球）
+    let text = await resolveIP_1(ip)
+    // 第二道防线：国内库（ip.useragentinfo.com / 太平洋）兜底
+    if (!text) text = await resolveIP_2(ip)
+    if (!text) return
+    list.forEach(v => { if (v.ip === ip && (v.region === '—' || !v.region)) v.region = text })
   }))
+}
+
+// 第一道：ipwho.is（国际源）
+async function resolveIP_1(ip) {
+  try {
+    const ctrl = new AbortController()
+    const timer = setTimeout(() => ctrl.abort(), 4000)
+    const r = await fetch('https://ipwho.is/' + encodeURIComponent(ip), { signal: ctrl.signal })
+    clearTimeout(timer)
+    if (!r.ok) return null
+    const d = await r.json()
+    if (!d || d.success === false) return null
+    const loc = [d.region, d.city].filter(Boolean).join(' ')
+    const text = (d.country === 'China' || d.country_code === 'CN')
+      ? (loc || d.country)
+      : (loc ? loc + ', ' + d.country : d.country)
+    return text || null
+  } catch (_) { return null }
+}
+
+// 第二道：国内库（ip.useragentinfo.com，中文输出，对国内 IP 命中率高）
+async function resolveIP_2(ip) {
+  try {
+    const ctrl = new AbortController()
+    const timer = setTimeout(() => ctrl.abort(), 5000)
+    // 太平洋电脑网 IP 查询接口（JSONP/JSON 均支持，返回中文省市）
+    const r = await fetch('https://whois.pconline.com.cn/ipJson.jsp?ip=' + encodeURIComponent(ip) + '&json=true', { signal: ctrl.signal })
+    clearTimeout(timer)
+    if (!r.ok) return null
+    const d = await r.json()
+    if (!d || d.pro === undefined) return null
+    // 返回格式: { pro: "省份", city: "城市", addr: "..." }
+    const loc = [d.pro, d.city].filter(Boolean).join(' ')
+    return loc || null
+  } catch (_) { return null }
 }
 
 // 加载用户分析（从 visitor_logs 读取当日访问，统计活跃用户与清单）
@@ -1281,6 +1309,7 @@ onMounted(() => {
 .analytics-summary .stat-label { font-size: 13px; color: var(--text-secondary); margin-top: 4px; }
 .col-ua-name { width: 200px; }
 .col-ua-ip { width: 140px; font-family: monospace; }
+.col-ua-region { width: 180px; }
 .col-ua-firstvisit { width: 160px; font-family: monospace; }
 .col-ua-duration { width: 100px; text-align: right; font-family: monospace; }
 .col-ua-paths { min-width: 240px; }

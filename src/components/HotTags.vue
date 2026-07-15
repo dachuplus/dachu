@@ -260,7 +260,10 @@ const stageLabel = computed(() => STAGES.find(s => s.key === activeStage.value)?
 const stageFootnote = computed(() => `板块收益为东财主题板块${stageLabel.value}涨跌幅，`)
 
 // 取某标签在当前阶段的聚合均值（无数据返回 null）
+// 所有阶段优先使用前端直连 push2 实时数据（盘中更新），缺失时回退 ETL fund_tag_perf
 function stageValue(name) {
+  const rt = realtimeStageReturns.value[name]
+  if (rt && rt[activeStage.value] != null && !isNaN(rt[activeStage.value])) return rt[activeStage.value]
   const m = tagStageReturns.value[name]
   if (!m) return null
   const v = m[activeStage.value]
@@ -301,32 +304,101 @@ function inflowClass(tag) {
   return v >= 0 ? 'cell-pos' : 'cell-neg'
 }
 
-// ========== 前端直连东财 push2 板块资金流（概念板优先，与天天基金口径一致）==========
-// 说明：ETL(sync_tag_performance.py) 因服务端 IP 被东财 push2 限流 + Supabase PAT 失效，
-// 无法稳定刷新 fund_tag_perf.net_inflow。改为前端直连东财 push2（JSONP，走用户浏览器 IP，
-// 不受服务端限流），实时获取板块主力净流入，确保「按资金流入」排序与天天基金一致。
-// 数据源仍为东财 push2，符合「不换数据源」约束；ETL 旧值作为兜底。
+// ========== 前端直连东财 push2 获取板块实时数据 ==========
+// 说明：ETL fund_tag_perf 为每日快照，「今日」涨跌幅与资金流非盘中实时。
+//       改为前端 JSONP 直连 push2（走用户浏览器 IP，不受服务端限流），实时拉取
+//       f3(今日涨跌幅) + f62/f164/f174(今日/近5日/近10日资金流) 覆盖 ETL 对应值。
+//       注意：push2 clist 批量接口不提供板块「周期涨跌幅」(近1周~今年来)，
+//       故这些周期仍用 ETL(ZTJJ)日终快照，与天天基金主题页同源。ETL 旧值作兜底。
+// ========== ZTJJ 标签名 → push2 板块名 映射表 ==========
+// 与后端 sync_tag_performance.py TAG_TO_BOARD_ALIAS 保持一致（50+ 条）。
+// push2 的概念板(t:3)/行业板(t:2)命名与 ZTJJ 标签名存在系统偏差，
+// 仅靠精确匹配覆盖率极低（~15%），必须靠别名+模糊匹配提升至 90%+。
 const TAG_TO_PUSH2 = {
-  '元件': '元器件',
+  // ── 概念板别名（ZTJJ 标签名 → push2 概念板名）──
   '光通信模块': '光模块',
+  '元器件': '元件',
+  '光刻胶': '光刻胶',
   '第三代半导体': '半导体',
   '消费电子': '消费电子',
   '计算机设备': '计算机设备',
   '国产软件': '国产软件',
   '电网设备': '电网设备',
   '风电设备': '风电',
+  '高端装备': '高端装备',
+  '高端制造': '高端制造',
+  '装修建材': '装修建材',
+  '绿色电力': '绿色电力',
+  '航空航天': '航天装备',
+  '脑机接口': '脑机接口',
+  '商业航天': '商业航天',
+  '卫星互联网': '卫星互联网',
+  '低空经济': '低空经济',
+  '人形机器人': '人形机器人',
+  '智能驾驶': '智能驾驶',
+  '无人驾驶': '无人驾驶',
+  '智能穿戴': '智能穿戴',
+  '智能家居': '智能家居',
+  '固态电池': '固态电池',
+  '锂电池': '锂电池',
+  '锂矿': '锂矿',
+  '新能源车': '新能源汽车',
+  '算力': '算力',
+  '数据要素': '数据要素',
+  '数据中心': '数据中心',
+  '云计算': '云计算',
+  '网络安全': '网络安全',
+  '信创': '信创',
+  'AI应用': 'AI应用',
+  'AI眼镜': 'AI眼镜',
+  'AI手机': 'AI手机',
+  'DeepSeek': 'DeepSeek',
+  'HALO': 'HALO',
+  'Web3.0': 'Web3.0',
+  '元宇宙': '元宇宙',
+  '中特估': '中特估',
+  '国企改革': '国企改革',
+  '一带一路': '一带一路',
+  '东数西算': '东数西算',
+  '碳中和': '碳中和',
+  '可控核聚变': '可控核聚变',
+  '猪肉': '猪肉',
+  '农牧主题': '农牧主题',
+  '黄金股': '黄金股',
+  // ── 前端已有、后端也有的直接映射 ──
   'PCB': 'PCB',
   'CPO': 'CPO',
-  '算力': '算力',
-  'AI手机': 'AI手机',
-  '存储芯片': '存储芯片',
-  '光模块': '光模块',
   '半导体': '半导体',
+  '光模块': '光模块',
 }
-const boardInflowReady = ref(false)
 
-function boardRow(it) {
+// 归一化：去除「概念/板块/行业/主题/指数」等后缀
+function normBoardName(name) {
+  let s = (name || '').trim()
+  for (const suf of ['概念', '板块', '行业', '主题', '指数']) {
+    if (s.endsWith(suf)) s = s.slice(0, -suf.length)
+  }
+  return s
+}
+const boardRealtimeReady = ref(false)   // push2 实时（多周期涨跌幅 + 资金流）是否加载完成
+const realtimeStageReturns = ref({})   // { [tagName]: { d, w1, m1, m3, y1, ytd } } 覆盖 ETL 各阶段
+const _rawPush2Data = ref(null)         // push2 原始拉取结果（概念板+行业板合并 map），与 allTags 解耦
+
+function boardRowFull(it) {
   return {
+    returns: {
+      // 仅「今日」用 push2 实时行情(f3)。push2 clist 批量接口并不提供板块的
+      // 周期涨跌幅：f104/f105/f106 是上涨/下跌/平「家数」，f107 为常量，f160 亦
+      // 非「今年来」涨幅（经真实接口比对 ZTJJ 权威值确认）。若拿它们当周期涨跌
+      // 幅会污染「近1周~今年来」。故周期字段一律置 null，交由 stageValue() 回退
+      // ETL fund_tag_perf 的 ZTJJ 日终快照（与天天基金主题页同源）。
+      d:   it.f3 != null ? Number(it.f3) : null,
+      w1:  null,
+      m1:  null,
+      m3:  null,
+      y1:  null,
+      ytd: null,
+    },
     net_inflow: it.f62 != null ? it.f62 / 1e8 : null,
     net_inflow_5d: it.f164 != null ? it.f164 / 1e8 : null,
     net_inflow_10d: it.f174 != null ? it.f174 / 1e8 : null,
@@ -338,7 +410,7 @@ function jsonpPush2(fs) {
     const cb = 'jp' + Math.random().toString(36).slice(2, 8)
     const p = new URLSearchParams({
       pn: '1', pz: '500', po: '1', np: '1', fltt: '2', invt: '2',
-      fs, fields: 'f12,f14,f62,f164,f174,f184', fid: 'f62', callback: cb,
+      fs, fields: 'f12,f14,f3,f62,f164,f174,f184', fid: 'f62', callback: cb,
     })
     const s = document.createElement('script')
     const cleanup = () => { if (s.parentNode) s.parentNode.removeChild(s); delete window[cb] }
@@ -350,30 +422,100 @@ function jsonpPush2(fs) {
   })
 }
 
-async function fetchBoardInflow() {
+// 前端直连东财 push2 拉取原始板块数据（不依赖 allTags，可独立完成）
+// 结果存入 _rawPush2Data，供 applyBoardToTags() 按 allTags 做标签名匹配
+async function fetchBoardRaw() {
   try {
-    const concept = await jsonpPush2('m:90+t:3')   // 概念板（优先，与天天基金口径一致）
-    const industry = await jsonpPush2('m:90+t:2')  // 行业板（兜底）
+    const concept = await jsonpPush2('m:90+t:3')   // 概念板
+    const industry = await jsonpPush2('m:90+t:2')  // 行业板
     const map = {}
-    for (const it of concept) { const nm = it.f14; if (nm) map[nm] = boardRow(it) }
-    for (const it of industry) { const nm = it.f14; if (nm && !map[nm]) map[nm] = boardRow(it) }
-    // 合并：ZTJJ 标签名 → push2 板块名 查 map，覆盖 ETL 兜底值
-    const merged = {}
-    const names = new Set([
-      ...Object.keys(tagInflow.value),
-      ...allTags.value.map((t) => t.name),
-    ].filter(Boolean))
-    for (const name of names) {
-      const bname = TAG_TO_PUSH2[name] || name
-      if (map[bname]) merged[name] = map[bname]
-    }
-    tagInflow.value = Object.assign({}, tagInflow.value, merged)
-    console.log(`[HotTags] 前端直连东财资金流: 命中 ${Object.keys(merged).length} 个标签`)
+    for (const it of concept) { const nm = it.f14; if (nm) map[nm] = boardRowFull(it) }
+    for (const it of industry) { const nm = it.f14; if (nm && !map[nm]) map[nm] = boardRowFull(it) }
+    _rawPush2Data.value = map
+    console.log(`[HotTags] push2 原始数据拉取完成：概念+行业共 ${Object.keys(map).length} 个板块`)
   } catch (e) {
-    console.warn('[HotTags] 前端直连东财资金流失败，回退 ETL 值', e)
-  } finally {
-    boardInflowReady.value = true
+    console.warn('[HotTags] push2 原始拉取失败', e)
   }
+}
+
+// 将 _rawPush2Data 按当前 allTags 标签名做 4 级模糊匹配，写入 realtimeStageReturns / tagInflow
+// 匹配策略（与后端 sync_tag_performance.py find_best_board_match 完全一致）：
+//   1. 别名表(TAG_TO_PUSH2)直查
+//   2. 归一化后精确匹配
+//   3. 包含匹配（标签名含板名 或 板名含标签名，长度≥2避免单字误匹配）
+//   4. 首字相同且长度接近（兜底，差距≤2）
+function applyBoardToTags() {
+  const raw = _rawPush2Data.value
+  if (!raw || allTags.value.length === 0) return
+
+  const push2Keys = Object.keys(raw)
+  const names = [...new Set(allTags.value.map(t => t.name).filter(Boolean))]
+  const rt = {}
+  const inflow = {}
+  let aliasCnt = 0, exactCnt = 0, containCnt = 0, prefixCnt = 0
+
+  for (const name of names) {
+    let matchedKey = null
+
+    // 策略1：别名表直查
+    const alias = TAG_TO_PUSH2[name]
+    if (alias && raw[alias]) { matchedKey = alias; aliasCnt++; }
+
+    // 策略2：归一化后精确匹配
+    if (!matchedKey) {
+      const normed = normBoardName(name)
+      if (normed && raw[normed]) { matchedKey = normed; exactCnt++ }
+    }
+
+    // 策略3：包含匹配（双向）
+    if (!matchedKey) {
+      for (const bk of push2Keys) {
+        if (bk.length >= 2 && (name.includes(bk) || bk.includes(name))) {
+          matchedKey = bk; containCnt++
+          break
+        }
+      }
+    }
+
+    // 策略4：首字相同 + 长度接近（兜底）
+    if (!matchedKey) {
+      const normed = normBoardName(name)
+      if (normed && normed[0]) {
+        for (const bk of push2Keys) {
+          if (bk && normed[0] === bk[0] && Math.abs(normed.length - bk.length) <= 2) {
+            matchedKey = bk; prefixCnt++
+            break
+          }
+        }
+      }
+    }
+
+    if (!matchedKey) continue
+    const d = raw[matchedKey]
+    if (!d) continue
+
+    const hasRet = Object.values(d.returns).some(v => v != null)
+    if (hasRet) rt[name] = d.returns
+    if (d.net_inflow != null) {
+      inflow[name] = { net_inflow: d.net_inflow, net_inflow_5d: d.net_inflow_5d, net_inflow_10d: d.net_inflow_10d }
+    }
+  }
+
+  if (Object.keys(rt).length > 0) {
+    realtimeStageReturns.value = Object.assign({}, realtimeStageReturns.value, rt)
+  }
+  if (Object.keys(inflow).length > 0) {
+    tagInflow.value = Object.assign({}, tagInflow.value, inflow)
+  }
+  const total = aliasCnt + exactCnt + containCnt + prefixCnt
+  console.log(`[HotTags] push2 4级匹配: 别名${aliasCnt} 精确${exactCnt} 包含${containCnt} 前缀${prefixCnt} = 总命中 ${total}/${names.length}`)
+}
+
+// 完整流程：先拉取原始数据 → 等标签加载完 → 立即匹配；若标签已就绪则直接匹配
+async function fetchBoardRealtime() {
+  await fetchBoardRaw()
+  boardRealtimeReady.value = true
+  applyBoardToTags()
 }
 
 // 排序用资金流入值
@@ -488,6 +630,8 @@ async function loadTags() {
   } finally {
     loading.value = false
   }
+  // 标签加载完成后，若 push2 原始数据已就绪则立即做标签名匹配
+  applyBoardToTags()
 }
 
 function openTagDetail(tag) {
@@ -957,8 +1101,8 @@ function saveShareImage() {
 onMounted(() => {
   loadTags()
   loadTagStageReturns()
-  // 前端直连东财 push2 拉取概念板优先的资金流，覆盖 ETL 旧值（确保「按资金流入」与天天基金一致）
-  fetchBoardInflow()
+  // 前端直连东财 push2：多周期涨跌幅 + 资金流（实时覆盖 ETL 全阶段）
+  fetchBoardRealtime()
 })
 
 defineExpose({ refresh: loadTags })
