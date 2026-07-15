@@ -25,6 +25,7 @@
         <thead>
           <tr>
             <th class="col-etl-step">步骤</th>
+            <th class="col-etl-desc">说明</th>
             <th class="col-etl-status">状态</th>
             <th class="col-etl-rows">影响行数</th>
             <th class="col-etl-time">执行时间</th>
@@ -36,10 +37,12 @@
             <td class="col-etl-step">
               <div class="step-name"><code>{{ log.step_name || log.name || log.step || '—' }}</code></div>
               <div class="step-title">{{ stepView(log).title }}</div>
-              <div class="step-desc">{{ stepView(log).desc }}</div>
               <div class="progress" :class="'pg-' + stepView(log).state">
                 <div class="progress-bar" :style="{ width: stepView(log).pct + '%' }"></div>
               </div>
+            </td>
+            <td class="col-etl-desc">
+              <div class="step-desc">{{ stepView(log).desc }}</div>
               <div class="step-reason" v-if="stepView(log).reason">
                 <span class="reason-label">失败原因：</span>{{ stepView(log).reason }}
               </div>
@@ -92,7 +95,17 @@
         </thead>
         <tbody>
           <tr v-for="(v, i) in visitorList" :key="i">
-            <td class="col-ua-name"><code>{{ v.name }}</code></td>
+            <td class="col-ua-name">
+              <span
+                v-if="v.name !== '匿名访客'"
+                class="ua-name-link"
+                role="button"
+                tabindex="0"
+                @click="openUserPortfolios(v)"
+                @keydown.enter="openUserPortfolios(v)"
+              >{{ v.name }}</span>
+              <code v-else>{{ v.name }}</code>
+            </td>
             <td class="col-ua-ip">{{ v.ip }}</td>
             <td class="col-ua-region">{{ v.region || '—' }}</td>
             <td class="col-ua-firstvisit">{{ v.firstVisit ? fmtTime(v.firstVisit) : '—' }}</td>
@@ -105,6 +118,50 @@
       </table>
       <p class="section-desc" v-else>今日暂无访问记录。</p>
     </div>
+
+    <!-- 用户组合明细弹窗 -->
+    <Teleport to="body">
+      <div v-if="portfolioModal.open" class="ua-mask" @click.self="closePortfolioModal()">
+        <div class="ua-modal" role="dialog" aria-modal="true" aria-label="用户组合明细">
+          <div class="ua-modal__header">
+            <span class="ua-modal__title">{{ portfolioModal.email }}</span>
+            <button class="ua-modal__close" type="button" @click="closePortfolioModal()" aria-label="关闭">×</button>
+          </div>
+
+          <div v-if="portfolioModal.loading" class="ua-modal__loading">加载中…</div>
+
+          <div v-else-if="portfolioModal.error" class="ua-modal__error">{{ portfolioModal.error }}</div>
+
+          <div v-else class="ua-modal__body">
+            <div class="ua-section">
+              <div class="ua-section__title">自建组合（{{ portfolioModal.selfBuilt.length }}）</div>
+              <ul v-if="portfolioModal.selfBuilt.length" class="ua-list">
+                <li v-for="(p, i) in portfolioModal.selfBuilt" :key="'self-' + i" class="ua-item">
+                  <span class="ua-item__name">{{ p.name }}</span>
+                  <span class="ua-item__meta">{{ getFundCount(p) }} 只 · 更新 {{ fmtTime(p.updated_at) }}</span>
+                </li>
+              </ul>
+              <p v-else class="ua-empty">暂无</p>
+            </div>
+
+            <div class="ua-section">
+              <div class="ua-section__title">AI 生成组合（{{ portfolioModal.aiGenerated.length }}）</div>
+              <ul v-if="portfolioModal.aiGenerated.length" class="ua-list">
+                <li v-for="(p, i) in portfolioModal.aiGenerated" :key="'ai-' + i" class="ua-item">
+                  <span class="ua-item__name">{{ p.name }}</span>
+                  <span class="ua-item__meta">{{ getFundCount(p) }} 只 · 更新 {{ fmtTime(p.updated_at) }}</span>
+                </li>
+              </ul>
+              <p v-else class="ua-empty">暂无</p>
+            </div>
+          </div>
+
+          <div class="ua-modal__footer">
+            <button class="btn-login" type="button" @click="closePortfolioModal()">关闭</button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
 
     <!-- 未登录提示横幅 -->
     <div class="login-banner" v-if="!isLoggedIn">
@@ -855,6 +912,52 @@ const activeNow = ref(0)
 const activeToday = ref(0)
 const visitorList = ref([])
 
+// 用户组合明细弹窗（get_user_portfolios_by_email）
+const portfolioModal = ref({
+  open: false,
+  email: '',
+  loading: false,
+  error: '',
+  selfBuilt: [],
+  aiGenerated: [],
+})
+function closePortfolioModal() {
+  portfolioModal.value.open = false
+}
+function getFundCount(p) {
+  const d = p && p.portfolio_data
+  return Array.isArray(d) ? d.length : 0
+}
+async function openUserPortfolios(v) {
+  if (!v || v.name === '匿名访客') return
+  portfolioModal.value.open = true
+  portfolioModal.value.email = v.name
+  portfolioModal.value.loading = true
+  portfolioModal.value.error = ''
+  portfolioModal.value.selfBuilt = []
+  portfolioModal.value.aiGenerated = []
+  try {
+    const { supabase } = await import('../../api/supabase.js')
+    if (!supabase) {
+      portfolioModal.value.error = '当前环境未连接数据库，无法查看组合明细'
+      return
+    }
+    const { data, error } = await supabase.rpc('get_user_portfolios_by_email', { p_email: v.name })
+    if (error) {
+      // 非管理员无权限等情况：返回友好提示
+      portfolioModal.value.error = '仅管理员可查看用户组合明细'
+      return
+    }
+    const rows = Array.isArray(data) ? data : []
+    portfolioModal.value.selfBuilt = rows.filter(r => !r.is_ai)
+    portfolioModal.value.aiGenerated = rows.filter(r => r.is_ai)
+  } catch (e) {
+    portfolioModal.value.error = '仅管理员可查看用户组合明细'
+  } finally {
+    portfolioModal.value.loading = false
+  }
+}
+
 // 表定义
 const tables = [
   { key: 'fund_combined', name: '基金综合数据表', desc: '基金分类(t0/t1)、详情(公司/规模/费率)、收益(ytd~r5y)、风险(dd1y/sr1y)、评分(k_all/score_grade/k0w~k10) — 核心合并表，20,860条', rows: 20860 },
@@ -1259,7 +1362,8 @@ onMounted(() => {
 @keyframes pulse {
   0%, 100% { opacity: 1; } 50% { opacity: 0.5; }
 }
-.col-etl-step { width: 300px; vertical-align: top; }
+.col-etl-step { width: 220px; vertical-align: top; }
+.col-etl-desc { width: 280px; vertical-align: top; }
 .col-etl-status { width: 80px; text-align: center; }
 .col-etl-rows { width: 100px; text-align: right; font-family: monospace; }
 .col-etl-time { width: 160px; }
@@ -1276,7 +1380,7 @@ onMounted(() => {
 .step-name code { font-size: 12px; color: var(--text-secondary); }
 .step-title { font-weight: 700; color: var(--text-primary); font-size: 14px; margin-top: 2px; }
 .step-desc { font-size: 12px; color: var(--text-secondary); line-height: 1.4; margin-top: 2px; }
-.progress { height: 6px; background: #f3f2f1; border: 1px solid var(--border); margin-top: 6px; overflow: hidden; }
+.progress { width: 160px; height: 6px; background: #f3f2f1; border: 1px solid var(--border); margin-top: 8px; overflow: hidden; }
 .progress-bar { height: 100%; background: #1d70b8; transition: width .3s; }
 .pg-ok .progress-bar { background: #00703c; }
 .pg-error .progress-bar { background: #d4351c; }
@@ -1317,6 +1421,66 @@ onMounted(() => {
   display: inline-block; background: #f3f2f1; border: 1px solid var(--border);
   border-radius: 2px; padding: 1px 6px; margin: 2px 4px 2px 0; font-size: 12px;
   font-family: monospace; color: var(--text-secondary);
+}
+
+/* 用户组合明细弹窗 */
+.ua-name-link {
+  color: #1d70b8; cursor: pointer;
+  text-decoration: underline; text-decoration-color: transparent;
+  transition: text-decoration-color .15s;
+}
+.ua-name-link:hover { text-decoration-color: #1d70b8; }
+.ua-name-link:focus { outline: 2px solid #1d70b8; outline-offset: 2px; }
+
+.ua-mask {
+  position: fixed; inset: 0; background: rgba(0, 0, 0, 0.4);
+  display: flex; align-items: center; justify-content: center;
+  padding: var(--space-md); z-index: 1000;
+}
+.ua-modal {
+  background: #fff; border-left: 4px solid #1d70b8;
+  width: 100%; max-width: 520px; max-height: 85vh; overflow-y: auto;
+}
+.ua-modal__header {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: var(--space-sm); padding: var(--space-md) var(--space-lg);
+  border-bottom: 1px solid var(--border);
+}
+.ua-modal__title {
+  font-size: 15px; font-weight: 700; color: var(--text-primary);
+  font-family: monospace; word-break: break-all; line-height: 1.4;
+}
+.ua-modal__close {
+  flex: 0 0 auto; background: none; border: none; color: var(--text-secondary);
+  font-size: 22px; line-height: 1; cursor: pointer; padding: 0 4px;
+}
+.ua-modal__close:hover { color: #1d70b8; }
+.ua-modal__loading, .ua-modal__error {
+  padding: var(--space-lg); font-size: 14px; line-height: 1.6;
+}
+.ua-modal__error {
+  color: #d4351c; background: #fdf2f0; border-left: 3px solid #d4351c;
+}
+.ua-modal__body { padding: var(--space-md) var(--space-lg); }
+.ua-section { margin-bottom: var(--space-lg); }
+.ua-section:last-child { margin-bottom: 0; }
+.ua-section__title {
+  font-size: 15px; font-weight: 700; color: var(--text-primary);
+  margin-bottom: var(--space-sm);
+  padding-bottom: var(--space-xs); border-bottom: 2px solid #1d70b8;
+}
+.ua-list { list-style: none; margin: 0; padding: 0; }
+.ua-item {
+  display: flex; align-items: baseline; justify-content: space-between;
+  gap: var(--space-sm); padding: var(--space-sm) 0;
+  border-bottom: 1px solid var(--border);
+}
+.ua-item__name { font-weight: 700; color: var(--text-primary); word-break: break-all; }
+.ua-item__meta { font-size: 12px; color: var(--text-secondary); white-space: nowrap; flex: 0 0 auto; }
+.ua-empty { font-size: 14px; color: var(--text-secondary); margin: 0; }
+.ua-modal__footer {
+  padding: var(--space-md) var(--space-lg);
+  border-top: 1px solid var(--border); text-align: right;
 }
 
 /* API 接口文档 */

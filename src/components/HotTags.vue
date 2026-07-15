@@ -63,7 +63,7 @@
         :key="tag.name"
         class="tag-cell"
         :class="sortMode === 'byInflow' ? inflowClass(tag) : cellReturnClass(tag)"
-        :style="{ background: sortMode === 'byInflow' ? tagColor(inflowValue(tag)) : tagColor(cellReturn(tag)) }"
+        :style="{ background: sortMode === 'byInflow' ? tagColor(inflowValue(tag)) : tagColor(cellReturn(tag)), color: sortMode === 'byInflow' ? tagTextColor(inflowValue(tag)) : tagTextColor(cellReturn(tag)) }"
         @click="openTagDetail(tag)"
       >
         <span class="tag-name">{{ tag.name }}</span>
@@ -112,6 +112,17 @@
                 title="生成分享图片"
               >分享</button>
               <span class="detail-close" @click="selectedTag = null">&#x2715;</span>
+            </div>
+          </div>
+          <!-- 板块周期收益条：近1周/近1月/近3月/近6月/近1年 -->
+          <div class="detail-stage-returns" v-if="selectedTag">
+            <div class="dsr-item" v-for="p in popupPeriods" :key="p.key">
+              <span class="dsr-label">{{ p.label }}</span>
+              <span class="dsr-val" :style="{ color: retColor(stageReturnOf(selectedTag.name, p.key)) }">{{ periodReturnText(selectedTag.name, p.key) }}</span>
+            </div>
+            <div class="dsr-item">
+              <span class="dsr-label">近6月</span>
+              <span class="dsr-val" :style="{ color: retColor(tagM6Returns[selectedTag.name] ?? null) }">{{ m6Text(selectedTag.name) }}</span>
             </div>
           </div>
           <div class="detail-body">
@@ -219,6 +230,7 @@ const sortMode = ref('byReturn') // 'byReturn'（按涨幅，默认）| 'byInflo
 const activeStage = ref('y1')    // 默认选中阶段：近1年
 const tagStageReturns = ref({})  // { [tagName]: { d, w1, m1, m3, y1, ytd } } 各阶段均值
 const stageReturnsReady = ref(false) // 阶段聚合数据是否加载完成
+const tagM6Returns = ref({})    // { [tagName]: number|null } 近6月（成分基金 fund_scores.r6m 均值，按需计算）
 const tagInflow = ref({})        // { [tagName]: { net_inflow, net_inflow_5d, net_inflow_10d } } 资金流数据
 
 // ========== 计算属性 ==========
@@ -268,6 +280,34 @@ function stageValue(name) {
   if (!m) return null
   const v = m[activeStage.value]
   return (v == null || isNaN(v)) ? null : v
+}
+
+// 弹窗/分享图用的「指定阶段」取值（不随当前选中阶段变化）：优先实时 push2，回退 ETL
+function stageReturnOf(name, key) {
+  const rt = realtimeStageReturns.value[name]
+  if (rt && rt[key] != null && !isNaN(rt[key])) return rt[key]
+  const m = tagStageReturns.value[name]
+  if (!m) return null
+  const v = m[key]
+  return (v == null || isNaN(v)) ? null : v
+}
+
+// 弹窗周期收益展示所需的阶段清单（含近6月单独项）
+const popupPeriods = [
+  { key: 'w1', label: '近1周' },
+  { key: 'm1', label: '近1月' },
+  { key: 'm3', label: '近3月' },
+  { key: 'y1', label: '近1年' },
+]
+function periodReturnText(name, key) {
+  const v = stageReturnOf(name, key)
+  if (v == null) return '—'
+  return (v >= 0 ? '+' : '') + v.toFixed(2) + '%'
+}
+function m6Text(name) {
+  const v = tagM6Returns.value[name]
+  if (v == null) return '—'
+  return (v >= 0 ? '+' : '') + v.toFixed(2) + '%'
 }
 
 // 网格展示用的收益值：优先用阶段聚合值；近1年阶段若聚合缺失则回退 fund_tags.return_pct
@@ -605,7 +645,36 @@ async function loadTagStageReturns() {
   }
 }
 
-// 底部「截止时间」展示值：
+/**
+ * 计算某标签「近6月」收益：ZTJJ 无近6月字段，改为取该标签全部成分基金的 fund_scores.r6m 均值。
+ * 结果缓存到 tagM6Returns[name]，避免重复请求。
+ */
+async function loadTagM6(tag) {
+  if (!tag) return
+  const name = tag.name
+  if (Object.prototype.hasOwnProperty.call(tagM6Returns.value, name)) return
+  try {
+    const { supabase } = await import('../api/supabase.js')
+    if (!supabase) { tagM6Returns.value = { ...tagM6Returns.value, [name]: null }; return }
+    // 1) 取该标签全部成分基金代码
+    const { data: maps, error: e1 } = await supabase
+      .from('fund_tag_funds').select('fund_code').eq('tag_name', name)
+    if (e1 || !maps || maps.length === 0) { tagM6Returns.value = { ...tagM6Returns.value, [name]: null }; return }
+    const codes = [...new Set(maps.map(m => m.fund_code).filter(Boolean))]
+    const codesWithOF = codes.map(c => c.endsWith('.OF') ? c : c + '.OF')
+    // 2) 取各基金近6月收益并求均值
+    const { data: scores } = await supabase
+      .from('fund_scores').select('r6m').in('c', [...codes, ...codesWithOF])
+    if (!scores || scores.length === 0) { tagM6Returns.value = { ...tagM6Returns.value, [name]: null }; return }
+    const vals = scores.map(s => s.r6m).filter(v => typeof v === 'number' && !isNaN(v))
+    const avg = vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : null
+    tagM6Returns.value = { ...tagM6Returns.value, [name]: avg }
+  } catch (e) {
+    console.warn('[HotTags] loadTagM6 error', e)
+    tagM6Returns.value = { ...tagM6Returns.value, [name]: null }
+  }
+}
+function ensureTagM6(tag) { return loadTagM6(tag) }
 // 优先用系统级 meta 时间（fund_scores_meta 的 tsq/update_time/nav_date，由 openTagDetail 写入 fundMetaUpdateTime）；
 // 若系统 meta 取不到，则兜底取该标签下「有数据的基金」（.OF 类）的最新净值日期 nav_date，避免显示「—」。
 const bottomUpdateTime = computed(() => {
@@ -638,6 +707,7 @@ function openTagDetail(tag) {
   selectedTag.value = tag
   tagFunds.value = []
   loadTagFunds(tag)
+  loadTagM6(tag) // 计算近6月（成分基金 r6m 均值）
   // 获取 fund_scores 更新时间（优先 tsq，其次 update_time / nav_date）
   fetchFundMeta().then(m => {
     if (!m) return
@@ -763,6 +833,17 @@ function tagColor(ret) {
     const bv = Math.round(200 - ratio * 145)   // 200→55
     return `rgb(${rv},${gv},${bv})`
   }
+}
+
+// 根据背景色亮度决定文字颜色：深色底（涨跌幅过深）用白色，浅色底用深灰
+function tagTextColor(ret) {
+  const bg = tagColor(ret)
+  const m = bg.match(/rgb\((\d+),\s*(\d+),\s*(\d+)\)/)
+  if (!m) return '#1a1a1a'
+  const r = +m[1], g = +m[2], b = +m[3]
+  // 相对亮度（0~1），低于阈值视为深底
+  const lum = (0.299 * r + 0.587 * g + 0.114 * b) / 255
+  return lum < 0.6 ? '#ffffff' : '#1a1a1a'
 }
 
 function fmtPct(v) {
@@ -894,7 +975,7 @@ async function generateShareImage() {
     const W = 750
     const pad = 30
     const headerH = 150
-    const titleGap = 110
+    const titleGap = 210
     const fundH = 150
     const fundGap = 16
     const qrSize = 190
@@ -935,6 +1016,9 @@ async function generateShareImage() {
       }
     } catch { /* ignore */ }
     shareUpdateTime.value = updateTimeStr
+
+    // 确保近6月（成分基金 r6m 均值）已加载，用于分享图的周期收益条
+    try { await ensureTagM6(selectedTag.value) } catch { /* 失败则不显示近6月 */ }
 
     let H = headerH + titleGap + 20
     H += list.length * (fundH + fundGap)
@@ -983,6 +1067,35 @@ async function generateShareImage() {
     ctx.fillStyle = '#ffffff'
     ctx.textAlign = 'center'
     ctx.fillText(badgeText, W - pad - bw / 2, y + 13)
+
+    // 板块周期收益条：近1周/近1月/近3月/近6月/近1年
+    const stripY = y + 64
+    const stripItems = [
+      { label: '近1周', val: stageReturnOf(selectedTag.value.name, 'w1') },
+      { label: '近1月', val: stageReturnOf(selectedTag.value.name, 'm1') },
+      { label: '近3月', val: stageReturnOf(selectedTag.value.name, 'm3') },
+      { label: '近6月', val: tagM6Returns.value[selectedTag.value.name] },
+      { label: '近1年', val: stageReturnOf(selectedTag.value.name, 'y1') },
+    ]
+    const stripColW = (W - pad * 2) / 5
+    // 分隔线
+    ctx.strokeStyle = '#eef1f5'
+    ctx.lineWidth = 1
+    ctx.beginPath()
+    ctx.moveTo(pad, stripY - 14)
+    ctx.lineTo(W - pad, stripY - 14)
+    ctx.stroke()
+    stripItems.forEach((it, i) => {
+      const cx = pad + stripColW * i + stripColW / 2
+      ctx.textAlign = 'center'
+      ctx.fillStyle = '#888888'
+      ctx.font = '18px sans-serif'
+      ctx.fillText(it.label, cx, stripY)
+      ctx.fillStyle = it.val == null ? '#999999' : (it.val >= 0 ? '#d4351c' : '#00703c')
+      ctx.font = 'bold 22px sans-serif'
+      const valStr = it.val == null ? '—' : (it.val >= 0 ? '+' : '') + it.val.toFixed(2) + '%'
+      ctx.fillText(valStr, cx, stripY + 26)
+    })
 
     // 基金卡片
     y = headerH + titleGap
@@ -1386,6 +1499,33 @@ defineExpose({ refresh: loadTags })
 /* 正收益红色，负收益绿色 */
 .detail-return.positive { color: #d4351c; }
 .detail-return.negative { color: #00703c; }
+/* 板块周期收益条 */
+.detail-stage-returns {
+  display: flex;
+  gap: 4px;
+  padding: 12px var(--space-md, 16px);
+  background: #f6f8fb;
+  border-bottom: 1px solid #eef1f5;
+}
+.dsr-item {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+.dsr-label {
+  font-size: 12px;
+  color: var(--text-secondary, #666);
+  white-space: nowrap;
+}
+.dsr-val {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text-primary, #1a1a1a);
+  font-variant-numeric: tabular-nums;
+}
 .detail-header-actions {
   display: flex;
   align-items: center;
