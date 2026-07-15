@@ -114,15 +114,11 @@
               <span class="detail-close" @click="selectedTag = null">&#x2715;</span>
             </div>
           </div>
-          <!-- 板块周期收益条：近1周/近1月/近3月/近6月/近1年 -->
+          <!-- 板块周期收益条：近1周/近1月/近3月/近1年 -->
           <div class="detail-stage-returns" v-if="selectedTag">
             <div class="dsr-item" v-for="p in popupPeriods" :key="p.key">
               <span class="dsr-label">{{ p.label }}</span>
               <span class="dsr-val" :style="{ color: retColor(stageReturnOf(selectedTag.name, p.key)) }">{{ periodReturnText(selectedTag.name, p.key) }}</span>
-            </div>
-            <div class="dsr-item">
-              <span class="dsr-label">近6月</span>
-              <span class="dsr-val" :style="{ color: retColor(tagM6Returns[selectedTag.name] ?? null) }">{{ m6Text(selectedTag.name) }}</span>
             </div>
           </div>
           <div class="detail-body">
@@ -835,7 +831,10 @@ function tagColor(ret) {
   }
 }
 
-// 根据背景色亮度决定文字颜色：深色底（涨跌幅过深）用白色，浅色底用深灰
+// 根据背景色亮度决定文字颜色：
+//   深色底（涨跌幅过深）→ 白色，保证可读性；
+//   浅色底 → 按涨跌上色：涨（正）用红字、跌（负）用绿字（对齐 A 股红涨绿跌），
+//           无数据/零值用深灰。
 function tagTextColor(ret) {
   const bg = tagColor(ret)
   const m = bg.match(/rgb\((\d+),\s*(\d+),\s*(\d+)\)/)
@@ -843,7 +842,10 @@ function tagTextColor(ret) {
   const r = +m[1], g = +m[2], b = +m[3]
   // 相对亮度（0~1），低于阈值视为深底
   const lum = (0.299 * r + 0.587 * g + 0.114 * b) / 255
-  return lum < 0.6 ? '#ffffff' : '#1a1a1a'
+  if (lum < 0.6) return '#ffffff'
+  const n = parseFloat(ret)
+  if (isNaN(n) || n === 0) return '#1a1a1a'
+  return n > 0 ? '#b01e1e' : '#0a6e31'
 }
 
 function fmtPct(v) {
@@ -1124,13 +1126,17 @@ async function generateShareImage() {
       ctx.font = '19px sans-serif'
       ctx.fillText('经理：' + (f.fund_manager || '—'), innerX, y + 92)
 
-      // 区间收益（右侧）
+      // 区间收益（右侧）——统一展示口径为「近1年收益」
       ctx.textAlign = 'right'
       const r1y = f.r1y
+      // 近1年标注（收益数字上方）
+      ctx.fillStyle = '#999999'
+      ctx.font = '18px sans-serif'
+      ctx.fillText('近1年收益', W - pad - 20, y + 20)
       ctx.fillStyle = (r1y == null || r1y >= 0) ? '#d4351c' : '#00703c'
       ctx.font = 'bold 32px sans-serif'
       const retStr = r1y == null ? '—' : (r1y >= 0 ? '+' : '') + r1y.toFixed(2) + '%'
-      ctx.fillText(retStr, W - pad - 20, y + 44)
+      ctx.fillText(retStr, W - pad - 20, y + 52)
 
       y += fundH + fundGap
     }
