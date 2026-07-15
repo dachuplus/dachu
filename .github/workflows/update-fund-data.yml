@@ -55,12 +55,13 @@ jobs:
           echo "MGMT_TOKEN 已配置: ${#SUPABASE_MGMT_TOKEN} 字符"
           echo "ANON_KEY 已配置: ${#SUPABASE_ANON_KEY} 字符"
 
-      - name: 步骤0 — 初始化 ETL 运行日志表
-        run: python scripts/log_etl_step.py --init
-
       - name: 步骤1 — 拉取天天基金全量数据（输出 NDJSON）
         run: |
-          bash scripts/run_etl_step.sh "fetch_and_import_funds" "echo ==== 步骤1: 拉取天天基金 + 计算收益靠谱分 [$(date +%F_%T)]; python scripts/fetch_and_import_funds.py --output-only"
+          echo "============================================"
+          echo "  步骤1: 拉取天天基金 + 计算收益靠谱分"
+          echo "  开始时间: $(date '+%Y-%m-%d %H:%M:%S')"
+          echo "============================================"
+          python scripts/fetch_and_import_funds.py --output-only
 
       - name: 步骤2 — 抓取风险指标（回撤+夏普，pingzhongdata HTTPS）
         if: ${{ !inputs.skip_risk }}
@@ -68,106 +69,262 @@ jobs:
         timeout-minutes: 20
         continue-on-error: true
         run: |
-          bash scripts/run_etl_step.sh "fetch_risk_indicators" "if [ ! -f scripts/funds_output.ndjson ]; then echo ==== 未找到 funds_output.ndjson，跳过风险指标计算; exit 0; fi; echo ==== 步骤2: 抓取风险指标 [$(date +%F_%T)]; python scripts/fetch_risk_indicators.py --input scripts/funds_output.ndjson --output scripts/risk_indicators.ndjson --workers 8 --delay 0.3 --resume; echo ==== 风险指标计算完成 [$(date +%F_%T)]"
+          echo "============================================"
+          echo "  步骤2: 抓取风险指标 (回撤+夏普比率)"
+          echo "  开始时间: $(date '+%Y-%m-%d %H:%M:%S')"
+          echo "============================================"
+          # 先检查是否有第一步输出的 NDJSON
+          if [ ! -f scripts/funds_output.ndjson ]; then
+            echo "未找到 funds_output.ndjson，跳过风险指标计算"
+            exit 0
+          fi
+          python scripts/fetch_risk_indicators.py \
+            --input scripts/funds_output.ndjson \
+            --output scripts/risk_indicators.ndjson \
+            --workers 8 \
+            --delay 0.3 \
+            --resume
+          echo "风险指标计算完成: $(date '+%Y-%m-%d %H:%M:%S')"
 
       - name: 步骤2a — 补充风险指标（tsdata 页面夏普比率+标准差）
         if: ${{ !inputs.skip_risk }}
         timeout-minutes: 15
         continue-on-error: true
         run: |
-          bash scripts/run_etl_step.sh "fetch_tsdata_risk" "if [ ! -f scripts/risk_indicators.ndjson ]; then echo ==== 未找到 risk_indicators.ndjson，跳过 tsdata 补充; exit 0; fi; echo ==== 步骤2a: 补充风险指标 (tsdata) [$(date +%F_%T)]; python scripts/fetch_tsdata_risk.py --input scripts/risk_indicators.ndjson --output scripts/risk_indicators.ndjson --workers 5 --delay 0.3; echo ==== tsdata 补充完成 [$(date +%F_%T)]"
+          echo "============================================"
+          echo "  步骤2a: 补充风险指标 (tsdata 页面)"
+          echo "  开始时间: $(date '+%Y-%m-%d %H:%M:%S')"
+          echo "============================================"
+          if [ ! -f scripts/risk_indicators.ndjson ]; then
+            echo "未找到 risk_indicators.ndjson，跳过 tsdata 补充"
+            exit 0
+          fi
+          python scripts/fetch_tsdata_risk.py \
+            --input scripts/risk_indicators.ndjson \
+            --output scripts/risk_indicators.ndjson \
+            --workers 5 \
+            --delay 0.3
+          echo "tsdata 补充完成: $(date '+%Y-%m-%d %H:%M:%S')"
 
       - name: 步骤2b — 抓取成立以来收益率（rankhandler API）
         if: ${{ !inputs.skip_risk }}
         timeout-minutes: 10
         continue-on-error: true
         run: |
-          bash scripts/run_etl_step.sh "fetch_return_all" "echo ==== 步骤2b: 抓取成立以来收益率 (rankhandler) [$(date +%F_%T)]; python scripts/fetch_return_all.py scripts/return_all.ndjson 0.3; echo ==== 成立以来收益率抓取完成 [$(date +%F_%T)]"
+          echo "============================================"
+          echo "  步骤2b: 抓取成立以来收益率 (rankhandler API)"
+          echo "  开始时间: $(date '+%Y-%m-%d %H:%M:%S')"
+          echo "============================================"
+          python scripts/fetch_return_all.py scripts/return_all.ndjson 0.3
+          echo "成立以来收益率抓取完成: $(date '+%Y-%m-%d %H:%M:%S')"
 
       - name: 步骤2c — 导出基金详情（公司/规模/费率）
         if: ${{ !inputs.skip_risk }}
         timeout-minutes: 5
         run: |
-          bash scripts/run_etl_step.sh "export_fund_details" "echo ==== 步骤2c: 导出基金详情 [$(date +%F_%T)]; pip install requests; python scripts/export_fund_details.py scripts/fund_details.ndjson; echo ==== 基金详情导出完成 [$(date +%F_%T)]"
+          echo "============================================"
+          echo "  步骤2c: 导出基金详情 (公司/规模/费率)"
+          echo "  开始时间: $(date '+%Y-%m-%d %H:%M:%S')"
+          echo "============================================"
+          pip install requests
+          python scripts/export_fund_details.py scripts/fund_details.ndjson
+          echo "基金详情导出完成: $(date '+%Y-%m-%d %H:%M:%S')"
 
       - name: 步骤2c2 — 抓取基金基本概况（fundf10 jbgk：基金经理/管理人/分类/费率）
         if: ${{ !inputs.skip_risk }}
         timeout-minutes: 240
         continue-on-error: true
         run: |
-          bash scripts/run_etl_step.sh "fetch_fund_basic_info" "echo ==== 步骤2c2: 抓取基金基本概况 (fundf10 jbgk) [$(date +%F_%T)]; pip install requests; if [ ${{ inputs.full_basic_info }} = true ]; then echo [INFO] 全量模式; python scripts/fetch_fund_basic_info.py --full --workers 4 --delay 0.2 --output scripts/fund_basic_info.ndjson; else echo [INFO] 补缺模式; python scripts/fetch_fund_basic_info.py --workers 4 --delay 0.2 --output scripts/fund_basic_info.ndjson; fi; echo ==== 基金基本概况抓取完成 [$(date +%F_%T)]"
+          echo "============================================"
+          echo "  步骤2c2: 抓取基金基本概况 (fundf10 jbgk)"
+          echo "  开始时间: $(date '+%Y-%m-%d %H:%M:%S')"
+          echo "============================================"
+          pip install requests
+          # 每日默认仅补缺失数据；全量回填用 --full（手动触发 full_basic_info=true）
+          # 并发 4 + 间隔 0.2s，避免被 fundf10 限流
+          if [ "${{ inputs.full_basic_info }}" = "true" ]; then
+            echo "[INFO] 全量模式：抓取全部基金基本概况"
+            python scripts/fetch_fund_basic_info.py --full --workers 4 --delay 0.2 --output scripts/fund_basic_info.ndjson
+          else
+            echo "[INFO] 补缺模式：仅抓取缺失基金经理/管理人/分类/份额/费率/成立日期的基金"
+            python scripts/fetch_fund_basic_info.py --workers 4 --delay 0.2 --output scripts/fund_basic_info.ndjson
+          fi
+          echo "基金基本概况抓取完成: $(date '+%Y-%m-%d %H:%M:%S')"
 
       - name: 步骤2d — 抓取货币基金阶段收益（hb rankhandler → currency_output.ndjson）
         if: ${{ !inputs.skip_risk }}
-        continue-on-error: true
         timeout-minutes: 10
         run: |
-          bash scripts/run_etl_step.sh "fetch_currency_funds" "echo ==== 步骤2d: 抓取货币基金阶段收益 (hb rankhandler) [$(date +%F_%T)]; pip install requests; python scripts/fetch_currency_funds.py --output scripts/currency_output.ndjson; echo ==== 货币阶段收益抓取完成 [$(date +%F_%T)]"
+          echo "============================================"
+          echo "  步骤2d: 抓取货币基金阶段收益 (hb rankhandler)"
+          echo "  开始时间: $(date '+%Y-%m-%d %H:%M:%S')"
+          echo "============================================"
+          pip install requests
+          python scripts/fetch_currency_funds.py --output scripts/currency_output.ndjson
+          echo "货币阶段收益抓取完成: $(date '+%Y-%m-%d %H:%M:%S')"
 
       - name: 步骤2c3 — 确保 fund_scores 新列存在（DDL）
         if: ${{ !inputs.skip_risk }}
         run: |
-          bash scripts/run_etl_step.sh "ensure_basic_info_columns" "echo ==== 步骤2c3: 确保 fund_scores 新增列 [$(date +%F_%T)]; pip install requests; python scripts/ensure_basic_info_columns.py; echo ==== DDL 检查完成 [$(date +%F_%T)]"
+          echo "============================================"
+          echo "  步骤2c3: 确保 fund_scores 新增列 (share_scale/custody_fee/sale_fee/found_date)"
+          echo "  开始时间: $(date '+%Y-%m-%d %H:%M:%S')"
+          echo "============================================"
+          pip install requests
+          python scripts/ensure_basic_info_columns.py
+          echo "DDL 检查完成: $(date '+%Y-%m-%d %H:%M:%S')"
 
       - name: 步骤3 — 合并风险指标 + 重算靠谱分 + 写入临时表 fund_scores_staging
         if: ${{ !inputs.skip_risk }}
         run: |
-          bash scripts/run_etl_step.sh "import_via_rest_staging" "if [ ${{ steps.risk_indicators.outcome }} = failure ]; then echo [WARN] 风险指标抓取超时/失败，跳过合并，仅使用收益靠谱分; fi; echo ==== 步骤3: 合并风险指标 + 重算靠谱分 + 写入 STAGING [$(date +%F_%T)]; python scripts/import_via_rest.py --staging"
+          echo "============================================"
+          echo "  步骤3: 合并风险指标 + 重算靠谱分 + 写入 STAGING"
+          echo "  开始时间: $(date '+%Y-%m-%d %H:%M:%S')"
+          echo "============================================"
+          # 风险指标失败时走备选：仅收益靠谱分
+          if [ "${{ steps.risk_indicators.outcome }}" = "failure" ]; then
+            echo "[WARN] 风险指标抓取超时/失败，跳过合并，仅使用收益靠谱分"
+          fi
+          # --staging：写入 fund_scores_staging（含货币型种子 + 货币阶段收益合并），不触碰生产表
+          python scripts/import_via_rest.py --staging
 
       - name: 步骤3-alt — 仅收益靠谱分写入临时表（跳过风险指标）
         if: ${{ inputs.skip_risk }}
         run: |
-          bash scripts/run_etl_step.sh "import_via_rest_staging" "echo ==== 步骤3-alt: 仅收益靠谱分 + 写入 STAGING [$(date +%F_%T)]; python scripts/import_via_rest.py --staging"
+          echo "============================================"
+          echo "  步骤3-alt: 仅收益靠谱分 + 写入 STAGING"
+          echo "  开始时间: $(date '+%Y-%m-%d %H:%M:%S')"
+          echo "============================================"
+          python scripts/import_via_rest.py --staging
+
+      - name: 步骤3a — 抓取基金配置/规模/持有人数据（东财F10，增量写入 staging）
+        timeout-minutes: 120
+        continue-on-error: true
+        env:
+          SUPABASE_PAT: ${{ secrets.SUPABASE_MGMT_TOKEN }}
+        run: |
+          echo "============================================"
+          echo "  步骤3a: 抓取资产配置/规模变动/持有人结构（东财F10）"
+          echo "  开始时间: $(date '+%Y-%m-%d %H:%M:%S')"
+          echo "  说明: 增量写入 fund_scores_staging 的 12 列，promote 时随临时表切到生产；"
+          echo "        失败时 promote 的 COALESCE 备份回填会保护生产表已有数据。"
+          echo "============================================"
+          pip install requests
+          python scripts/fetch_fund_allocation.py
+          echo "配置类数据抓取完成: $(date '+%Y-%m-%d %H:%M:%S')"
 
       - name: 步骤3b — 刷新 fund_quarterly_scores（季度引擎评分，供 fund_combined 派生）
         timeout-minutes: 120
         continue-on-error: true
         run: |
-          bash scripts/run_etl_step.sh "compute_quarterly_scores" "echo ==== 步骤3b: 刷新 fund_quarterly_scores（季度引擎）[timeout 120m]; pip install requests; python scripts/compute_quarterly_scores.py --workers 5 --delay 0.3; echo ==== fund_quarterly_scores 刷新完成 [$(date +%F_%T)]"
+          echo "============================================"
+          echo "  步骤3b: 刷新 fund_quarterly_scores（季度引擎）"
+          echo "  开始时间: $(date '+%Y-%m-%d %H:%M:%S')"
+          echo "  说明: 该表是 fund_combined 评分的来源（见 docs/data-model-rules.md）"
+          echo "        联网抓取净值，若被限流失败不阻断整体流程，下一轮补齐。"
+          echo "============================================"
+          pip install requests
+          python scripts/compute_quarterly_scores.py --workers 5 --delay 0.3
+          echo "fund_quarterly_scores 刷新完成: $(date '+%Y-%m-%d %H:%M:%S')"
 
       - name: 步骤3c2 — 校验临时表并原子切换到 fund_scores（含重建 fund_combined）
         run: |
-          bash scripts/run_etl_step.sh "promote_staging" "echo ==== 步骤3c2: 校验 staging + 原子切换 + 重建 fund_combined [$(date +%F_%T)]; pip install requests; python scripts/promote_staging.py; echo ==== 切换完成 [$(date +%F_%T)]"
+          echo "============================================"
+          echo "  步骤3c2: 校验 staging + 原子切换 + 重建 fund_combined"
+          echo "  开始时间: $(date '+%Y-%m-%d %H:%M:%S')"
+          echo "============================================"
+          pip install requests
+          python scripts/promote_staging.py
+          echo "切换完成: $(date '+%Y-%m-%d %H:%M:%S')"
 
       - name: 步骤3d — 基金经理空值回填与--标记
         continue-on-error: true
         run: |
-          bash scripts/run_etl_step.sh "fix_manager_blanks" "echo ==== 步骤3d: 基金经理空值复核回填 [$(date +%F_%T)]; pip install requests; python scripts/fix_manager_blanks.py; echo ==== 基金经理回填完成 [$(date +%F_%T)]"
+          echo "============================================"
+          echo "  步骤3d: 基金经理空值复核回填（jbgk 抓取，确无经理标记 --）"
+          echo "  开始时间: $(date '+%Y-%m-%d %H:%M:%S')"
+          echo "  说明: 读取 fund_scores/fund_combined 空经理基金，回源 fundf10 jbgk 复核；"
+          echo "        抓到→回填(漏抓)；页面无经理→'--'(确无)；抓取失败→保留(瞬时限流)。"
+          echo "============================================"
+          pip install requests
+          python scripts/fix_manager_blanks.py
+          echo "基金经理回填完成: $(date '+%Y-%m-%d %H:%M:%S')"
 
       - name: 步骤4 — 验证数据
         run: |
-          bash scripts/run_etl_step.sh "verify_update" "echo ==== 步骤4: 验证数据完整性 [$(date +%F_%T)]; python scripts/verify_update.py"
+          echo "============================================"
+          echo "  步骤4: 验证数据完整性"
+          echo "  完成时间: $(date '+%Y-%m-%d %H:%M:%S')"
+          echo "============================================"
+          python scripts/verify_update.py
 
       - name: 步骤4b — 数据质量校验（抽样验证 + 极端值检测）
         continue-on-error: true
         run: |
-          bash scripts/run_etl_step.sh "validate_fund_data" "echo ==== 步骤4b: 数据质量校验 [$(date +%F_%T)]; pip install requests; python scripts/validate_fund_data.py --sample 30; echo ==== 校验完成 [$(date +%F_%T)]"
+          echo "============================================"
+          echo "  步骤4b: 数据质量校验"
+          echo "  开始时间: $(date '+%Y-%m-%d %H:%M:%S')"
+          echo "============================================"
+          pip install requests
+          python scripts/validate_fund_data.py --sample 30
+          echo "校验完成: $(date '+%Y-%m-%d %H:%M:%S')"
 
       - name: 步骤5 — 导出 fund_combined.xlsx
         run: |
-          bash scripts/run_etl_step.sh "export_fund_combined" "echo ==== 步骤5: 导出 fund_combined.xlsx [$(date +%F_%T)]; pip install openpyxl requests; python scripts/export_fund_combined.py --output public/fund_combined.xlsx; echo ==== 文件: $(ls -lh public/fund_combined.xlsx); echo ==== 导出完成 [$(date +%F_%T)]"
+          echo "============================================"
+          echo "  步骤5: 导出 fund_combined.xlsx"
+          echo "  开始时间: $(date '+%Y-%m-%d %H:%M:%S')"
+          echo "============================================"
+          pip install openpyxl requests
+          python scripts/export_fund_combined.py --output public/fund_combined.xlsx
+          echo "文件大小: $(ls -lh public/fund_combined.xlsx | awk '{print $5}')"
+          echo "导出完成: $(date '+%Y-%m-%d %H:%M:%S')"
 
       - name: 步骤5b — 导出全部数据表到数据中心
         run: |
-          bash scripts/run_etl_step.sh "export_all_tables" "echo ==== 步骤5b: 自动发现并导出全部数据库表到 public/downloads/ [$(date +%F_%T)]; mkdir -p public/downloads; python scripts/export_all_tables.py --output-dir public/downloads; echo ==== 导出完成 [$(date +%F_%T)]"
+          echo "============================================"
+          echo "  步骤5b: 自动发现并导出全部数据库表到 public/downloads/"
+          echo "  开始时间: $(date '+%Y-%m-%d %H:%M:%S')"
+          echo "============================================"
+          mkdir -p public/downloads
+          python scripts/export_all_tables.py --output-dir public/downloads
+          echo "导出完成: $(date '+%Y-%m-%d %H:%M:%S')"
 
       - name: 步骤5c — 计算特色指标（恐惧贪婪/市场温度/基金发行热度）
         timeout-minutes: 15
         continue-on-error: true
         run: |
-          bash scripts/run_etl_step.sh "fetch_jqr_indicators" "echo ==== 步骤5c: 计算特色指标（写入 jqr_indicators 表）[$(date +%F_%T)]; pip install akshare; python scripts/fetch_jqr_indicators.py; echo ==== 特色指标计算完成 [$(date +%F_%T)]"
+          echo "============================================"
+          echo "  步骤5c: 计算特色指标（自建复合算法，写入 jqr_indicators 表）"
+          echo "  开始时间: $(date '+%Y-%m-%d %H:%M:%S')"
+          echo "============================================"
+          pip install akshare
+          python scripts/fetch_jqr_indicators.py
+          echo "特色指标计算完成: $(date '+%Y-%m-%d %H:%M:%S')"
 
       - name: 步骤5d — 拉取基金指数（腾讯源，写入 fund_indices 表）
         timeout-minutes: 10
         continue-on-error: true
         run: |
-          bash scripts/run_etl_step.sh "fetch_fund_indices" "echo ==== 步骤5d: 拉取基金指数（腾讯源）[$(date +%F_%T)]; pip install akshare requests; python scripts/fetch_fund_indices_em.py; echo ==== 基金指数更新完成 [$(date +%F_%T)]"
+          echo "============================================"
+          echo "  步骤5d: 拉取基金指数（上证/深证/国证基金指数等，腾讯源）"
+          echo "  开始时间: $(date '+%Y-%m-%d %H:%M:%S')"
+          echo "============================================"
+          pip install akshare requests
+          python scripts/fetch_fund_indices_em.py
+          echo "基金指数更新完成: $(date '+%Y-%m-%d %H:%M:%S')"
 
       - name: 步骤5e — 拉取自建组合场内基金区间收益（腾讯K线，写入 etf_returns 表）
         timeout-minutes: 10
         continue-on-error: true
         run: |
-          bash scripts/run_etl_step.sh "fetch_etf_returns" "echo ==== 步骤5e: 拉取自建组合 ETF/LOF 区间收益（腾讯K线）[$(date +%F_%T)]; pip install requests; python scripts/fetch_etf_returns.py; echo ==== 场内基金区间收益更新完成 [$(date +%F_%T)]"
+          echo "============================================"
+          echo "  步骤5e: 拉取自建组合 ETF/LOF 区间收益（腾讯K线）"
+          echo "  开始时间: $(date '+%Y-%m-%d %H:%M:%S')"
+          echo "============================================"
+          pip install requests
+          python scripts/fetch_etf_returns.py
+          echo "场内基金区间收益更新完成: $(date '+%Y-%m-%d %H:%M:%S')"
 
       - name: 步骤5f — 拉取主题板块各周期涨跌幅（东财ZTJJ，写入 fund_tag_perf 表）
         timeout-minutes: 15
@@ -175,7 +332,13 @@ jobs:
         env:
           SUPABASE_PAT: ${{ secrets.SUPABASE_MGMT_TOKEN }}
         run: |
-          bash scripts/run_etl_step.sh "sync_tag_performance" "echo ==== 步骤5f: 拉取主题板块日/周/月/季/年/今年涨跌幅（东财ZTJJ）[$(date +%F_%T)]; pip install requests; python scripts/sync_tag_performance.py; echo ==== 主题板块涨跌幅更新完成 [$(date +%F_%T)]"
+          echo "============================================"
+          echo "  步骤5f: 拉取主题板块日/周/月/季/年/今年涨跌幅（东财ZTJJ GetBKDetailInfoNew）"
+          echo "  开始时间: $(date '+%Y-%m-%d %H:%M:%S')"
+          echo "============================================"
+          pip install requests
+          python scripts/sync_tag_performance.py
+          echo "主题板块涨跌幅更新完成: $(date '+%Y-%m-%d %H:%M:%S')"
 
       - name: 步骤5g — 同步完整标签列表（东财ZTJJ，重建 fund_tags 表）
         timeout-minutes: 10
@@ -183,7 +346,13 @@ jobs:
         env:
           SUPABASE_PAT: ${{ secrets.SUPABASE_MGMT_TOKEN }}
         run: |
-          bash scripts/run_etl_step.sh "sync_fund_tags_full" "echo ==== 步骤5g: 同步完整标签列表（东财ZTJJ → fund_tags）[$(date +%F_%T)]; pip install requests; python scripts/sync_fund_tags_full.py; echo ==== 标签列表同步完成 [$(date +%F_%T)]"
+          echo "============================================"
+          echo "  步骤5g: 同步完整标签列表（东财ZTJJ GetBKListByBKTypeNew → fund_tags）"
+          echo "  开始时间: $(date '+%Y-%m-%d %H:%M:%S')"
+          echo "============================================"
+          pip install requests
+          python scripts/sync_fund_tags_full.py
+          echo "标签列表同步完成: $(date '+%Y-%m-%d %H:%M:%S')"
 
       - name: 步骤5h — 将标签关联的场内 ETF/LOF 补充进 fund_scores 主表
         timeout-minutes: 15
@@ -191,7 +360,16 @@ jobs:
         env:
           SUPABASE_PAT: ${{ secrets.SUPABASE_MGMT_TOKEN }}
         run: |
-          bash scripts/run_etl_step.sh "sync_etfs_to_fund_scores" "echo ==== 步骤5h: 标签关联 ETF/LOF 补充进 fund_scores（统一数据源）[$(date +%F_%T)]; pip install requests; python scripts/sync_etfs_to_fund_scores.py --workers 6 --delay 0.25; echo ==== ETF/LOF 补充完成 [$(date +%F_%T)]"
+          echo "============================================"
+          echo "  步骤5h: 标签关联 ETF/LOF 补充进 fund_scores（统一数据源）"
+          echo "  说明: promote_staging 仅重建 .OF 场外基金；本步把 fund_tag_funds 中缺失的"
+          echo "        场内 ETF/LOF（及少量场外缺口）追加进 fund_scores（幂等 UPSERT），"
+          echo "        使标签弹窗统一从 fund_scores 取基金 + 基金经理。"
+          echo "  开始时间: $(date '+%Y-%m-%d %H:%M:%S')"
+          echo "============================================"
+          pip install requests
+          python scripts/sync_etfs_to_fund_scores.py --workers 6 --delay 0.25
+          echo "ETF/LOF 补充完成: $(date '+%Y-%m-%d %H:%M:%S')"
 
       - name: 步骤6 — 安装 Node.js
         uses: actions/setup-node@v4

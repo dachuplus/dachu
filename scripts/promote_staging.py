@@ -31,7 +31,8 @@ PROMOTE_COLS = (
     'c,n,t0,t1,t1_tt,sg,daily_change,company,fund_scale,manage_fee,fund_manager,'
     'share_scale,custody_fee,sale_fee,found_date,ytd,r0w,r1m,r3m,r6m,r1y,r2y,r3y,r5y,'
     'r7y,r10y,return_all,dd1y,dd2y,dd3y,dd5y,sr1y,sr2y,sr3y,sr5y,'
-    'k0w,k1m,k3m,k6m,k1,k2,k3,k5,k_all,score_grade'
+    'k0w,k1m,k3m,k6m,k1,k2,k3,k5,k_all,score_grade,'
+    'stock_pct,bond_pct,cash_pct,sub_purchase,sub_redemption,net_sub_share,total_share_end,net_asset_end,nav_change_rate,inst_hold_pct,indiv_hold_pct,internal_hold_pct'
 )
 
 
@@ -216,6 +217,21 @@ def main():
     # 货币型评分确认
     hb_after = pg("SELECT count(*) AS tot, count(k_all) AS scored FROM fund_scores WHERE t0='货币型'")[0]
     print(f'  ✓ 货币型评分: {hb_after["scored"]}/{hb_after["tot"]} 有 k_all', flush=True)
+
+    # ── 2.2 保护 12 个配置/规模/持有人列：用备份恢复非空值 ─────────────
+    # 若当日 fetch_fund_allocation 步骤未成功写入 staging 的 12 列（例如东财限流/超时），
+    # staging 对应列为 NULL，原子切换会清空生产表这些列。此处用上一版生产(_fs_backup)
+    # 的非空值回填，确保历史抓取数据不丢失（COALESCE 优先保留 staging 已写入的新值）。
+    print('\n[2.2] 保护 12 个配置类列（COALESCE 备份回填）', flush=True)
+    _alloc_cols = ['stock_pct', 'bond_pct', 'cash_pct', 'sub_purchase', 'sub_redemption',
+                   'net_sub_share', 'total_share_end', 'net_asset_end', 'nav_change_rate',
+                   'inst_hold_pct', 'indiv_hold_pct', 'internal_hold_pct']
+    _set = ', '.join([f'{c} = COALESCE(f.{c}, b.{c})' for c in _alloc_cols])
+    try:
+        pg(f'UPDATE fund_scores f SET {_set} FROM _fs_backup b WHERE f.c = b.c', timeout=300)
+        print('  ✓ 配置类列已用备份保护', flush=True)
+    except Exception as e:
+        print(f'  [WARN] 配置类列备份回填失败（不影响评分切换）: {e}', flush=True)
 
     # ── 2.5 重新应用标签（tags）到 fund_scores ──────────────────────────
     # fund_scores.tags 由 fund_tag_funds 派生，不在 PROMOTE_COLS 内（staging 无该列），

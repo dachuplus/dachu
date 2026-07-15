@@ -743,6 +743,69 @@
         </table>
       </div>
 
+      <!-- 东方财富 F10 基金档案 -->
+      <h2 class="api-group-title">八、东方财富 F10 基金档案</h2>
+      <div class="api-item">
+        <h3 class="api-name">13. fundf10 — 资产配置(zcpz)</h3>
+        <table class="api-meta-table">
+          <tr><td class="meta-label">接口地址</td><td><code>https://fundf10.eastmoney.com/zcpz_{基金代码}.html</code>（代码去 .OF 后缀，如 zcpz_000001.html）</td></tr>
+          <tr><td class="meta-label">方法</td><td>GET（解析页面内嵌 JS 变量 <code>var chartData</code>）</td></tr>
+          <tr><td class="meta-label">用途</td><td>抓取基金最新报告期资产配置明细（股票/债券/现金占比）</td></tr>
+          <tr><td class="meta-label">使用文件</td><td><code>scripts/fetch_fund_allocation.py</code></td></tr>
+        </table>
+        <p class="api-subtitle">返回字段（写入 fund_scores）</p>
+        <table class="field-table">
+          <thead><tr><th>字段</th><th>含义</th><th>单位</th></tr></thead>
+          <tbody>
+            <tr><td>stock_pct</td><td>股票占净值比例</td><td>%</td></tr>
+            <tr><td>bond_pct</td><td>债券占净值比例</td><td>%</td></tr>
+            <tr><td>cash_pct</td><td>现金占净值比例</td><td>%</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="api-item">
+        <h3 class="api-name">14. fundf10 — 规模变动(gmbd)</h3>
+        <table class="api-meta-table">
+          <tr><td class="meta-label">接口地址</td><td><code>https://fundf10.eastmoney.com/FundArchivesDatas.aspx?type=gmbd&amp;code={基金代码}</code></td></tr>
+          <tr><td class="meta-label">方法</td><td>GET（解析返回 JSONP 中的 <code>content</code> HTML 表格，取最新一行）</td></tr>
+          <tr><td class="meta-label">用途</td><td>抓取基金最新报告期份额/净资产规模变动</td></tr>
+          <tr><td class="meta-label">使用文件</td><td><code>scripts/fetch_fund_allocation.py</code></td></tr>
+        </table>
+        <p class="api-subtitle">返回字段（写入 fund_scores）</p>
+        <table class="field-table">
+          <thead><tr><th>字段</th><th>含义</th><th>单位</th></tr></thead>
+          <tbody>
+            <tr><td>sub_purchase</td><td>期间申购总份额</td><td>亿份</td></tr>
+            <tr><td>sub_redemption</td><td>期间赎回总份额</td><td>亿份</td></tr>
+            <tr><td>net_sub_share</td><td>期间净申购份额（=申购-赎回）</td><td>亿份</td></tr>
+            <tr><td>total_share_end</td><td>期末总份额</td><td>亿份</td></tr>
+            <tr><td>net_asset_end</td><td>期末净资产</td><td>亿元</td></tr>
+            <tr><td>nav_change_rate</td><td>净资产变动率</td><td>%</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="api-item">
+        <h3 class="api-name">15. fundf10 — 持有人结构(cyrjg)</h3>
+        <table class="api-meta-table">
+          <tr><td class="meta-label">接口地址</td><td><code>https://fundf10.eastmoney.com/FundArchivesDatas.aspx?type=cyrjg&amp;code={基金代码}</code></td></tr>
+          <tr><td class="meta-label">方法</td><td>GET（解析返回 JSONP 中的 <code>content</code> HTML 表格，取最新一行）</td></tr>
+          <tr><td class="meta-label">用途</td><td>抓取基金最新公告期持有人结构（机构/个人/内部持有比例）</td></tr>
+          <tr><td class="meta-label">使用文件</td><td><code>scripts/fetch_fund_allocation.py</code></td></tr>
+        </table>
+        <p class="api-subtitle">返回字段（写入 fund_scores）</p>
+        <table class="field-table">
+          <thead><tr><th>字段</th><th>含义</th><th>单位</th></tr></thead>
+          <tbody>
+            <tr><td>inst_hold_pct</td><td>机构持有比例</td><td>%</td></tr>
+            <tr><td>indiv_hold_pct</td><td>个人持有比例</td><td>%</td></tr>
+            <tr><td>internal_hold_pct</td><td>内部持有比例（基金公司/高管/员工）</td><td>%</td></tr>
+          </tbody>
+        </table>
+        <p class="api-note">⚠️ zcpz 页面需用<b>裸基金代码</b>（去掉 .OF）；gmbd/cyrjg 的 FundArchivesDatas 接口对带 .OF 后缀的代码兼容。三类数据按「接口拉取 → fund_scores_staging → fund_scores_test 验证 → fund_scores 生产」三级流水线入库，每日增量更新。</p>
+      </div>
+
       <!-- 接口汇总 -->
       <h2 class="api-group-title">接口汇总</h2>
       <table class="field-table summary-table">
@@ -760,6 +823,9 @@
           <tr><td>10</td><td>value500.com</td><td>宏观指标（6个子页面）</td><td>GET</td></tr>
           <tr><td>11</td><td>akshare</td><td>上证指数历史日线</td><td>库调用</td></tr>
           <tr><td>12</td><td>Supabase</td><td>数据库 + SQL + 代理函数</td><td>REST/SQL</td></tr>
+          <tr><td>13</td><td>fundf10 (zcpz)</td><td>资产配置（股票/债券/现金占比）</td><td>GET</td></tr>
+          <tr><td>14</td><td>fundf10 (gmbd)</td><td>规模变动（申购/赎回/净申购/期末份额/净资产/变动率）</td><td>GET</td></tr>
+          <tr><td>15</td><td>fundf10 (cyrjg)</td><td>持有人结构（机构/个人/内部持有比例）</td><td>GET</td></tr>
         </tbody>
       </table>
     </div>
@@ -790,7 +856,7 @@ const visitorList = ref([])
 // 表定义
 const tables = [
   { key: 'fund_combined', name: '基金综合数据表', desc: '基金分类(t0/t1)、详情(公司/规模/费率)、收益(ytd~r5y)、风险(dd1y/sr1y)、评分(k_all/score_grade/k0w~k10) — 核心合并表，20,860条', rows: 20860 },
-  { key: 'fund_scores', name: '基金评分表（完整版）', desc: '每日更新：基金代码/名称/基金经理/管理人/分类(一级+二级)/净值规模/份额规模/管理费率/托管费率/销售服务费率/成立日期 → 阶段收益(ytd~r10y/成立以来) → 阶段回撤(dd1y~dd5y) → 阶段夏普(sr1y~sr5y) → 基金评分(k0w~k_all/score_grade)，46列完整数据', rows: 20860 },
+  { key: 'fund_scores', name: '基金评分表（完整版）', desc: '每日更新：基金代码/名称/基金经理/管理人/分类(一级+二级)/净值规模/份额规模/管理费率/托管费率/销售服务费率/成立日期 → 阶段收益(ytd~r10y/成立以来) → 阶段回撤(dd1y~dd5y) → 阶段夏普(sr1y~sr5y) → 基金评分(k0w~k_all/score_grade) → 资产配置(股票/债券/现金占比) → 规模变动(申购/赎回/净份额/总份额/净资产/变动率) → 持有人结构(机构/个人/内部持有比例)，58列完整数据', rows: 20860 },
   { key: 'fund_indices', name: '基金指数表（万得 Wind）', desc: '万得(Wind)基金指数：代码/名称/分类/类型 + 基本信息(发布日期/成分数量/加权方式/收益方式) + 市场表现(近1周~成立以来收益率) + 历年表现(年度收益) + 估值分析(总市值/流通市值/市盈率/净利率/股息率/Beta/波动率/换手率)，14条', rows: 14 },
   { key: 'fund_scores_test', name: '基金评分测试表', desc: 'fund_scores 的测试副本，结构与生产表一致。新抓取数据先写入此表验证无误后再导入生产环境', rows: 0 },
   { key: 'index_eva', name: '行业估值表（生产）', desc: '蛋卷指数估值数据：指数代码/名称/类型(宽基/策略/行业主题)/PE/PB/股息率/ROE/PE历史分位/PB历史分位/估值评级，网页指标信号页行业估值与生产表一致，63条', rows: 63 },
