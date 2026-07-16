@@ -28,6 +28,7 @@ export const FEATURES = [
   { key: 'fund-rank', label: '靠谱指数', desc: '靠谱指数评分、基金详情、基金对比' },
   { key: 'signal',    label: '指标信号', desc: '宏观信号、股债性价比、风格因子、行业估值' },
   { key: 'portfolio', label: '智能组合', desc: '自建组合、AI 组合、组合回测' },
+  { key: 'admin',     label: '管理员', desc: '全部功能权限 + 数据中心(管理中心)管理权限，可管理其他用户' },
 ]
 
 // ---- 全局单例状态 ----
@@ -58,8 +59,8 @@ export function useAuth() {
     !!user.value && (user.value.email === ADMIN_EMAIL || permissions.value.is_admin)
   )
 
-  /** 是否为数据中心授权账户（= 管理员，仅其可访问数据中心与权限管理） */
-  const isOwner = computed(() => user.value?.email === ADMIN_EMAIL)
+  /** 是否为数据中心授权账户（主管理员 或 被授予管理员权限的用户，可访问数据中心与权限管理） */
+  const isOwner = computed(() => user.value?.email === ADMIN_EMAIL || permissions.value.is_admin)
 
   /** 已开通的功能 key 列表 */
   const enabledFeatures = computed(() => permissions.value.enabled_features || [])

@@ -96,7 +96,7 @@
     <!-- 用户权限管理（仅管理员可见） -->
     <div class="card" v-if="isOwner" v-show="activeTab==='users'">
       <div class="card-title">用户权限管理</div>
-      <p class="section-desc">为注册用户开通功能：勾选需开通的功能后点击「保存」生效。未开通任何功能的用户登录后将显示「陌生人，无访问权限」。</p>
+      <p class="section-desc">为注册用户开通功能：勾选需开通的功能后点击「保存」生效。未开通任何功能的用户登录后将显示「陌生人，无访问权限」。勾选「管理员」即授予该用户数据中心(管理中心)管理权限，可继续管理其他用户（主管理员账号固定不可改）。</p>
 
       <!-- 添加用户 -->
       <div class="perm-add">
@@ -127,7 +127,6 @@
           <tr>
             <th class="col-perm-email">用户名</th>
             <th class="col-perm-features">开通功能</th>
-            <th class="col-perm-admin">管理员</th>
             <th class="col-perm-granted">开通人</th>
             <th class="col-perm-action">操作</th>
           </tr>
@@ -145,7 +144,7 @@
               >{{ displayUsername(row.user_email) }}</span>
             </td>
             <td class="col-perm-features">
-              <span v-if="row._isAdmin" class="perm-all">全部功能（管理员）</span>
+              <span v-if="row.user_email === adminEmail" class="perm-all">全部功能（主管理员）</span>
               <template v-else>
                 <div class="perm-quick">
                   <button type="button" class="btn-all" @click="row._features = FEATURES.map(f => f.key)">全部</button>
@@ -155,9 +154,6 @@
                   <input type="checkbox" :value="f.key" v-model="row._features" /> {{ f.label }}
                 </label>
               </template>
-            </td>
-            <td class="col-perm-admin">
-              <input type="checkbox" v-model="row._isAdmin" :disabled="row.user_email === adminEmail" />
             </td>
             <td class="col-perm-granted">{{ row.granted_by || '—' }}</td>
             <td class="col-perm-action">
@@ -1647,12 +1643,14 @@ async function loadPermissionsList() {
     permUsers.value = (users || []).map(u => {
       const p = permMap[u.user_email] || {}
       const isAdminRow = u.user_email === adminEmail || !!p.is_admin
+      // 管理员以「开通功能」中的 admin 选项呈现（与 is_admin 字段双向同步）
+      const feats = new Set(Array.isArray(p.enabled_features) ? p.enabled_features.filter(f => f !== 'all') : [])
+      if (isAdminRow) feats.add('admin')
       return {
         user_email: u.user_email,
         user_id: u.id,
         created_at: u.created_at,
-        _isAdmin: isAdminRow,
-        _features: Array.isArray(p.enabled_features) ? p.enabled_features.filter(f => f !== 'all') : (isAdminRow ? [] : []),
+        _features: [...feats],
         granted_by: p.granted_by || null,
         _saving: false,
       }
@@ -1715,7 +1713,7 @@ async function addPermission() {
   permSaving.value = true
   permMsg.value = ''
   try {
-    await savePermissions(email, { is_admin: false, enabled_features: [...newFeatures.value] })
+    await savePermissions(email, { is_admin: newFeatures.value.includes('admin'), enabled_features: [...newFeatures.value] })
     newEmail.value = ''
     newFeatures.value = []
     await loadPermissionsList()
@@ -1733,7 +1731,7 @@ async function saveRow(row) {
   row._saving = true
   permMsg.value = ''
   try {
-    await savePermissions(row.user_email, { is_admin: row._isAdmin, enabled_features: [...row._features] })
+    await savePermissions(row.user_email, { is_admin: row._features.includes('admin'), enabled_features: [...row._features] })
     await loadPermissionsList()
     permMsg.value = `已更新 ${row.user_email} 的权限`
     permMsgType.value = 'perm-msg--ok'
@@ -2184,12 +2182,10 @@ onMounted(() => {
 
 .perm-table .col-perm-email { min-width: 200px; }
 .perm-table .col-perm-features { min-width: 280px; }
-.perm-table .col-perm-admin { width: 70px; text-align: center; }
 .perm-table .col-perm-granted { width: 140px; }
 .perm-table .col-perm-action { width: 140px; white-space: nowrap; }
 .perm-table .perm-feature { margin-right: var(--space-sm); }
 .perm-all { font-size: 14px; font-weight: 700; color: #1d70b8; }
-.perm-table .col-perm-admin input { width: 16px; height: 16px; accent-color: #1d70b8; }
 .btn-remove {
   background: #ffffff; color: #d4351c; border: 1px solid #d4351c;
   padding: 4px 10px; font-size: 14px; font-weight: 700; cursor: pointer; margin-left: 6px;
