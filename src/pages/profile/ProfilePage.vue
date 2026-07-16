@@ -26,6 +26,28 @@
       </div>
     </div>
 
+    <!-- 我的关注（已登录时显示） -->
+    <div class="card" v-if="isLoggedIn">
+      <div class="card-title">我的关注</div>
+      <div v-if="!favRows.length && !favLoading" class="empty-portfolio">
+        <p>还没有关注基金，去 <router-link to="/tools/fund-rank">靠谱指数</router-link> 页添加关注吧</p>
+      </div>
+      <div v-else-if="favLoading" class="empty-portfolio"><p>加载中...</p></div>
+      <div v-else class="fav-list">
+        <div v-for="item in favRows" :key="item.c" class="fav-row">
+          <div class="fav-main">
+            <span class="fav-name">{{ item.name || '--' }}</span>
+            <span class="fav-code">{{ item.c }}</span>
+          </div>
+          <div class="fav-score" v-if="item.k_all != null">{{ item.k_all.toFixed(1) }}</div>
+          <div class="fav-return" :class="{ 'text-up': isUp(item.r1y), 'text-down': isDown(item.r1y) }">
+            {{ formatReturn(item.r1y) }}
+          </div>
+          <button class="fav-remove" @click="onRemoveFav(item.c)">移除</button>
+        </div>
+      </div>
+    </div>
+
     <!-- 我的组合（已登录时显示） -->
     <div class="card" v-if="isLoggedIn">
       <div class="card-title">我的组合</div>
@@ -73,9 +95,11 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, onMounted, watch } from 'vue'
 import { useAuth } from '../../composables/useAuth'
+import { useFavorites } from '../../composables/useFavorites'
 import { removeFundFromPortfolio } from '../../api/user-data'
+import { supabase } from '../../api/supabase'
 
 const {
   user, loading: authLoading, isLoggedIn, isOwner,
@@ -84,7 +108,49 @@ const {
   signOut, refreshUserData, showLogin
 } = useAuth()
 
+const { favorites, removeFav } = useFavorites()
+
 const showDisclaimer = ref(false)
+
+// 关注基金
+const favRows = ref([])
+const favLoading = ref(false)
+
+function isUp(v) { return typeof v === 'number' && v > 0 }
+function isDown(v) { return typeof v === 'number' && v < 0 }
+function formatReturn(v) {
+  if (typeof v !== 'number') return '--'
+  return (v > 0 ? '+' : '') + v.toFixed(2) + '%'
+}
+
+async function fetchFavScores() {
+  if (!favorites.value.length) { favRows.value = []; return }
+  favLoading.value = true
+  const codes = favorites.value.map(f => f.c)
+  const base = favorites.value.map(f => ({ ...f, k_all: undefined, r1y: undefined }))
+  try {
+    const { data, error } = await supabase
+      .from('fund_scores')
+      .select('c,name,k_all,r1y')
+      .in('c', codes)
+    if (!error && data) {
+      const byCode = Object.fromEntries(data.map(d => [d.c, d]))
+      favRows.value = base.map(f => {
+        const s = byCode[f.c]
+        return s ? { ...f, name: s.name, k_all: s.k_all, r1y: s.r1y } : f
+      })
+    } else {
+      favRows.value = base
+    }
+  } catch (e) {
+    favRows.value = base
+  }
+  favLoading.value = false
+}
+
+function onRemoveFav(c) { removeFav(c) }
+
+watch(favorites, fetchFavScores, { deep: true })
 
 function fmtDate(ts) {
   if (!ts) return '--'
@@ -100,6 +166,8 @@ async function removeFromPortfolio(pfId, code) {
   await removeFundFromPortfolio(pfId, code)
   await refreshUserData()
 }
+
+onMounted(fetchFavScores)
 </script>
 
 <style scoped>
@@ -158,6 +226,26 @@ async function removeFromPortfolio(pfId, code) {
 
 /* 功能入口 */
 .profile-items { display: flex; flex-direction: column; border-top: 1px solid var(--border); }
+
+/* 关注基金 */
+.fav-list { border-top: 1px solid var(--border); }
+.fav-row {
+  display: flex; align-items: center; gap: var(--space-md);
+  padding: var(--space-sm) 0; border-bottom: 1px solid #f3f2f1;
+}
+.fav-row:last-child { border-bottom: none; }
+.fav-main { flex: 1; min-width: 0; }
+.fav-name { font-weight: 700; color: var(--text-primary); font-size: 15px; }
+.fav-code { font-size: 13px; color: var(--text-secondary); font-family: monospace; margin-left: var(--space-sm); }
+.fav-score { font-weight: 700; font-size: 16px; color: var(--text-primary); width: 48px; text-align: right; }
+.fav-return { font-weight: 700; font-size: 14px; width: 72px; text-align: right; }
+.fav-remove {
+  background: none; border: 1px solid var(--border); color: var(--text-secondary);
+  font-size: 13px; cursor: pointer; padding: 4px 10px;
+}
+.fav-remove:hover { color: #d4351c; border-color: #d4351c; }
+.text-up { color: #d4351c; }
+.text-down { color: #00703c; }
 .profile-item {
   display: flex; justify-content: space-between;
   padding: var(--space-md) 0; border-bottom: 1px solid var(--border);

@@ -40,7 +40,7 @@
           <div class="govuk-header__auth">
             <!-- 已登录 -->
             <template v-if="isLoggedIn">
-              <span class="auth-user-email">{{ displayName }}</span>
+              <router-link to="/profile" class="auth-user-email">个人中心</router-link>
               <button class="auth-btn auth-btn--logout" @click="handleLogout">退出</button>
             </template>
             <!-- 未登录 -->
@@ -296,10 +296,8 @@ const showBack  = computed(() => {
   color: #ffffff;
   font-size: 14px;
   font-weight: 400;
-  max-width: 200px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  text-decoration: none;
+  cursor: pointer;
 }
 .auth-btn {
   background: transparent;
