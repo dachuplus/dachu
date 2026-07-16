@@ -83,6 +83,13 @@ function normalizePhone(v) {
   return v
 }
 
+// 手机号 → 确定性合成邮箱（Supabase 手机号注册未开启，且需短信OTP，
+// 故以合成邮箱承载「手机号+密码」身份，复用既有的邮件自动确认与邮箱权限体系）。
+function emailForPhone(phone) {
+  const p = normalizePhone(phone).replace(/^\+/, '')
+  return `${p}@allfund.user`
+}
+
 async function submit() {
   error.value = ''
   success.value = ''
@@ -112,9 +119,9 @@ async function submit() {
   loading.value = true
   try {
     if (mode.value === 'signup') {
-      const creds = isPhone
-        ? { phone: identifier, password: password.value }
-        : { email: identifier, password: password.value }
+        const creds = isPhone
+          ? { email: emailForPhone(identifier), password: password.value }
+          : { email: identifier, password: password.value }
       const { data, error: err } = await supabase.auth.signUp(creds)
       if (err) { error.value = translateError(err.message); return }
       if (data?.user?.identities?.length === 0) {
@@ -130,9 +137,9 @@ async function submit() {
         success.value = '注册成功！请直接登录。'
       }
     } else {
-      const creds = isPhone
-        ? { phone: identifier, password: password.value }
-        : { email: identifier, password: password.value }
+        const creds = isPhone
+          ? { email: emailForPhone(identifier), password: password.value }
+          : { email: identifier, password: password.value }
       const { error: err } = await supabase.auth.signInWithPassword(creds)
       if (err) { error.value = translateError(err.message); return }
       markLogin()

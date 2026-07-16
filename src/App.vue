@@ -100,8 +100,10 @@
     <!-- 全局通知与对话框 -->
     <Toast />
     <ConfirmDialog />
-    <PermissionRequestDialog :show="showRequestDialog" @close="showRequestDialog = false" @submitted="onRequestSubmitted" />
     </div>
+
+    <!-- 申请权限弹窗：独立于各分支，任何登录状态下均可弹出 -->
+    <PermissionRequestDialog :show="showRequestDialog" @close="showRequestDialog = false" @submitted="onRequestSubmitted" />
   </div>
 </template>
 
