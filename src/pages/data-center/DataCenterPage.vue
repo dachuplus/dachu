@@ -125,7 +125,7 @@
       <table class="data-table perm-table" v-if="permUsers.length > 0">
         <thead>
           <tr>
-            <th class="col-perm-email">用户邮箱</th>
+            <th class="col-perm-email">用户名</th>
             <th class="col-perm-features">开通功能</th>
             <th class="col-perm-admin">管理员</th>
             <th class="col-perm-granted">开通人</th>
@@ -134,7 +134,7 @@
         </thead>
         <tbody>
           <tr v-for="row in permUsers" :key="row.user_email">
-            <td class="col-perm-email"><code>{{ row.user_email }}</code></td>
+            <td class="col-perm-email"><code>{{ displayUsername(row.user_email) }}</code></td>
             <td class="col-perm-features">
               <span v-if="row._isAdmin" class="perm-all">全部功能（管理员）</span>
               <template v-else>
@@ -288,6 +288,7 @@
             <th class="col-ua-firstvisit">首次访问时间</th>
             <th class="col-ua-duration">在线时间</th>
             <th class="col-ua-paths">访问路径</th>
+            <th class="col-ua-action">用户操作</th>
           </tr>
         </thead>
         <tbody>
@@ -309,6 +310,13 @@
             <td class="col-ua-duration">{{ v.durationMin > 0 ? v.durationMin + ' 分钟' : '—' }}</td>
             <td class="col-ua-paths">
               <span class="path-tag" v-for="(p, j) in v.paths" :key="j">{{ p }}</span>
+            </td>
+            <td class="col-ua-action">
+              <template v-if="v.name !== '匿名访客'">
+                <button class="btn-download ua-action-btn" type="button" :disabled="v.email === adminEmail" @click="kickUser(v)">踢出</button>
+                <button class="btn-remove ua-action-btn" type="button" :disabled="v.email === adminEmail" @click="blockVisitor(v.email)">拉黑</button>
+              </template>
+              <span v-else class="text-muted">—</span>
             </td>
           </tr>
         </tbody>
@@ -1092,10 +1100,10 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { useAuth, FEATURES, ADMIN_EMAIL } from '../../composables/useAuth'
-import { confirm } from '../../composables/useToast'
+import { confirm, toast } from '../../composables/useToast'
 import { usePermissionRequests } from '../../composables/usePermissionRequests'
 
-const { isLoggedIn, isOwner, showLogin, savePermissions, deletePermissions } = useAuth()
+const { isLoggedIn, isOwner, showLogin, savePermissions, deletePermissions, blockUser } = useAuth()
 const permFeatures = FEATURES
 const adminEmail = ADMIN_EMAIL
 
@@ -1483,34 +1491,77 @@ async function loadUserAnalytics() {
 }
 
 // ========== 用户权限管理 ==========
+// 用户名展示：手机号注册用户的 user_email 为合成邮箱（如 8613800138000@allfund.user），
+// 去掉后缀只显示手机号；真实邮箱（如管理员）原样显示。
+function displayUsername(email) {
+  if (!email) return '—'
+  if (email.endsWith('@allfund.user')) return email.slice(0, -'@allfund.user'.length)
+  return email
+}
+
 async function loadPermissionsList() {
   if (!isOwner.value) return
   permLoading.value = true
   try {
     const { supabase } = await import('../../api/supabase.js')
     if (!supabase) { permUsers.value = []; return }
-    const { data, error } = await supabase
+    // 全部注册用户（app_users，由 auth.users 触发器自动写入）
+    const { data: users, error: e1 } = await supabase
+      .from('app_users')
+      .select('id, user_email, created_at')
+      .order('created_at', { ascending: false })
+    if (e1) { console.error('[perm] app_users error', e1); permUsers.value = []; return }
+    // 已授予的权限（可能为空）
+    const { data: perms, error: e2 } = await supabase
       .from('user_permissions')
-      .select('user_email, is_admin, enabled_features, granted_by, updated_at')
-      .order('updated_at', { ascending: false })
-    if (error) {
-      console.error('[perm] load error', error)
-      permUsers.value = []
-      return
-    }
-    permUsers.value = (data || []).map(r => ({
-      user_email: r.user_email,
-      _isAdmin: !!r.is_admin,
-      _features: Array.isArray(r.enabled_features) ? r.enabled_features.filter(f => f !== 'all') : [],
-      granted_by: r.granted_by,
-      updated_at: r.updated_at,
-      _saving: false,
-    }))
+      .select('user_email, is_admin, enabled_features, granted_by')
+    if (e2) { console.error('[perm] perms error', e2); permUsers.value = []; return }
+    const permMap = {}
+    ;(perms || []).forEach(p => { permMap[p.user_email] = p })
+    permUsers.value = (users || []).map(u => {
+      const p = permMap[u.user_email] || {}
+      const isAdminRow = u.user_email === adminEmail || !!p.is_admin
+      return {
+        user_email: u.user_email,
+        user_id: u.id,
+        _isAdmin: isAdminRow,
+        _features: Array.isArray(p.enabled_features) ? p.enabled_features.filter(f => f !== 'all') : (isAdminRow ? [] : []),
+        granted_by: p.granted_by || null,
+        _saving: false,
+      }
+    })
   } catch (e) {
     console.error('[perm] load error', e)
     permUsers.value = []
   } finally {
     permLoading.value = false
+  }
+}
+
+// 踢出用户：调用 Edge Function 永久删除该账号（仅管理员）
+async function kickUser(v) {
+  if (!v.email || v.email === 'anonymous') return
+  const ok = await confirm('踢出用户', `确定要踢出用户「${displayUsername(v.email)}」吗？此操作将永久删除该账号及其全部数据，不可恢复。`)
+  if (!ok) return
+  try {
+    const { supabase } = await import('../../api/supabase.js')
+    const { error } = await supabase.functions.invoke('admin-delete-user', { body: { email: v.email } })
+    if (error) throw error
+    toast('已踢出用户 ' + displayUsername(v.email), 'success')
+    visitorList.value = visitorList.value.filter(x => x.email !== v.email)
+  } catch (e) {
+    toast('踢出失败：' + (e?.message || e), 'error')
+  }
+}
+
+// 拉黑用户：写入 blocked_users，该用户下次访问将被强制登出（仅管理员）
+async function blockVisitor(email) {
+  if (!email || email === 'anonymous') return
+  try {
+    await blockUser(email)
+    toast('已拉黑 ' + displayUsername(email), 'success')
+  } catch (e) {
+    toast('拉黑失败：' + (e?.message || e), 'error')
   }
 }
 
@@ -1749,6 +1800,9 @@ onMounted(() => {
 .col-ua-firstvisit { width: 160px; font-family: monospace; }
 .col-ua-duration { width: 100px; text-align: right; font-family: monospace; }
 .col-ua-paths { min-width: 240px; }
+.col-ua-action { width: 150px; white-space: nowrap; }
+.ua-action-btn { margin: 2px 4px 2px 0; padding: 4px 10px; font-size: 13px; }
+.ua-action-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 .path-tag {
   display: inline-block; background: #f3f2f1; border: 1px solid var(--border);
   border-radius: 2px; padding: 1px 6px; margin: 2px 4px 2px 0; font-size: 12px;

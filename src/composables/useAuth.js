@@ -42,6 +42,9 @@ const showLoginDialog = ref(false)
 const permissions = ref({ is_admin: false, enabled_features: [] })
 const permissionsReady = ref(false)
 
+// 账号是否被封禁（命中 blocked_users 表时为 true，App 显示封禁屏）
+const blocked = ref(false)
+
 // 是否已初始化（App.vue 调用 init 后为 true）
 let _initDone = false
 
@@ -91,6 +94,11 @@ export function useAuth() {
         } else {
           await loadPermissions(u.email)
           await refreshUserData()
+          if (await checkBlocked()) {
+            // 命中封禁名单：强制登出，保持 blocked=true 以展示封禁屏
+            await signOut()
+            blocked.value = true
+          }
         }
       } else {
         permissionsReady.value = true
@@ -112,12 +120,17 @@ export function useAuth() {
       if (newUser) {
         await loadPermissions(newUser.email)
         await refreshUserData()
+        if (await checkBlocked()) {
+          await signOut()
+          blocked.value = true
+        }
       } else {
         localStorage.removeItem(LS_LOGIN_AT)
         portfolios.value = []
         profile.value = null
         permissions.value = { is_admin: false, enabled_features: [] }
         permissionsReady.value = true
+        // 注意：blocked 不在此重置，封禁屏在登出后仍需保留，直至整页刷新
       }
     })
   }
@@ -174,6 +187,48 @@ export function useAuth() {
     if (!supabase) throw new Error('未连接数据库')
     const { error } = await supabase
       .from('user_permissions')
+      .delete()
+      .eq('user_email', email)
+    if (error) throw error
+  }
+
+  /** 检查当前登录用户是否被封禁（读取 blocked_users，命中则置 blocked=true） */
+  async function checkBlocked() {
+    const u = user.value
+    if (!u || !u.email) { blocked.value = false; return false }
+    try {
+      const { data, error } = await supabase
+        .from('blocked_users')
+        .select('user_email')
+        .eq('user_email', u.email)
+        .maybeSingle()
+      const isBlocked = !!data && !error
+      blocked.value = isBlocked
+      return isBlocked
+    } catch (e) {
+      blocked.value = false
+      return false
+    }
+  }
+
+  /** 封禁某用户（仅管理员调用，依赖 RLS：`auth.email() = '57502460@qq.com'`） */
+  async function blockUser(email) {
+    if (!supabase) throw new Error('未连接数据库')
+    const { error } = await supabase
+      .from('blocked_users')
+      .upsert({
+        user_email: email,
+        blocked_by: user.value?.email || null,
+        blocked_at: new Date().toISOString(),
+      }, { onConflict: 'user_email' })
+    if (error) throw error
+  }
+
+  /** 解除封禁（仅管理员调用） */
+  async function unblockUser(email) {
+    if (!supabase) throw new Error('未连接数据库')
+    const { error } = await supabase
+      .from('blocked_users')
       .delete()
       .eq('user_email', email)
     if (error) throw error
@@ -237,9 +292,10 @@ export function useAuth() {
   function hideLogin() { showLoginDialog.value = false }
 
   return {
-    user, loading, isLoggedIn, isAdmin, isOwner, isStranger, hasAnyAccess, enabledFeatures, permissionsReady,
+    user, loading, isLoggedIn, isAdmin, isOwner, isStranger, hasAnyAccess, enabledFeatures, permissionsReady, blocked,
     displayName, displayInitial, portfolios, profile,
     init, signOut, refreshUserData, loadPermissions, savePermissions, deletePermissions, hasFeature,
+    checkBlocked, blockUser, unblockUser,
     showLoginDialog, showLogin, hideLogin, markLogin,
   }
 }

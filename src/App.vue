@@ -1,7 +1,19 @@
 <template>
   <div class="app-root">
+    <!-- 账号被封禁 -->
+    <div v-if="blocked" class="stranger-screen">
+      <div class="stranger-card">
+        <div class="stranger-brand">ALLFUND.CN</div>
+        <div class="stranger-title">账号已被封禁</div>
+        <p class="stranger-desc">您的账号已被管理员封禁，无法访问本站。如需恢复访问，请联系管理员。</p>
+        <div class="stranger-actions">
+          <button class="stranger-logout" @click="handleLogout">退出登录</button>
+        </div>
+      </div>
+    </div>
+
     <!-- 未登录：全屏登录墙（看不到任何内容） -->
-    <LoginDialog v-if="!authLoading && !isLoggedIn" :wall="true" @logged-in="onLoggedIn" />
+    <LoginDialog v-else-if="!authLoading && !isLoggedIn" :wall="true" @logged-in="onLoggedIn" />
 
     <!-- 已登录但无权限：陌生人提示 -->
     <div v-else-if="!authLoading && isLoggedIn && isStranger" class="stranger-screen">
@@ -121,7 +133,7 @@ import { supabase } from './api/supabase'
 
 const route   = useRoute()
 const router  = useRouter()
-const { user, isLoggedIn, isAdmin, isOwner, isStranger, loading: authLoading, hasFeature, displayName, init, signOut, showLoginDialog, showLogin, hideLogin } = useAuth()
+const { user, isLoggedIn, isAdmin, isOwner, isStranger, blocked, loading: authLoading, hasFeature, displayName, init, signOut, showLoginDialog, showLogin, hideLogin } = useAuth()
 
 /* ---- 响应式断点 ---- */
 const isMobile = ref(window.innerWidth < 769)

@@ -8,14 +8,15 @@
       <!-- Tab 切换 -->
       <div class="login-tabs">
         <span class="login-tab" :class="{ active: mode === 'signin' }" @click="mode = 'signin'">登录</span>
-        <span class="login-tab" :class="{ active: mode === 'signup' }" @click="mode = 'signup'">注册</span>
+        <span class="login-tab" :class="{ active: mode === 'signup' }" @click="mode = 'signup'; accType = 'phone'">注册（手机号）</span>
       </div>
 
-      <!-- 账号类型切换：邮箱 / 手机号 -->
-      <div class="login-acctype">
+      <!-- 账号类型切换：仅登录时可选邮箱/手机号；注册仅限手机号 -->
+      <div class="login-acctype" v-if="mode === 'signin'">
         <button type="button" class="acctype-btn" :class="{ active: accType === 'email' }" @click="accType = 'email'">邮箱</button>
         <button type="button" class="acctype-btn" :class="{ active: accType === 'phone' }" @click="accType = 'phone'">手机号</button>
       </div>
+      <p class="login-hint" v-else>新用户请使用手机号注册，自主设定密码（无需短信验证码）。</p>
 
       <!-- 表单 -->
       <div class="login-form">
@@ -259,4 +260,9 @@ function translateError(msg) {
 }
 .login-submit:hover { background: #003078; }
 .login-submit:disabled { opacity: 0.6; cursor: not-allowed; }
+
+.login-hint {
+  font-size: 14px; color: var(--text-secondary); margin: 0 0 var(--space-md);
+  background: #f3f3f3; border-left: 4px solid #1d70b8; padding: var(--space-sm) var(--space-md);
+}
 </style>
