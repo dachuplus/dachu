@@ -1,80 +1,229 @@
 {
-  "updated_at": "2026-07-09T23:07:35.395969",
+  "updated_at": "2026-07-14T17:11:17.023153",
   "tables": {
+    "ai_pk_models": {
+      "rows": 7,
+      "size_mb": 0.009144783020019531,
+      "path": "/downloads/ai_pk_models.xlsx",
+      "name": "AI大PK 模型表",
+      "desc": "AI 大PK 参赛模型信息（模型名/厂商/头像/描述/状态等）",
+      "sensitive": false
+    },
+    "ai_pk_picks": {
+      "rows": 7,
+      "size_mb": 0.009752273559570312,
+      "path": "/downloads/ai_pk_picks.xlsx",
+      "name": "AI大PK 选基表",
+      "desc": "各 AI 模型每期选出的基金及权重（基于 fund_scores 真实数据）",
+      "sensitive": false
+    },
     "config": {
       "rows": 4,
-      "size_mb": 0.01218414306640625,
-      "path": "/downloads/config.xlsx"
+      "size_mb": 0.012183189392089844,
+      "path": "/downloads/config.xlsx",
+      "name": "配置表",
+      "desc": "全站配置项（键值对，含 meta、tsq 时间戳）",
+      "sensitive": false
+    },
+    "etf_returns": {
+      "rows": 8,
+      "size_mb": 0.006913185119628906,
+      "path": "/downloads/etf_returns.xlsx",
+      "name": "ETF 收益率表",
+      "desc": "ETF 各周期收益率数据（代码/名称/近1周~成立以来/规模等）",
+      "sensitive": false
+    },
+    "factor_scores": {
+      "rows": 6,
+      "size_mb": 0.006766319274902344,
+      "path": "/downloads/factor_scores.xlsx",
+      "name": "风格因子评分表（生产）",
+      "desc": "股票/债券/商品风格因子性价比评分（估值分/动量分/综合信号等）",
+      "sensitive": false
+    },
+    "factor_scores_test": {
+      "rows": 6,
+      "size_mb": 0.006710052490234375,
+      "path": "/downloads/factor_scores_test.xlsx",
+      "name": "风格因子评分测试表",
+      "desc": "factor_scores 的测试副本，结构一致，抓取数据先写入此表验证",
+      "sensitive": false
+    },
+    "fund_category_indices": {
+      "rows": 7,
+      "size_mb": 0.006951332092285156,
+      "path": "/downloads/fund_category_indices.xlsx",
+      "name": "基金分类指数表",
+      "desc": "各基金分类对应的指数行情（分类名/指数代码/点位/各周期收益）",
+      "sensitive": false
     },
     "fund_combined": {
-      "rows": 20878,
-      "size_mb": 4.065229415893555,
-      "path": "/downloads/fund_combined.xlsx"
+      "rows": 20921,
+      "size_mb": 4.218292236328125,
+      "path": "/downloads/fund_combined.xlsx",
+      "name": "基金综合数据表",
+      "desc": "基金分类(t0/t1)、公司/规模/费率、收益(ytd/r1y/r3y/r5y)、风险指标(dd1y/sr1y)、持有人数、评分(k_all/score_grade/k0w~k10) — 所有数据核心合并表，19+ 周期评分全覆盖",
+      "sensitive": false
     },
     "fund_indices": {
-      "rows": 14,
-      "size_mb": 0.007091522216796875,
-      "path": "/downloads/fund_indices.xlsx"
+      "rows": 0,
+      "size_mb": 0.006121635437011719,
+      "path": "/downloads/fund_indices.xlsx",
+      "name": "基金指数表（万得 Wind）",
+      "desc": "万得(Wind)基金指数：代码/名称/分类/类型 + 基本信息(发布日期/成分数量/加权方式/收益方式) + 市场表现(近1周~成立以来收益率) + 历年表现(年度收益) + 估值分析(总市值/流通市值/市盈率/净利率/股息率/Beta/波动率/换手率)",
+      "sensitive": false
     },
     "fund_quarterly_scores": {
-      "rows": 18584,
-      "size_mb": 4.138149261474609,
-      "path": "/downloads/fund_quarterly_scores.xlsx"
+      "rows": 19273,
+      "size_mb": 4.488314628601074,
+      "path": "/downloads/fund_quarterly_scores.xlsx",
+      "name": "季度评分表",
+      "desc": "基于季报数据的各时间窗口评分（score_3m/6m/1y/2y/3y/5y/7y/10y），含原始 quarterly_data JSON",
+      "sensitive": false
     },
     "fund_scores": {
-      "rows": 20814,
-      "size_mb": 5.526064872741699,
-      "path": "/downloads/fund_scores.xlsx"
+      "rows": 21768,
+      "size_mb": 6.086565017700195,
+      "path": "/downloads/fund_scores.xlsx",
+      "name": "基金评分表（完整版）",
+      "desc": "每日更新的核心数据表：基金代码/名称/基金经理/管理人/分类/规模/费率 → 阶段收益(ytd/r0w~r10y/return_all) → 阶段回撤(dd1y~dd5y) → 阶段夏普(sr1y~sr5y) → 基金评分(k0w~k_all/score_grade)。按以上顺序排列。",
+      "sensitive": false
     },
     "fund_scores_meta": {
       "rows": 2,
-      "size_mb": 0.006146430969238281,
-      "path": "/downloads/fund_scores_meta.xlsx"
+      "size_mb": 0.006145477294921875,
+      "path": "/downloads/fund_scores_meta.xlsx",
+      "name": "评分元数据表",
+      "desc": "评分更新时间、基金总数、有评分数、净值日期等元信息",
+      "sensitive": false
+    },
+    "fund_scores_staging": {
+      "rows": 20871,
+      "size_mb": 5.6462297439575195,
+      "path": "/downloads/fund_scores_staging.xlsx",
+      "name": "评分暂存表（staging）",
+      "desc": "fund_scores 的 staging 暂存表，每日抓取先写入此表，经 promote_staging.py 严格校验后原子切换到生产，通常为临时状态",
+      "sensitive": false
     },
     "fund_scores_test": {
       "rows": 0,
-      "size_mb": 0.006838798522949219,
-      "path": "/downloads/fund_scores_test.xlsx"
+      "size_mb": 0.006839752197265625,
+      "path": "/downloads/fund_scores_test.xlsx",
+      "name": "基金评分测试表",
+      "desc": "fund_scores 的测试副本，结构与 fund_scores 完全一致。新抓取数据先写入此表验证无误后，再通过 staging 管道导入 fund_scores 生产环境。",
+      "sensitive": false
+    },
+    "fund_tag_funds": {
+      "rows": 14631,
+      "size_mb": 1.103738784790039,
+      "path": "/downloads/fund_tag_funds.xlsx",
+      "name": "标签-基金映射表",
+      "desc": "每个热门标签关联的基金列表（基金代码/名称/类型/近1年收益/日涨跌/排序）",
+      "sensitive": false
+    },
+    "fund_tag_perf": {
+      "rows": 159,
+      "size_mb": 0.023288726806640625,
+      "path": "/downloads/fund_tag_perf.xlsx",
+      "name": "主题板块涨跌表",
+      "desc": "154个热门行业/概念板块的板块级涨跌幅：日涨跌(D)/近1周(W)/近1月(M)/近3月(Q)/近1年(Y)/今年来(SY) + 各周期排名 + 板块总数。热门基金「实时/近1周/近1月/近3月/近1年/今年来」排序的数据基础",
+      "sensitive": false
+    },
+    "fund_tags": {
+      "rows": 158,
+      "size_mb": 0.011957168579101562,
+      "path": "/downloads/fund_tags.xlsx",
+      "name": "热门标签表",
+      "desc": "热门基金标签（行业 hy + 概念 gn），含标签名/类型/近1年板块收益/排序",
+      "sensitive": false
     },
     "index_eva": {
       "rows": 63,
-      "size_mb": 0.011750221252441406,
-      "path": "/downloads/index_eva.xlsx"
+      "size_mb": 0.011751174926757812,
+      "path": "/downloads/index_eva.xlsx",
+      "name": "行业估值表（生产）",
+      "desc": "蛋卷指数估值数据：指数代码/名称/类型(宽基/策略/行业主题)/PE/PB/股息率/ROE/PE历史分位/PB历史分位/估值评级。网页指标信号页行业估值与生产表一致。",
+      "sensitive": false
     },
     "index_eva_test": {
       "rows": 63,
-      "size_mb": 0.011685371398925781,
-      "path": "/downloads/index_eva_test.xlsx"
+      "size_mb": 0.011686325073242188,
+      "path": "/downloads/index_eva_test.xlsx",
+      "name": "行业估值表（测试）",
+      "desc": "index_eva 的测试副本，结构与生产表一致。每次抓取数据先以增量断点续传方式写入此表验证无误后再同步到 index_eva 生产环境。",
+      "sensitive": false
     },
     "index_pe_history": {
       "rows": 0,
-      "size_mb": 0.005953788757324219,
-      "path": "/downloads/index_pe_history.xlsx"
+      "size_mb": 0.005954742431640625,
+      "path": "/downloads/index_pe_history.xlsx",
+      "name": "指数PE历史表",
+      "desc": "沪深300等指数的 PE/PB 历史估值数据",
+      "sensitive": false
+    },
+    "jqr_indicators": {
+      "rows": 8,
+      "size_mb": 0.006922721862792969,
+      "path": "/downloads/jqr_indicators.xlsx",
+      "name": "特色指标表（生产）",
+      "desc": "市场情绪特色指标（恐惧贪婪/估值温度计/新发基金/股债差/破净率/证券化率等）",
+      "sensitive": false
+    },
+    "jqr_indicators_test": {
+      "rows": 0,
+      "size_mb": 0.0059223175048828125,
+      "path": "/downloads/jqr_indicators_test.xlsx",
+      "name": "特色指标测试表",
+      "desc": "jqr_indicators 的测试副本，结构一致，抓取数据先写入此表验证",
+      "sensitive": false
     },
     "macro_history": {
       "rows": 24109,
       "size_mb": 0.6591253280639648,
-      "path": "/downloads/macro_history.xlsx"
+      "path": "/downloads/macro_history.xlsx",
+      "name": "宏观历史数据表",
+      "desc": "中国10年国债(cn10y)、美国10年国债(us10y)、Shibor、CPI、M2 的历史数据，覆盖 1996-至今",
+      "sensitive": false
     },
     "site_stats": {
       "rows": 1,
-      "size_mb": 0.006005287170410156,
-      "path": "/downloads/site_stats.xlsx"
+      "size_mb": 0.0060062408447265625,
+      "path": "/downloads/site_stats.xlsx",
+      "name": "站点统计表",
+      "desc": "网站访问量等统计指标",
+      "sensitive": false
+    },
+    "style_factors": {
+      "rows": 29,
+      "size_mb": 0.009407997131347656,
+      "path": "/downloads/style_factors.xlsx",
+      "name": "风格因子明细表",
+      "desc": "风格因子原始明细数据（指数代码/名称/PE/PB/历史分位/收益等多维度）",
+      "sensitive": false
     },
     "tougu_products": {
       "rows": 103,
       "size_mb": 0.027396202087402344,
-      "path": "/downloads/tougu_products.xlsx"
+      "path": "/downloads/tougu_products.xlsx",
+      "name": "投顾产品表",
+      "desc": "天天基金/华宝/盈米/新浪仓石四来源的基金投顾产品，含收益率、最大回撤、标签分类",
+      "sensitive": false
     },
     "user_portfolios": {
       "rows": 0,
       "size_mb": 0.005883216857910156,
-      "path": "/downloads/user_portfolios.xlsx"
+      "path": "/downloads/user_portfolios.xlsx",
+      "name": "用户组合表",
+      "desc": "用户自建基金组合数据（portfolio_data JSON），关联用户 ID",
+      "sensitive": true
     },
     "user_profiles": {
       "rows": 0,
       "size_mb": 0.0058765411376953125,
-      "path": "/downloads/user_profiles.xlsx"
+      "path": "/downloads/user_profiles.xlsx",
+      "name": "用户档案表",
+      "desc": "用户注册信息、登录次数、最后登录时间",
+      "sensitive": true
     }
   }
 }
