@@ -269,11 +269,13 @@ export function useAuth() {
     }
   }
 
-  /** 显示名：优先邮箱，其次手机号，兼容两种注册方式 */
+  /** 显示名：优先邮箱，其次手机号；微信登录合成邮箱统一显示为「微信用户」 */
   const displayName = computed(() => {
     const u = user.value
     if (!u) return ''
-    return u.email || u.phone || '用户'
+    const e = u.email || ''
+    if (e.endsWith('@allfund.wechat')) return '微信用户'
+    return e || u.phone || '用户'
   })
   const displayInitial = computed(() => {
     const n = displayName.value
@@ -315,11 +317,35 @@ export function useAuth() {
   function showLogin() { showLoginDialog.value = true }
   function hideLogin() { showLoginDialog.value = false }
 
+  /** 微信登录：调用 wechat-login Edge Function（type=mp|web）换取会话并写入本地 session */
+  async function wechatLogin(type, code) {
+    if (!supabase) throw new Error('未连接数据库')
+    const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/wechat-login`
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        apikey: import.meta.env.VITE_SUPABASE_ANON_KEY,
+        Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+      },
+      body: JSON.stringify({ type, code }),
+    })
+    let data = {}
+    try { data = await res.json() } catch (e) {}
+    if (!res.ok) throw new Error(data.error || '微信登录失败')
+    const { access_token, refresh_token } = data
+    if (!access_token || !refresh_token) throw new Error('微信登录返回异常')
+    const { error } = await supabase.auth.setSession({ access_token, refresh_token })
+    if (error) throw error
+    markLogin()
+    return data
+  }
+
   return {
     user, loading, isLoggedIn, isAdmin, isOwner, isStranger, hasAnyAccess, enabledFeatures, permissionsReady, blocked, rejected,
     displayName, displayInitial, portfolios, profile,
     init, signOut, refreshUserData, loadPermissions, savePermissions, deletePermissions, hasFeature,
     checkRejected, checkBlocked, blockUser, unblockUser,
-    showLoginDialog, showLogin, hideLogin, markLogin,
+    showLoginDialog, showLogin, hideLogin, markLogin, wechatLogin,
   }
 }

@@ -5,11 +5,6 @@
 
       <div class="login-title">登录 ALLFUND.CN</div>
 
-      <!-- 登录墙模式说明：注册后可申请访问权限 -->
-      <p class="login-wall-hint" v-if="wall">
-        <strong>注册后申请访问权限</strong>：使用手机号完成注册并登录后，即可在站内提交访问权限申请，管理员审核通过后将为您开通功能。
-      </p>
-
       <!-- Tab 切换 -->
       <div class="login-tabs">
         <span class="login-tab" :class="{ active: mode === 'signin' }" @click="mode = 'signin'">登录</span>
@@ -21,7 +16,7 @@
         <button type="button" class="acctype-btn" :class="{ active: accType === 'email' }" @click="accType = 'email'">邮箱</button>
         <button type="button" class="acctype-btn" :class="{ active: accType === 'phone' }" @click="accType = 'phone'">手机号</button>
       </div>
-      <p class="login-hint" v-else>新用户请使用手机号注册，自主设定密码（无需短信验证码）。</p>
+      <p class="login-hint" v-else>新用户请使用手机号注册，自主设定密码（无需短信验证码），注册后申请访问权限。</p>
 
       <!-- 表单 -->
       <div class="login-form">
@@ -53,6 +48,11 @@
         <button class="login-submit" :disabled="loading" @click="submit">
           {{ loading ? '处理中...' : (mode === 'signup' ? '注册' : '登录') }}
         </button>
+
+        <div class="login-divider"><span>或</span></div>
+        <button class="login-wechat" type="button" @click="startWechatLogin" :disabled="wxLoading">
+          <span class="login-wechat__icon">微</span>{{ wxLoading ? '跳转中...' : '微信扫码登录' }}
+        </button>
       </div>
     </div>
   </div>
@@ -79,6 +79,7 @@ const password = ref('')
 const loading = ref(false)
 const error = ref('')
 const success = ref('')
+const wxLoading = ref(false)
 
 // 手机号规范化：11 位大陆号补 +86；已带 + 的保留
 function normalizePhone(v) {
@@ -158,6 +159,21 @@ async function submit() {
   } finally {
     loading.value = false
   }
+}
+
+// 微信网页扫码登录：跳转微信开放平台扫码页，回调 /wechat-callback 完成会话签发
+function startWechatLogin() {
+  const appid = import.meta.env.VITE_WECHAT_WEB_APPID
+  if (!appid) {
+    toast('微信登录暂未开放', 'info')
+    return
+  }
+  wxLoading.value = true
+  const redirect = encodeURIComponent(location.origin + '/wechat-callback')
+  const state = Math.random().toString(36).slice(2)
+  try { localStorage.setItem('wx_login_state', state) } catch (e) {}
+  const url = `https://open.weixin.qq.com/connect/qrconnect?appid=${appid}&redirect_uri=${redirect}&response_type=code&scope=snsapi_login&state=${state}#wechat_redirect`
+  location.href = url
 }
 
 function translateError(msg) {
@@ -266,15 +282,31 @@ function translateError(msg) {
 .login-submit:hover { background: #003078; }
 .login-submit:disabled { opacity: 0.6; cursor: not-allowed; }
 
+/* 微信扫码登录分隔与按钮 */
+.login-divider {
+  display: flex; align-items: center; text-align: center;
+  color: var(--text-secondary); font-size: 13px; margin: 2px 0;
+}
+.login-divider::before, .login-divider::after {
+  content: ''; flex: 1; border-top: 1px solid var(--border);
+}
+.login-divider span { padding: 0 var(--space-sm); }
+.login-wechat {
+  display: flex; align-items: center; justify-content: center; gap: var(--space-sm);
+  width: 100%; padding: var(--space-sm) var(--space-md);
+  font-size: 16px; font-weight: 700; color: #ffffff;
+  background: #07c160; border: none; cursor: pointer;
+}
+.login-wechat:hover { background: #06ad56; }
+.login-wechat:disabled { opacity: 0.6; cursor: not-allowed; }
+.login-wechat__icon {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 22px; height: 22px; border-radius: 50%;
+  background: #ffffff; color: #07c160; font-size: 13px; font-weight: 700;
+}
+
 .login-hint {
   font-size: 14px; color: var(--text-secondary); margin: 0 0 var(--space-md);
   background: #f3f3f3; border-left: 4px solid #1d70b8; padding: var(--space-sm) var(--space-md);
 }
-/* 登录墙模式说明文案（仅 wall=true 显示） */
-.login-wall-hint {
-  font-size: 14px; color: var(--text-primary); line-height: 1.6;
-  margin: 0 0 var(--space-lg);
-  background: #e8f1fa; border-left: 4px solid #1d70b8; padding: var(--space-sm) var(--space-md);
-}
-.login-wall-hint strong { color: #1d70b8; }
 </style>

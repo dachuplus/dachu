@@ -1,5 +1,10 @@
 <template>
   <div class="app-root">
+    <!-- 公开路由（如微信扫码回调）：无需登录，仅渲染路由内容 -->
+    <div v-if="route.meta?.public" class="public-route">
+      <router-view />
+    </div>
+
     <!-- 账号被封禁 -->
     <div v-if="blocked" class="stranger-screen">
       <div class="stranger-card">
@@ -439,6 +444,9 @@ const showBack  = computed(() => {
 
 /* ========== 登录墙 / 陌生人 / 无功能权限 ========== */
 .app-root { min-height: 100vh; }
+
+/* 公开路由（微信回调等）：极简容器，仅承载回调页 */
+.public-route { min-height: 100vh; }
 
 .stranger-screen {
   min-height: 100vh;

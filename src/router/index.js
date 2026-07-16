@@ -142,6 +142,16 @@ const routes = [
     path: '/tools/industry-rank',
     redirect: '/signal?tab=industry'
   },
+  // 微信网页扫码登录回调（公开路由：未登录即可访问，由 App.vue 绕过登录墙渲染）
+  {
+    path: '/wechat-callback',
+    component: () => import('../pages/wechat-callback/WechatCallbackPage.vue'),
+    meta: {
+      public: true,
+      title: '微信登录中',
+      description: '微信扫码登录回调处理',
+    }
+  },
   // SPA 兜底：未匹配的前端路由重定向到首页（配合 EdgeOne SPA fallback）
   {
     path: '/:pathMatch(.*)*',
