@@ -141,7 +141,6 @@ import ConfirmDialog from './components/ConfirmDialog.vue'
 import LoginDialog from './components/LoginDialog.vue'
 import PermissionRequestDialog from './components/PermissionRequestDialog.vue'
 import { useAuth, FEATURES } from './composables/useAuth'
-import { toast } from './composables/useToast.js'
 import { supabase } from './api/supabase'
 
 const route   = useRoute()
@@ -216,7 +215,6 @@ function onLoggedIn() {
 /* ---- 权限申请弹窗 ---- */
 const showRequestDialog = ref(false)
 function onRequestSubmitted() {
-  toast('权限申请已提交，请等待管理员审核', 'success')
   showRequestDialog.value = false
   // 重新申请后清掉「已被驳回」状态，避免仍卡在驳回屏
   checkRejected(user.value?.email)

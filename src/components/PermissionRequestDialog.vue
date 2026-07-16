@@ -4,7 +4,15 @@
       <div class="login-title">申请访问权限</div>
       <p class="perm-subtitle">请填写以下信息，管理员审核通过后将为您开通对应功能。</p>
 
-      <div class="login-form">
+      <!-- 提交成功态 -->
+      <div class="perm-success" v-if="submitted">
+        <div class="perm-success__icon" aria-hidden="true">✓</div>
+        <div class="perm-success__title">权限申请已经提交</div>
+        <p class="perm-success__desc">我们已收到您的访问权限申请，管理员审核通过后将为您开通对应功能，请耐心等待。</p>
+        <button class="login-submit perm-success__close" type="button" @click="$emit('submitted'); $emit('close')">关闭</button>
+      </div>
+
+      <div class="login-form" v-else>
         <label class="login-label" for="perm-realName">真实姓名</label>
         <input
           id="perm-realName"
@@ -49,7 +57,6 @@
 
 <script setup>
 import { ref } from 'vue'
-import { toast } from '../composables/useToast.js'
 import { usePermissionRequests } from '../composables/usePermissionRequests.js'
 
 const props = defineProps({
@@ -66,6 +73,7 @@ const phone    = ref('')
 const extra    = ref('')
 const loading  = ref(false)
 const error    = ref('')
+const submitted = ref(false)
 
 // 手机号校验：11 位大陆号，允许可选 +86 前缀
 function isPhoneValid(v) {
@@ -88,13 +96,12 @@ async function submit() {
   loading.value = true
   try {
     await submitRequest({ realName: name, phone: phone.value.trim(), extra: (extra.value || '').trim() })
-    toast('权限申请已提交，请等待管理员审核', 'success')
     // 重置表单
     realName.value = ''
     phone.value = ''
     extra.value = ''
-    emit('submitted')
-    emit('close')
+    // 进入提交成功态：弹窗内展示「权限申请已经提交」，由关闭按钮自行关闭
+    submitted.value = true
   } catch (e) {
     error.value = e?.message || '提交失败，请稍后重试'
     console.error('[PermissionRequestDialog]', e)
@@ -126,6 +133,30 @@ async function submit() {
 .perm-subtitle {
   font-size: 15px; color: var(--text-secondary); line-height: 1.6;
   margin: 0 0 var(--space-lg);
+}
+
+/* 提交成功态 */
+.perm-success {
+  text-align: center;
+  padding: var(--space-lg) 0 var(--space-sm);
+}
+.perm-success__icon {
+  width: 56px; height: 56px; line-height: 56px;
+  margin: 0 auto var(--space-md);
+  border-radius: 50%;
+  background: #00703c; color: #ffffff;
+  font-size: 30px; font-weight: 700;
+}
+.perm-success__title {
+  font-size: 22px; font-weight: 700; color: #00703c;
+  margin-bottom: var(--space-sm);
+}
+.perm-success__desc {
+  font-size: 15px; color: var(--text-secondary); line-height: 1.6;
+  margin: 0 0 var(--space-lg);
+}
+.perm-success__close {
+  width: 100%;
 }
 
 /* Form */

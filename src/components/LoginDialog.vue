@@ -5,6 +5,11 @@
 
       <div class="login-title">登录 ALLFUND.CN</div>
 
+      <!-- 登录墙模式说明：注册后可申请访问权限 -->
+      <p class="login-wall-hint" v-if="wall">
+        <strong>注册后申请访问权限</strong>：使用手机号完成注册并登录后，即可在站内提交访问权限申请，管理员审核通过后将为您开通功能。
+      </p>
+
       <!-- Tab 切换 -->
       <div class="login-tabs">
         <span class="login-tab" :class="{ active: mode === 'signin' }" @click="mode = 'signin'">登录</span>
@@ -265,4 +270,11 @@ function translateError(msg) {
   font-size: 14px; color: var(--text-secondary); margin: 0 0 var(--space-md);
   background: #f3f3f3; border-left: 4px solid #1d70b8; padding: var(--space-sm) var(--space-md);
 }
+/* 登录墙模式说明文案（仅 wall=true 显示） */
+.login-wall-hint {
+  font-size: 14px; color: var(--text-primary); line-height: 1.6;
+  margin: 0 0 var(--space-lg);
+  background: #e8f1fa; border-left: 4px solid #1d70b8; padding: var(--space-sm) var(--space-md);
+}
+.login-wall-hint strong { color: #1d70b8; }
 </style>
