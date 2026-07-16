@@ -1160,7 +1160,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useAuth, FEATURES, ADMIN_EMAIL } from '../../composables/useAuth'
 import { confirm, toast } from '../../composables/useToast'
 import { usePermissionRequests } from '../../composables/usePermissionRequests'
@@ -1772,6 +1772,15 @@ onMounted(() => {
   loadUserAnalytics()
   loadPermissionsList()
   loadRequests()
+})
+
+// 保底：auth 初始化时序可能导致 onMounted 时 isOwner 尚未为 true
+// watch 确保一旦 isOwner 变为 true（permissions 异步加载完成）立即加载用户列表
+watch(isOwner, (val) => {
+  if (val && permUsers.value.length === 0) {
+    console.log('[perm] watch(isOwner) triggered reload, email=' + (user?.email || ''))
+    loadPermissionsList()
+  }
 })
 </script>
 
