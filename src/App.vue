@@ -146,7 +146,7 @@ import { supabase } from './api/supabase'
 
 const route   = useRoute()
 const router  = useRouter()
-const { user, isLoggedIn, isAdmin, isOwner, isStranger, blocked, rejected, loading: authLoading, hasFeature, displayName, init, signOut, showLoginDialog, showLogin, hideLogin } = useAuth()
+const { user, isLoggedIn, isAdmin, isOwner, isStranger, blocked, rejected, loading: authLoading, hasFeature, displayName, init, signOut, showLoginDialog, showLogin, hideLogin, checkRejected } = useAuth()
 
 /* ---- 响应式断点 ---- */
 const isMobile = ref(window.innerWidth < 769)
@@ -218,6 +218,8 @@ const showRequestDialog = ref(false)
 function onRequestSubmitted() {
   toast('权限申请已提交，请等待管理员审核', 'success')
   showRequestDialog.value = false
+  // 重新申请后清掉「已被驳回」状态，避免仍卡在驳回屏
+  checkRejected(user.value?.email)
 }
 
 /* ---- 全局金刚区 ---- */

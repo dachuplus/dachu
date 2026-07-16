@@ -319,7 +319,7 @@ export function useAuth() {
     user, loading, isLoggedIn, isAdmin, isOwner, isStranger, hasAnyAccess, enabledFeatures, permissionsReady, blocked, rejected,
     displayName, displayInitial, portfolios, profile,
     init, signOut, refreshUserData, loadPermissions, savePermissions, deletePermissions, hasFeature,
-    checkBlocked, blockUser, unblockUser,
+    checkRejected, checkBlocked, blockUser, unblockUser,
     showLoginDialog, showLogin, hideLogin, markLogin,
   }
 }
