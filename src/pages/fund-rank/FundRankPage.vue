@@ -286,6 +286,9 @@
               <span class="action-btn action-add" title="加入组合" @click.stop="openPortfolioPicker(fund)">
                 <SvgIcon name="plus-circle" :size="16" />
               </span>
+              <span class="action-btn fav" :class="{ active: isFav(fund.c) }" title="关注" @click.stop="toggleFav({ c: fund.c, name: fund.n })">
+                <SvgIcon name="star" :size="16" />
+              </span>
             </td>
           </tr>
         </tbody>
@@ -312,6 +315,9 @@
             </span>
             <span class="action-icon" title="加入组合" @click="openPortfolioPicker(fund)">
               <SvgIcon name="plus-circle" :size="16" />
+            </span>
+            <span class="action-icon fav" :class="{ active: isFav(fund.c) }" title="关注" @click.stop="toggleFav({ c: fund.c, name: fund.n })">
+              <SvgIcon name="star" :size="16" />
             </span>
           </span>
         </div>
@@ -611,7 +617,9 @@ import { useAuth } from '../../composables/useAuth.js'
 import { toast } from '../../composables/useToast.js'
 import SvgIcon from '../../components/SvgIcon.vue'
 import HotTags from '../../components/HotTags.vue'
+import { useFavorites } from '../../composables/useFavorites.js'
 const { isLoggedIn, portfolios } = useAuth()
+const { isFav, toggleFav } = useFavorites()
 
 // ========== 常量 ==========
 const periods = [
@@ -1566,6 +1574,7 @@ onUnmounted(() => {
 .action-btn:hover { color: var(--brand); }
 .action-btn.active { color: #d4351c; }
 .action-add:hover { color: #00703c; }
+.action-btn.fav.active, .action-icon.fav.active { color: #1d70b8; }
 .action-count {
   position: absolute; top: -6px; right: -8px;
   font-size: 10px; line-height: 14px; padding: 0 3px;

@@ -5,8 +5,16 @@
     <template v-if="loaded && fund">
       <!-- 头部卡片 -->
       <section class="card header-card">
-        <h1 class="fund-name">{{ fund.name }}</h1>
-        <div class="fund-code">{{ fund.c }}</div>
+        <div class="header-top">
+          <div>
+            <h1 class="fund-name">{{ fund.name }}</h1>
+            <div class="fund-code">{{ fund.c }}</div>
+          </div>
+          <button class="fav-btn" :class="{ active: isFav(fund.c) }" @click="toggleFav(fund)">
+            <SvgIcon name="star" :size="16" />
+            <span>{{ isFav(fund.c) ? '已关注' : '关注' }}</span>
+          </button>
+        </div>
         <div class="fund-tag" v-if="fund.t0 || fund.t1">
           <span class="tag" v-if="fund.t0">{{ fund.t0 }}</span>
           <span class="tag" v-if="fund.t1">{{ fund.t1 }}</span>
@@ -55,9 +63,12 @@
 import { ref, onMounted, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { supabase } from '../../api/supabase'
+import SvgIcon from '../../components/SvgIcon.vue'
+import { useFavorites } from '../../composables/useFavorites.js'
 
 const route = useRoute()
 const router = useRouter()
+const { isFav, toggleFav } = useFavorites()
 
 const fund = ref(null)
 const company = ref(null)
@@ -168,12 +179,22 @@ onMounted(async () => {
   background: #fff;
 }
 
+.header-top {
+  display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-md);
+}
 .header-card .fund-name {
   margin: 0 0 var(--space-sm);
   font-size: 20px;
   font-weight: 700;
   color: var(--text-primary);
 }
+.fav-btn {
+  display: inline-flex; align-items: center; gap: 4px;
+  flex-shrink: 0;
+  border: 1px solid var(--border); background: #fff; color: var(--text-secondary);
+  padding: var(--space-xs) var(--space-md); font-size: 14px; cursor: pointer; border-radius: 2px;
+}
+.fav-btn.active { color: #1d70b8; border-color: #1d70b8; }
 
 .fund-code {
   color: var(--text-secondary);
