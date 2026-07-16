@@ -368,7 +368,7 @@
     <!-- 底部说明 -->
     <div class="bottom-info">
       <p class="bottom-line">
-        <span>更新时间：{{ meta.tsq ? fmtUpdateTime(meta.tsq) : (dataLoaded ? '暂无' : '加载中...') }}</span>
+        <span>更新时间：{{ meta.updateTime ? fmtUpdateTime(meta.updateTime) : (dataLoaded ? '暂无' : '加载中...') }}</span>
       </p>
       <p class="bottom-line">数据来源：ALLFUND.CN</p>
       <p class="bottom-line">评分说明：靠谱指数评分为综合收益率、最大回撤、夏普比率、卡玛比率，信息比率，跟踪误差等指标，在全市场排名后加权计算。满分100分，分值越高表现越优秀。</p>

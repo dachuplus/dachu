@@ -293,26 +293,32 @@ export function fetchFundMeta() {
 
 async function fetchFundMetaImpl() {
   if (supabase) {
-    // 1) 优先取 fund_scores_meta 系统元信息
+    // 1) 取 fund_scores_meta 最新一行（用 limit(1) 而非 .single()，避免多行时
+    //    pgrst 在 object 模式下返回 406 导致整体查询失败、截止时间显示「暂无/—」）
     const { data, error } = await supabase
       .from('fund_scores_meta')
       .select('nav_date,total_count,scored_count,tsq,update_time')
       .order('tsq', { ascending: false })
       .limit(1)
-      .single()
-    if (!error && data && (data.tsq || data.update_time || data.nav_date)) return data
-
-    // 2) 兜底：直接查 fund_scores 表最新 nav_date（保证截止时间永远有值）
-    const { data: row } = await supabase
-      .from('fund_scores')
-      .select('nav_date')
-      .not('nav_date', 'is', null)
-      .order('nav_date', { ascending: false })
-      .limit(1)
-      .single()
-    if (row?.nav_date) {
-      return { nav_date: row.nav_date, tsq: null, update_time: null, total_count: null, scored_count: null }
+    const row = Array.isArray(data) ? data[0] : data
+    if (!error && row && (row.tsq || row.update_time || row.nav_date)) {
+      // 统一截止时间字段：优先 tsq → update_time → nav_date，供前端统一读取
+      return { ...row, updateTime: row.tsq || row.update_time || row.nav_date }
     }
+
+    // 2) 兜底：fund_scores 最新日期（该列若不存在则静默忽略，不阻断主流程）
+    try {
+      const { data: d2, error: e2 } = await supabase
+        .from('fund_scores')
+        .select('nav_date')
+        .not('nav_date', 'is', null)
+        .order('nav_date', { ascending: false })
+        .limit(1)
+      const r2 = Array.isArray(d2) ? d2[0] : d2
+      if (!e2 && r2?.nav_date) {
+        return { nav_date: r2.nav_date, tsq: null, update_time: null, total_count: null, scored_count: null, updateTime: r2.nav_date }
+      }
+    } catch (e) { /* fund_scores 无 nav_date 列时忽略 */ }
   }
   return null
 }

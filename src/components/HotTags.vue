@@ -575,16 +575,19 @@ async function fetchBoardRealtime() {
   applyBoardToTags()
 }
 
-// ========== Z 思路：前端直连东财 ZTJJ GetBKDetailInfoNew，获取板块各周期实时涨跌 ==========
-// 与天天基金主题页同源。push2 不提供多周期(w/m/q/y/sy)，故直连 ZTJJ 实时拉取，
-// 覆盖 ETL fund_tag_perf 的日终快照，使「近1周~今年来」也与天天基金实时一致。
-function toNum(v) {
-  if (v == null) return null
-  const n = parseFloat(v)
-  return isNaN(n) ? null : n
+// ========== 板块实时多周期：前端直连东财 push2his K线，计算近1周~今年来涨跌幅 ==========
+// 说明：东财 push2 clist 只提供板块「今日涨幅(f3)」与「资金流」，不提供板块周期涨跌
+// 幅（其 f104~f116 实为涨跌/平家数，非涨跌幅，见 boardRowFull 注释）。板块「近1周~今年来」
+// 涨跌幅东财唯一权威接口是 ZTJJ GetBKDetailInfoNew，但该接口前端直连会被服务端 Referer
+// 校验拦截（浏览器自动带本站来源 → 返回 ErrCode:-999）而永远失败。故改用：前端直连
+// push2his 板块日K线（与 push2 同源、不限 Referer），用当天收盘实时计算各周期涨跌幅，
+// 真正实时且与天天基金同源。失败则静默回退 ETL 快照。
+function toPct(v) {
+  if (v == null || isNaN(v)) return null
+  return Number(v)
 }
 
-// 将 ZTJJ 实时多周期合并写入 realtimeStageReturns（仅覆盖有值字段，保留 push2 的实时 d）
+// 将实时多周期合并写入 realtimeStageReturns（仅覆盖有值字段，保留 push2 的实时 d）
 function setRealtimeReturns(name, mapped) {
   const clean = {}
   for (const [k, v] of Object.entries(mapped)) {
@@ -595,41 +598,89 @@ function setRealtimeReturns(name, mapped) {
   realtimeStageReturns.value = { ...realtimeStageReturns.value, [name]: { ...prev, ...clean } }
 }
 
-// JSONP 直连 ZTJJ 板块详情接口（best-effort，失败静默回退 ETL 快照）
-function jsonpZTJJ(indexCode) {
+// JSONP 直连 push2his 板块日K线（best-effort，失败静默回退 ETL 快照）
+function fetchBoardKline(indexCode) {
   return new Promise((resolve) => {
-    const cb = 'zt' + Math.random().toString(36).slice(2, 8)
-    const p = new URLSearchParams({ callback: cb, tp: String(indexCode) })
+    const cb = 'kl' + Math.random().toString(36).slice(2, 8)
+    const p = new URLSearchParams({
+      fields1: 'f1,f2,f3,f4,f5,f6',
+      fields2: 'f51,f52,f53,f54,f55,f56,f57,f58',
+      klt: '101', fqt: '1', secid: '90.' + String(indexCode),
+      beg: '0', end: '20500101', lmt: '300', callback: cb,
+    })
     const s = document.createElement('script')
-    const cleanup = () => { if (s.parentNode) s.parentNode.removeChild(s); delete window[cb] }
-    window[cb] = (d) => { cleanup(); resolve(d) }
+    const timer = setTimeout(() => { cleanup(); resolve(null) }, 12000)
+    const cleanup = () => {
+      clearTimeout(timer)
+      if (s.parentNode) s.parentNode.removeChild(s)
+      delete window[cb]
+    }
+    window[cb] = (d) => {
+      cleanup()
+      const klines = (d && d.data && d.data.klines) || null
+      resolve(Array.isArray(klines) ? klines : null)
+    }
     s.onerror = () => { cleanup(); resolve(null) }
-    s.src = 'https://api.fund.eastmoney.com/ztjj/GetBKDetailInfoNew?' + p.toString()
+    s.src = 'https://push2his.eastmoney.com/api/qt/stock/kline/get?' + p.toString()
     document.body.appendChild(s)
-    setTimeout(() => { cleanup(); resolve(null) }, 10000)
   })
 }
 
-// 拉取单个标签的 ZTJJ 实时多周期并写入
-async function fetchTagRealtimePerf(name, indexCode) {
-  if (!indexCode) return
-  try {
-    const d = await jsonpZTJJ(indexCode)
-    const data = (d && d.Data) ? d.Data : ((d && d.data) ? d.data : null)
-    if (!data) return
-    setRealtimeReturns(name, {
-      d: toNum(data.D),
-      w1: toNum(data.W),
-      m1: toNum(data.M),
-      m3: toNum(data.Q),
-      y1: toNum(data.Y),
-      ytd: toNum(data.SY),
-    })
-  } catch (e) { /* 静默回退 ETL */ }
+// 从日K线计算各周期涨跌幅（自然日口径，对齐天天基金 W/M/Q/Y/SY）
+// klines: ["YYYY-MM-DD,open,close,high,low,...", ...]（fields2：f51=日期 f53=收盘）
+function calcStageReturns(klines) {
+  if (!klines || klines.length === 0) return null
+  const rows = []
+  for (const s of klines) {
+    const p = s.split(',')
+    const close = parseFloat(p[2])
+    if (!isNaN(close) && p[0]) rows.push({ date: p[0], close })
+  }
+  if (rows.length === 0) return null
+  const last = rows[rows.length - 1]
+  const nowClose = last.close
+  const today = new Date(last.date)
+  const retBefore = (days) => {
+    const target = new Date(today)
+    target.setDate(target.getDate() - days)
+    for (let i = rows.length - 1; i >= 0; i--) {
+      if (new Date(rows[i].date) <= target) return nowClose / rows[i].close - 1
+    }
+    return null
+  }
+  const ytd = (() => {
+    const jan1 = new Date(today.getFullYear() + '-01-01')
+    for (let i = rows.length - 1; i >= 0; i--) {
+      if (new Date(rows[i].date) <= jan1) return nowClose / rows[i].close - 1
+    }
+    return null
+  })()
+  return {
+    d: null, // 今日涨幅由 push2 f3 实时提供，此处不动
+    w1: toPct(retBefore(7)),
+    m1: toPct(retBefore(30)),
+    m3: toPct(retBefore(90)),
+    y1: toPct(retBefore(365)),
+    ytd: toPct(ytd),
+  }
 }
 
-// 批量拉取所有标签的 ZTJJ 实时多周期（并发限量，best-effort；失败保留 ETL 快照）
-async function refreshAllRealtimePerf() {
+// 拉取单个标签的 K线实时多周期并写入（best-effort）
+async function fetchTagKlinePerf(name, indexCode) {
+  if (!indexCode) return
+  try {
+    const klines = await fetchBoardKline(indexCode)
+    if (!klines || klines.length === 0) return
+    const r = calcStageReturns(klines)
+    if (r) {
+      setRealtimeReturns(name, r)
+      console.log(`[HotTags] K线实时已写入 ${name}: w1=${r.w1 ?? '--'} m1=${r.m1 ?? '--'} m3=${r.m3 ?? '--'} y1=${r.y1 ?? '--'} ytd=${r.ytd ?? '--'}`)
+    }
+  } catch (e) { /* best-effort 回退 ETL */ }
+}
+
+// 批量拉取热门标签的 K线实时多周期（并发限量，best-effort；失败保留 ETL 快照）
+async function refreshAllKlinePerf() {
   const list = allTags.value
     .filter(t => tagIndexCode.value[t.name])
     .map(t => ({ name: t.name, code: tagIndexCode.value[t.name] }))
@@ -639,13 +690,11 @@ async function refreshAllRealtimePerf() {
   const worker = async () => {
     while (idx < list.length) {
       const item = list[idx++]
-      await fetchTagRealtimePerf(item.name, item.code)
+      await fetchTagKlinePerf(item.name, item.code)
     }
   }
-  const workers = []
-  for (let k = 0; k < CONC; k++) workers.push(worker())
-  await Promise.all(workers)
-  console.log(`[HotTags] ZTJJ 实时多周期拉取完成(best-effort): ${list.length} 个标签`)
+  await Promise.all(Array.from({ length: Math.min(CONC, list.length) }, () => worker()))
+  console.log(`[HotTags] K线实时多周期拉取完成(best-effort): ${list.length} 个标签`)
 }
 
 // 排序用资金流入值
@@ -801,8 +850,9 @@ function openTagDetail(tag) {
   tagFunds.value = []
   loadTagFunds(tag)
   loadTagM6(tag) // 计算近6月（成分基金 r6m 均值）
-  // Z 思路：直连 ZTJJ 拉取该标签实时多周期（best-effort，成功则弹窗周期条实时刷新）
-  fetchTagRealtimePerf(tag.name, tagIndexCode.value[tag.name])
+  // 直连 push2his K线拉取该标签实时多周期（成功则弹窗周期条实时刷新）
+  // 不 await：弹窗先打开显示 ETL 快照，K线返回后自动覆盖（Vue 响应式）
+  fetchTagKlinePerf(tag.name, tagIndexCode.value[tag.name])
   // 获取 fund_scores 更新时间（优先 tsq，其次 update_time / nav_date）
   fetchFundMeta().then(m => {
     if (!m) return
@@ -1099,7 +1149,7 @@ async function generateShareImage() {
     let updateTimeStr = ''
     try {
       const meta = await fetchFundMeta()
-      const rawTime = meta?.tsq || meta?.update_time || meta?.nav_date
+      const rawTime = meta?.updateTime || meta?.tsq || meta?.update_time || meta?.nav_date
       if (rawTime) {
         const d = new Date(rawTime)
         if (!isNaN(d.getTime())) {
@@ -1317,8 +1367,8 @@ onMounted(async () => {
   await Promise.all([loadTags(), loadTagStageReturns()])
   // Y 思路：前端直连 push2 实时行情（板块代码直连匹配）→ 覆盖 ETL 今日涨幅
   await fetchBoardRealtime()
-  // Z 思路：前端直连 ZTJJ 实时多周期 → 覆盖 ETL 近1周~今年来（best-effort）
-  refreshAllRealtimePerf()
+  // 直连 push2his K线实时多周期 → 覆盖 ETL 近1周~今年来（best-effort，失败回退 ETL 快照）
+  refreshAllKlinePerf()
 })
 
 defineExpose({ refresh: loadTags })
