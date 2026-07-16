@@ -146,6 +146,7 @@
                     </div>
                   </div>
                   <div class="ft-right">
+                    <span class="ft-ret-label">近1年收益</span>
                     <span class="ft-ret" :style="{ color: retColor(f.r1y) }" v-if="f.r1y != null">{{ fmtRetPlain(f.r1y) }}%</span>
                     <span class="ft-ret" v-else>—</span>
                   </div>
