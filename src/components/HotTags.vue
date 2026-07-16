@@ -224,7 +224,7 @@ const fundMetaUpdateTime = ref('') // fund_scores 更新时间
 
 // ========== 排序/阶段状态 ==========
 const sortMode = ref('byReturn') // 'byReturn'（按涨幅，默认）| 'byInflow'（按资金流入）
-const activeStage = ref('y1')    // 默认选中阶段：近1年
+const activeStage = ref('d')     // 默认选中阶段：实时（今日盘中涨幅）
 const tagStageReturns = ref({})  // { [tagName]: { d, w1, m1, m3, y1, ytd } } 各阶段均值
 const stageReturnsReady = ref(false) // 阶段聚合数据是否加载完成
 const tagM6Returns = ref({})    // { [tagName]: number|null } 近6月（成分基金 fund_scores.r6m 均值，按需计算）
