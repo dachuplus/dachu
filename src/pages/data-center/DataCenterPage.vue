@@ -1476,6 +1476,7 @@ async function loadUserAnalytics() {
     }
     const list = [...map.values()].map(u => ({
       name: (u.email && u.email !== 'anonymous') ? u.email : '匿名访客',
+      email: u.email,
       ip: u.ip || '—',
       firstVisit: u.min,
       durationMin: Math.max(0, Math.round((new Date(u.max) - new Date(u.min)) / 60000)),
