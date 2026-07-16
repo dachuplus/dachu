@@ -293,14 +293,26 @@ export function fetchFundMeta() {
 
 async function fetchFundMetaImpl() {
   if (supabase) {
+    // 1) 优先取 fund_scores_meta 系统元信息
     const { data, error } = await supabase
       .from('fund_scores_meta')
       .select('nav_date,total_count,scored_count,tsq,update_time')
       .order('tsq', { ascending: false })
       .limit(1)
       .single()
-    if (error) return null
-    return data
+    if (!error && data && (data.tsq || data.update_time || data.nav_date)) return data
+
+    // 2) 兜底：直接查 fund_scores 表最新 nav_date（保证截止时间永远有值）
+    const { data: row } = await supabase
+      .from('fund_scores')
+      .select('nav_date')
+      .not('nav_date', 'is', null)
+      .order('nav_date', { ascending: false })
+      .limit(1)
+      .single()
+    if (row?.nav_date) {
+      return { nav_date: row.nav_date, tsq: null, update_time: null, total_count: null, scored_count: null }
+    }
   }
   return null
 }
