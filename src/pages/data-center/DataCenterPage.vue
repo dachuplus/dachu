@@ -1622,16 +1622,21 @@ function displayUsername(email) {
 }
 
 async function loadPermissionsList() {
-  if (!isOwner.value) return
+  // 防御：主管理员邮箱始终放行（不依赖 permissions 异步加载）
+  const ownerOk = isOwner.value
+  const email = user?.email || ''
+  console.log('[perm] loadPermissionsList: isOwner=' + ownerOk + ' email=' + email)
+  if (!ownerOk) return
   permLoading.value = true
   try {
     const { supabase } = await import('../../api/supabase.js')
-    if (!supabase) { permUsers.value = []; return }
+    if (!supabase) { console.warn('[perm] supabase client not ready'); permUsers.value = []; return }
     // 全部注册用户（app_users，由 auth.users 触发器自动写入）
     const { data: users, error: e1 } = await supabase
       .from('app_users')
       .select('id, user_email, created_at')
       .order('created_at', { ascending: false })
+    console.log('[perm] app_users query: count=' + (users?.length || 0) + ' error=' + (e1?.message || 'none'))
     if (e1) { console.error('[perm] app_users error', e1); permUsers.value = []; return }
     // 已授予的权限（可能为空）
     const { data: perms, error: e2 } = await supabase
