@@ -1069,6 +1069,30 @@
         </table>
       </div>
 
+      <!-- 对接配置总览 -->
+      <h2 class="api-group-title">对接配置总览（运维必读）</h2>
+      <div class="api-item">
+        <h3 class="api-name">小程序 / 后端 配置与密钥</h3>
+        <table class="api-meta-table">
+          <tr><td class="meta-label">微信小程序 AppID</td><td><code>wxac87803bace3ad2d</code></td></tr>
+          <tr><td class="meta-label">Supabase 项目 ref</td><td><code>tqhtegazxykkqfcpejky</code></td></tr>
+          <tr><td class="meta-label">Supabase URL</td><td><code>https://tqhtegazxykkqfcpejky.supabase.co</code></td></tr>
+          <tr><td class="meta-label">主管理员邮箱</td><td><code>57502460@qq.com</code></td></tr>
+        </table>
+        <p class="api-subtitle">密钥管理（由本地环境变量 / .env 维护，不在本页明文展示）</p>
+        <table class="field-table">
+          <thead><tr><th>密钥</th><th>用途</th><th>来源</th></tr></thead>
+          <tbody>
+            <tr><td>Supabase anon key</td><td>前端直连数据库（只读公开表）</td><td><code>.env.local</code> → VITE_SUPABASE_ANON_KEY</td></tr>
+            <tr><td>Supabase PAT</td><td>Python 脚本执行 SQL / DDL</td><td><code>.env.local</code> → SUPABASE_PAT (sbp_...)</td></tr>
+            <tr><td>EdgeOne Pages token</td><td>H5 部署</td><td><code>.env.local</code> → EDGEONE_PAGES_API_TOKEN</td></tr>
+            <tr><td>GitHub PAT</td><td>源码推送</td><td><code>.env.local</code> → GITHUB_TOKEN</td></tr>
+            <tr><td>DeepSeek API key</td><td>AI 选基 / 大 PK</td><td><code>.env</code> → VITE_DEEPSEEK_API_KEY</td></tr>
+          </tbody>
+        </table>
+        <p class="api-note">⚠️ 以上密钥仅存于本地 / CI 环境变量，禁止写入源码或公开仓库。完整密钥值由运维（主管理员）保管，AI 助手记忆中已留存，无需重复提供。</p>
+      </div>
+
       <!-- 东方财富 F10 基金档案 -->
       <h2 class="api-group-title">八、东方财富 F10 基金档案</h2>
       <div class="api-item">
