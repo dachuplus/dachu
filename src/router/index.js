@@ -39,7 +39,6 @@ const routes = [
     component: () => import('../pages/tougu/TouguPage.vue'),
     meta: {
       tab: 'tools',
-      feature: 'tougu',
       title: '投顾产品精选',
       description: '精选高收益、稳健、养老三类投顾产品，对比近3月、近1年收益与最大回撤，辅助挑选基金投顾组合。',
       keywords: '投顾产品,基金投顾,稳健理财,养老储蓄'

@@ -25,10 +25,9 @@ export const ADMIN_EMAIL = '57502460@qq.com'
 
 // 可授予用户的功能清单（数据中心「用户权限管理」勾选用）
 export const FEATURES = [
-  { key: 'fund-rank', label: '靠谱基金指数', desc: '靠谱指数评分、基金详情、基金对比' },
-  { key: 'signal',    label: '指标信号',     desc: '宏观信号、股债性价比、风格因子、行业估值' },
-  { key: 'portfolio', label: '智能组合',     desc: '自建组合、AI 组合、组合回测' },
-  { key: 'tougu',     label: '投顾产品精选', desc: '投顾产品对比与筛选' },
+  { key: 'fund-rank', label: '靠谱指数', desc: '靠谱指数评分、基金详情、基金对比' },
+  { key: 'signal',    label: '指标信号', desc: '宏观信号、股债性价比、风格因子、行业估值' },
+  { key: 'portfolio', label: '智能组合', desc: '自建组合、AI 组合、组合回测' },
 ]
 
 // ---- 全局单例状态 ----

@@ -1546,10 +1546,23 @@ async function kickUser(v) {
   if (!ok) return
   try {
     const { supabase } = await import('../../api/supabase.js')
-    const { error } = await supabase.functions.invoke('admin-delete-user', { body: { email: v.email } })
-    if (error) throw error
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session?.access_token) throw new Error('未登录或会话已过期')
+    const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/admin-delete-user`
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${session.access_token}`,
+      },
+      body: JSON.stringify({ email: v.email }),
+    })
+    const data = await res.json()
+    if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`)
     toast('已踢出用户 ' + displayUsername(v.email), 'success')
     visitorList.value = visitorList.value.filter(x => x.email !== v.email)
+    // 同步刷新权限列表（该用户可能已在 user_permissions 中有记录）
+    await loadPermissionsList()
   } catch (e) {
     toast('踢出失败：' + (e?.message || e), 'error')
   }
