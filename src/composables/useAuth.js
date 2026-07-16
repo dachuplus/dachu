@@ -44,6 +44,9 @@ const permissionsReady = ref(false)
 // 账号是否被封禁（命中 blocked_users 表时为 true，App 显示封禁屏）
 const blocked = ref(false)
 
+// 权限申请是否被驳回（命中 permission_requests.status='rejected' 时为 true，App 显示驳回屏）
+const rejected = ref(false)
+
 // 是否已初始化（App.vue 调用 init 后为 true）
 let _initDone = false
 
@@ -137,6 +140,7 @@ export function useAuth() {
   /** 加载当前用户的功能权限（管理员邮箱兜底全开，DB 不存在时也不报错） */
   async function loadPermissions(email) {
     permissionsReady.value = false
+    rejected.value = false
     if (!email) {
       permissions.value = { is_admin: false, enabled_features: [] }
       permissionsReady.value = true
@@ -163,6 +167,25 @@ export function useAuth() {
       permissions.value = { is_admin: isAdminEmail, enabled_features: isAdminEmail ? ['all'] : [] }
     } finally {
       permissionsReady.value = true
+    }
+    // 注意：rejected 检查放在 finally 之后，即便权限加载失败也独立判断
+    await checkRejected(email)
+  }
+
+  /** 检查当前登录用户的权限申请是否被驳回（读取 permission_requests，命中 status='rejected' 则置 rejected=true） */
+  async function checkRejected(email) {
+    if (!email) { rejected.value = false; return }
+    try {
+      const { data, error } = await supabase
+        .from('permission_requests')
+        .select('user_email')
+        .eq('user_email', email)
+        .eq('status', 'rejected')
+        .maybeSingle()
+      const isRejected = !!data && !error
+      rejected.value = isRejected
+    } catch (e) {
+      rejected.value = false
     }
   }
 
@@ -284,6 +307,7 @@ export function useAuth() {
     profile.value = null
     permissions.value = { is_admin: false, enabled_features: [] }
     permissionsReady.value = true
+    rejected.value = false
   }
 
   /** 打开登录弹窗（全局触发） */
@@ -291,7 +315,7 @@ export function useAuth() {
   function hideLogin() { showLoginDialog.value = false }
 
   return {
-    user, loading, isLoggedIn, isAdmin, isOwner, isStranger, hasAnyAccess, enabledFeatures, permissionsReady, blocked,
+    user, loading, isLoggedIn, isAdmin, isOwner, isStranger, hasAnyAccess, enabledFeatures, permissionsReady, blocked, rejected,
     displayName, displayInitial, portfolios, profile,
     init, signOut, refreshUserData, loadPermissions, savePermissions, deletePermissions, hasFeature,
     checkBlocked, blockUser, unblockUser,

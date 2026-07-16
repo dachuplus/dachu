@@ -19,15 +19,15 @@
         <button
           type="button"
           class="mgmt-tab"
-          :class="{ 'mgmt-tab--active': activeTab === 'download' }"
-          @click="activeTab = 'download'"
-        >数据下载</button>
-        <button
-          type="button"
-          class="mgmt-tab"
           :class="{ 'mgmt-tab--active': activeTab === 'users' }"
           @click="activeTab = 'users'"
         >用户管理</button>
+        <button
+          type="button"
+          class="mgmt-tab"
+          :class="{ 'mgmt-tab--active': activeTab === 'download' }"
+          @click="activeTab = 'download'"
+        >数据下载</button>
       </div>
     </div>
 
@@ -134,7 +134,16 @@
         </thead>
         <tbody>
           <tr v-for="row in permUsers" :key="row.user_email">
-            <td class="col-perm-email"><code>{{ displayUsername(row.user_email) }}</code></td>
+            <td class="col-perm-email">
+              <span
+                class="ua-name-link"
+                role="button"
+                tabindex="0"
+                :title="row.user_email === adminEmail ? '管理员账户' : '点击查看用户详情'"
+                @click="openUserDetail(row)"
+                @keydown.enter="openUserDetail(row)"
+              >{{ displayUsername(row.user_email) }}</span>
+            </td>
             <td class="col-perm-features">
               <span v-if="row._isAdmin" class="perm-all">全部功能（管理员）</span>
               <template v-else>
@@ -363,6 +372,63 @@
 
           <div class="ua-modal__footer">
             <button class="btn-login" type="button" @click="closePortfolioModal()">关闭</button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
+
+    <!-- 用户详情弹窗（权限管理 → 点击用户名） -->
+    <Teleport to="body">
+      <div v-if="userDetailModal.open" class="ua-mask" @click.self="closeUserDetail()">
+        <div class="ua-modal" role="dialog" aria-modal="true" aria-label="用户详情">
+          <div class="ua-modal__header">
+            <span class="ua-modal__title">{{ userDetailModal.email }}</span>
+            <button class="ua-modal__close" type="button" @click="closeUserDetail()" aria-label="关闭">×</button>
+          </div>
+
+          <div v-if="userDetailModal.loading" class="ua-modal__loading">加载中…</div>
+
+          <div v-else-if="userDetailModal.error" class="ua-modal__error">{{ userDetailModal.error }}</div>
+
+          <div v-else class="ua-modal__body">
+            <div class="ua-section">
+              <div class="ua-section__title">基本信息</div>
+              <ul class="ua-list ua-info">
+                <li class="ua-item">
+                  <span class="ua-item__name">注册时间</span>
+                  <span class="ua-item__meta">{{ userDetailModal.registeredAt ? fmtTime(userDetailModal.registeredAt) : '—' }}</span>
+                </li>
+                <li class="ua-item">
+                  <span class="ua-item__name">注册地区</span>
+                  <span class="ua-item__meta">{{ userDetailModal.region || '—' }}</span>
+                </li>
+                <li class="ua-item">
+                  <span class="ua-item__name">性别</span>
+                  <span class="ua-item__meta">{{ userDetailModal.gender }}</span>
+                </li>
+                <li class="ua-item">
+                  <span class="ua-item__name">年龄</span>
+                  <span class="ua-item__meta">{{ userDetailModal.age }}</span>
+                </li>
+              </ul>
+            </div>
+
+            <div class="ua-section">
+              <div class="ua-section__title">自建组合（{{ userDetailModal.portfolios.length }}）</div>
+              <ul v-if="userDetailModal.portfolios.length" class="ua-list">
+                <li v-for="(p, i) in userDetailModal.portfolios" :key="'pd-' + i" class="ua-item">
+                  <span class="ua-item__name">{{ p.name }}</span>
+                  <span class="ua-item__meta">{{ getFundCount(p) }} 只 · 更新 {{ fmtTime(p.updated_at) }}</span>
+                </li>
+              </ul>
+              <p v-else class="ua-empty">暂无</p>
+            </div>
+
+            <p class="section-desc">注：性别、年龄未在注册流程中收集，故显示「未收集」；AI 组合仅保存在客户端，服务端不可见。</p>
+          </div>
+
+          <div class="ua-modal__footer">
+            <button class="btn-login" type="button" @click="closeUserDetail()">关闭</button>
           </div>
         </div>
       </div>
@@ -1108,7 +1174,7 @@ const permFeatures = FEATURES
 const adminEmail = ADMIN_EMAIL
 
 // 管理中心 tab：'download' 数据下载 / 'users' 用户管理
-const activeTab = ref('download')
+const activeTab = ref('users')
 
 // 权限申请（陌生人 → 管理员审批）
 const { requests, loading: permReqLoading, loadRequests, approveRequest, rejectRequest } = usePermissionRequests()
@@ -1180,6 +1246,65 @@ async function openUserPortfolios(v) {
     portfolioModal.value.error = '仅管理员可查看用户组合明细'
   } finally {
     portfolioModal.value.loading = false
+  }
+}
+
+// 用户详情弹窗（权限管理 → 点击用户名）：注册时间 / 注册地区(按 IP 分析) / 性别 / 年龄 / 组合信息
+// 注：性别、年龄未在注册流程收集，如实标注「未收集」；AI 组合仅存于客户端 localStorage，服务端不可见。
+const userDetailModal = ref({
+  open: false,
+  email: '',
+  loading: false,
+  error: '',
+  registeredAt: '',
+  region: '—',
+  gender: '未收集',
+  age: '未收集',
+  portfolios: [],
+})
+function closeUserDetail() {
+  userDetailModal.value.open = false
+}
+async function openUserDetail(row) {
+  if (!row || !row.user_email) return
+  userDetailModal.value.open = true
+  userDetailModal.value.email = displayUsername(row.user_email)
+  userDetailModal.value.loading = true
+  userDetailModal.value.error = ''
+  userDetailModal.value.registeredAt = row.created_at || ''
+  userDetailModal.value.region = '—'
+  userDetailModal.value.portfolios = []
+  try {
+    const { supabase } = await import('../../api/supabase.js')
+    if (!supabase) {
+      userDetailModal.value.error = '当前环境未连接数据库，无法查看用户详情'
+      return
+    }
+    // 注册地区：取该用户 visitor_logs 中出现最频繁的地区（IP 解析所得，无独立注册地区字段）
+    const { data: logs, error: eLog } = await supabase
+      .from('visitor_logs')
+      .select('region')
+      .eq('email', row.user_email)
+      .not('region', 'is', null)
+      .limit(200)
+    if (!eLog && logs && logs.length) {
+      const freq = {}
+      for (const l of logs) freq[l.region] = (freq[l.region] || 0) + 1
+      const top = Object.entries(freq).sort((a, b) => b[1] - a[1])[0]
+      userDetailModal.value.region = top ? top[0] : '—'
+    }
+    // 组合信息（仅自建组合可见；AI 组合存于客户端不可见）
+    const { data, error } = await supabase.rpc('get_user_portfolios_by_email', { p_email: row.user_email })
+    if (error) {
+      userDetailModal.value.error = '仅管理员可查看用户组合明细'
+      return
+    }
+    const rows = Array.isArray(data) ? data : []
+    userDetailModal.value.portfolios = rows.filter(r => !r.is_ai)
+  } catch (e) {
+    userDetailModal.value.error = '仅管理员可查看用户组合明细'
+  } finally {
+    userDetailModal.value.loading = false
   }
 }
 
@@ -1525,6 +1650,7 @@ async function loadPermissionsList() {
       return {
         user_email: u.user_email,
         user_id: u.id,
+        created_at: u.created_at,
         _isAdmin: isAdminRow,
         _features: Array.isArray(p.enabled_features) ? p.enabled_features.filter(f => f !== 'all') : (isAdminRow ? [] : []),
         granted_by: p.granted_by || null,

@@ -15,6 +15,19 @@
     <!-- 未登录：全屏登录墙（看不到任何内容） -->
     <LoginDialog v-else-if="!authLoading && !isLoggedIn" :wall="true" @logged-in="onLoggedIn" />
 
+    <!-- 已登录但权限申请被驳回：驳回提示（优先于陌生人提示） -->
+    <div v-else-if="!authLoading && isLoggedIn && rejected" class="stranger-screen">
+      <div class="stranger-card">
+        <div class="stranger-brand">ALLFUND.CN</div>
+        <div class="stranger-title">申请已被驳回</div>
+        <p class="stranger-desc">抱歉，您提交的访问权限申请未通过审核。如有疑问可联系管理员，或点击「重新申请」补充信息再次提交。</p>
+        <div class="stranger-actions">
+          <button class="stranger-request" @click="showRequestDialog = true">重新申请</button>
+          <button class="stranger-logout" @click="handleLogout">退出登录</button>
+        </div>
+      </div>
+    </div>
+
     <!-- 已登录但无权限：陌生人提示 -->
     <div v-else-if="!authLoading && isLoggedIn && isStranger" class="stranger-screen">
       <div class="stranger-card">
@@ -133,7 +146,7 @@ import { supabase } from './api/supabase'
 
 const route   = useRoute()
 const router  = useRouter()
-const { user, isLoggedIn, isAdmin, isOwner, isStranger, blocked, loading: authLoading, hasFeature, displayName, init, signOut, showLoginDialog, showLogin, hideLogin } = useAuth()
+const { user, isLoggedIn, isAdmin, isOwner, isStranger, blocked, rejected, loading: authLoading, hasFeature, displayName, init, signOut, showLoginDialog, showLogin, hideLogin } = useAuth()
 
 /* ---- 响应式断点 ---- */
 const isMobile = ref(window.innerWidth < 769)
