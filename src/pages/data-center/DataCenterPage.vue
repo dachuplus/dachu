@@ -12,6 +12,68 @@
     <template v-else>
     <p class="page-desc">ALLFUND.CN 数据库全部表一览。选择需要下载的数据表，点击下载 Excel 文件。数据每日 21:30（北京时间）自动更新。</p>
 
+    <!-- 项目简介 -->
+    <div class="card">
+      <div class="card-title">项目简介 · ALLFUND.CN</div>
+      <p class="section-desc">本页面与整个 allfund 项目均托管于 GitHub，可依据本文档从零重新搭建网站与小程序。以下为项目全貌，供二次开发与部署参考。</p>
+      <div class="intro-grid">
+        <div class="intro-row">
+          <div class="intro-key">项目功能</div>
+          <div class="intro-val">
+            基金「靠谱指数」量化评分（V7 算法：收益 50% + 回撤 25% + 夏普 25%）、热门基金行业/概念标签、AI 智能组合（DeepSeek / 百炼大模型选基）、资产 / 风格 / 宏观信号、基金组合回测、每日数据更新简报、全量数据库下载中心。
+          </div>
+        </div>
+        <div class="intro-row">
+          <div class="intro-key">技术栈 · 网站</div>
+          <div class="intro-val">
+            Vue 3 + Vite + Vue Router 4 + supabase-js；gov.uk 设计风格（品牌蓝 <code>#1d70b8</code>，无圆角 / 无阴影）；图表统一以表格呈现（不再依赖 ECharts）。构建产物经 EdgeOne Pages 部署上线。
+          </div>
+        </div>
+        <div class="intro-row">
+          <div class="intro-key">技术栈 · 小程序</div>
+          <div class="intro-val">
+            uni-app（Vue3）+ uCharts + Supabase REST API。仓库 <code>allfund-max</code>，执行 <code>npm run build:mp-weixin</code> 产出 <code>dist/build/mp-weixin/</code> 后导入微信开发者工具。
+          </div>
+        </div>
+        <div class="intro-row">
+          <div class="intro-key">前端服务</div>
+          <div class="intro-val">
+            网站：EdgeOne Pages（生产域名 <code>www.allfund.cn</code>）；小程序：微信小程序（allfund-max）。两端均直连 Supabase REST API 读取数据，无需自建后端应用服务器。
+          </div>
+        </div>
+        <div class="intro-row">
+          <div class="intro-key">后端 / 数据服务</div>
+          <div class="intro-val">
+            Supabase（PostgreSQL + PostgREST + 认证 + 存储 + Edge Functions）。数据 ETL 由 Python 脚本完成，经 GitHub Actions 每日 21:30（北京时间）自动运行：抓取东方财富 / 天天基金数据 → 计算评分 → 写入 Supabase。AI 选基接入 DeepSeek 与阿里百炼（豆包 / 智谱）大模型 API。
+          </div>
+        </div>
+        <div class="intro-row">
+          <div class="intro-key">数据库</div>
+          <div class="intro-val">
+            Supabase PostgreSQL。核心表：<code>fund_scores</code>（主表，约 2 万只基金 V7 评分）、<code>fund_tag_funds</code>（标签-基金映射）、<code>fund_tag_perf</code>（板块各周期涨跌 + 资金流）、<code>fund_tags</code>、<code>fund_combined</code>、<code>etl_run_log</code>、<code>user_ai_models</code>、<code>jqr_indicators</code>、<code>macro_history</code>、<code>tougu_products</code>、<code>user_profiles</code> 等。
+          </div>
+        </div>
+        <div class="intro-row">
+          <div class="intro-key">云服务</div>
+          <div class="intro-val">
+            Supabase（数据库 / 认证 / 函数）、EdgeOne Pages（静态托管 + 全球 CDN）、GitHub Actions（CI/CD 与定时数据流水线）、DeepSeek / 阿里百炼（AI 大模型）。
+          </div>
+        </div>
+        <div class="intro-row">
+          <div class="intro-key">GitHub 保存路径</div>
+          <div class="intro-val">
+            网站仓库：<code>github.com/maoshanbo/allfund</code>（本地 <code>/Users/maoshanbo/WorkBuddy/20260405093252/allfund/</code>）；小程序仓库：<code>github.com/maoshanbo/allfund-max</code>。本地与 GitHub 保持逐字节一致，推送使用受控脚本（非 git push 直推）。
+          </div>
+        </div>
+        <div class="intro-row">
+          <div class="intro-key">本地构建与部署</div>
+          <div class="intro-val">
+            网站：<code>cd allfund &amp;&amp; npm install &amp;&amp; npm run build</code> → <code>npx edgeone pages deploy dist.zip -n allfund -t $EDGEONE_PAGES_API_TOKEN</code>。数据更新：<code>python3 scripts/sync_tag_performance.py</code> 等由 GitHub Actions 自动调度，详见仓库 <code>.github/workflows</code>。
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- 更新简报 -->
     <div class="card" v-if="etlBriefReady">
       <div class="card-title">更新简报</div>
@@ -1315,6 +1377,29 @@ onMounted(() => {
 }
 .card-title { font-size: 24px; font-weight: 700; color: var(--text-primary); margin-bottom: var(--space-md); }
 .section-desc { font-size: 16px; color: var(--text-secondary); margin-bottom: var(--space-lg); }
+
+/* 项目简介 */
+.intro-grid { border: 1px solid var(--border); }
+.intro-row { display: flex; border-bottom: 1px solid var(--border); }
+.intro-row:last-child { border-bottom: none; }
+.intro-key {
+  flex: 0 0 140px; padding: var(--space-md);
+  font-weight: 700; color: var(--text-primary);
+  background: #f3f2f1; border-right: 1px solid var(--border);
+  font-size: 14px;
+}
+.intro-val {
+  flex: 1; padding: var(--space-md);
+  font-size: 14px; color: var(--text-secondary); line-height: 1.7;
+}
+.intro-val code {
+  background: #f3f2f1; padding: 1px 5px; border-radius: 2px;
+  font-family: monospace; font-size: 12px; color: var(--text-primary);
+}
+@media (max-width: 640px) {
+  .intro-row { flex-direction: column; }
+  .intro-key { flex-basis: auto; border-right: none; border-bottom: 1px solid var(--border); }
+}
 
 /* 表格 */
 .data-table { width: 100%; border-collapse: collapse; font-size: 14px; }

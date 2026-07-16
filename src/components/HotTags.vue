@@ -420,9 +420,12 @@ function normBoardName(name) {
 const boardRealtimeReady = ref(false)   // push2 实时（多周期涨跌幅 + 资金流）是否加载完成
 const realtimeStageReturns = ref({})   // { [tagName]: { d, w1, m1, m3, y1, ytd } } 覆盖 ETL 各阶段
 const _rawPush2Data = ref(null)         // push2 原始拉取结果（概念板+行业板合并 map），与 allTags 解耦
+const _rawPush2ByCode = ref({})        // push2 原始结果按板块代码(f12)索引，用于 Y 思路代码直连
+const tagIndexCode = ref({})           // { [tagName]: ZTJJ tag_index_code }，用于 Y 思路代码直连匹配
 
 function boardRowFull(it) {
   return {
+    code: it.f12 != null ? String(it.f12) : null,
     returns: {
       // 仅「今日」用 push2 实时行情(f3)。push2 clist 批量接口并不提供板块的
       // 周期涨跌幅：f104/f105/f106 是上涨/下跌/平「家数」，f107 为常量，f160 亦
@@ -466,10 +469,22 @@ async function fetchBoardRaw() {
     const concept = await jsonpPush2('m:90+t:3')   // 概念板
     const industry = await jsonpPush2('m:90+t:2')  // 行业板
     const map = {}
-    for (const it of concept) { const nm = it.f14; if (nm) map[nm] = boardRowFull(it) }
-    for (const it of industry) { const nm = it.f14; if (nm && !map[nm]) map[nm] = boardRowFull(it) }
+    const byCode = {}
+    const addBoard = (it) => {
+      const row = boardRowFull(it)
+      const nm = it.f14
+      if (nm) map[nm] = row
+      if (it.f12 != null) byCode[String(it.f12)] = row
+    }
+    for (const it of concept) addBoard(it)
+    for (const it of industry) {
+      const nm = it.f14
+      if (nm && !map[nm]) addBoard(it)
+      else if (it.f12 != null && !byCode[String(it.f12)]) addBoard(it)
+    }
     _rawPush2Data.value = map
-    console.log(`[HotTags] push2 原始数据拉取完成：概念+行业共 ${Object.keys(map).length} 个板块`)
+    _rawPush2ByCode.value = byCode
+    console.log(`[HotTags] push2 原始数据拉取完成：概念+行业共 ${Object.keys(map).length} 个板块，按代码索引 ${Object.keys(byCode).length} 个`)
   } catch (e) {
     console.warn('[HotTags] push2 原始拉取失败', e)
   }
@@ -483,58 +498,63 @@ async function fetchBoardRaw() {
 //   4. 首字相同且长度接近（兜底，差距≤2）
 function applyBoardToTags() {
   const raw = _rawPush2Data.value
+  const byCode = _rawPush2ByCode.value
   if (!raw || allTags.value.length === 0) return
 
   const push2Keys = Object.keys(raw)
   const names = [...new Set(allTags.value.map(t => t.name).filter(Boolean))]
   const rt = {}
   const inflow = {}
-  let aliasCnt = 0, exactCnt = 0, containCnt = 0, prefixCnt = 0
+  let codeCnt = 0, aliasCnt = 0, exactCnt = 0, containCnt = 0, prefixCnt = 0
 
   for (const name of names) {
-    let matchedKey = null
+    let matchedRow = null
+
+    // 策略0（Y思路·代码直连）：ZTJJ tag_index_code ↔ push2 板块代码 f12，最可靠
+    const code = tagIndexCode.value[name]
+    if (code && byCode && byCode[code]) { matchedRow = byCode[code]; codeCnt++ }
 
     // 策略1：别名表直查
-    const alias = TAG_TO_PUSH2[name]
-    if (alias && raw[alias]) { matchedKey = alias; aliasCnt++; }
+    if (!matchedRow) {
+      const alias = TAG_TO_PUSH2[name]
+      if (alias && raw[alias]) { matchedRow = raw[alias]; aliasCnt++ }
+    }
 
     // 策略2：归一化后精确匹配
-    if (!matchedKey) {
+    if (!matchedRow) {
       const normed = normBoardName(name)
-      if (normed && raw[normed]) { matchedKey = normed; exactCnt++ }
+      if (normed && raw[normed]) { matchedRow = raw[normed]; exactCnt++ }
     }
 
     // 策略3：包含匹配（双向）
-    if (!matchedKey) {
+    if (!matchedRow) {
       for (const bk of push2Keys) {
         if (bk.length >= 2 && (name.includes(bk) || bk.includes(name))) {
-          matchedKey = bk; containCnt++
+          matchedRow = raw[bk]; containCnt++
           break
         }
       }
     }
 
     // 策略4：首字相同 + 长度接近（兜底）
-    if (!matchedKey) {
+    if (!matchedRow) {
       const normed = normBoardName(name)
       if (normed && normed[0]) {
         for (const bk of push2Keys) {
           if (bk && normed[0] === bk[0] && Math.abs(normed.length - bk.length) <= 2) {
-            matchedKey = bk; prefixCnt++
+            matchedRow = raw[bk]; prefixCnt++
             break
           }
         }
       }
     }
 
-    if (!matchedKey) continue
-    const d = raw[matchedKey]
-    if (!d) continue
+    if (!matchedRow) continue
 
-    const hasRet = Object.values(d.returns).some(v => v != null)
-    if (hasRet) rt[name] = d.returns
-    if (d.net_inflow != null) {
-      inflow[name] = { net_inflow: d.net_inflow, net_inflow_5d: d.net_inflow_5d, net_inflow_10d: d.net_inflow_10d }
+    const hasRet = Object.values(matchedRow.returns).some(v => v != null)
+    if (hasRet) rt[name] = matchedRow.returns
+    if (matchedRow.net_inflow != null) {
+      inflow[name] = { net_inflow: matchedRow.net_inflow, net_inflow_5d: matchedRow.net_inflow_5d, net_inflow_10d: matchedRow.net_inflow_10d }
     }
   }
 
@@ -544,8 +564,8 @@ function applyBoardToTags() {
   if (Object.keys(inflow).length > 0) {
     tagInflow.value = Object.assign({}, tagInflow.value, inflow)
   }
-  const total = aliasCnt + exactCnt + containCnt + prefixCnt
-  console.log(`[HotTags] push2 4级匹配: 别名${aliasCnt} 精确${exactCnt} 包含${containCnt} 前缀${prefixCnt} = 总命中 ${total}/${names.length}`)
+  const total = codeCnt + aliasCnt + exactCnt + containCnt + prefixCnt
+  console.log(`[HotTags] push2 匹配(Y代码${codeCnt} 别名${aliasCnt} 精确${exactCnt} 包含${containCnt} 前缀${prefixCnt}) = ${total}/${names.length}`)
 }
 
 // 完整流程：先拉取原始数据 → 等标签加载完 → 立即匹配；若标签已就绪则直接匹配
@@ -553,6 +573,79 @@ async function fetchBoardRealtime() {
   await fetchBoardRaw()
   boardRealtimeReady.value = true
   applyBoardToTags()
+}
+
+// ========== Z 思路：前端直连东财 ZTJJ GetBKDetailInfoNew，获取板块各周期实时涨跌 ==========
+// 与天天基金主题页同源。push2 不提供多周期(w/m/q/y/sy)，故直连 ZTJJ 实时拉取，
+// 覆盖 ETL fund_tag_perf 的日终快照，使「近1周~今年来」也与天天基金实时一致。
+function toNum(v) {
+  if (v == null) return null
+  const n = parseFloat(v)
+  return isNaN(n) ? null : n
+}
+
+// 将 ZTJJ 实时多周期合并写入 realtimeStageReturns（仅覆盖有值字段，保留 push2 的实时 d）
+function setRealtimeReturns(name, mapped) {
+  const clean = {}
+  for (const [k, v] of Object.entries(mapped)) {
+    if (v != null && !isNaN(v)) clean[k] = v
+  }
+  if (Object.keys(clean).length === 0) return
+  const prev = realtimeStageReturns.value[name] || {}
+  realtimeStageReturns.value = { ...realtimeStageReturns.value, [name]: { ...prev, ...clean } }
+}
+
+// JSONP 直连 ZTJJ 板块详情接口（best-effort，失败静默回退 ETL 快照）
+function jsonpZTJJ(indexCode) {
+  return new Promise((resolve) => {
+    const cb = 'zt' + Math.random().toString(36).slice(2, 8)
+    const p = new URLSearchParams({ callback: cb, tp: String(indexCode) })
+    const s = document.createElement('script')
+    const cleanup = () => { if (s.parentNode) s.parentNode.removeChild(s); delete window[cb] }
+    window[cb] = (d) => { cleanup(); resolve(d) }
+    s.onerror = () => { cleanup(); resolve(null) }
+    s.src = 'https://api.fund.eastmoney.com/ztjj/GetBKDetailInfoNew?' + p.toString()
+    document.body.appendChild(s)
+    setTimeout(() => { cleanup(); resolve(null) }, 10000)
+  })
+}
+
+// 拉取单个标签的 ZTJJ 实时多周期并写入
+async function fetchTagRealtimePerf(name, indexCode) {
+  if (!indexCode) return
+  try {
+    const d = await jsonpZTJJ(indexCode)
+    const data = (d && d.Data) ? d.Data : ((d && d.data) ? d.data : null)
+    if (!data) return
+    setRealtimeReturns(name, {
+      d: toNum(data.D),
+      w1: toNum(data.W),
+      m1: toNum(data.M),
+      m3: toNum(data.Q),
+      y1: toNum(data.Y),
+      ytd: toNum(data.SY),
+    })
+  } catch (e) { /* 静默回退 ETL */ }
+}
+
+// 批量拉取所有标签的 ZTJJ 实时多周期（并发限量，best-effort；失败保留 ETL 快照）
+async function refreshAllRealtimePerf() {
+  const list = allTags.value
+    .filter(t => tagIndexCode.value[t.name])
+    .map(t => ({ name: t.name, code: tagIndexCode.value[t.name] }))
+  if (list.length === 0) return
+  const CONC = 4
+  let idx = 0
+  const worker = async () => {
+    while (idx < list.length) {
+      const item = list[idx++]
+      await fetchTagRealtimePerf(item.name, item.code)
+    }
+  }
+  const workers = []
+  for (let k = 0; k < CONC; k++) workers.push(worker())
+  await Promise.all(workers)
+  console.log(`[HotTags] ZTJJ 实时多周期拉取完成(best-effort): ${list.length} 个标签`)
 }
 
 // 排序用资金流入值
@@ -615,9 +708,11 @@ async function loadTagStageReturns() {
     // 按 tag_name 建索引，供 cellReturn / displayTags 排序使用
     const result = {}
     const inflow = {}
+    const idxMap = {}
     for (const row of data) {
       const name = row.tag_name
       if (!name) continue
+      if (row.tag_index_code) idxMap[name] = String(row.tag_index_code)
       result[name] = {}
       for (const s of STAGES) {
         const v = row[s.field]
@@ -634,6 +729,7 @@ async function loadTagStageReturns() {
     }
     tagStageReturns.value = result
     tagInflow.value = inflow
+    tagIndexCode.value = idxMap
     console.log(`[HotTags] fund_tag_perf 加载完成: ${data.length} 个标签, 资金流 ${Object.keys(inflow).length} 个`)
   } catch (e) {
     console.error('[HotTags] loadTagStageReturns error', e)
@@ -705,6 +801,8 @@ function openTagDetail(tag) {
   tagFunds.value = []
   loadTagFunds(tag)
   loadTagM6(tag) // 计算近6月（成分基金 r6m 均值）
+  // Z 思路：直连 ZTJJ 拉取该标签实时多周期（best-effort，成功则弹窗周期条实时刷新）
+  fetchTagRealtimePerf(tag.name, tagIndexCode.value[tag.name])
   // 获取 fund_scores 更新时间（优先 tsq，其次 update_time / nav_date）
   fetchFundMeta().then(m => {
     if (!m) return
@@ -1020,9 +1118,6 @@ async function generateShareImage() {
     } catch { /* ignore */ }
     shareUpdateTime.value = updateTimeStr
 
-    // 确保近6月（成分基金 r6m 均值）已加载，用于分享图的周期收益条
-    try { await ensureTagM6(selectedTag.value) } catch { /* 失败则不显示近6月 */ }
-
     let H = headerH + titleGap + 20
     H += list.length * (fundH + fundGap)
     H += 30 // 与金句间距
@@ -1071,16 +1166,15 @@ async function generateShareImage() {
     ctx.textAlign = 'center'
     ctx.fillText(badgeText, W - pad - bw / 2, y + 13)
 
-    // 板块周期收益条：近1周/近1月/近3月/近6月/近1年
+    // 板块周期收益条：近1周/近1月/近3月/近1年（与标签弹窗一致，不含近6月）
     const stripY = y + 64
     const stripItems = [
       { label: '近1周', val: stageReturnOf(selectedTag.value.name, 'w1') },
       { label: '近1月', val: stageReturnOf(selectedTag.value.name, 'm1') },
       { label: '近3月', val: stageReturnOf(selectedTag.value.name, 'm3') },
-      { label: '近6月', val: tagM6Returns.value[selectedTag.value.name] },
       { label: '近1年', val: stageReturnOf(selectedTag.value.name, 'y1') },
     ]
-    const stripColW = (W - pad * 2) / 5
+    const stripColW = (W - pad * 2) / 4
     // 分隔线
     ctx.strokeStyle = '#eef1f5'
     ctx.lineWidth = 1
@@ -1218,11 +1312,13 @@ function saveShareImage() {
 }
 
 // ========== 生命周期 ==========
-onMounted(() => {
-  loadTags()
-  loadTagStageReturns()
-  // 前端直连东财 push2：多周期涨跌幅 + 资金流（实时覆盖 ETL 全阶段）
-  fetchBoardRealtime()
+onMounted(async () => {
+  // 先并行加载标签列表与 ETL 阶段数据（含 tag_index_code），再发起实时拉取
+  await Promise.all([loadTags(), loadTagStageReturns()])
+  // Y 思路：前端直连 push2 实时行情（板块代码直连匹配）→ 覆盖 ETL 今日涨幅
+  await fetchBoardRealtime()
+  // Z 思路：前端直连 ZTJJ 实时多周期 → 覆盖 ETL 近1周~今年来（best-effort）
+  refreshAllRealtimePerf()
 })
 
 defineExpose({ refresh: loadTags })
