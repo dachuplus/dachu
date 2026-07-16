@@ -216,13 +216,7 @@
           </tr>
         </tbody>
       </table>
-      <p class="section-desc" v-else>
-        暂无用户权限记录。
-        <span style="color:#d4351c;font-size:13px">
-          [调试: isOwner={{ !!isOwner }} email={{ user?.email || '—' }} permUsers长度={{ permUsers.length }} 已调用加载={{ _permLoaded }}
-          <template v-if="_permError"> 错误={{ _permError }}</template>]
-        </span>
-      </p>
+      <p class="section-desc" v-else>暂无用户权限记录。</p>
     </div>
 
     <!-- 权限申请（陌生人 → 管理员审批） -->
@@ -1205,10 +1199,6 @@ const permMsg = ref('')
 const permMsgType = ref('')
 function clearPermMsg() { permMsg.value = '' }
 
-// 调试状态（排查 permUsers 为空问题，确认后删除）
-const _permLoaded = ref(false)
-const _permError = ref('')
-
 // 用户组合明细弹窗（get_user_portfolios_by_email）
 const portfolioModal = ref({
   open: false,
@@ -1636,24 +1626,23 @@ async function loadPermissionsList() {
   const ownerOk = isOwner.value
   const email = user?.email || ''
   console.log('[perm] loadPermissionsList: isOwner=' + ownerOk + ' email=' + email)
-  if (!ownerOk) { _permError.value = 'isOwner=false(被拦截)'; return }
-  _permError.value = ''
+  if (!ownerOk) return
   permLoading.value = true
   try {
     const { supabase } = await import('../../api/supabase.js')
-    if (!supabase) { console.warn('[perm] supabase client not ready'); permUsers.value = []; _permError.value = 'supabase客户端未就绪'; return }
+    if (!supabase) { console.warn('[perm] supabase client not ready'); permUsers.value = []; return }
     // 全部注册用户（app_users，由 auth.users 触发器自动写入）
     const { data: users, error: e1 } = await supabase
       .from('app_users')
       .select('id, user_email, created_at')
       .order('created_at', { ascending: false })
     console.log('[perm] app_users query: count=' + (users?.length || 0) + ' error=' + (e1?.message || 'none'))
-    if (e1) { console.error('[perm] app_users error', e1); permUsers.value = []; _permError.value = 'app_users查询失败:' + e1.message; return }
+    if (e1) { console.error('[perm] app_users error', e1); permUsers.value = []; return }
     // 已授予的权限（可能为空）
     const { data: perms, error: e2 } = await supabase
       .from('user_permissions')
       .select('user_email, is_admin, enabled_features, granted_by')
-    if (e2) { console.error('[perm] perms error', e2); permUsers.value = []; _permError.value = 'user_permissions查询失败:' + e2.message; return }
+    if (e2) { console.error('[perm] perms error', e2); permUsers.value = []; return }
     const permMap = {}
     ;(perms || []).forEach(p => { permMap[p.user_email] = p })
     permUsers.value = (users || []).map(u => {
@@ -1671,11 +1660,9 @@ async function loadPermissionsList() {
         _saving: false,
       }
     })
-    _permLoaded.value = true
   } catch (e) {
     console.error('[perm] load error', e)
     permUsers.value = []
-    _permError.value = '异常:' + (e?.message || String(e))
   } finally {
     permLoading.value = false
   }
