@@ -31,6 +31,59 @@
       </div>
     </div>
 
+    <!-- 更新简报 -->
+    <div class="card" v-if="etlBriefReady" v-show="activeTab==='download'">
+      <div class="card-title">更新简报</div>
+      <div class="brief-summary" v-if="etlLogs.length > 0">
+        <span class="ok">完成 {{ etlLogs.filter(l => l.status === 'success').length }} 项</span>
+        <span class="sep">／</span>
+        <span v-if="etlLogs.filter(l => l.status === 'error').length > 0" class="fail">未完成 {{ etlLogs.filter(l => l.status === 'error').length }} 项</span>
+        <span v-else class="ok">全部完成</span>
+      </div>
+      <table class="data-table" v-if="etlLogs.length > 0">
+        <thead>
+          <tr>
+            <th class="col-etl-step">步骤</th>
+            <th class="col-etl-desc">说明</th>
+            <th class="col-etl-status">状态</th>
+            <th class="col-etl-rows">影响行数</th>
+            <th class="col-etl-time">执行时间</th>
+            <th class="col-etl-duration">耗时</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="(log, i) in etlLogs" :key="i">
+            <td class="col-etl-step">
+              <div class="step-name"><code>{{ log.step_name || log.name || log.step || '—' }}</code></div>
+              <div class="step-title">{{ stepView(log).title }}</div>
+              <div class="progress" :class="'pg-' + stepView(log).state">
+                <div class="progress-bar" :style="{ width: stepView(log).pct + '%' }"></div>
+              </div>
+            </td>
+            <td class="col-etl-desc">
+              <div class="step-desc">{{ stepView(log).desc }}</div>
+              <div class="step-reason" v-if="stepView(log).reason">
+                <span class="reason-label">失败原因：</span>{{ stepView(log).reason }}
+              </div>
+              <div class="step-suggestion" v-if="stepView(log).suggestion">
+                <span class="reason-label">解决建议：</span>{{ stepView(log).suggestion }}
+              </div>
+            </td>
+            <td class="col-etl-status">
+              <span class="status-badge" :class="log.status === 'success' ? 'status-ok' : (log.status === 'error' ? 'status-error' : (log.status === 'running' ? 'status-running' : 'status-pending'))">{{ statusLabel(log.status) }}</span>
+            </td>
+            <td class="col-etl-rows">{{ formatNum(log.rows_affected ?? log.rows ?? log.count) }}</td>
+            <td class="col-etl-time">{{ fmtTime(log.start_time ?? log.created_at) }}</td>
+            <td class="col-etl-duration">{{ log.duration_seconds != null ? formatDuration(log.duration_seconds) : '—' }}</td>
+          </tr>
+        </tbody>
+      </table>
+      <p class="section-desc" v-else>暂无运行记录，等待每日 21:30 自动执行。</p>
+      <div class="brief-footer" v-if="etlLastRunTime">
+        最近一次执行：{{ etlLastRunTime }}
+      </div>
+    </div>
+
     <!-- 项目简介 -->
     <div class="card" v-show="activeTab==='download'">
       <div class="card-title">项目简介 · ALLFUND.CN</div>
@@ -212,59 +265,6 @@
         </tbody>
       </table>
       <p class="section-desc" v-else>暂无权限申请。</p>
-    </div>
-
-    <!-- 更新简报 -->
-    <div class="card" v-if="etlBriefReady" v-show="activeTab==='download'">
-      <div class="card-title">更新简报</div>
-      <div class="brief-summary" v-if="etlLogs.length > 0">
-        <span class="ok">完成 {{ etlLogs.filter(l => l.status === 'success').length }} 项</span>
-        <span class="sep">／</span>
-        <span v-if="etlLogs.filter(l => l.status === 'error').length > 0" class="fail">未完成 {{ etlLogs.filter(l => l.status === 'error').length }} 项</span>
-        <span v-else class="ok">全部完成</span>
-      </div>
-      <table class="data-table" v-if="etlLogs.length > 0">
-        <thead>
-          <tr>
-            <th class="col-etl-step">步骤</th>
-            <th class="col-etl-desc">说明</th>
-            <th class="col-etl-status">状态</th>
-            <th class="col-etl-rows">影响行数</th>
-            <th class="col-etl-time">执行时间</th>
-            <th class="col-etl-duration">耗时</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="(log, i) in etlLogs" :key="i">
-            <td class="col-etl-step">
-              <div class="step-name"><code>{{ log.step_name || log.name || log.step || '—' }}</code></div>
-              <div class="step-title">{{ stepView(log).title }}</div>
-              <div class="progress" :class="'pg-' + stepView(log).state">
-                <div class="progress-bar" :style="{ width: stepView(log).pct + '%' }"></div>
-              </div>
-            </td>
-            <td class="col-etl-desc">
-              <div class="step-desc">{{ stepView(log).desc }}</div>
-              <div class="step-reason" v-if="stepView(log).reason">
-                <span class="reason-label">失败原因：</span>{{ stepView(log).reason }}
-              </div>
-              <div class="step-suggestion" v-if="stepView(log).suggestion">
-                <span class="reason-label">解决建议：</span>{{ stepView(log).suggestion }}
-              </div>
-            </td>
-            <td class="col-etl-status">
-              <span class="status-badge" :class="log.status === 'success' ? 'status-ok' : (log.status === 'error' ? 'status-error' : (log.status === 'running' ? 'status-running' : 'status-pending'))">{{ statusLabel(log.status) }}</span>
-            </td>
-            <td class="col-etl-rows">{{ formatNum(log.rows_affected ?? log.rows ?? log.count) }}</td>
-            <td class="col-etl-time">{{ fmtTime(log.start_time ?? log.created_at) }}</td>
-            <td class="col-etl-duration">{{ log.duration_seconds != null ? formatDuration(log.duration_seconds) : '—' }}</td>
-          </tr>
-        </tbody>
-      </table>
-      <p class="section-desc" v-else>暂无运行记录，等待每日 21:30 自动执行。</p>
-      <div class="brief-footer" v-if="etlLastRunTime">
-        最近一次执行：{{ etlLastRunTime }}
-      </div>
     </div>
 
     <!-- 用户分析 -->
@@ -1165,7 +1165,7 @@ import { useAuth, FEATURES, ADMIN_EMAIL } from '../../composables/useAuth'
 import { confirm, toast } from '../../composables/useToast'
 import { usePermissionRequests } from '../../composables/usePermissionRequests'
 
-const { isLoggedIn, isOwner, showLogin, savePermissions, deletePermissions, blockUser } = useAuth()
+const { user, isLoggedIn, isOwner, showLogin, savePermissions, deletePermissions, blockUser } = useAuth()
 const permFeatures = FEATURES
 const adminEmail = ADMIN_EMAIL
 
