@@ -15,16 +15,20 @@
 <script setup>
 import { computed } from 'vue'
 import { useRoute } from 'vue-router'
+import { useAuth } from '../composables/useAuth'
 
 const route = useRoute()
+const { isAdmin, hasFeature } = useAuth()
 
-const tabs = [
-  { key: 'home',    path: '/',                 label: '首页' },
-  { key: 'signal',  path: '/signal',           label: '信号' },
-  { key: 'fundrank',path: '/tools/fund-rank',  label: '评分' },
-  { key: 'portfolio',path:'/portfolio',        label: '智能组合' },
-  { key: 'profile', path: '/profile',          label: '我的' },
+const allTabs = [
+  { key: 'home',    path: '/',                 label: '首页',     feature: 'fund-rank' },
+  { key: 'signal',  path: '/signal',           label: '信号',     feature: 'signal' },
+  { key: 'fundrank',path: '/tools/fund-rank',  label: '评分',     feature: 'fund-rank' },
+  { key: 'portfolio',path:'/portfolio',        label: '智能组合', feature: 'portfolio' },
+  { key: 'profile', path: '/profile',          label: '我的',     feature: null },
 ]
+// 按功能权限过滤可见 Tab（管理员显示全部；无 feature 的「我的」始终可见）
+const tabs = computed(() => allTabs.filter(t => !t.feature || isAdmin.value || hasFeature(t.feature)))
 
 const currentTab = computed(() => route.meta?.tab || 'home')
 </script>

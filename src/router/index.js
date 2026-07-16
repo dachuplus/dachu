@@ -7,6 +7,7 @@ const routes = [
     component: () => import('../pages/fund-rank/FundRankPage.vue'),
     meta: {
       tab: 'tools',
+      feature: 'fund-rank',
       title: '靠谱基金指数',
       description: '靠谱基金指数评分工具：覆盖全市场近2万只公募基金，按收益率、最大回撤、夏普比率综合排名，支持分类、份额、ETF/LOF 等多维筛选。',
       keywords: '靠谱基金指数,基金评分,基金排名,基金筛选,基金靠谱指数'
@@ -17,6 +18,7 @@ const routes = [
     component: () => import('../pages/signal/SignalPage.vue'),
     meta: {
       tab: 'signal',
+      feature: 'signal',
       title: '指标信号',
       description: '宏观指标信号：股债利差、FED模型、大类资产性价比、风格因子与行业估值，叠加上证指数走势，辅助判断市场位置。',
       keywords: '宏观指标,股债利差,FED模型,大类资产,风格因子,行业估值'
@@ -37,6 +39,7 @@ const routes = [
     component: () => import('../pages/tougu/TouguPage.vue'),
     meta: {
       tab: 'tools',
+      feature: 'tougu',
       title: '投顾产品精选',
       description: '精选高收益、稳健、养老三类投顾产品，对比近3月、近1年收益与最大回撤，辅助挑选基金投顾组合。',
       keywords: '投顾产品,基金投顾,稳健理财,养老储蓄'
@@ -47,6 +50,7 @@ const routes = [
     component: () => import('../pages/fund-rank/FundRankPage.vue'),
     meta: {
       tab: 'tools',
+      feature: 'fund-rank',
       title: '靠谱基金指数',
       description: '靠谱基金指数评分工具：覆盖全市场近2万只公募基金，按收益率、最大回撤、夏普比率综合排名，支持分类、份额、ETF/LOF 等多维筛选。',
       keywords: '靠谱基金指数,基金评分,基金排名,基金筛选,基金靠谱指数'
@@ -57,6 +61,7 @@ const routes = [
     component: () => import('../pages/portfolio/PortfolioPage.vue'),
     meta: {
       tab: 'tools',
+      feature: 'portfolio',
       title: '智能组合',
       description: '智能组合构建：自建组合、DeepSeek AI 推荐组合（16 策略）与基于 Kan&Zhou 增强型风险平价的风险平价组合，辅助资产配置。',
       keywords: '智能组合,资产配置,风险平价,AI组合'
@@ -67,6 +72,7 @@ const routes = [
     component: () => import('../pages/fund-detail/FundDetailPage.vue'),
     meta: {
       tab: 'tools',
+      feature: 'fund-rank',
       title: '基金详情',
       description: '单只基金详情：靠谱指数评分构成、各周期收益与同类排名。',
       keywords: '基金详情,基金评分,基金收益'
@@ -107,6 +113,7 @@ const routes = [
     component: () => import('../pages/data-center/DataCenterPage.vue'),
     meta: {
       tab: 'tools',
+      feature: 'data-center',
       title: '数据中心',
       description: '基金数据中心：基金基础信息、靠谱指数评分、宏观历史数据与投顾产品的字段说明与更新机制。',
       keywords: '基金数据,数据中心,基金基本信息,宏观数据'

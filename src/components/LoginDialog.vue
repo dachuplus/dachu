@@ -1,7 +1,7 @@
 <template>
-  <div class="login-overlay" @click.self="$emit('close')">
+  <div class="login-overlay" :class="{ 'login-overlay--wall': wall }" @click.self="!wall && $emit('close')">
     <div class="login-dialog" role="dialog" aria-modal="true" aria-label="登录注册">
-      <button class="login-close" @click="$emit('close')" aria-label="关闭">&times;</button>
+      <button v-if="!wall" class="login-close" @click="$emit('close')" aria-label="关闭">&times;</button>
 
       <div class="login-title">登录 ALLFUND.CN</div>
 
@@ -57,6 +57,11 @@ import { ref } from 'vue'
 import { supabase } from '../api/supabase'
 import { toast } from '../composables/useToast.js'
 import { useAuth } from '../composables/useAuth.js'
+
+const props = defineProps({
+  // wall=true 时作为登录墙：全屏、不可关闭、无关闭按钮
+  wall: { type: Boolean, default: false },
+})
 
 const emit = defineEmits(['close', 'logged-in'])
 const { markLogin } = useAuth()
@@ -164,6 +169,14 @@ function translateError(msg) {
   position: fixed; inset: 0; z-index: 100;
   background: rgba(0, 0, 0, 0.4);
   display: flex; align-items: center; justify-content: center;
+}
+/* 登录墙模式：品牌蓝全屏背景，不可点击遮罩关闭 */
+.login-overlay--wall {
+  background: #1d70b8;
+  z-index: 1000;
+}
+.login-overlay--wall .login-dialog {
+  border-width: 4px;
 }
 .login-dialog {
   background: #ffffff;

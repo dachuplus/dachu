@@ -1,5 +1,20 @@
 <template>
-  <div class="app-layout">
+  <div class="app-root">
+    <!-- 未登录：全屏登录墙（看不到任何内容） -->
+    <LoginDialog v-if="!authLoading && !isLoggedIn" :wall="true" @logged-in="onLoggedIn" />
+
+    <!-- 已登录但无权限：陌生人提示 -->
+    <div v-else-if="!authLoading && isLoggedIn && isStranger" class="stranger-screen">
+      <div class="stranger-card">
+        <div class="stranger-brand">ALLFUND.CN</div>
+        <div class="stranger-title">陌生人，无访问权限</div>
+        <p class="stranger-desc">您当前账户暂无访问权限。如需使用 ALLFUND.CN，请联系管理员为您开通相应功能。</p>
+        <button class="stranger-logout" @click="handleLogout">退出登录</button>
+      </div>
+    </div>
+
+    <!-- 已登录且有权限：完整应用 -->
+    <div v-else class="app-layout">
     <!-- PC 端顶部导航 -->
     <header class="govuk-header" v-if="!isMobile">
       <div class="govuk-header__container">
@@ -43,7 +58,7 @@
     <nav class="quick-nav">
       <div class="quick-nav__inner">
         <router-link
-          v-for="item in quickLinks"
+          v-for="item in visibleQuickLinks"
           :key="item.path"
           :to="item.path"
           class="quick-nav__item"
@@ -65,7 +80,11 @@
 
     <!-- 主内容区 -->
     <main class="app-main" :class="{ 'pc-main': !isMobile }">
-      <router-view v-slot="{ Component }">
+      <div v-if="!routeAllowed" class="no-feature-access">
+        <p class="no-feature-access__title">无访问权限</p>
+        <p class="no-feature-access__desc">您暂无「{{ currentFeatureLabel }}」功能的访问权限。</p>
+      </div>
+      <router-view v-else v-slot="{ Component }">
         <keep-alive :include="['FundRankPage']">
           <component :is="Component" />
         </keep-alive>
@@ -78,7 +97,7 @@
     <!-- 全局通知与对话框 -->
     <Toast />
     <ConfirmDialog />
-    <LoginDialog v-if="showLoginDialog" @close="showLoginDialog = false" @logged-in="onLoggedIn" />
+    </div>
   </div>
 </template>
 
@@ -89,12 +108,12 @@ import MobileTabBar from './components/MobileTabBar.vue'
 import Toast from './components/Toast.vue'
 import ConfirmDialog from './components/ConfirmDialog.vue'
 import LoginDialog from './components/LoginDialog.vue'
-import { useAuth } from './composables/useAuth'
+import { useAuth, FEATURES } from './composables/useAuth'
 import { supabase } from './api/supabase'
 
 const route   = useRoute()
 const router  = useRouter()
-const { user, isLoggedIn, isOwner, loading: authLoading, displayName, init, signOut, showLoginDialog, showLogin, hideLogin } = useAuth()
+const { user, isLoggedIn, isAdmin, isOwner, isStranger, loading: authLoading, hasFeature, displayName, init, signOut, showLoginDialog, showLogin, hideLogin } = useAuth()
 
 /* ---- 响应式断点 ---- */
 const isMobile = ref(window.innerWidth < 769)
@@ -163,10 +182,27 @@ function onLoggedIn() {
 
 /* ---- 全局金刚区 ---- */
 const quickLinks = [
-  { path: '/signal',           label: '指标信号' },
-  { path: '/tools/fund-rank',  label: '靠谱指数' },
-  { path: '/portfolio',        label: '智能组合' },
+  { path: '/signal',           label: '指标信号', feature: 'signal' },
+  { path: '/tools/fund-rank',  label: '靠谱指数', feature: 'fund-rank' },
+  { path: '/portfolio',        label: '智能组合', feature: 'portfolio' },
 ]
+// 按功能权限过滤可见的金刚区入口（管理员显示全部）
+const visibleQuickLinks = computed(() =>
+  quickLinks.filter(item => isAdmin.value || hasFeature(item.feature))
+)
+
+/* ---- 当前路由的功能权限拦截（未授权功能显示「无访问权限」） ---- */
+const routeAllowed = computed(() => {
+  if (isAdmin.value) return true
+  const feat = route.meta?.feature
+  if (!feat) return true
+  return hasFeature(feat)
+})
+const currentFeatureLabel = computed(() => {
+  const feat = route.meta?.feature
+  const f = FEATURES.find(x => x.key === feat)
+  return f ? f.label : ''
+})
 
 /* ---- Tab 数据（仅移动端 TabBar 使用）---- */
 const tabs = [
@@ -360,5 +396,51 @@ const showBack  = computed(() => {
 }
 @media (max-width: 768px) {
   .mobile-header { display: flex; }
+}
+
+/* ========== 登录墙 / 陌生人 / 无功能权限 ========== */
+.app-root { min-height: 100vh; }
+
+.stranger-screen {
+  min-height: 100vh;
+  display: flex; align-items: center; justify-content: center;
+  background: #1d70b8;
+  padding: var(--space-md);
+}
+.stranger-card {
+  background: #ffffff;
+  border: 4px solid #003078;
+  max-width: 480px; width: 100%;
+  padding: 40px 32px;
+  text-align: center;
+}
+.stranger-brand {
+  font-size: 20px; font-weight: 700; color: #1d70b8;
+  margin-bottom: var(--space-lg); letter-spacing: 0.5px;
+}
+.stranger-title {
+  font-size: 28px; font-weight: 700; color: #d4351c;
+  margin-bottom: var(--space-md);
+}
+.stranger-desc {
+  font-size: 16px; color: var(--text-secondary); line-height: 1.6;
+  margin-bottom: var(--space-lg);
+}
+.stranger-logout {
+  background: #1d70b8; color: #ffffff; border: none;
+  padding: 10px 28px; font-size: 16px; font-weight: 700; cursor: pointer;
+}
+.stranger-logout:hover { background: #003078; }
+
+.no-feature-access {
+  max-width: 600px; margin: 60px auto; padding: 40px;
+  text-align: center;
+  background: #ffffff; border: 2px solid var(--border); border-left: 6px solid #d4351c;
+}
+.no-feature-access__title {
+  font-size: 24px; font-weight: 700; color: #d4351c; margin: 0 0 var(--space-md);
+}
+.no-feature-access__desc {
+  font-size: 16px; color: var(--text-secondary); margin: 0;
 }
 </style>

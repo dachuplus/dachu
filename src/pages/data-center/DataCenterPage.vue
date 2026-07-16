@@ -74,6 +74,66 @@
       </div>
     </div>
 
+    <!-- 用户权限管理（仅管理员可见） -->
+    <div class="card" v-if="isOwner">
+      <div class="card-title">用户权限管理</div>
+      <p class="section-desc">为注册用户开通功能：勾选需开通的功能后点击「保存」生效。未开通任何功能的用户登录后将显示「陌生人，无访问权限」。</p>
+
+      <!-- 添加用户 -->
+      <div class="perm-add">
+        <input
+          v-model.trim="newEmail"
+          class="perm-email-input"
+          type="email"
+          placeholder="输入用户邮箱，如 user@example.com"
+          @keyup.enter="addPermission"
+        />
+        <div class="perm-features">
+          <label v-for="f in permFeatures" :key="f.key" class="perm-feature">
+            <input type="checkbox" :value="f.key" v-model="newFeatures" /> {{ f.label }}
+          </label>
+        </div>
+        <button class="btn-login" :disabled="permSaving || !newEmail" @click="addPermission">添加并保存</button>
+      </div>
+
+      <div v-if="permMsg" class="perm-msg" :class="permMsgType">{{ permMsg }}</div>
+
+      <!-- 用户权限列表 -->
+      <table class="data-table perm-table" v-if="permUsers.length > 0">
+        <thead>
+          <tr>
+            <th class="col-perm-email">用户邮箱</th>
+            <th class="col-perm-features">开通功能</th>
+            <th class="col-perm-admin">管理员</th>
+            <th class="col-perm-granted">开通人</th>
+            <th class="col-perm-action">操作</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="row in permUsers" :key="row.user_email">
+            <td class="col-perm-email"><code>{{ row.user_email }}</code></td>
+            <td class="col-perm-features">
+              <span v-if="row._isAdmin" class="perm-all">全部功能（管理员）</span>
+              <template v-else>
+                <label v-for="f in permFeatures" :key="f.key" class="perm-feature">
+                  <input type="checkbox" :value="f.key" v-model="row._features" /> {{ f.label }}
+                </label>
+              </template>
+            </td>
+            <td class="col-perm-admin">
+              <input type="checkbox" v-model="row._isAdmin" :disabled="row.user_email === adminEmail" />
+            </td>
+            <td class="col-perm-granted">{{ row.granted_by || '—' }}</td>
+            <td class="col-perm-action">
+              <button class="btn-download" :disabled="row._saving" @click="saveRow(row)">保存</button>
+              <button class="btn-remove" :disabled="row._saving || row.user_email === adminEmail" @click="removeRow(row)">删除</button>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+      <p class="section-desc" v-else>暂无用户权限记录。</p>
+    </div>
+
     <!-- 更新简报 -->
     <div class="card" v-if="etlBriefReady">
       <div class="card-title">更新简报</div>
@@ -956,9 +1016,12 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
-import { useAuth } from '../../composables/useAuth'
+import { useAuth, FEATURES, ADMIN_EMAIL } from '../../composables/useAuth'
+import { confirm } from '../../composables/useToast'
 
-const { isLoggedIn, isOwner, showLogin } = useAuth()
+const { isLoggedIn, isOwner, showLogin, savePermissions, deletePermissions } = useAuth()
+const permFeatures = FEATURES
+const adminEmail = ADMIN_EMAIL
 
 const updateTime = ref('')
 const tableData = ref({})
@@ -973,6 +1036,16 @@ const userAnalyticsReady = ref(false)
 const activeNow = ref(0)
 const activeToday = ref(0)
 const visitorList = ref([])
+
+// 用户权限管理（user_permissions）
+const permUsers = ref([])
+const permLoading = ref(false)
+const permSaving = ref(false)
+const newEmail = ref('')
+const newFeatures = ref([])
+const permMsg = ref('')
+const permMsgType = ref('')
+function clearPermMsg() { permMsg.value = '' }
 
 // 用户组合明细弹窗（get_user_portfolios_by_email）
 const portfolioModal = ref({
@@ -1327,10 +1400,101 @@ async function loadUserAnalytics() {
   }
 }
 
+// ========== 用户权限管理 ==========
+async function loadPermissionsList() {
+  if (!isOwner.value) return
+  permLoading.value = true
+  try {
+    const { supabase } = await import('../../api/supabase.js')
+    if (!supabase) { permUsers.value = []; return }
+    const { data, error } = await supabase
+      .from('user_permissions')
+      .select('user_email, is_admin, enabled_features, granted_by, updated_at')
+      .order('updated_at', { ascending: false })
+    if (error) {
+      console.error('[perm] load error', error)
+      permUsers.value = []
+      return
+    }
+    permUsers.value = (data || []).map(r => ({
+      user_email: r.user_email,
+      _isAdmin: !!r.is_admin,
+      _features: Array.isArray(r.enabled_features) ? r.enabled_features.filter(f => f !== 'all') : [],
+      granted_by: r.granted_by,
+      updated_at: r.updated_at,
+      _saving: false,
+    }))
+  } catch (e) {
+    console.error('[perm] load error', e)
+    permUsers.value = []
+  } finally {
+    permLoading.value = false
+  }
+}
+
+async function addPermission() {
+  const email = (newEmail.value || '').trim().toLowerCase()
+  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    permMsg.value = '请输入有效的邮箱地址'
+    permMsgType.value = 'perm-msg--error'
+    return
+  }
+  permSaving.value = true
+  permMsg.value = ''
+  try {
+    await savePermissions(email, { is_admin: false, enabled_features: [...newFeatures.value] })
+    newEmail.value = ''
+    newFeatures.value = []
+    await loadPermissionsList()
+    permMsg.value = `已为 ${email} 保存权限`
+    permMsgType.value = 'perm-msg--ok'
+  } catch (e) {
+    permMsg.value = '保存失败：' + (e?.message || '未知错误')
+    permMsgType.value = 'perm-msg--error'
+  } finally {
+    permSaving.value = false
+  }
+}
+
+async function saveRow(row) {
+  row._saving = true
+  permMsg.value = ''
+  try {
+    await savePermissions(row.user_email, { is_admin: row._isAdmin, enabled_features: [...row._features] })
+    await loadPermissionsList()
+    permMsg.value = `已更新 ${row.user_email} 的权限`
+    permMsgType.value = 'perm-msg--ok'
+  } catch (e) {
+    permMsg.value = '保存失败：' + (e?.message || '未知错误')
+    permMsgType.value = 'perm-msg--error'
+  } finally {
+    row._saving = false
+  }
+}
+
+async function removeRow(row) {
+  const ok = await confirm('确定删除？', `将删除 ${row.user_email} 的权限记录，该用户登录后将变为「陌生人，无访问权限」。`)
+  if (!ok) return
+  row._saving = true
+  permMsg.value = ''
+  try {
+    await deletePermissions(row.user_email)
+    await loadPermissionsList()
+    permMsg.value = `已删除 ${row.user_email} 的权限`
+    permMsgType.value = 'perm-msg--ok'
+  } catch (e) {
+    permMsg.value = '删除失败：' + (e?.message || '未知错误')
+    permMsgType.value = 'perm-msg--error'
+  } finally {
+    row._saving = false
+  }
+}
+
 onMounted(() => {
   loadIndex()
   loadEtlBrief()
   loadUserAnalytics()
+  loadPermissionsList()
 })
 </script>
 
@@ -1716,4 +1880,43 @@ onMounted(() => {
 .flow-node-aux { border-color: #5694ca; }
 .flow-arrow { font-size: 24px; color: #1d70b8; font-weight: 700; }
 .flow-arrow-up { font-size: 28px; }
+
+/* ========== 用户权限管理 ========== */
+.perm-add {
+  display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-md);
+  padding: var(--space-md); border: 1px solid var(--border); background: #f8f8f8;
+  margin-bottom: var(--space-md);
+}
+.perm-email-input {
+  flex: 1; min-width: 240px; padding: var(--space-sm);
+  border: 1px solid var(--border); font-size: 16px; box-sizing: border-box;
+}
+.perm-email-input:focus { outline: 2px solid #1d70b8; outline-offset: -1px; }
+.perm-features { display: flex; flex-wrap: wrap; gap: var(--space-md); }
+.perm-feature {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 15px; font-weight: 700; color: var(--text-primary); cursor: pointer;
+}
+.perm-feature input { width: 16px; height: 16px; accent-color: #1d70b8; }
+.perm-msg {
+  font-size: 14px; font-weight: 700; padding: var(--space-sm) var(--space-md);
+  margin-bottom: var(--space-md); border-left: 4px solid transparent;
+}
+.perm-msg--ok { color: #00703c; background: #f0faf3; border-left-color: #00703c; }
+.perm-msg--error { color: #d4351c; background: #fdf3f2; border-left-color: #d4351c; }
+
+.perm-table .col-perm-email { min-width: 200px; }
+.perm-table .col-perm-features { min-width: 280px; }
+.perm-table .col-perm-admin { width: 70px; text-align: center; }
+.perm-table .col-perm-granted { width: 140px; }
+.perm-table .col-perm-action { width: 140px; white-space: nowrap; }
+.perm-table .perm-feature { margin-right: var(--space-sm); }
+.perm-all { font-size: 14px; font-weight: 700; color: #1d70b8; }
+.perm-table .col-perm-admin input { width: 16px; height: 16px; accent-color: #1d70b8; }
+.btn-remove {
+  background: #ffffff; color: #d4351c; border: 1px solid #d4351c;
+  padding: 4px 10px; font-size: 14px; font-weight: 700; cursor: pointer; margin-left: 6px;
+}
+.btn-remove:hover:not(:disabled) { background: #d4351c; color: #ffffff; }
+.btn-remove:disabled { opacity: 0.5; cursor: not-allowed; }
 </style>
