@@ -1,19 +1,38 @@
 <template>
   <div class="page-placeholder">
     <!-- 页面标题 -->
-    <h1 class="page-title">数据中心</h1>
+    <h1 class="page-title">管理中心</h1>
 
     <!-- 无访问权限提示（仅授权账户可见） -->
     <div class="no-access" v-if="!isOwner">
       <p class="no-access__title">无访问权限</p>
-      <p class="no-access__desc">数据中心仅对授权账户开放，如需访问请使用授权账户登录。</p>
+      <p class="no-access__desc">管理中心仅对授权账户开放，如需访问请使用授权账户登录。</p>
     </div>
 
     <template v-else>
     <p class="page-desc">ALLFUND.CN 数据库全部表一览。选择需要下载的数据表，点击下载 Excel 文件。数据每日 21:30（北京时间）自动更新。</p>
 
+    <!-- 管理中心 header + tab 导航 -->
+    <div class="mgmt-header">
+      <h1 class="mgmt-title">管理中心</h1>
+      <div class="mgmt-tabs">
+        <button
+          type="button"
+          class="mgmt-tab"
+          :class="{ 'mgmt-tab--active': activeTab === 'download' }"
+          @click="activeTab = 'download'"
+        >数据下载</button>
+        <button
+          type="button"
+          class="mgmt-tab"
+          :class="{ 'mgmt-tab--active': activeTab === 'users' }"
+          @click="activeTab = 'users'"
+        >用户管理</button>
+      </div>
+    </div>
+
     <!-- 项目简介 -->
-    <div class="card">
+    <div class="card" v-show="activeTab==='download'">
       <div class="card-title">项目简介 · ALLFUND.CN</div>
       <p class="section-desc">本页面与整个 allfund 项目均托管于 GitHub，可依据本文档从零重新搭建网站与小程序。以下为项目全貌，供二次开发与部署参考。</p>
       <div class="intro-grid">
@@ -75,7 +94,7 @@
     </div>
 
     <!-- 用户权限管理（仅管理员可见） -->
-    <div class="card" v-if="isOwner">
+    <div class="card" v-if="isOwner" v-show="activeTab==='users'">
       <div class="card-title">用户权限管理</div>
       <p class="section-desc">为注册用户开通功能：勾选需开通的功能后点击「保存」生效。未开通任何功能的用户登录后将显示「陌生人，无访问权限」。</p>
 
@@ -92,6 +111,10 @@
           <label v-for="f in permFeatures" :key="f.key" class="perm-feature">
             <input type="checkbox" :value="f.key" v-model="newFeatures" /> {{ f.label }}
           </label>
+        </div>
+        <div class="perm-quick">
+          <button type="button" class="btn-all" @click="newFeatures = FEATURES.map(f => f.key)">全部</button>
+          <button type="button" class="btn-none" @click="newFeatures = []">全否</button>
         </div>
         <button class="btn-login" :disabled="permSaving || !newEmail" @click="addPermission">添加并保存</button>
       </div>
@@ -115,6 +138,10 @@
             <td class="col-perm-features">
               <span v-if="row._isAdmin" class="perm-all">全部功能（管理员）</span>
               <template v-else>
+                <div class="perm-quick">
+                  <button type="button" class="btn-all" @click="row._features = FEATURES.map(f => f.key)">全部</button>
+                  <button type="button" class="btn-none" @click="row._features = []">全否</button>
+                </div>
                 <label v-for="f in permFeatures" :key="f.key" class="perm-feature">
                   <input type="checkbox" :value="f.key" v-model="row._features" /> {{ f.label }}
                 </label>
@@ -134,8 +161,56 @@
       <p class="section-desc" v-else>暂无用户权限记录。</p>
     </div>
 
+    <!-- 权限申请（陌生人 → 管理员审批） -->
+    <div class="card" v-show="activeTab==='users'">
+      <div class="card-title">权限申请</div>
+      <p class="section-desc">陌生人提交权限申请后在此审批。通过 将按所选功能写入用户权限；驳回 仅标记状态。</p>
+
+      <div v-if="permReqLoading" class="section-desc">加载中…</div>
+      <table class="data-table perm-req-table" v-else-if="requests.length > 0">
+        <thead>
+          <tr>
+            <th class="col-req-email">用户邮箱</th>
+            <th class="col-req-name">真实姓名</th>
+            <th class="col-req-phone">手机号</th>
+            <th class="col-req-extra">补充信息</th>
+            <th class="col-req-features">开通功能</th>
+            <th class="col-req-status">状态</th>
+            <th class="col-req-action">操作</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="row in requests" :key="row.user_email">
+            <td class="col-req-email"><code>{{ row.user_email }}</code></td>
+            <td class="col-req-name">{{ row.real_name || '—' }}</td>
+            <td class="col-req-phone">{{ row.phone || '—' }}</td>
+            <td class="col-req-extra">{{ row.extra || '—' }}</td>
+            <td class="col-req-features">
+              <label v-for="f in FEATURES" :key="f.key" class="perm-feature">
+                <input type="checkbox" :value="f.key" v-model="row._features" :disabled="row._saving" /> {{ f.label }}
+              </label>
+            </td>
+            <td class="col-req-status">
+              <span
+                class="status-badge"
+                :class="row.status === 'pending' ? 'status-pending' : (row.status === 'approved' ? 'status-approved' : 'status-rejected')"
+              >{{ row.status === 'pending' ? '待审批' : (row.status === 'approved' ? '已通过' : '已驳回') }}</span>
+            </td>
+            <td class="col-req-action">
+              <template v-if="row.status === 'pending'">
+                <button class="btn-download" :disabled="row._saving" @click="approveRequest(row, row._features)">通过</button>
+                <button class="btn-remove" :disabled="row._saving" @click="rejectRequest(row)">驳回</button>
+              </template>
+              <span v-else class="text-muted">—</span>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+      <p class="section-desc" v-else>暂无权限申请。</p>
+    </div>
+
     <!-- 更新简报 -->
-    <div class="card" v-if="etlBriefReady">
+    <div class="card" v-if="etlBriefReady" v-show="activeTab==='download'">
       <div class="card-title">更新简报</div>
       <div class="brief-summary" v-if="etlLogs.length > 0">
         <span class="ok">完成 {{ etlLogs.filter(l => l.status === 'success').length }} 项</span>
@@ -188,7 +263,7 @@
     </div>
 
     <!-- 用户分析 -->
-    <div class="card" v-if="userAnalyticsReady">
+    <div class="card" v-if="userAnalyticsReady" v-show="activeTab==='users'">
       <div class="card-title">用户分析</div>
       <div class="analytics-summary">
         <div class="stat">
@@ -295,7 +370,7 @@
     </div>
 
     <!-- 数据库表列表 -->
-    <div class="card">
+    <div class="card" v-show="activeTab==='download'">
       <div class="card-title">数据库表 ({{ visibleTables.length }} 张)</div>
       <table class="data-table">
         <thead>
@@ -338,7 +413,7 @@
     </div>
 
     <!-- 评分方法论 -->
-    <div class="card">
+    <div class="card" v-show="activeTab==='download'">
       <div class="card-title">评分方法论 — V7 靠谱指数算法</div>
       <p class="section-desc">ALLFUND.CN 的"靠谱指数"（k_all）是对全市场基金进行量化评分的核心指标。以下详细说明从原始数据到最终评分的完整计算过程。</p>
 
@@ -528,7 +603,7 @@
     </div>
 
     <!-- API 接口文档 -->
-    <div class="card">
+    <div class="card" v-show="activeTab==='download'">
       <div class="card-title">数据接口文档</div>
       <p class="section-desc">以下是 ALLFUND.CN 使用的所有外部数据接口，所有接口均来源于公开数据平台。</p>
 
@@ -1018,10 +1093,17 @@
 import { ref, computed, onMounted } from 'vue'
 import { useAuth, FEATURES, ADMIN_EMAIL } from '../../composables/useAuth'
 import { confirm } from '../../composables/useToast'
+import { usePermissionRequests } from '../../composables/usePermissionRequests'
 
 const { isLoggedIn, isOwner, showLogin, savePermissions, deletePermissions } = useAuth()
 const permFeatures = FEATURES
 const adminEmail = ADMIN_EMAIL
+
+// 管理中心 tab：'download' 数据下载 / 'users' 用户管理
+const activeTab = ref('download')
+
+// 权限申请（陌生人 → 管理员审批）
+const { requests, loading: permReqLoading, loadRequests, approveRequest, rejectRequest } = usePermissionRequests()
 
 const updateTime = ref('')
 const tableData = ref({})
@@ -1495,6 +1577,7 @@ onMounted(() => {
   loadEtlBrief()
   loadUserAnalytics()
   loadPermissionsList()
+  loadRequests()
 })
 </script>
 
@@ -1919,4 +2002,54 @@ onMounted(() => {
 }
 .btn-remove:hover:not(:disabled) { background: #d4351c; color: #ffffff; }
 .btn-remove:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* ===== 管理中心 header + tabs ===== */
+.mgmt-header { margin: 0 0 var(--space-lg); }
+.mgmt-title {
+  font-size: 28px; font-weight: 700; color: #1d70b8;
+  margin: 0 0 var(--space-md);
+}
+.mgmt-tabs {
+  display: flex; gap: 0;
+  border-bottom: 2px solid var(--border);
+}
+.mgmt-tab {
+  appearance: none; background: none; border: none;
+  padding: 10px 20px; font-size: 16px; font-weight: 700;
+  color: var(--text-secondary); cursor: pointer;
+  border-bottom: 3px solid transparent; margin-bottom: -2px;
+}
+.mgmt-tab:hover { color: #1d70b8; }
+.mgmt-tab--active {
+  color: #1d70b8; font-weight: 700;
+  border-bottom-color: #1d70b8;
+}
+
+/* 全部 / 全否 快捷按钮 */
+.perm-quick {
+  display: flex; gap: var(--space-sm); margin-bottom: var(--space-sm);
+  flex-wrap: wrap;
+}
+.btn-all, .btn-none {
+  padding: 4px 14px; font-size: 13px; font-weight: 700; cursor: pointer;
+  border: 1px solid #1d70b8; background: #fff; color: #1d70b8;
+  white-space: nowrap;
+}
+.btn-all:hover:not(:disabled), .btn-none:hover:not(:disabled) { background: #eaf2fb; }
+.btn-all:disabled, .btn-none:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* 权限申请表 */
+.perm-req-table .col-req-email { min-width: 200px; }
+.perm-req-table .col-req-name { width: 100px; }
+.perm-req-table .col-req-phone { width: 120px; }
+.perm-req-table .col-req-extra { min-width: 160px; }
+.perm-req-table .col-req-features { min-width: 280px; }
+.perm-req-table .col-req-status { width: 90px; text-align: center; }
+.perm-req-table .col-req-action { width: 140px; white-space: nowrap; }
+.perm-req-table .perm-feature { margin-right: var(--space-sm); }
+
+/* 权限申请状态徽章 */
+.status-pending { background: #f3f2f1; color: #6b7280; }
+.status-approved { background: #00703c; color: #fff; }
+.status-rejected { background: #d4351c; color: #fff; }
 </style>

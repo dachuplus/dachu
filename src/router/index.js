@@ -114,9 +114,10 @@ const routes = [
     meta: {
       tab: 'tools',
       feature: 'data-center',
-      title: '数据中心',
-      description: '基金数据中心：基金基础信息、靠谱指数评分、宏观历史数据与投顾产品的字段说明与更新机制。',
-      keywords: '基金数据,数据中心,基金基本信息,宏观数据'
+      ownerOnly: true,
+      title: '管理中心',
+      description: '管理中心：提供数据中心的数据下载与用户管理（含权限申请审批）等功能。',
+      keywords: '管理中心,基金数据,数据中心,基金基本信息,宏观数据'
     }
   },
   {

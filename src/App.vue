@@ -7,9 +7,12 @@
     <div v-else-if="!authLoading && isLoggedIn && isStranger" class="stranger-screen">
       <div class="stranger-card">
         <div class="stranger-brand">ALLFUND.CN</div>
-        <div class="stranger-title">陌生人，无访问权限</div>
-        <p class="stranger-desc">您当前账户暂无访问权限。如需使用 ALLFUND.CN，请联系管理员为您开通相应功能。</p>
-        <button class="stranger-logout" @click="handleLogout">退出登录</button>
+        <div class="stranger-title">暂无访问权限</div>
+        <p class="stranger-desc">抱歉，您的账户尚未开通 ALLFUND.CN 的访问权限。如需使用，请点击「申请权限」填写信息，管理员审核通过后将为您开通对应功能。</p>
+        <div class="stranger-actions">
+          <button class="stranger-request" @click="showRequestDialog = true">申请权限</button>
+          <button class="stranger-logout" @click="handleLogout">退出登录</button>
+        </div>
       </div>
     </div>
 
@@ -73,7 +76,7 @@
           :class="{ 'quick-nav__item--active': route.path === '/data-center' }"
           title="数据中心：查看并下载全部数据表"
         >
-          数据下载
+          管理中心
         </router-link>
       </div>
     </nav>
@@ -97,6 +100,7 @@
     <!-- 全局通知与对话框 -->
     <Toast />
     <ConfirmDialog />
+    <PermissionRequestDialog :show="showRequestDialog" @close="showRequestDialog = false" @submitted="onRequestSubmitted" />
     </div>
   </div>
 </template>
@@ -108,7 +112,9 @@ import MobileTabBar from './components/MobileTabBar.vue'
 import Toast from './components/Toast.vue'
 import ConfirmDialog from './components/ConfirmDialog.vue'
 import LoginDialog from './components/LoginDialog.vue'
+import PermissionRequestDialog from './components/PermissionRequestDialog.vue'
 import { useAuth, FEATURES } from './composables/useAuth'
+import { toast } from './composables/useToast.js'
 import { supabase } from './api/supabase'
 
 const route   = useRoute()
@@ -180,6 +186,13 @@ function onLoggedIn() {
   hideLogin()
 }
 
+/* ---- 权限申请弹窗 ---- */
+const showRequestDialog = ref(false)
+function onRequestSubmitted() {
+  toast('权限申请已提交，请等待管理员审核', 'success')
+  showRequestDialog.value = false
+}
+
 /* ---- 全局金刚区 ---- */
 const quickLinks = [
   { path: '/signal',           label: '指标信号', feature: 'signal' },
@@ -193,6 +206,7 @@ const visibleQuickLinks = computed(() =>
 
 /* ---- 当前路由的功能权限拦截（未授权功能显示「无访问权限」） ---- */
 const routeAllowed = computed(() => {
+  if (route.meta?.ownerOnly && !isOwner.value) return false
   if (isAdmin.value) return true
   const feat = route.meta?.feature
   if (!feat) return true
@@ -431,6 +445,15 @@ const showBack  = computed(() => {
   padding: 10px 28px; font-size: 16px; font-weight: 700; cursor: pointer;
 }
 .stranger-logout:hover { background: #003078; }
+
+.stranger-actions {
+  display: flex; gap: var(--space-sm); justify-content: center; flex-wrap: wrap;
+}
+.stranger-request {
+  background: #ffffff; color: #1d70b8; border: 1px solid #1d70b8;
+  padding: 10px 28px; font-size: 16px; font-weight: 700; cursor: pointer;
+}
+.stranger-request:hover { background: #f3f3f3; }
 
 .no-feature-access {
   max-width: 600px; margin: 60px auto; padding: 40px;
