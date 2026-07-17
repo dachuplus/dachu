@@ -68,14 +68,16 @@
                 <span class="date-summary" :class="getDayStatusClass(dayGroup)">
                   {{ getDaySummary(dayGroup) }}
                 </span>
+                <span v-if="!dayGroup || dayGroup.length === 0" class="date-missing-hint">· {{ getMissingReasonShort(dateKey) }}</span>
                 <span class="date-toggle">{{ dayExpanded[dateKey] ? '收起 ▲' : '展开 ▼' }}</span>
               </td>
             </tr>
             <!-- 展开的步骤行 -->
             <template v-if="dayExpanded[dateKey]">
               <tr v-if="dayGroup.length === 0" class="etl-empty-row">
-                <td class="col-etl-step" :colspan="6">
-                  暂无更新记录 — 当日 ETL 未执行或执行失败（如为当日 21:30 前的时段属正常未到执行时间）
+                <td :colspan="7">
+                  <div class="missing-title">未更新成功</div>
+                  <div class="missing-reason"><span class="reason-label">未更新成功原因：</span>{{ getMissingReason(dateKey) }}</div>
                 </td>
               </tr>
               <tr v-for="(log, i) in dayGroup" :key="dateKey + '-' + i">
@@ -1354,7 +1356,7 @@ async function openUserDetail(row) {
       const freq = {}
       for (const l of logs) freq[l.region] = (freq[l.region] || 0) + 1
       const top = Object.entries(freq).sort((a, b) => b[1] - a[1])[0]
-      userDetailModal.value.region = top ? top[0] : '—'
+      userDetailModal.value.region = top ? (normalizeRegion(top[0]) || '—') : '—'
     }
     // 组合信息（仅自建组合可见；AI 组合存于客户端不可见）
     const { data, error } = await supabase.rpc('get_user_portfolios_by_email', { p_email: row.user_email })
@@ -1663,17 +1665,75 @@ function getDayStatusClass(dayGroup) {
   return 'day-ok'
 }
 
+// 未更新成功原因说明（针对「未运行」——当日无任何 etl_run_log 记录）
+// 依据日期与当前时刻推断最可能的原因，帮助管理员快速定位
+function getMissingReason(dateKey) {
+  try {
+    const today = dateKeyOf(new Date())
+    if (dateKey === today) {
+      const now = new Date()
+      const passedSchedule = now.getHours() > 21 || (now.getHours() === 21 && now.getMinutes() >= 30)
+      if (!passedSchedule) {
+        return '尚未到当日 21:30 定时执行时间，属正常等待（每日北京时间 21:30 由 GitHub Actions 自动运行流水线）。'
+      }
+      return '已过当日 21:30 执行时间但无任何运行记录：可能是 GitHub Actions 定时任务未触发，或流水线在启动阶段即失败（尚未写入 etl_run_log）。建议到 GitHub Actions 查看 workflow 运行状态。'
+    }
+    return '当日 ETL 未执行或在启动阶段即失败，未产生任何运行记录。常见原因：GitHub Actions 定时任务未触发（cron 被延迟/跳过）、仓库 Actions 被禁用、或运行环境初始化失败。可到 GitHub Actions 历史记录核实。'
+  } catch {
+    return '当日无任何运行记录，ETL 可能未触发或在启动阶段即失败。'
+  }
+}
+
+// 未更新成功原因的简短版（用于折叠态日期行的内联提示）
+function getMissingReasonShort(dateKey) {
+  try {
+    const today = dateKeyOf(new Date())
+    if (dateKey === today) {
+      const now = new Date()
+      const passedSchedule = now.getHours() > 21 || (now.getHours() === 21 && now.getMinutes() >= 30)
+      return passedSchedule ? '定时任务未触发或启动即失败' : '未到 21:30 执行时间'
+    }
+    return '定时任务未触发或启动即失败'
+  } catch { return '未产生运行记录' }
+}
+
+// 地区字符串规范化：去相邻重复词（ipwho.is 常返回 "Hong Kong Hong Kong, Hong Kong"），
+// 并按国家规范表述港澳台（中国香港 / 中国台湾 / 中国澳门）
+function normalizeRegion(s) {
+  if (!s) return ''
+  let t = String(s).trim()
+  if (!t) return ''
+  // 港澳台规范表述（先做映射，再去重）
+  t = t.replace(/Hong\s*Kong/gi, '中国香港')
+       .replace(/Macao|Macau/gi, '中国澳门')
+       .replace(/Taiwan/gi, '中国台湾')
+  // 拆分为 词/逗号 序列，去掉相邻重复
+  const tokens = t.split(/(\s*,\s*|\s+)/).map(x => x.trim()).filter(x => x && x !== ',')
+  const out = []
+  for (const tk of tokens) { if (out[out.length - 1] !== tk) out.push(tk) }
+  return out.join(' ').trim()
+}
+
 // 根据 IP 地址补全地区（双保险：先 ipwho.is 国际库，失败则用国内库兜底）
+// 采用小并发（4 路）避免免费接口突发限流导致整批解析失败
 async function enrichRegions(list) {
   const ips = [...new Set(list.filter(v => v.ip && v.ip !== '—' && (v.region === '—' || !v.region)).map(v => v.ip))]
-  await Promise.all(ips.map(async (ip) => {
+  if (ips.length === 0) return
+  const resolveOne = async (ip) => {
     // 第一道防线：ipwho.is（国际，覆盖全球）
     let text = await resolveIP_1(ip)
-    // 第二道防线：国内库（ip.useragentinfo.com / 太平洋）兜底
+    // 第二道防线：国内库（太平洋电脑网）兜底
     if (!text) text = await resolveIP_2(ip)
     if (!text) return
-    list.forEach(v => { if (v.ip === ip && (v.region === '—' || !v.region)) v.region = text })
-  }))
+    const region = normalizeRegion(text)
+    if (!region) return
+    list.forEach(v => { if (v.ip === ip && (v.region === '—' || !v.region)) v.region = region })
+  }
+  // 并发池：每次最多 4 个请求
+  const POOL = 4
+  for (let i = 0; i < ips.length; i += POOL) {
+    await Promise.all(ips.slice(i, i + POOL).map(resolveOne))
+  }
 }
 
 // 第一道：ipwho.is（国际源）
@@ -1733,8 +1793,11 @@ async function loadUserAnalytics() {
     const map = new Map()
     for (const r of data) {
       const k = keyOf(r)
-      if (!map.has(k)) map.set(k, { email: r.email, ip: r.ip_address, region: r.region, paths: new Set(), min: r.visit_time, max: r.visit_time })
+      if (!map.has(k)) map.set(k, { email: r.email, ip: r.ip_address || null, region: r.region || '', paths: new Set(), min: r.visit_time, max: r.visit_time })
       const u = map.get(k)
+      // 同一用户的 IP / 地区可能分散在多条日志（不同写入路径，部分行为空），取最完整的一条补全
+      if (!u.ip && r.ip_address) u.ip = r.ip_address
+      if (!u.region && r.region) u.region = r.region
       if (r.page_path) u.paths.add(r.page_path)
       if (r.visit_time < u.min) u.min = r.visit_time
       if (r.visit_time > u.max) u.max = r.visit_time
@@ -1743,6 +1806,7 @@ async function loadUserAnalytics() {
       name: (u.email && u.email !== 'anonymous') ? u.email : '匿名访客',
       email: u.email,
       ip: u.ip || '—',
+      region: normalizeRegion(u.region) || '',
       firstVisit: u.min,
       durationMin: Math.max(0, Math.round((new Date(u.max) - new Date(u.min)) / 60000)),
       paths: [...u.paths]
@@ -2076,7 +2140,13 @@ watch(isOwner, (val) => {
 .day-missing .date-summary { background: #b1b4b6; color: #0b0c0c; }
 .day-missing .date-label { color: #505a5f; }
 .date-toggle { float: right; font-size: 12px; color: #505a5f; }
+.date-missing-hint { font-size: 12px; color: #b53c00; margin-left: 8px; }
 .etl-empty-row td { color: var(--text-secondary); font-size: 13px; padding: 10px 12px; }
+.etl-empty-row .missing-title { font-weight: 700; color: #b53c00; font-size: 14px; }
+.etl-empty-row .missing-reason {
+  font-size: 12px; color: #b53c00; line-height: 1.5; margin-top: 6px;
+  background: #fef7f0; border-left: 3px solid #b53c00; padding: 4px 8px;
+}
 
 /* ETL 简报汇总 */
 .brief-summary { font-size: 14px; color: var(--text-secondary); margin: 0 0 var(--space-md); }
