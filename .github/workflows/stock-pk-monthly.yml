@@ -1,0 +1,86 @@
+name: 股票PK月度重选
+
+on:
+  # 定时触发：北京时间每月 1 日 22:00（UTC 14:00）
+  schedule:
+    - cron: '0 14 1 * *'
+  # 手动触发
+  workflow_dispatch:
+
+env:
+  PYTHONUNBUFFERED: '1'
+
+jobs:
+  stock-pk-monthly:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      # 数据读写 / ETL 日志（log_etl_step.py）依赖 PAT，必须通过 Secret 配置
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_PAT: ${{ secrets.SUPABASE_PAT }}
+      # 可选：真实 LLM 选股所需的 API Key。
+      # 若未配置 DEEPSEEK_API_KEY / OPENAI_API_KEY 等 Secret，run_stock_pk_monthly.py
+      # 会自动安全回退到「规则兜底选股」，属预期行为，不会报错退出。
+      DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 安装 Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: 验证关键环境变量
+        run: |
+          if [ -z "$SUPABASE_PAT" ]; then
+            echo "ERROR: SUPABASE_PAT 未设置！请在 GitHub Secrets 中配置（用于写库与 etl_run_log）。"
+            exit 1
+          fi
+          echo "SUPABASE_URL: $SUPABASE_URL"
+          echo "SUPABASE_PAT 已配置: ${#SUPABASE_PAT} 字符"
+          if [ -z "$DEEPSEEK_API_KEY" ] && [ -z "$OPENAI_API_KEY" ]; then
+            echo "[INFO] 未配置 LLM API Key，将走规则兜底选股（预期行为）。"
+          else
+            echo "[INFO] 已检测到 LLM API Key，将尝试真实 LLM 选股。"
+          fi
+
+      - name: 步骤1 — 抓取股票评分（写入 stock_scores staging/test + etl_run_log）
+        run: |
+          echo "============================================"
+          echo "  步骤1: 抓取股票评分 fetch_stock_scores"
+          echo "  开始时间: $(date '+%Y-%m-%d %H:%M:%S')"
+          echo "============================================"
+          pip install requests
+          python scripts/fetch_stock_scores.py
+          echo "股票评分抓取完成: $(date '+%Y-%m-%d %H:%M:%S')"
+
+      - name: 步骤2 — 校验并切到生产表（stock_scores / stock_pk_models / stock_pk_picks）
+        run: |
+          echo "============================================"
+          echo "  步骤2: promote_stock_scores"
+          echo "  开始时间: $(date '+%Y-%m-%d %H:%M:%S')"
+          echo "============================================"
+          pip install requests
+          python scripts/promote_stock_scores.py
+          echo "切换完成: $(date '+%Y-%m-%d %H:%M:%S')"
+
+      - name: 步骤3 — 月度重选（真实LLM选股或规则兜底 + 写 etl_run_log）
+        run: |
+          echo "============================================"
+          echo "  步骤3: run_stock_pk_monthly（编排月度重选）"
+          echo "  开始时间: $(date '+%Y-%m-%d %H:%M:%S')"
+          echo "============================================"
+          pip install requests
+          # 内部已处理「有 LLM key 则真实选股，否则 seed 规则兜底」+ 写 etl_run_log。
+          # 缺失 LLM Key 时安全回退规则版，不应报错退出。
+          python scripts/run_stock_pk_monthly.py
+          echo "月度重选完成: $(date '+%Y-%m-%d %H:%M:%S')"
+
+      - name: 失败通知
+        if: ${{ failure() || cancelled() }}
+        run: |
+          echo "股票 PK 月度重选失败！请检查 GitHub Actions 日志。"
+          echo "时间: $(date '+%Y-%m-%d %H:%M:%S')"

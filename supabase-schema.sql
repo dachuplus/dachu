@@ -202,3 +202,115 @@ CREATE INDEX IF NOT EXISTS idx_user_ai_models_user_id ON public.user_ai_models(u
 
 -- 当前未启用 RLS：匿名(anon)用户可直接对自己创建的模型做增删改查（前端用 user_id 隔离）
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.user_ai_models TO anon;
+
+-- ============================================================
+-- 9. stock_scores - 股票靠谱分（A股：沪深300+中证500+中证1000 成分股，约1800只）
+--    与基金 AI 大 PK 的 fund_scores / ai_pk_* 完全隔离，独立建表。
+-- ============================================================
+CREATE TABLE IF NOT EXISTS public.stock_scores (
+  code text PRIMARY KEY,            -- 如 '600519.SH'
+  name text NOT NULL,
+  industry text,                    -- 二级行业（东财行业分类名称）
+  industry_code text,
+  exchange text,                    -- SH/SZ/BJ
+  secid text,                       -- 东财 secid 如 '1.600519'
+  close numeric,
+  pe_ttm numeric,
+  pb numeric,
+  mktcap numeric,                   -- 总市值(亿元)
+  circ_mktcap numeric,              -- 流通市值(亿元)
+  turnover_rate numeric,            -- 换手率(%)
+  return_1m numeric,                -- 区间收益(%) 近1月
+  return_3m numeric,                -- 近3月
+  return_6m numeric,                -- 近6月
+  return_1y numeric,                -- 近1年
+  return_3y numeric,                -- 近3年
+  daily_change numeric,             -- 当日涨跌幅(%)
+  max_drawdown numeric,             -- 近1年最大回撤(%)，负值
+  sharpe numeric,                   -- 近1年夏普
+  k_ret numeric,                    -- 收益分位(0-100)
+  k_drawdown numeric,               -- 回撤分位(0-100, 越大回撤越小)
+  k_sharpe numeric,                 -- 夏普分位(0-100)
+  k_all numeric,                    -- 0.5*k_ret+0.25*k_drawdown+0.25*k_sharpe
+  is_st boolean DEFAULT false,
+  is_delisted boolean DEFAULT false,
+  is_suspended boolean DEFAULT false,
+  list_date date,
+  updated_at timestamptz DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_stock_scores_code ON public.stock_scores(code);
+CREATE INDEX IF NOT EXISTS idx_stock_scores_industry ON public.stock_scores(industry);
+CREATE INDEX IF NOT EXISTS idx_stock_scores_k_all ON public.stock_scores(k_all DESC);
+
+ALTER TABLE public.stock_scores ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Allow anon read on stock_scores" ON public.stock_scores FOR SELECT TO anon USING (true);
+
+-- ============================================================
+-- 10. stock_scores_staging - 抓取流水线第1级临时表（绝不直写生产表）
+-- ============================================================
+CREATE TABLE IF NOT EXISTS public.stock_scores_staging (
+  LIKE public.stock_scores INCLUDING ALL
+);
+
+CREATE INDEX IF NOT EXISTS idx_stock_scores_staging_code ON public.stock_scores_staging(code);
+CREATE INDEX IF NOT EXISTS idx_stock_scores_staging_industry ON public.stock_scores_staging(industry);
+CREATE INDEX IF NOT EXISTS idx_stock_scores_staging_k_all ON public.stock_scores_staging(k_all DESC);
+
+ALTER TABLE public.stock_scores_staging ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Allow anon read on stock_scores_staging" ON public.stock_scores_staging FOR SELECT TO anon USING (true);
+
+-- ============================================================
+-- 11. stock_scores_test - 测试用镜像表
+-- ============================================================
+CREATE TABLE IF NOT EXISTS public.stock_scores_test (
+  LIKE public.stock_scores INCLUDING ALL
+);
+
+CREATE INDEX IF NOT EXISTS idx_stock_scores_test_code ON public.stock_scores_test(code);
+CREATE INDEX IF NOT EXISTS idx_stock_scores_test_industry ON public.stock_scores_test(industry);
+CREATE INDEX IF NOT EXISTS idx_stock_scores_test_k_all ON public.stock_scores_test(k_all DESC);
+
+ALTER TABLE public.stock_scores_test ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Allow anon read on stock_scores_test" ON public.stock_scores_test FOR SELECT TO anon USING (true);
+
+-- ============================================================
+-- 12. stock_pk_models - 股票组合 PK 模型元信息（镜像 ai_pk_models，新增 sort_order）
+-- ============================================================
+CREATE TABLE IF NOT EXISTS public.stock_pk_models (
+  id text PRIMARY KEY,
+  name text NOT NULL,
+  name_short text,
+  region text NOT NULL DEFAULT 'A股',
+  color text NOT NULL,
+  persona text,
+  category_logic text,
+  mode text NOT NULL DEFAULT 'rule',
+  api_provider text,
+  api_model text,
+  api_key_env text,
+  enabled boolean NOT NULL DEFAULT true,
+  sort_order int,
+  created_at timestamptz DEFAULT now()
+);
+
+ALTER TABLE public.stock_pk_models ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "stock_pk_models_public_read" ON public.stock_pk_models FOR SELECT TO anon USING (true);
+
+-- ============================================================
+-- 13. stock_pk_picks - 股票组合 PK 每期选股结果
+-- ============================================================
+CREATE TABLE IF NOT EXISTS public.stock_pk_picks (
+  id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  model_id text NOT NULL REFERENCES public.stock_pk_models(id),
+  period_month text NOT NULL,
+  picks jsonb NOT NULL,
+  mode text NOT NULL DEFAULT 'rule',
+  created_at timestamptz DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_stock_pk_picks_model_period
+  ON public.stock_pk_picks(model_id, period_month);
+
+ALTER TABLE public.stock_pk_picks ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "stock_pk_picks_public_read" ON public.stock_pk_picks FOR SELECT TO anon USING (true);

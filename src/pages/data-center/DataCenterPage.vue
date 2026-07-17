@@ -1403,6 +1403,11 @@ const tables = [
   { key: 'etf_returns', name: 'ETF 收益率表', desc: 'ETF 各周期收益率数据（代码/名称/近1周~成立以来/规模）', rows: 0 },
   { key: 'fund_category_indices', name: '基金分类指数表', desc: '各基金分类对应的指数行情（分类名/指数代码/点位/各周期收益）', rows: 0 },
   { key: 'fund_scores_staging', name: '评分暂存表（staging）', desc: 'fund_scores 的 staging 暂存表，每日抓取先写入并经严格校验后原子切换到生产，通常为临时状态', rows: 0 },
+  { key: 'stock_scores', name: '股票评分表（生产）', desc: '全市场股票多周期评分主表，由 fetch_stock_scores 抓取、promote_stock_scores 切到生产，股票 PK 选股数据基础', rows: 0 },
+  { key: 'stock_scores_staging', name: '股票评分暂存表', desc: 'stock_scores 的 staging 暂存表，抓取先写入此表校验后再切到生产', rows: 0 },
+  { key: 'stock_scores_test', name: '股票评分测试表', desc: 'stock_scores 的测试副本，结构与生产表一致', rows: 0 },
+  { key: 'stock_pk_models', name: '股票PK模型表', desc: '股票 PK 参赛模型信息（模型名/厂商/描述/状态）', rows: 0 },
+  { key: 'stock_pk_picks', name: '股票PK选股表', desc: '各模型每期选出的股票及权重（基于 stock_scores 真实数据）', rows: 0 },
 ]
 
 const visibleTables = computed(() => {
@@ -1477,6 +1482,10 @@ const ETL_STEP_INFO = {
   fetch_risk_indicators: { title: '特色风险指标', desc: '抓取恐惧贪婪指数、估值温度计等市场情绪指标' },
   fetch_and_import_funds: { title: '基金列表导入', desc: '抓取基金列表与分类并导入评分库' },
   export_fund_details: { title: '导出数据文件', desc: '将最新数据导出为 Excel 并发布到数据下载中心' },
+  fetch_stock_scores: { title: '股票评分抓取', desc: '抓取全市场股票多周期评分，写入 stock_scores 暂存/测试表' },
+  promote_stock_scores: { title: '股票评分切换', desc: '校验并原子切换到 stock_scores 生产表，刷新 stock_pk_models / stock_pk_picks' },
+  run_stock_pk_monthly: { title: '股票PK月度重选', desc: '每月自动重选股票 PK 组合（真实 LLM 选股或规则兜底）' },
+  stock_pk: { title: '股票PK选股', desc: '生成当期股票 PK 推荐组合' },
 }
 function stepInfo(name) {
   return ETL_STEP_INFO[name] || { title: name || '未知步骤', desc: 'ETL 数据处理步骤' }

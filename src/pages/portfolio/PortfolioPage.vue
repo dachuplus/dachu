@@ -366,6 +366,11 @@
       <TouguPage />
     </div>
 
+    <!-- ==================== 6. 股票组合 ==================== -->
+    <div v-if="activeTab === 'stockpk'">
+      <StockPkPanel />
+    </div>
+
   </div>
 </template>
 
@@ -381,6 +386,7 @@ import { toast, confirm } from '../../composables/useToast.js'
 import { createPortfolio as savePortfolioToDb, deletePortfolio } from '../../api/user-data'
 import FundIndexPanel from './FundIndexPanel.vue'
 import AIPkPanel from './AIPkPanel.vue'
+import StockPkPanel from './StockPkPanel.vue'
 import TouguPage from '../tougu/TouguPage.vue'
 
 const {
@@ -395,7 +401,8 @@ const tabs = [
   { key: 'ai', label: 'AI 组合' },
   { key: 'aipk', label: 'AI 大 PK' },
   { key: 'index', label: '基金指数' },
-  { key: 'tougu', label: '投顾产品' }
+  { key: 'tougu', label: '投顾产品' },
+  { key: 'stockpk', label: '股票组合' }
 ]
 const activeTab = ref('custom')
 const aiSubTab = ref('strategy')
