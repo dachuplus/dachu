@@ -39,10 +39,11 @@
         <span class="ok">最近 {{ etlDaySummaries.length }} 天</span>
         <span class="sep">／</span>
         <span class="ok">完成 {{ totalSuccessDays }} 天</span>
+        <span class="sep">／</span>
+        <span :class="totalMissingDays > 0 ? 'warn' : 'muted'">未运行 {{ totalMissingDays }} 天</span>
         <span v-if="totalFailDays > 0">
-          <span class="sep">／</span><span class="fail">失败/缺 {{ totalFailDays }} 天</span>
+          <span class="sep">／</span><span class="fail">失败 {{ totalFailDays }} 天</span>
         </span>
-        <span v-else class="ok">全部完成</span>
       </div>
 
       <!-- 按日期分组展示（可展开） -->
@@ -72,6 +73,11 @@
             </tr>
             <!-- 展开的步骤行 -->
             <template v-if="dayExpanded[dateKey]">
+              <tr v-if="dayGroup.length === 0" class="etl-empty-row">
+                <td class="col-etl-step" :colspan="6">
+                  暂无更新记录 — 当日 ETL 未执行或执行失败（如为当日 21:30 前的时段属正常未到执行时间）
+                </td>
+              </tr>
               <tr v-for="(log, i) in dayGroup" :key="dateKey + '-' + i">
                 <td class="col-etl-step">
                   <div class="step-name"><code>{{ log.step_name || log.name || log.step || '—' }}</code></div>
@@ -1241,7 +1247,8 @@ const etlDaySummaries = ref([])
 const dayExpanded = ref({})
 
 const totalSuccessDays = computed(() => etlDaySummaries.value.filter(d => d.allOk).length)
-const totalFailDays = computed(() => etlDaySummaries.value.length - totalSuccessDays.value)
+const totalFailDays = computed(() => etlDaySummaries.value.filter(d => d.hasError).length)
+const totalMissingDays = computed(() => etlDaySummaries.value.filter(d => d.missing).length)
 
 // 用户分析（visitor_logs）
 const userAnalyticsReady = ref(false)
@@ -1537,17 +1544,29 @@ async function loadIndex() {
   }
 }
 
-// 加载每日 ETL 运行简报（多日视图：最近 7 天，按 run_date 分组）
+// 加载每日 ETL 运行简报（多日视图：固定最近 ETL_BRIEF_DAYS 天，按 run_date 分组；窗口内无记录的天标记为「未运行」）
+const ETL_BRIEF_DAYS = 7
 async function loadEtlBrief() {
   try {
     const { supabase } = await import('../../api/supabase.js')
     if (!supabase) { etlBriefReady.value = true; return }
 
-    // 取最近 7 天（按 run_date 去重排序）
+    // 生成最近 N 天窗口（截止今天，含今天），格式 YYYY-MM-DD
+    const today = new Date()
+    const windowDates = []
+    for (let i = ETL_BRIEF_DAYS - 1; i >= 0; i--) {
+      const d = new Date(today)
+      d.setDate(today.getDate() - i)
+      windowDates.push(dateKeyOf(d))
+    }
+    const windowStart = windowDates[0]
+
+    // 取窗口内（含）的 ETL 记录，按 run_date 分组
     const { data: rows, error } = await supabase
       .from('etl_run_log')
       .select('*')
       .not('run_date', 'is', null)
+      .gte('run_date', windowStart)
       .order('run_date', { ascending: false })
       .order('id', { ascending: true })
 
@@ -1565,26 +1584,35 @@ async function loadEtlBrief() {
       if (!grouped[d]) grouped[d] = []
       grouped[d].push(row)
     }
-    etlLogByDate.value = grouped
 
-    // 生成日期汇总 + 默认展开最新一天
-    const summaries = Object.keys(grouped).sort().reverse()
-    etlDaySummaries.value = summaries.map(d => {
-      const logs = grouped[d]
-      const okCount = logs.filter((l) => l.status === 'success').length
-      const errCount = logs.filter((l) => l.status === 'error').length
-      const runCount = logs.filter((l) => l.status === 'running').length
-      return { date: d, total: logs.length, okCount, errCount, runCount,
-        allOk: errCount === 0 && runCount === 0 && okCount > 0,
-        hasError: errCount > 0, hasRunning: runCount > 0 }
-    })
+    // 生成日期汇总 + 分组映射（含窗口内无记录的天，标记为「缺/未运行」）
+    const summaries = []
+    // etlLogByDate 按「最新→最旧」顺序渲染
+    const byDateNewestFirst = {}
+    for (let i = windowDates.length - 1; i >= 0; i--) {
+      const d = windowDates[i]
+      const logs = grouped[d] || []
+      byDateNewestFirst[d] = logs
+      if (logs.length === 0) {
+        summaries.push({ date: d, total: 0, okCount: 0, errCount: 0, runCount: 0, allOk: false, hasError: false, hasRunning: false, missing: true })
+      } else {
+        const okCount = logs.filter((l) => l.status === 'success').length
+        const errCount = logs.filter((l) => l.status === 'error').length
+        const runCount = logs.filter((l) => l.status === 'running').length
+        summaries.push({ date: d, total: logs.length, okCount, errCount, runCount,
+          allOk: errCount === 0 && runCount === 0 && okCount > 0,
+          hasError: errCount > 0, hasRunning: runCount > 0, missing: false })
+      }
+    }
+    etlLogByDate.value = byDateNewestFirst
+    etlDaySummaries.value = summaries
 
-    // 最新日期默认展开
+    // 默认展开最新一天（今天）
     const expandedInit = {}
-    if (summaries.length > 0) expandedInit[summaries[0]] = true
+    if (windowDates.length > 0) expandedInit[windowDates[windowDates.length - 1]] = true
     dayExpanded.value = expandedInit
 
-    // 最近执行时间取最后一条的 created_at 或 start_time
+    // 最近执行时间取窗口内最后一条的 created_at 或 start_time
     if (rows.length > 0) {
       const last = rows[rows.length - 1]
       etlLastRunTime.value = fmtTime(last.created_at || last.start_time)
@@ -1609,7 +1637,15 @@ function formatDateLabel(dateKey) {
   } catch { return dateKey }
 }
 
+function dateKeyOf(d) {
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
+}
+
 function getDaySummary(dayGroup) {
+  if (!dayGroup || dayGroup.length === 0) return '未运行'
   const ok = dayGroup.filter(l => l.status === 'success').length
   const err = dayGroup.filter(l => l.status === 'error').length
   const running = dayGroup.filter(l => l.status === 'running').length
@@ -1619,6 +1655,7 @@ function getDaySummary(dayGroup) {
 }
 
 function getDayStatusClass(dayGroup) {
+  if (!dayGroup || dayGroup.length === 0) return 'day-missing'
   const hasErr = dayGroup.some(l => l.status === 'error')
   const hasRunning = dayGroup.some(l => l.status === 'running')
   if (hasErr) return 'day-error'
@@ -2036,12 +2073,17 @@ watch(isOwner, (val) => {
 .day-ok .date-summary { background: #00703c; color: #fff; }
 .day-error .date-summary { background: #d4351c; color: #fff; }
 .day-running .date-summary { background: #1d70b8; color: #fff; animation: pulse 1.5s infinite; }
+.day-missing .date-summary { background: #b1b4b6; color: #0b0c0c; }
+.day-missing .date-label { color: #505a5f; }
 .date-toggle { float: right; font-size: 12px; color: #505a5f; }
+.etl-empty-row td { color: var(--text-secondary); font-size: 13px; padding: 10px 12px; }
 
 /* ETL 简报汇总 */
 .brief-summary { font-size: 14px; color: var(--text-secondary); margin: 0 0 var(--space-md); }
 .brief-summary .ok { color: #00703c; font-weight: 700; }
 .brief-summary .fail { color: #d4351c; font-weight: 700; }
+.brief-summary .warn { color: #b53c00; font-weight: 700; }
+.brief-summary .muted { color: #505a5f; font-weight: 700; }
 .brief-summary .sep { margin: 0 8px; color: var(--border); }
 
 /* ETL 步骤说明 + 进度条 */
