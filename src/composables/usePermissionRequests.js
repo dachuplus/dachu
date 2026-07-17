@@ -31,6 +31,7 @@ export function usePermissionRequests() {
         real_name:  realName || null,
         phone:      phone || null,
         extra:      extra || null,
+        source:     'web',
         status:     'pending',
         created_at: new Date().toISOString(),
       }, { onConflict: 'user_email' })
@@ -44,7 +45,7 @@ export function usePermissionRequests() {
     try {
       const { data, error } = await supabase
         .from('permission_requests')
-        .select('user_email, real_name, phone, extra, status, created_at, reviewed_by, reviewed_at')
+        .select('user_email, real_name, phone, extra, status, source, created_at, reviewed_by, reviewed_at')
         .order('created_at', { ascending: false })
       if (error) { requests.value = []; return }
       // 每条申请带一个功能勾选数组（审批通过时随 user_permissions 写入）

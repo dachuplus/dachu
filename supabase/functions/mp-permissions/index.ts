@@ -139,6 +139,7 @@ serve(async (req: Request) => {
           real_name: realName,
           phone,
           extra,
+          source: 'mp',
           status: 'pending',
         }),
       })

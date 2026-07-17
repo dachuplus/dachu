@@ -229,6 +229,7 @@
         <thead>
           <tr>
             <th class="col-req-email">用户邮箱</th>
+            <th class="col-req-source">来源</th>
             <th class="col-req-name">真实姓名</th>
             <th class="col-req-phone">手机号</th>
             <th class="col-req-extra">补充信息</th>
@@ -239,7 +240,10 @@
         </thead>
         <tbody>
           <tr v-for="row in requests" :key="row.user_email">
-            <td class="col-req-email"><code>{{ row.user_email }}</code></td>
+            <td class="col-req-email"><code :title="row.user_email">{{ displayUsername(row.user_email) }}</code></td>
+            <td class="col-req-source">
+              <span class="source-badge" :class="row.source === 'mp' ? 'source-mp' : 'source-web'">{{ row.source === 'mp' ? '小程序' : '网页' }}</span>
+            </td>
             <td class="col-req-name">{{ row.real_name || '—' }}</td>
             <td class="col-req-phone">{{ row.phone || '—' }}</td>
             <td class="col-req-extra">{{ row.extra || '—' }}</td>
@@ -1642,9 +1646,11 @@ async function loadUserAnalytics() {
 
 // ========== 用户权限管理 ==========
 // 用户名展示：手机号注册用户的 user_email 为合成邮箱（如 8613800138000@allfund.user），
-// 去掉后缀只显示手机号；真实邮箱（如管理员）原样显示。
+// 去掉后缀只显示手机号；小程序微信登录用户为 wx_xxx@allfund.wechat，显示为「微信用户」；
+// 真实邮箱（如管理员）原样显示。
 function displayUsername(email) {
   if (!email) return '—'
+  if (email.endsWith('@allfund.wechat')) return '微信用户'
   if (email.endsWith('@allfund.user')) return email.slice(0, -'@allfund.user'.length)
   return email
 }
@@ -1922,6 +1928,17 @@ watch(isOwner, (val) => {
 .status-error { background: #d4351c; color: #fff; }
 .status-running { background: #1d70b8; color: #fff; animation: pulse 1.5s infinite; }
 .status-pending { background: #f3f2f1; color: #6b7280; }
+.source-badge {
+  display: inline-block;
+  padding: 2px 10px;
+  font-size: 12px;
+  font-weight: 700;
+  border-radius: 2px;
+  text-align: center;
+  white-space: nowrap;
+}
+.source-mp { background: #1d70b8; color: #fff; }
+.source-web { background: #f3f2f1; color: #505a5f; }
 @keyframes pulse {
   0%, 100% { opacity: 1; } 50% { opacity: 0.5; }
 }
@@ -2272,6 +2289,7 @@ watch(isOwner, (val) => {
 
 /* 权限申请表 */
 .perm-req-table .col-req-email { min-width: 200px; }
+.perm-req-table .col-req-source { width: 90px; text-align: center; }
 .perm-req-table .col-req-name { width: 100px; }
 .perm-req-table .col-req-phone { width: 120px; }
 .perm-req-table .col-req-extra { min-width: 160px; }
