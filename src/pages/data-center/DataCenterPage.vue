@@ -34,15 +34,22 @@
     <!-- 更新简报 -->
     <div class="card" v-if="etlBriefReady" v-show="activeTab==='download'">
       <div class="card-title">更新简报</div>
-      <div class="brief-summary" v-if="etlLogs.length > 0">
-        <span class="ok">完成 {{ etlLogs.filter(l => l.status === 'success').length }} 项</span>
+      <!-- 多日汇总 -->
+      <div class="brief-summary" v-if="etlDaySummaries.length > 0">
+        <span class="ok">最近 {{ etlDaySummaries.length }} 天</span>
         <span class="sep">／</span>
-        <span v-if="etlLogs.filter(l => l.status === 'error').length > 0" class="fail">未完成 {{ etlLogs.filter(l => l.status === 'error').length }} 项</span>
+        <span class="ok">完成 {{ totalSuccessDays }} 天</span>
+        <span v-if="totalFailDays > 0">
+          <span class="sep">／</span><span class="fail">失败/缺 {{ totalFailDays }} 天</span>
+        </span>
         <span v-else class="ok">全部完成</span>
       </div>
-      <table class="data-table" v-if="etlLogs.length > 0">
+
+      <!-- 按日期分组展示（可展开） -->
+      <table class="data-table etl-day-table" v-if="etlLogs.length > 0">
         <thead>
           <tr>
+            <th class="col-etl-date">日期</th>
             <th class="col-etl-step">步骤</th>
             <th class="col-etl-desc">说明</th>
             <th class="col-etl-status">状态</th>
@@ -52,30 +59,45 @@
           </tr>
         </thead>
         <tbody>
-          <tr v-for="(log, i) in etlLogs" :key="i">
-            <td class="col-etl-step">
-              <div class="step-name"><code>{{ log.step_name || log.name || log.step || '—' }}</code></div>
-              <div class="step-title">{{ stepView(log).title }}</div>
-              <div class="progress" :class="'pg-' + stepView(log).state">
-                <div class="progress-bar" :style="{ width: stepView(log).pct + '%' }"></div>
-              </div>
-            </td>
-            <td class="col-etl-desc">
-              <div class="step-desc">{{ stepView(log).desc }}</div>
-              <div class="step-reason" v-if="stepView(log).reason">
-                <span class="reason-label">失败原因：</span>{{ stepView(log).reason }}
-              </div>
-              <div class="step-suggestion" v-if="stepView(log).suggestion">
-                <span class="reason-label">解决建议：</span>{{ stepView(log).suggestion }}
-              </div>
-            </td>
-            <td class="col-etl-status">
-              <span class="status-badge" :class="log.status === 'success' ? 'status-ok' : (log.status === 'error' ? 'status-error' : (log.status === 'running' ? 'status-running' : 'status-pending'))">{{ statusLabel(log.status) }}</span>
-            </td>
-            <td class="col-etl-rows">{{ formatNum(log.rows_affected ?? log.rows ?? log.count) }}</td>
-            <td class="col-etl-time">{{ fmtTime(log.start_time ?? log.created_at) }}</td>
-            <td class="col-etl-duration">{{ log.duration_seconds != null ? formatDuration(log.duration_seconds) : '—' }}</td>
-          </tr>
+          <template v-for="(dayGroup, dateKey) in etlLogByDate" :key="dateKey">
+            <!-- 日期行 -->
+            <tr class="date-row" @click="toggleDateExpand(dateKey)">
+              <td class="col-etl-date" :colspan="dayExpanded[dateKey] ? 1 : 7">
+                <span class="date-label">{{ formatDateLabel(dateKey) }}</span>
+                <span class="date-summary" :class="getDayStatusClass(dayGroup)">
+                  {{ getDaySummary(dayGroup) }}
+                </span>
+                <span class="date-toggle">{{ dayExpanded[dateKey] ? '收起 ▲' : '展开 ▼' }}</span>
+              </td>
+            </tr>
+            <!-- 展开的步骤行 -->
+            <template v-if="dayExpanded[dateKey]">
+              <tr v-for="(log, i) in dayGroup" :key="dateKey + '-' + i">
+                <td class="col-etl-step">
+                  <div class="step-name"><code>{{ log.step_name || log.name || log.step || '—' }}</code></div>
+                  <div class="step-title">{{ stepView(log).title }}</div>
+                  <div class="progress" :class="'pg-' + stepView(log).state">
+                    <div class="progress-bar" :style="{ width: stepView(log).pct + '%' }"></div>
+                  </div>
+                </td>
+                <td class="col-etl-desc">
+                  <div class="step-desc">{{ stepView(log).desc }}</div>
+                  <div class="step-reason" v-if="stepView(log).reason">
+                    <span class="reason-label">失败原因：</span>{{ stepView(log).reason }}
+                  </div>
+                  <div class="step-suggestion" v-if="stepView(log).suggestion">
+                    <span class="reason-label">解决建议：</span>{{ stepView(log).suggestion }}
+                  </div>
+                </td>
+                <td class="col-etl-status">
+                  <span class="status-badge" :class="log.status === 'success' ? 'status-ok' : (log.status === 'error' ? 'status-error' : (log.status === 'running' ? 'status-running' : 'status-pending'))">{{ statusLabel(log.status) }}</span>
+                </td>
+                <td class="col-etl-rows">{{ formatNum(log.rows_affected ?? log.rows ?? log.count) }}</td>
+                <td class="col-etl-time">{{ fmtTime(log.start_time ?? log.created_at) }}</td>
+                <td class="col-etl-duration">{{ log.duration_seconds != null ? formatDuration(log.duration_seconds) : '—' }}</td>
+              </tr>
+            </template>
+          </template>
         </tbody>
       </table>
       <p class="section-desc" v-else>暂无运行记录，等待每日 21:30 自动执行。</p>
@@ -1210,10 +1232,16 @@ const { requests, loading: permReqLoading, loadRequests, approveRequest, rejectR
 const updateTime = ref('')
 const tableData = ref({})
 
-// 更新简报（ETL 运行记录）
+// 更新简报（ETL 运行记录）— 多日视图
 const etlBriefReady = ref(false)
 const etlLogs = ref([])
 const etlLastRunTime = ref('')
+const etlLogByDate = ref({})
+const etlDaySummaries = ref([])
+const dayExpanded = ref({})
+
+const totalSuccessDays = computed(() => etlDaySummaries.value.filter(d => d.allOk).length)
+const totalFailDays = computed(() => etlDaySummaries.value.length - totalSuccessDays.value)
 
 // 用户分析（visitor_logs）
 const userAnalyticsReady = ref(false)
@@ -1509,33 +1537,18 @@ async function loadIndex() {
   }
 }
 
-// 加载每日 ETL 运行简报（从 etl_run_log 表读取最近一次运行记录）
+// 加载每日 ETL 运行简报（多日视图：最近 7 天，按 run_date 分组）
 async function loadEtlBrief() {
   try {
     const { supabase } = await import('../../api/supabase.js')
     if (!supabase) { etlBriefReady.value = true; return }
 
-    // 1) 先取最新一条记录，确定最近的运行批次(run_date)
-    const { data: lastRow, error: errLast } = await supabase
-      .from('etl_run_log')
-      .select('run_date, created_at')
-      .order('created_at', { ascending: false })
-      .limit(1)
-
-    if (errLast || !lastRow || lastRow.length === 0) {
-      etlLogs.value = []
-      etlBriefReady.value = true
-      return
-    }
-
-    const runDate = lastRow[0].run_date
-    etlLastRunTime.value = fmtTime(lastRow[0].created_at || runDate)
-
-    // 2) 取该批次(run_date)的全部步骤，按插入顺序(id 升序)展示
+    // 取最近 7 天（按 run_date 去重排序）
     const { data: rows, error } = await supabase
       .from('etl_run_log')
       .select('*')
-      .eq('run_date', runDate)
+      .not('run_date', 'is', null)
+      .order('run_date', { ascending: false })
       .order('id', { ascending: true })
 
     if (error || !rows) {
@@ -1544,11 +1557,73 @@ async function loadEtlBrief() {
       return
     }
     etlLogs.value = rows || []
+
+    // 按 run_date 分组
+    const grouped = {}
+    for (const row of rows) {
+      const d = row.run_date || 'unknown'
+      if (!grouped[d]) grouped[d] = []
+      grouped[d].push(row)
+    }
+    etlLogByDate.value = grouped
+
+    // 生成日期汇总 + 默认展开最新一天
+    const summaries = Object.keys(grouped).sort().reverse()
+    etlDaySummaries.value = summaries.map(d => {
+      const logs = grouped[d]
+      const okCount = logs.filter((l) => l.status === 'success').length
+      const errCount = logs.filter((l) => l.status === 'error').length
+      const runCount = logs.filter((l) => l.status === 'running').length
+      return { date: d, total: logs.length, okCount, errCount, runCount,
+        allOk: errCount === 0 && runCount === 0 && okCount > 0,
+        hasError: errCount > 0, hasRunning: runCount > 0 }
+    })
+
+    // 最新日期默认展开
+    const expandedInit = {}
+    if (summaries.length > 0) expandedInit[summaries[0]] = true
+    dayExpanded.value = expandedInit
+
+    // 最近执行时间取最后一条的 created_at 或 start_time
+    if (rows.length > 0) {
+      const last = rows[rows.length - 1]
+      etlLastRunTime.value = fmtTime(last.created_at || last.start_time)
+    }
     etlBriefReady.value = true
   } catch (e) {
     console.warn('[DataCenter] 加载 ETL 简报失败', e)
     etlBriefReady.value = true
   }
+}
+
+// 多日视图辅助函数
+function toggleDateExpand(dateKey) {
+  dayExpanded.value[dateKey] = !dayExpanded.value[dateKey]
+}
+
+function formatDateLabel(dateKey) {
+  // "2026-07-15" → "7月15日"
+  try {
+    const [y, m, d] = dateKey.split('-')
+    return `${parseInt(m)}月${parseInt(d)}日`
+  } catch { return dateKey }
+}
+
+function getDaySummary(dayGroup) {
+  const ok = dayGroup.filter(l => l.status === 'success').length
+  const err = dayGroup.filter(l => l.status === 'error').length
+  const running = dayGroup.filter(l => l.status === 'running').length
+  if (err > 0) return `失败 ${err}/${dayGroup.length}`
+  if (running > 0) return `运行中 ${ok}/${dayGroup.length}`
+  return `完成 ${ok}/${dayGroup.length}`
+}
+
+function getDayStatusClass(dayGroup) {
+  const hasErr = dayGroup.some(l => l.status === 'error')
+  const hasRunning = dayGroup.some(l => l.status === 'running')
+  if (hasErr) return 'day-error'
+  if (hasRunning) return 'day-running'
+  return 'day-ok'
 }
 
 // 根据 IP 地址补全地区（双保险：先 ipwho.is 国际库，失败则用国内库兜底）
@@ -1948,6 +2023,20 @@ watch(isOwner, (val) => {
 .col-etl-rows { width: 100px; text-align: right; font-family: monospace; }
 .col-etl-time { width: 160px; }
 .col-etl-duration { width: 90px; text-align: right; font-family: monospace; }
+.col-etl-date { width: 120px; }
+
+/* 多日视图：日期行 */
+.etl-day-table .date-row { cursor: pointer; background: #f8f9fa; }
+.etl-day-table .date-row:hover { background: #eef2f6; }
+.date-label { font-weight: 700; font-size: 14px; color: #0b0c0c; }
+.date-summary {
+  display: inline-block; padding: 1px 10px; font-size: 12px; font-weight: 700;
+  border-radius: 2px; margin-left: 12px;
+}
+.day-ok .date-summary { background: #00703c; color: #fff; }
+.day-error .date-summary { background: #d4351c; color: #fff; }
+.day-running .date-summary { background: #1d70b8; color: #fff; animation: pulse 1.5s infinite; }
+.date-toggle { float: right; font-size: 12px; color: #505a5f; }
 
 /* ETL 简报汇总 */
 .brief-summary { font-size: 14px; color: var(--text-secondary); margin: 0 0 var(--space-md); }
