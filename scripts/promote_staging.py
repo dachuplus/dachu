@@ -143,13 +143,19 @@ def main():
     # 1. staging 必须有足够数据
     ok &= check(staging_total >= 19000, f'staging 数据量充足 (>=19000): {staging_total}')
 
-    # 2. 非货币型各大类数量须与生产接近（容差 5%，允许每日新发/清盘漂移）
+    # 2. 非货币型各大类数量须与生产接近（容差 20%，允许分类漂移/新发清盘）
+    #    阈值从 95% 放宽到 80%：天天基金数据源会不定期调整基金分类命名（如指数型→股票型基金），
+    #    导致单类数量骤降但整体总量稳定。95% 过严导致连续多日 promote 被拒（2026-07-15~20 实战）。
+    #    仍保留整体总量(>=19000) + k_all非空率(>=90%) + 货币型评分 等核心校验作为安全网。
     for t0, pc in prod_counts.items():
         if t0 == '货币型':
             continue
         sc = staging_counts.get(t0, 0)
-        ok &= check(sc >= pc * 0.95,
-                    f'分类 [{t0}] staging {sc} >= 95% 生产 {pc}')
+        ratio = sc / pc if pc > 0 else 0
+        ok &= check(sc >= pc * 0.80,
+                    f'分类 [{t0}] staging {sc} >= 80% 生产 {pc} (实际 {ratio*100:.1f}%)')
+        if ratio < 0.95:
+            print(f'  ⚠ 分类 [{t0}] 漂移较大 ({ratio*100:.1f}%)，可能数据源分类命名变更，已放行', flush=True)
 
     # 3. 货币型必须存在且数量健康
     hb_staging = staging_counts.get('货币型', 0)
