@@ -118,6 +118,28 @@ def main():
         )""")
     print('  ✓ staging.t0 已归一化', flush=True)
 
+    # 0b. 【最高风控：分类不可漂移】以生产表既有分类为准回钉 staging 分类
+    #     规则：同一基金代码(c)一旦在生产表被定为某类，必须钉死，禁止因上游
+    #     标签命名变更（如指数型→股票型）导致分类漂移。仅对已在生产表存在的
+    #     代码做回钉；全新代码(生产表无)保留 [0a] 归一化结果（无漂移可言）。
+    #     回钉后统计漂移量用于告警，但漂移已被消除，阈值仅为灾难性丢失安全网。
+    print('\n[0b] 分类回钉（防漂移）：以生产表既有分类覆盖 staging 同代码分类', flush=True)
+    drift = pg("""SELECT s.t0 AS staging_t0, p.t0 AS prod_t0, count(*) AS n
+                  FROM fund_scores_staging s JOIN fund_scores p ON s.c = p.c
+                  WHERE s.t0 IS DISTINCT FROM p.t0
+                  GROUP BY s.t0, p.t0 ORDER BY n DESC""")
+    if drift:
+        print('  ⚠ 检测到分类漂移（已被回钉消除），明细：', flush=True)
+        for d in drift:
+            print(f'     staging[{d["staging_t0"]}] → 生产[{d["prod_t0"]}]: {d["n"]} 只', flush=True)
+        pg("""UPDATE fund_scores_staging s
+              SET t0 = p.t0
+              FROM fund_scores p
+              WHERE s.c = p.c AND s.t0 IS DISTINCT FROM p.t0""")
+        print(f'  ✓ 已回钉 {sum(d["n"] for d in drift)} 只基金分类（消除漂移）', flush=True)
+    else:
+        print('  ✓ 无分类漂移', flush=True)
+
     staging_counts = get_t0_counts('fund_scores_staging')
     staging_total = sum(staging_counts.values())
     prod_counts = get_t0_counts('fund_scores')
@@ -143,10 +165,11 @@ def main():
     # 1. staging 必须有足够数据
     ok &= check(staging_total >= 19000, f'staging 数据量充足 (>=19000): {staging_total}')
 
-    # 2. 非货币型各大类数量须与生产接近（容差 20%，允许分类漂移/新发清盘）
-    #    阈值从 95% 放宽到 80%：天天基金数据源会不定期调整基金分类命名（如指数型→股票型基金），
-    #    导致单类数量骤降但整体总量稳定。95% 过严导致连续多日 promote 被拒（2026-07-15~20 实战）。
-    #    仍保留整体总量(>=19000) + k_all非空率(>=90%) + 货币型评分 等核心校验作为安全网。
+    # 2. 非货币型各大类数量须与生产接近（容差 20%，允许新发/清盘的正常数量波动）
+    #    注：分类漂移已由 [0b] 回钉彻底消除（同代码分类钉死为生产值），此处 80% 阈值
+    #    仅作"灾难性数据丢失"安全网（如上游 API 仅返回半数基金）。放宽到 80% 的依据：
+    #    天天基金数据源会不定期调整部分基金分类命名，已不可再依赖上游分类稳定性，
+    #    故用 [0b] 钉死分类，而非依赖阈值容忍漂移。
     for t0, pc in prod_counts.items():
         if t0 == '货币型':
             continue
