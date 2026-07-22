@@ -164,7 +164,7 @@
         <div class="intro-row">
           <div class="intro-key">GitHub 保存路径</div>
           <div class="intro-val">
-            网站仓库：<code>github.com/maoshanbo/allfund</code>（本地 <code>/Users/maoshanbo/WorkBuddy/20260405093252/allfund/</code>）；小程序仓库：<code>github.com/maoshanbo/allfund-max</code>。本地与 GitHub 保持逐字节一致，推送使用受控脚本（非 git push 直推）。
+            网站仓库：<code>github.com/{owner}/allfund</code>；小程序仓库：<code>github.com/{owner}/allfund-max</code>。本地与远程仓库保持逐字节一致，推送使用受控脚本（非 git push 直推）。
           </div>
         </div>
         <div class="intro-row">
@@ -1112,7 +1112,7 @@
           <tr><td class="meta-label">微信小程序 AppID</td><td><code>wxac87803bace3ad2d</code></td></tr>
           <tr><td class="meta-label">Supabase 项目 ref</td><td><code>tqhtegazxykkqfcpejky</code></td></tr>
           <tr><td class="meta-label">Supabase URL</td><td><code>https://tqhtegazxykkqfcpejky.supabase.co</code></td></tr>
-          <tr><td class="meta-label">主管理员邮箱</td><td><code>57502460@qq.com</code></td></tr>
+          <tr><td class="meta-label">主管理员</td><td><code>57****@qq.com</code></td></tr>
         </table>
         <p class="api-subtitle">密钥管理（由本地环境变量 / .env 维护，不在本页明文展示）</p>
         <table class="field-table">
@@ -1298,6 +1298,11 @@ async function openUserPortfolios(v) {
       portfolioModal.value.error = '当前环境未连接数据库，无法查看组合明细'
       return
     }
+    // 脱敏后访客邮箱不再入库，非邮箱格式的聚合项（如「已登录访客」）直接提示，不查组合
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.name || '')) {
+      portfolioModal.value.error = '该访客信息已脱敏，无法查看组合明细'
+      return
+    }
     const { data, error } = await supabase.rpc('get_user_portfolios_by_email', { p_email: v.name })
     if (error) {
       // 非管理员无权限等情况：返回友好提示
@@ -1359,13 +1364,18 @@ async function openUserDetail(row) {
       userDetailModal.value.region = top ? (normalizeRegion(top[0]) || '—') : '—'
     }
     // 组合信息（仅自建组合可见；AI 组合存于客户端不可见）
-    const { data, error } = await supabase.rpc('get_user_portfolios_by_email', { p_email: row.user_email })
-    if (error) {
-      userDetailModal.value.error = '仅管理员可查看用户组合明细'
-      return
+    // 脱敏后访客邮箱不再入库，非邮箱格式（如「已登录访客」）跳过组合查询
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(row.user_email || '')) {
+      userDetailModal.value.portfolios = []
+    } else {
+      const { data, error } = await supabase.rpc('get_user_portfolios_by_email', { p_email: row.user_email })
+      if (error) {
+        userDetailModal.value.error = '仅管理员可查看用户组合明细'
+        return
+      }
+      const rows = Array.isArray(data) ? data : []
+      userDetailModal.value.portfolios = rows.filter(r => !r.is_ai)
     }
-    const rows = Array.isArray(data) ? data : []
-    userDetailModal.value.portfolios = rows.filter(r => !r.is_ai)
   } catch (e) {
     userDetailModal.value.error = '仅管理员可查看用户组合明细'
   } finally {
@@ -1812,7 +1822,7 @@ async function loadUserAnalytics() {
       if (r.visit_time > u.max) u.max = r.visit_time
     }
     const list = [...map.values()].map(u => ({
-      name: (u.email && u.email !== 'anonymous') ? u.email : '匿名访客',
+      name: (u.email && u.email !== 'anonymous') ? (u.email === 'authenticated' ? '已登录访客' : u.email) : '匿名访客',
       email: u.email,
       ip: u.ip || '—',
       region: normalizeRegion(u.region) || '',
@@ -1835,6 +1845,7 @@ async function loadUserAnalytics() {
 // 真实邮箱（如管理员）原样显示。
 function displayUsername(email) {
   if (!email) return '—'
+  if (email === 'authenticated') return '已登录访客'
   if (email.endsWith('@allfund.wechat')) return '微信用户'
   if (email.endsWith('@allfund.user')) return email.slice(0, -'@allfund.user'.length)
   return email

@@ -247,7 +247,7 @@ async function _trackVisit(path) {
     const { data: { user } } = await supabase.auth.getUser()
     const geo = await _getGeo()
     await supabase.from('visitor_logs').insert({
-      email: user?.email || 'anonymous',
+      email: user?.id ? 'authenticated' : 'anonymous',
       page_path: path,
       user_agent: navigator.userAgent,
       ip_address: geo.ip,
