@@ -8,7 +8,7 @@ const routes = [
     meta: {
       tab: 'tools',
       feature: 'fund-rank',
-      title: '靠谱基金指数',
+      title: '工具',
       description: '靠谱基金指数评分工具：覆盖全市场近2万只公募基金，按收益率、最大回撤、夏普比率综合排名，支持分类、份额、ETF/LOF 等多维筛选。',
       keywords: '靠谱基金指数,基金评分,基金排名,基金筛选,基金靠谱指数'
     }
@@ -19,7 +19,7 @@ const routes = [
     meta: {
       tab: 'signal',
       feature: 'signal',
-      title: '指标信号',
+      title: '信号',
       description: '宏观指标信号：股债利差、FED模型、大类资产性价比、风格因子与行业估值，叠加上证指数走势，辅助判断市场位置。',
       keywords: '宏观指标,股债利差,FED模型,大类资产,风格因子,行业估值'
     }
@@ -50,7 +50,7 @@ const routes = [
     meta: {
       tab: 'tools',
       feature: 'fund-rank',
-      title: '靠谱基金指数',
+      title: '工具',
       description: '靠谱基金指数评分工具：覆盖全市场近2万只公募基金，按收益率、最大回撤、夏普比率综合排名，支持分类、份额、ETF/LOF 等多维筛选。',
       keywords: '靠谱基金指数,基金评分,基金排名,基金筛选,基金靠谱指数'
     }
@@ -61,7 +61,7 @@ const routes = [
     meta: {
       tab: 'tools',
       feature: 'portfolio',
-      title: '智能组合',
+      title: '组合',
       description: '智能组合构建：自建组合、DeepSeek AI 推荐组合（16 策略）与基于 Kan&Zhou 增强型风险平价的风险平价组合，辅助资产配置。',
       keywords: '智能组合,资产配置,风险平价,AI组合'
     }
@@ -114,8 +114,8 @@ const routes = [
       tab: 'tools',
       feature: 'data-center',
       ownerOnly: true,
-      title: '管理中心',
-      description: '管理中心：提供数据中心的数据下载与用户管理（含权限申请审批）等功能。',
+      title: '管理',
+      description: '管理：提供数据中心的数据下载与用户管理（含权限申请审批）等功能。',
       keywords: '管理中心,基金数据,数据中心,基金基本信息,宏观数据'
     }
   },

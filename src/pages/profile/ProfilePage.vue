@@ -30,7 +30,7 @@
     <div class="card" v-if="isLoggedIn">
       <div class="card-title">我的关注</div>
       <div v-if="!favRows.length && !favLoading" class="empty-portfolio">
-        <p>还没有关注基金，去 <router-link to="/tools/fund-rank">靠谱指数</router-link> 页添加关注吧</p>
+        <p>还没有关注基金，去 <router-link to="/tools/fund-rank">工具</router-link> 页添加关注吧</p>
       </div>
       <div v-else-if="favLoading" class="empty-portfolio"><p>加载中...</p></div>
       <div v-else class="fav-list">
@@ -52,7 +52,7 @@
     <div class="card" v-if="isLoggedIn">
       <div class="card-title">我的组合</div>
       <div v-if="portfolios.length === 0" class="empty-portfolio">
-        <p>还没有组合，去 <router-link to="/tools/fund-rank">靠谱指数</router-link> 挑选基金添加到组合吧</p>
+        <p>还没有组合，去 <router-link to="/tools/fund-rank">工具</router-link> 挑选基金添加到组合吧</p>
       </div>
       <div v-for="pf in portfolios" :key="pf.id" class="portfolio-card">
         <div class="pf-header">

@@ -25,10 +25,11 @@ export const ADMIN_EMAIL = '57502460@qq.com'
 
 // 可授予用户的功能清单（数据中心「用户权限管理」勾选用）
 export const FEATURES = [
-  { key: 'fund-rank', label: '靠谱指数', desc: '靠谱指数评分、基金详情、基金对比' },
-  { key: 'signal',    label: '指标信号', desc: '宏观信号、股债性价比、风格因子、行业估值' },
-  { key: 'portfolio', label: '智能组合', desc: '自建组合、AI 组合、组合回测' },
-  { key: 'admin',     label: '管理员', desc: '全部功能权限 + 数据中心(管理中心)管理权限，可管理其他用户' },
+  { key: 'fund-rank', label: '工具', desc: '靠谱指数评分、基金详情、基金对比' },
+  { key: 'signal',    label: '信号', desc: '宏观信号、股债性价比、风格因子、行业估值' },
+  { key: 'portfolio', label: '组合', desc: '自建组合、AI 组合、组合回测' },
+  { key: 'content',   label: '内容', desc: '独立性研究文章发布与管理' },
+  { key: 'admin',     label: '管理员', desc: '全部功能权限 + 数据中心(管理)管理权限，可管理其他用户' },
 ]
 
 // ---- 全局单例状态 ----

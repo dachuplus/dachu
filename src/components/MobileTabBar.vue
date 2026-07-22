@@ -23,8 +23,8 @@ const { isAdmin, hasFeature } = useAuth()
 const allTabs = [
   { key: 'home',    path: '/',                 label: '首页',     feature: 'fund-rank' },
   { key: 'signal',  path: '/signal',           label: '信号',     feature: 'signal' },
-  { key: 'fundrank',path: '/tools/fund-rank',  label: '评分',     feature: 'fund-rank' },
-  { key: 'portfolio',path:'/portfolio',        label: '智能组合', feature: 'portfolio' },
+  { key: 'fundrank',path: '/tools/fund-rank',  label: '工具',     feature: 'fund-rank' },
+  { key: 'portfolio',path:'/portfolio',        label: '组合',     feature: 'portfolio' },
   { key: 'content',  path: '/content',          label: '内容',     feature: null },
   { key: 'profile', path: '/profile',          label: '我的',     feature: null },
 ]

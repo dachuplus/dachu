@@ -6,7 +6,7 @@
  *
  * 权限边界（后端 RLS 为准）：
  *  - 公开只读已发布文章；作者可读/写/删自己的全部（含草稿）。
- *  - 仅 article_authors 表中存在的邮箱可写（is_article_author()）。
+ *  - article_authors 白名单中的邮箱，或被授予「内容」权限的用户（has_content_permission()）可写。
  */
 import { supabase } from './supabase.js'
 import { useAuth } from '../composables/useAuth.js'

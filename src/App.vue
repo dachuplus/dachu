@@ -106,7 +106,7 @@
           :class="{ 'quick-nav__item--active': route.path === '/data-center' }"
           title="数据中心：查看并下载全部数据表"
         >
-          管理中心
+          管理
         </router-link>
       </div>
     </nav>
@@ -227,10 +227,10 @@ function onRequestSubmitted() {
 
 /* ---- 全局金刚区 ---- */
 const quickLinks = [
-  { path: '/signal',           label: '指标信号', feature: 'signal' },
-  { path: '/tools/fund-rank',  label: '靠谱指数', feature: 'fund-rank' },
-  { path: '/portfolio',        label: '智能组合', feature: 'portfolio' },
-  { path: '/content',          label: '内容',     feature: null },
+  { path: '/signal',           label: '信号', feature: 'signal' },
+  { path: '/tools/fund-rank',  label: '工具', feature: 'fund-rank' },
+  { path: '/portfolio',        label: '组合', feature: 'portfolio' },
+  { path: '/content',          label: '内容',  feature: null },
 ]
 // 按功能权限过滤可见的金刚区入口（管理员显示全部；feature 为 null 的入口始终可见）
 const visibleQuickLinks = computed(() =>
@@ -255,8 +255,8 @@ const currentFeatureLabel = computed(() => {
 const tabs = [
   { key: 'home',      path: '/',                 label: '首页' },
   { key: 'signal',    path: '/signal',           label: '信号' },
-  { key: 'fundrank',  path: '/tools/fund-rank',  label: '评分' },
-  { key: 'portfolio', path: '/portfolio',        label: '智能组合' },
+  { key: 'fundrank',  path: '/tools/fund-rank',  label: '工具' },
+  { key: 'portfolio', path: '/portfolio',        label: '组合' },
   { key: 'content',   path: '/content',          label: '内容' },
   { key: 'profile',   path: '/profile',          label: '我的' },
 ]

@@ -1,12 +1,12 @@
 <template>
   <div class="page-placeholder">
     <!-- 页面标题 -->
-    <h1 class="page-title">管理中心</h1>
+    <h1 class="page-title">管理</h1>
 
     <!-- 无访问权限提示（仅授权账户可见） -->
     <div class="no-access" v-if="!isOwner">
       <p class="no-access__title">无访问权限</p>
-      <p class="no-access__desc">管理中心仅对授权账户开放，如需访问请使用授权账户登录。</p>
+      <p class="no-access__desc">管理仅对授权账户开放，如需访问请使用授权账户登录。</p>
     </div>
 
     <template v-else>
@@ -14,7 +14,7 @@
 
     <!-- 管理中心 header + tab 导航 -->
     <div class="mgmt-header">
-      <h1 class="mgmt-title">管理中心</h1>
+      <h1 class="mgmt-title">管理</h1>
       <div class="mgmt-tabs">
         <button
           type="button"
@@ -179,7 +179,7 @@
     <!-- 用户权限管理（仅管理员可见） -->
     <div class="card" v-if="isOwner" v-show="activeTab==='users'">
       <div class="card-title">用户权限管理</div>
-      <p class="section-desc">为注册用户开通功能：勾选需开通的功能后点击「保存」生效。未开通任何功能的用户登录后将显示「陌生人，无访问权限」。勾选「管理员」即授予该用户数据中心(管理中心)管理权限，可继续管理其他用户（主管理员账号固定不可改）。</p>
+      <p class="section-desc">为注册用户开通功能：勾选需开通的功能后点击「保存」生效。未开通任何功能的用户登录后将显示「陌生人，无访问权限」。勾选「管理员」即授予该用户数据中心(管理)管理权限，可继续管理其他用户（主管理员账号固定不可改）。</p>
 
       <!-- 添加用户 -->
       <div class="perm-add">

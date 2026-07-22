@@ -9,6 +9,7 @@
       <h1 class="dp-title">{{ article.title }}</h1>
       <div class="dp-meta">
         <span v-if="author">{{ author.author_name }}</span>
+        <span v-else-if="article.author_email">{{ article.author_email }}</span>
         <span v-if="article.published_at">· {{ formatDate(article.published_at) }}</span>
         <span>· {{ article.views || 0 }} 浏览</span>
       </div>

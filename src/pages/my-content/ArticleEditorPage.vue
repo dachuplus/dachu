@@ -5,7 +5,7 @@
       <button class="ed-cancel" @click="goBack">取消</button>
     </header>
 
-    <div v-if="!isOwner" class="ed-noauth">无访问权限</div>
+    <div v-if="!canManageContent" class="ed-noauth">无访问权限</div>
 
     <template v-else>
       <div class="ed-disclaimer">
@@ -71,10 +71,13 @@ import {
 } from '../../api/articles'
 import { toast } from '../../composables/useToast'
 
-const { isOwner } = useAuth()
+const { isOwner, hasFeature } = useAuth()
 const route = useRoute()
 const router = useRouter()
 const isEdit = computed(() => !!route.params.id)
+
+// 可管理内容：站长(isOwner) 或被授予「内容」权限的用户
+const canManageContent = computed(() => isOwner.value || hasFeature('content'))
 const fileInput = ref(null)
 const lastUploadedUrl = ref('')
 const complianceHits = ref([])
@@ -87,7 +90,7 @@ function goBack() {
 }
 
 async function load() {
-  if (!isOwner.value) {
+  if (!canManageContent.value) {
     router.replace('/content')
     return
   }

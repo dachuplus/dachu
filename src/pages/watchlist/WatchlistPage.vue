@@ -13,7 +13,7 @@
 
     <!-- 空态 -->
     <div v-else-if="!favorites.length" class="state empty">
-      <p>还没有关注基金，去 <router-link to="/tools/fund-rank">靠谱指数</router-link> 页点☆关注吧</p>
+      <p>还没有关注基金，去 <router-link to="/tools/fund-rank">工具</router-link> 页点☆关注吧</p>
     </div>
 
     <!-- 列表 -->

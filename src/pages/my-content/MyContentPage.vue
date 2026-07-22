@@ -5,10 +5,10 @@
         <h1 class="cp-title">内容</h1>
         <p class="cp-subtitle">独立性研究 · 仅代表个人观点，不构成投资建议或金融产品营销</p>
       </div>
-      <router-link v-if="isOwner" to="/content/editor" class="cp-new-btn">+ 写文章</router-link>
+      <router-link v-if="canManageContent" to="/content/editor" class="cp-new-btn">+ 写文章</router-link>
     </header>
 
-    <div v-if="isOwner" class="cp-viewswitch">
+    <div v-if="canManageContent" class="cp-viewswitch">
       <button :class="{ active: view === 'published' }" @click="setView('published')">已发布</button>
       <button :class="{ active: view === 'mine' }" @click="setView('mine')">我的全部（含草稿）</button>
     </div>
@@ -37,7 +37,7 @@
             </div>
           </div>
         </router-link>
-        <div v-if="isOwner" class="cp-card-actions">
+        <div v-if="canManageContent" class="cp-card-actions">
           <router-link :to="`/content/editor/${a.id}`" class="cp-link-edit">编辑</router-link>
           <button class="cp-link-del" @click="onDelete(a)">删除</button>
         </div>
@@ -53,16 +53,19 @@ import { useAuth } from '../../composables/useAuth'
 import { listArticles, deleteArticle } from '../../api/articles'
 import { confirm, toast } from '../../composables/useToast'
 
-const { isOwner, user } = useAuth()
+const { isOwner, hasFeature, user } = useAuth()
 const route = useRoute()
 const articles = ref([])
 const loading = ref(false)
 const view = ref('published')
 
+// 可管理内容：站长(isOwner) 或被授予「内容」权限的用户
+const canManageContent = computed(() => isOwner.value || hasFeature('content'))
+
 async function load() {
   loading.value = true
   try {
-    if (isOwner.value && view.value === 'mine') {
+    if (canManageContent.value && view.value === 'mine') {
       const email = user.value?.email
       articles.value = await listArticles({ status: null, authorEmail: email, limit: 200 })
     } else {
