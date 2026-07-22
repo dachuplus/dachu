@@ -3,7 +3,7 @@
     <div class="login-dialog" role="dialog" aria-modal="true" aria-label="登录注册">
       <button v-if="!wall" class="login-close" @click="$emit('close')" aria-label="关闭">&times;</button>
 
-      <div class="login-title">登录 ALLFUND.CN</div>
+      <div class="login-title">登录</div>
 
       <!-- Tab 切换 -->
       <div class="login-tabs">
