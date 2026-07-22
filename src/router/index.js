@@ -130,14 +130,15 @@ const routes = [
     }
   },
   // ===== 我的内容（独立研究栏目，类公众号）=====
-  // 内容页：所有登录用户可阅读（feature:null = 不经 routeAllowed 拦截）；
-  // 写文章/编辑/删除 由页面内部 canManageContent(isOwner||hasFeature('content')) 控制。
+  // 权限模型（站长明确）：
+  //  - 阅读：需获得「内容」功能权限（feature:'content'），管理员恒可读；
+  //  - 写/发布/编辑/删除：仅管理员可操作（ownerOnly），其他用户无任何写入口。
   {
     path: '/content',
     component: () => import('../pages/my-content/MyContentPage.vue'),
     meta: {
       tab: 'content',
-      feature: null,
+      feature: 'content',
       title: '内容 · 独立研究',
       description: '独立性研究栏目：基金工具背后的研究方法与观点分享，仅代表个人观点，不构成投资建议或金融产品营销。',
       keywords: '独立研究,基金研究,投资观点,工具方法论'
@@ -148,7 +149,7 @@ const routes = [
     component: () => import('../pages/my-content/ArticleDetailPage.vue'),
     meta: {
       tab: 'content',
-      feature: null,
+      feature: 'content',
       title: '文章详情',
       description: '独立性研究文章详情。',
       keywords: '独立研究,基金文章'
@@ -159,7 +160,7 @@ const routes = [
     component: () => import('../pages/my-content/ArticleEditorPage.vue'),
     meta: {
       tab: 'content',
-      feature: null,
+      ownerOnly: true,
       title: '写文章',
       description: '撰写独立性研究文章。',
       keywords: '写文章,独立研究'
@@ -170,7 +171,7 @@ const routes = [
     component: () => import('../pages/my-content/ArticleEditorPage.vue'),
     meta: {
       tab: 'content',
-      feature: null,
+      ownerOnly: true,
       title: '编辑文章',
       description: '编辑独立性研究文章。',
       keywords: '编辑文章,独立研究'

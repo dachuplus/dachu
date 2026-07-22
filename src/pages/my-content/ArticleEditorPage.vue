@@ -71,13 +71,13 @@ import {
 } from '../../api/articles'
 import { toast } from '../../composables/useToast'
 
-const { isOwner, hasFeature } = useAuth()
+const { isOwner } = useAuth()
 const route = useRoute()
 const router = useRouter()
 const isEdit = computed(() => !!route.params.id)
 
-// 可管理内容：站长(isOwner) 或被授予「内容」权限的用户
-const canManageContent = computed(() => isOwner.value || hasFeature('content'))
+// 可管理内容：仅管理员可写/编辑/发布（路由 ownerOnly 亦拦截非管理员）
+const canManageContent = computed(() => isOwner.value)
 const fileInput = ref(null)
 const lastUploadedUrl = ref('')
 const complianceHits = ref([])

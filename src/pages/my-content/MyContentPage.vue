@@ -53,14 +53,14 @@ import { useAuth } from '../../composables/useAuth'
 import { listArticles, deleteArticle } from '../../api/articles'
 import { confirm, toast } from '../../composables/useToast'
 
-const { isOwner, hasFeature, user } = useAuth()
+const { isOwner, user } = useAuth()
 const route = useRoute()
 const articles = ref([])
 const loading = ref(false)
 const view = ref('published')
 
-// 可管理内容：站长(isOwner) 或被授予「内容」权限的用户
-const canManageContent = computed(() => isOwner.value || hasFeature('content'))
+// 可管理内容：仅管理员可写/编辑/删除
+const canManageContent = computed(() => isOwner.value)
 
 async function load() {
   loading.value = true

@@ -25,7 +25,7 @@ const allTabs = [
   { key: 'signal',  path: '/signal',           label: '信号',     feature: 'signal' },
   { key: 'fundrank',path: '/tools/fund-rank',  label: '工具',     feature: 'fund-rank' },
   { key: 'portfolio',path:'/portfolio',        label: '组合',     feature: 'portfolio' },
-  { key: 'content',  path: '/content',          label: '内容',     feature: null },
+  { key: 'content',  path: '/content',          label: '内容',     feature: 'content' },
   { key: 'profile', path: '/profile',          label: '我的',     feature: null },
 ]
 // 按功能权限过滤可见 Tab（管理员显示全部；无 feature 的「我的」始终可见）

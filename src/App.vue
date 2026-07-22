@@ -230,7 +230,7 @@ const quickLinks = [
   { path: '/signal',           label: '信号', feature: 'signal' },
   { path: '/tools/fund-rank',  label: '工具', feature: 'fund-rank' },
   { path: '/portfolio',        label: '组合', feature: 'portfolio' },
-  { path: '/content',          label: '内容',  feature: null },
+  { path: '/content',          label: '内容',  feature: 'content' },
 ]
 // 按功能权限过滤可见的金刚区入口（管理员显示全部；feature 为 null 的入口始终可见）
 const visibleQuickLinks = computed(() =>
@@ -246,6 +246,7 @@ const routeAllowed = computed(() => {
   return hasFeature(feat)
 })
 const currentFeatureLabel = computed(() => {
+  if (route.meta?.ownerOnly) return '管理/编辑'
   const feat = route.meta?.feature
   const f = FEATURES.find(x => x.key === feat)
   return f ? f.label : ''
