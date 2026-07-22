@@ -129,6 +129,47 @@ const routes = [
       keywords: '我的,自选基金,基金账户'
     }
   },
+  // ===== 我的内容（独立研究栏目，类公众号）=====
+  {
+    path: '/content',
+    component: () => import('../pages/my-content/MyContentPage.vue'),
+    meta: {
+      tab: 'content',
+      title: '内容 · 独立研究',
+      description: '独立性研究栏目：基金工具背后的研究方法与观点分享，仅代表个人观点，不构成投资建议或金融产品营销。',
+      keywords: '独立研究,基金研究,投资观点,工具方法论'
+    }
+  },
+  {
+    path: '/content/:id',
+    component: () => import('../pages/my-content/ArticleDetailPage.vue'),
+    meta: {
+      tab: 'content',
+      title: '文章详情',
+      description: '独立性研究文章详情。',
+      keywords: '独立研究,基金文章'
+    }
+  },
+  {
+    path: '/content/editor',
+    component: () => import('../pages/my-content/ArticleEditorPage.vue'),
+    meta: {
+      tab: 'content',
+      title: '写文章',
+      description: '撰写独立性研究文章。',
+      keywords: '写文章,独立研究'
+    }
+  },
+  {
+    path: '/content/editor/:id',
+    component: () => import('../pages/my-content/ArticleEditorPage.vue'),
+    meta: {
+      tab: 'content',
+      title: '编辑文章',
+      description: '编辑独立性研究文章。',
+      keywords: '编辑文章,独立研究'
+    }
+  },
   // 旧路径重定向（带 tab 参数，跳转到正确视图）
   {
     path: '/config',
