@@ -122,6 +122,11 @@
           <component :is="Component" />
         </keep-alive>
       </router-view>
+
+      <!-- 底部访客计数条（对齐 1400px 内容列，gov.uk 风格） -->
+      <footer v-if="visitorCount !== null" class="site-visitor-bar">
+        <span class="site-visitor-bar__text">你是第 <strong>{{ visitorCount }}</strong> 位访客</span>
+      </footer>
     </main>
 
     <!-- 移动端底部 TabBar -->
@@ -161,7 +166,22 @@ onMounted(async () => {
   window.addEventListener('resize', onResize)
   await init()        // 初始化全局 auth（恢复 session 后再上报，确保能拿到登录邮箱）
   logVisitor()        // 上报本次访问（IP / 邮箱 / 地区 / 页面）
+  loadVisitorCount()  // 拉取累计访客数（写入 visitor_logs 的总条数）
 })
+
+/* ---- 累计访客数（用于底部「你是第 N 位访客」）---- */
+const visitorCount = ref(null)
+async function loadVisitorCount() {
+  if (!supabase) return
+  try {
+    const { count, error } = await supabase
+      .from('visitor_logs')
+      .select('*', { count: 'exact', head: true })
+    if (!error && typeof count === 'number') visitorCount.value = count
+  } catch (e) {
+    // 查询失败静默处理，不展示计数即可
+  }
+}
 onUnmounted(() => window.removeEventListener('resize', onResize))
 
 /* ---- 访客访问记录上报（写入 visitor_logs 表）---- */
@@ -440,6 +460,21 @@ const showBack  = computed(() => {
 .app-main.pc-main {
   padding-left: 0;
   padding-right: 0;
+}
+
+/* ========== 底部访客计数条 ========== */
+.site-visitor-bar {
+  margin-top: var(--space-xl);
+  padding-top: var(--space-md);
+  border-top: 1px solid var(--border);
+  text-align: center;
+  font-size: 13px;
+  color: var(--text-secondary);
+  background: transparent;
+}
+.site-visitor-bar__text strong {
+  color: var(--brand);
+  font-weight: 700;
 }
 @media (max-width: 768px) {
   .mobile-header { display: flex; }
