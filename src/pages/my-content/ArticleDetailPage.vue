@@ -87,6 +87,10 @@ onMounted(load)
   margin-top: var(--space-lg);
   border-left-color: #d4351c;
 }
+.dp-article {
+  max-width: 680px;
+  margin: 0 auto;
+}
 .dp-back {
   display: inline-block;
   color: #1d70b8;
