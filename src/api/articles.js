@@ -20,7 +20,8 @@ function currentEmail() {
   }
 }
 
-export { checkCompliance } from '../utils/markdown.js'
+import { checkCompliance } from '../utils/markdown.js'
+export { checkCompliance }
 
 /**
  * 列表文章。
