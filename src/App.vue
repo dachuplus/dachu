@@ -174,10 +174,11 @@ const visitorCount = ref(null)
 async function loadVisitorCount() {
   if (!supabase) return
   try {
-    const { count, error } = await supabase
-      .from('visitor_logs')
-      .select('*', { count: 'exact', head: true })
-    if (!error && typeof count === 'number') visitorCount.value = count
+    // 经 SECURITY DEFINER 函数取累计数（visitor_logs 已启用 RLS，anon 不可直接读行，
+    // 仅可执行该函数拿到一个数字，既满足计数又不泄露任何访客记录）
+    const { data, error } = await supabase.rpc('get_visitor_count')
+    const n = typeof data === 'number' ? data : parseInt(data, 10)
+    if (!error && Number.isFinite(n)) visitorCount.value = n
   } catch (e) {
     // 查询失败静默处理，不展示计数即可
   }
@@ -189,10 +190,8 @@ async function logVisitor() {
   if (!supabase) return
   const pagePath = route.path || (typeof window !== 'undefined' ? window.location.pathname : '/')
 
-  // 用户身份：已登录用 email，未登录用 localStorage 匿名标识
-  let anonUid = ''
-  try { anonUid = localStorage.getItem('allfund_anon_uid') || '' } catch (e) {}
-  const email = user.value?.email || anonUid || 'anonymous'
+  // 用户身份：去个人化——不再写入明文邮箱或匿名追踪 ID，仅区分「已登录 / 匿名」
+  const email = user.value?.email ? 'authenticated' : 'anonymous'
 
   const userAgent = typeof navigator !== 'undefined' ? navigator.userAgent : null
 
