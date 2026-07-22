@@ -188,8 +188,6 @@ onMounted(load)
 
 <style scoped>
 .ed-page {
-  max-width: 720px;
-  margin: 0 auto;
   padding: var(--space-md);
 }
 .ed-header {

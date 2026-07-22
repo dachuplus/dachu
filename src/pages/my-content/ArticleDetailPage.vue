@@ -72,8 +72,6 @@ onMounted(load)
 
 <style scoped>
 .dp-page {
-  max-width: 720px;
-  margin: 0 auto;
   padding: var(--space-md);
 }
 .dp-disclaimer {
