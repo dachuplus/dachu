@@ -122,7 +122,7 @@ async function main() {
   console.log('='.repeat(60));
 
   // 1. 读取风险指标
-  const riskFile = fs.readFileSync('/Users/maoshanbo/WorkBuddy/20260405093252/asset-config-miniapp/scripts/risk_indicators.ndjson', 'utf-8');
+  const riskFile = fs.readFileSync(process.env.HOME + '/WorkBuddy/20260405093252/asset-config-miniapp/scripts/risk_indicators.ndjson', 'utf-8');
   const riskMap = {};
   let riskCount = 0;
   for (const line of riskFile.split('\n')) {

@@ -256,7 +256,7 @@ try:
         f"ORDER BY k1 DESC NULLS LAST LIMIT 500"
     )
     df = pd.DataFrame(rows)
-    df.to_excel('/Users/maoshanbo/WorkBuddy/20260405093252/allfund/exports/fund_combined_new_scores.xlsx', index=False)
+    df.to_excel(os.path.expanduser('~/WorkBuddy/20260405093252/allfund/exports/fund_combined_new_scores.xlsx'), index=False)
     print('  Excel 已保存到 exports/fund_combined_new_scores.xlsx')
 except Exception as e:
     print(f'  导出 Excel 失败: {e}')

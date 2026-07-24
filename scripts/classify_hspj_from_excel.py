@@ -46,7 +46,7 @@ def supabase_get(endpoint, params):
 
 # ===== Step 1: 加载Excel分类映射 =====
 print('[1] 加载聚源分类标准Excel...')
-df = pd.read_excel('/Users/maoshanbo/Downloads/聚源基金分类标准20260623.xlsx', skiprows=1)
+df = pd.read_excel(os.path.expanduser('~/Downloads/聚源基金分类标准20260623.xlsx'), skiprows=1)
 df = df.iloc[:, 1:]  # drop row index col
 df.columns = ['code', 'name', 'manager', 'company', 'level1', 'level2', 'level3', 'level4']
 

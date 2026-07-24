@@ -217,7 +217,7 @@ print('【Step6】导出预览 CSV ...')
 rows = mgmt('SELECT c, name, t0, t1, k3m, k6m, k1, k2, k3, k5, k7, k10 FROM fund_combined WHERE k1 IS NOT NULL ORDER BY k1 DESC LIMIT 500')
 
 import csv
-out = '/Users/maoshanbo/WorkBuddy/20260405093252/allfund/exports/fund_combined_new_scores.csv'
+out = os.path.expanduser('~/WorkBuddy/20260405093252/allfund/exports/fund_combined_new_scores.csv')
 with open(out, 'w', newline='', encoding='utf-8-sig') as f:
     w = csv.writer(f)
     w.writerow(['基金代码', '基金名称', '一级分类', '二级分类', '3月评分', '6月评分', '1年评分', '2年评分', '3年评分', '5年评分', '7年评分', '10年评分'])

@@ -9,7 +9,7 @@
 # ============================================================
 set -e
 
-PROJECT_DIR="/Users/maoshanbo/WorkBuddy/20260405093252/allfund"
+PROJECT_DIR="$HOME/WorkBuddy/20260405093252/allfund"
 cd "$PROJECT_DIR"
 
 # 创建日志目录
@@ -33,11 +33,11 @@ else
 fi
 
 # Python 环境
-PYTHON=/Users/maoshanbo/.workbuddy/binaries/python/envs/default/bin/python
+PYTHON=$HOME/.workbuddy/binaries/python/envs/default/bin/python
 if [ ! -f "$PYTHON" ]; then
   echo "Python venv not found, creating..."
-  /Users/maoshanbo/.workbuddy/binaries/python/versions/3.13.12/bin/python3 -m venv /Users/maoshanbo/.workbuddy/binaries/python/envs/default
-  /Users/maoshanbo/.workbuddy/binaries/python/envs/default/bin/pip install requests -q
+  $HOME/.workbuddy/binaries/python/versions/3.13.12/bin/python3 -m venv $HOME/.workbuddy/binaries/python/envs/default
+  $HOME/.workbuddy/binaries/python/envs/default/bin/pip install requests -q
 fi
 
 # ============================================================

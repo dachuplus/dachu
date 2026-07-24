@@ -58,7 +58,7 @@ async function addRLSPolicies() {
 
 async function importTouguViaSQL() {
   console.log('\n=== Importing tougu_products via Management API SQL ===');
-  const srcPath = '/Users/maoshanbo/WorkBuddy/20260405093252/asset-config-miniapp/scripts/tougu_products_v2.ndjson';
+  const srcPath = process.env.HOME + '/WorkBuddy/20260405093252/asset-config-miniapp/scripts/tougu_products_v2.ndjson';
   const lines = fs.readFileSync(srcPath, 'utf-8').split('\n').filter(Boolean);
   console.log(`  Total: ${lines.length} records`);
 

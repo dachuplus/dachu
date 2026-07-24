@@ -21,7 +21,7 @@ jobs:
         uses: actions/checkout@v4
         continue-on-error: true
         with:
-          repository: maoshanbo/allfund-max
+          repository: dachu/dachu-mini
           path: ../allfund-max
           token: ${{ secrets.GITHUB_TOKEN }}
 

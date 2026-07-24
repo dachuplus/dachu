@@ -1,5 +1,5 @@
 const fs = require('fs');
-const docx = require('/Users/maoshanbo/.workbuddy/binaries/node/workspace/node_modules/docx');
+const docx = require(process.env.HOME + '/.workbuddy/binaries/node/workspace/node_modules/docx');
 
 // Use docx. prefix for all types
 const P = docx.Paragraph;
@@ -496,7 +496,7 @@ const doc = new docx.Document({
   }]
 });
 
-const outDir = '/Users/maoshanbo/WorkBuddy/20260405093252/allfund/docs';
+const outDir = process.env.HOME + '/WorkBuddy/20260405093252/allfund/docs';
 const outPath = outDir + '/allfund_requirements.docx';
 if (!fs.existsSync(outDir)) fs.mkdirSync(outDir, { recursive: true });
 
