@@ -1,3 +1,3 @@
-# allfund
-allfund 大厨先生个人博客
+# dachu
+大厨先生个人博客
 
