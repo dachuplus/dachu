@@ -1,9 +1,9 @@
 #!/bin/bash
 # allfund fund_manager recovery + redeploy runner
 set -u
-DIR=/Users/maoshanbo/WorkBuddy/20260405093252/allfund
-PY=/Users/maoshanbo/.workbuddy/binaries/python/envs/default/bin/python
-NPX=/Users/maoshanbo/.workbuddy/binaries/node/versions/22.12.0/bin/npx
+DIR=$HOME/WorkBuddy/20260405093252/dachu
+PY=$HOME/.workbuddy/binaries/python/envs/default/bin/python
+NPX=$HOME/.workbuddy/binaries/node/versions/22.12.0/bin/npx
 # 密钥从 gitignored 的 .env.local 读取，禁止硬编码（避免被 GitHub push protection 拦截 & 泄露）
 if [ -f "$DIR/.env.local" ]; then
   MGMT=$(grep -E '^SUPABASE_PAT=' "$DIR/.env.local" | head -1 | cut -d= -f2)
@@ -108,7 +108,7 @@ fi
 log "=== STEP8 deploy ==="
 rm -f dist.zip && cd dist && zip -r ../dist.zip . >/dev/null 2>&1 && cd ..
 TOKEN=$(grep -E "EDGEONE_PAGES_TOKEN|EDGEONE_PAGES_API_TOKEN" .env.local | head -1 | cut -d= -f2)
-DEPLOY_OUT=$($NPX edgeone pages deploy dist.zip -n allfund -t "$TOKEN" 2>&1 | tee -a "$LOG" | grep -iE "https?://|preview|deploy|success|error" | head -5)
+DEPLOY_OUT=$($NPX edgeone pages deploy dist.zip -n dachu -t "$TOKEN" 2>&1 | tee -a "$LOG" | grep -iE "https?://|preview|deploy|success|error" | head -5)
 echo "STEP8_DEPLOY=$DEPLOY_OUT" >> "$SUMMARY"
 log "DEPLOY: $DEPLOY_OUT"
 
