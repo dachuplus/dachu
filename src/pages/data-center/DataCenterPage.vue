@@ -170,7 +170,7 @@
         <div class="intro-row">
           <div class="intro-key">本地构建与部署</div>
           <div class="intro-val">
-            网站：<code>cd allfund &amp;&amp; npm install &amp;&amp; npm run build</code> → <code>npx edgeone pages deploy dist.zip -n allfund -t $EDGEONE_PAGES_API_TOKEN</code>。数据更新：<code>python3 scripts/sync_tag_performance.py</code> 等由 GitHub Actions 自动调度，详见仓库 <code>.github/workflows</code>。
+            网站：<code>cd dachu &amp;&amp; npm install &amp;&amp; npm run build</code> → <code>npx edgeone pages deploy dist.zip -n dachu -t $EDGEONE_PAGES_API_TOKEN</code>。数据更新：<code>python3 scripts/sync_tag_performance.py</code> 等由 GitHub Actions 自动调度，详见仓库 <code>.github/workflows</code>。
           </div>
         </div>
       </div>
@@ -241,6 +241,7 @@
             <td class="col-perm-granted">{{ row.granted_by || '—' }}</td>
             <td class="col-perm-action">
               <button class="btn-download" :disabled="row._saving" @click="saveRow(row)">保存</button>
+              <button class="btn-reset" :disabled="row._saving || row.user_email === adminEmail" @click="resetPassword(row)">重置密码</button>
               <button class="btn-remove" :disabled="row._saving || row.user_email === adminEmail" @click="removeRow(row)">删除</button>
             </td>
           </tr>
@@ -1996,6 +1997,40 @@ async function removeRow(row) {
   }
 }
 
+// 重置用户密码为默认 123456（仅管理员；主管理员自身不可重置，避免误锁账号）
+async function resetPassword(row) {
+  const email = row.user_email
+  if (!email || email === adminEmail) return
+  const ok = await confirm(
+    '重置密码',
+    `确定要将用户「${displayUsername(email)}」的密码重置为默认密码 123456 吗？该用户下次登录需使用 123456，请务必通过安全渠道告知对方。`
+  )
+  if (!ok) return
+  row._saving = true
+  permMsg.value = ''
+  try {
+    const { supabase } = await import('../../api/supabase.js')
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session?.access_token) throw new Error('未登录或会话已过期')
+    const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/admin-reset-password`
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${session.access_token}`,
+      },
+      body: JSON.stringify({ email }),
+    })
+    const data = await res.json()
+    if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`)
+    toast('已将 ' + displayUsername(email) + ' 的密码重置为 123456', 'success')
+  } catch (e) {
+    toast('重置失败：' + (e?.message || e), 'error')
+  } finally {
+    row._saving = false
+  }
+}
+
 onMounted(() => {
   loadIndex()
   loadEtlBrief()
@@ -2472,6 +2507,12 @@ watch(isOwner, (val) => {
 }
 .btn-remove:hover:not(:disabled) { background: #d4351c; color: #ffffff; }
 .btn-remove:disabled { opacity: 0.5; cursor: not-allowed; }
+.btn-reset {
+  background: #ffffff; color: #f47738; border: 1px solid #f47738;
+  padding: 4px 10px; font-size: 14px; font-weight: 700; cursor: pointer; margin-left: 6px;
+}
+.btn-reset:hover:not(:disabled) { background: #f47738; color: #ffffff; }
+.btn-reset:disabled { opacity: 0.5; cursor: not-allowed; }
 
 /* ===== 管理中心 header + tabs ===== */
 .mgmt-header { margin: 0 0 var(--space-lg); }

@@ -370,7 +370,7 @@ allfund.cn 是一个面向个人基金投资者的专业工具型网站。核心
 # 标准构建 + 部署命令
 cd allfund && npm run build
 cd dist && zip -r ../dist.zip . -x "*.DS_Store"
-cd .. && export $(grep -v '^#' .env.local | xargs) && npx edgeone pages deploy dist.zip -n allfund
+cd .. && export $(grep -v '^#' .env.local | xargs) && npx edgeone pages deploy dist.zip -n dachu
 ```
 
 **注意**：`EDGEONE_PAGES_API_TOKEN`（环境变量名，CLI 读取的是这个名字）

@@ -381,9 +381,9 @@ const children = [
   h1("\u4E94\u3001\u90E8\u7F72\u8BB0\u5F55"),
   sp(),
   boldP("\u90E8\u7F72\u5E73\u53F0\uFF1A", "\u817E\u8BAF\u4E91 EdgeOne Pages"),
-  boldP("\u9879\u76EE ID\uFF1A", "pages-qdouwrvewjkn"),
-  boldP("\u90E8\u7F72\u547D\u4EE4\uFF1A", "npm run build \u2192 zip dist/ \u2192 npx edgeone pages deploy dist.zip -n allfund"),
-  boldP("\u57DF\u540D\uFF1A", "https://www.allfund.cn"),
+  boldP("\u9879\u76EE ID\uFF1A", "makers-cg2um9nj1pjb"),
+  boldP("\u90E8\u7F72\u547D\u4EE4\uFF1A", "npm run build \u2192 zip dist/ \u2192 npx edgeone pages deploy dist.zip -n dachu"),
+  boldP("\u57DF\u540D\uFF1A", "https://www.dachu.space"),
   sp(),
 
   new Tbl({
