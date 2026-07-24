@@ -395,14 +395,14 @@ jobs:
 
       - name: 步骤7 — 打包并部署到 EdgeOne Pages
         env:
-          EDGEONE_PAGES_TOKEN: ${{ secrets.EDGEONE_PAGES_TOKEN }}
+          EDGEONE_PAGES_API_TOKEN: ${{ secrets.EDGEONE_PAGES_API_TOKEN }}
         run: |
           echo "============================================"
           echo "  步骤7: 打包并部署到 EdgeOne Pages"
           echo "============================================"
           rm -f dist.zip
           cd dist && zip -r ../dist.zip . && cd ..
-          npx edgeone pages deploy dist.zip -n allfund -t "$EDGEONE_PAGES_TOKEN"
+          npx edgeone makers deploy dist.zip -n dachu -a overseas -t "$EDGEONE_PAGES_API_TOKEN"
           echo "部署完成: $(date '+%Y-%m-%d %H:%M:%S')"
 
       - name: 失败通知

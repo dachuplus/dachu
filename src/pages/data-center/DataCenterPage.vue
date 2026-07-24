@@ -170,7 +170,7 @@
         <div class="intro-row">
           <div class="intro-key">本地构建与部署</div>
           <div class="intro-val">
-            网站：<code>cd dachu &amp;&amp; npm install &amp;&amp; npm run build</code> → <code>npx edgeone pages deploy dist.zip -n dachu -t $EDGEONE_PAGES_API_TOKEN</code>。数据更新：<code>python3 scripts/sync_tag_performance.py</code> 等由 GitHub Actions 自动调度，详见仓库 <code>.github/workflows</code>。
+            网站：<code>cd dachu &amp;&amp; npm install &amp;&amp; npm run build</code> → <code>npx edgeone makers deploy dist.zip -n dachu -a overseas -t $EDGEONE_PAGES_API_TOKEN</code>。数据更新：<code>python3 scripts/sync_tag_performance.py</code> 等由 GitHub Actions 自动调度，详见仓库 <code>.github/workflows</code>。
           </div>
         </div>
       </div>
@@ -1130,6 +1130,7 @@
           </tbody>
         </table>
         <p class="api-note">⚠️ 以上密钥仅存于本地 / CI 环境变量，禁止写入源码或公开仓库。完整密钥值由运维（主管理员）保管，AI 助手记忆中已留存，无需重复提供。</p>
+        <p class="api-note">📅 <strong>令牌刷新记录（2026-07-24）</strong>：全部令牌已统一刷新为新令牌——EdgeOne Pages Token（1 年有效）、Supabase PAT、GitHub PAT。旧令牌均已吊销并删除，请勿再使用旧值，避免混淆。</p>
       </div>
 
       <!-- 东方财富 F10 基金档案 -->
