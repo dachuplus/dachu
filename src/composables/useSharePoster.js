@@ -85,7 +85,7 @@ export function useSharePoster() {
     ctx.fillStyle = '#ffffff'
     ctx.textAlign = 'left'
     ctx.font = 'bold 38px sans-serif'
-    ctx.fillText('ALLFUND.CN', pad, 34)
+    ctx.fillText('大厨先生', pad, 34)
     ctx.font = '24px sans-serif'
     ctx.fillStyle = 'rgba(255,255,255,0.92)'
     ctx.fillText(title, pad, 86)
@@ -98,7 +98,7 @@ export function useSharePoster() {
    * @param {Function} [opts.drawContent] 内容绘制回调 (ctx, geom) => number|Promise<number>
    *                                       geom = { W, pad, headerH, y, truncateText, wrapText, roundRect, loadImage }
    *                                       回调需返回绘制结束的 y 坐标
-   * @param {string}   [opts.qrText]       二维码内容（默认官网 https://www.allfund.cn）
+   * @param {string}   [opts.qrText]       二维码内容（默认官网 https://www.dachu.space）
    * @param {string}   [opts.qrCaption]    二维码上方说明
    * @param {string}   [opts.qrSubCaption] 二维码下方说明
    * @returns {Promise<string>} PNG dataURL
@@ -107,8 +107,8 @@ export function useSharePoster() {
     const {
       title = '',
       drawContent = null,
-      qrText = 'https://www.allfund.cn',
-      qrCaption = '微信扫一扫 · 访问 www.allfund.cn',
+      qrText = 'https://www.dachu.space',
+      qrCaption = '微信扫一扫 · 访问 www.dachu.space',
       qrSubCaption = '识别二维码，查看靠谱指数与 AI 大 PK',
     } = opts
 

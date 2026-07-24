@@ -79,7 +79,7 @@
         <div class="disclaimer-content" v-if="showDisclaimer">
           <p>本工具展示数据仅供参考，不构成任何投资建议。</p>
           <p>投资有风险，决策需谨慎。</p>
-          <p>数据来源：ALLFUND.CN</p>
+          <p>数据来源：大厨先生</p>
         </div>
         <router-link v-if="isOwner" to="/data-center" class="profile-item">
           <span class="pi-label">下载数据 (数据中心)</span>

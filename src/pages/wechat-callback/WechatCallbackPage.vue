@@ -1,7 +1,7 @@
 <template>
   <div class="wechat-cb">
     <div class="wechat-cb__card">
-      <div class="wechat-cb__brand">ALLFUND.CN</div>
+      <div class="wechat-cb__brand">大厨先生</div>
       <div class="wechat-cb__title">{{ statusText }}</div>
       <div class="wechat-cb__spinner" v-if="loading"></div>
     </div>

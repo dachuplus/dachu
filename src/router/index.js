@@ -4,13 +4,12 @@ import { supabase } from '../api/supabase.js'
 const routes = [
   {
     path: '/',
-    component: () => import('../pages/fund-rank/FundRankPage.vue'),
+    component: () => import('../pages/my-content/MyContentPage.vue'),
     meta: {
-      tab: 'tools',
-      feature: 'fund-rank',
-      title: '工具',
-      description: '靠谱基金指数评分工具：覆盖全市场近2万只公募基金，按收益率、最大回撤、夏普比率综合排名，支持分类、份额、ETF/LOF 等多维筛选。',
-      keywords: '靠谱基金指数,基金评分,基金排名,基金筛选,基金靠谱指数'
+      tab: 'home',
+      title: '博客',
+      description: '大厨先生-个人博客：分享个人投资研究观点与方法论，仅代表个人观点，不构成投资建议或金融产品营销。',
+      keywords: '大厨先生,个人博客,投资观点,研究方法,独立思考'
     }
   },
   {
@@ -30,7 +29,7 @@ const routes = [
     meta: {
       tab: 'tools',
       title: '工具',
-      description: 'ALLFUND.CN 基金投资工具集：靠谱基金指数评分、投顾产品精选、智能组合与数据中心的入口。',
+      description: '大厨先生 投资工具集：靠谱基金指数评分、投顾产品精选、智能组合与数据中心的入口。',
       keywords: '基金工具,基金评分,投顾产品,智能组合'
     }
   },
@@ -129,19 +128,18 @@ const routes = [
       keywords: '我的,自选基金,基金账户'
     }
   },
-  // ===== 我的内容（独立研究栏目，类公众号）=====
+  // ===== 我的内容（个人博客栏目，类公众号）=====
   // 权限模型（站长明确）：
-  //  - 阅读：需获得「内容」功能权限（feature:'content'），管理员恒可读；
+  //  - 阅读：公开可读（任何登录用户均可查看，仅代表个人观点）；
   //  - 写/发布/编辑/删除：仅管理员可操作（ownerOnly），其他用户无任何写入口。
   {
     path: '/content',
     component: () => import('../pages/my-content/MyContentPage.vue'),
     meta: {
       tab: 'content',
-      feature: 'content',
-      title: '内容 · 独立研究',
-      description: '独立性研究栏目：基金工具背后的研究方法与观点分享，仅代表个人观点，不构成投资建议或金融产品营销。',
-      keywords: '独立研究,基金研究,投资观点,工具方法论'
+      title: '博客 · 个人观点',
+      description: '大厨先生-个人博客：分享个人投资研究观点与方法论，仅代表个人观点，不构成投资建议。',
+      keywords: '大厨先生,个人博客,投资观点,研究方法'
     }
   },
   {
@@ -149,10 +147,9 @@ const routes = [
     component: () => import('../pages/my-content/ArticleDetailPage.vue'),
     meta: {
       tab: 'content',
-      feature: 'content',
       title: '文章详情',
-      description: '独立性研究文章详情。',
-      keywords: '独立研究,基金文章'
+      description: '大厨先生-个人博客文章详情。',
+      keywords: '大厨先生,个人博客,投资观点'
     }
   },
   {
@@ -258,16 +255,16 @@ async function _trackVisit(path) {
 }
 
 router.afterEach((to) => {
-  const baseTitle = 'ALLFUND.CN'
-  document.title = (to.meta?.title || '靠谱指数评分工具') + ' | ' + baseTitle
+  const baseTitle = '大厨先生-个人博客'
+  document.title = (to.meta?.title || '个人博客') + ' | ' + baseTitle
 
   // 动态注入 SEO meta（description / keywords）
   const meta = to.meta || {}
-  setMeta('description', meta.description || 'allfund.cn — 用数据说话，帮助你做出更好的基金投资决策。')
-  setMeta('keywords', meta.keywords || '基金,靠谱基金,基金排名,基金投资')
+  setMeta('description', meta.description || '大厨先生-个人博客 — 分享个人投资研究观点与方法论，仅代表个人观点，不构成投资建议。')
+  setMeta('keywords', meta.keywords || '大厨先生,个人博客,投资观点')
   // Open Graph（社交分享卡片）
   setMeta('og:title', document.title, 'property')
-  setMeta('og:description', meta.description || '用数据辅助基金投资决策：靠谱指数评分、股债性价比、大类资产预期收益。', 'property')
+  setMeta('og:description', meta.description || '大厨先生-个人博客，分享独立投资研究观点与方法论，仅代表个人观点，不构成投资建议。', 'property')
   setMeta('og:type', 'website', 'property')
   setMeta('og:url', location.origin + to.fullPath, 'property')
   // 记录访问（异步，不阻塞导航）

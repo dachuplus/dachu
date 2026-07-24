@@ -1,9 +1,9 @@
 <template>
   <div class="dp-page" v-if="article">
     <div class="dp-disclaimer">
-      独立性研究声明：本站所有内容仅代表作者个人研究观点，不构成任何投资建议，亦不构成金融产品营销。市场有风险，决策需谨慎。
+      大厨先生-个人博客声明：本站所有内容仅代表作者个人研究观点，不构成任何投资建议，亦不构成金融产品营销。市场有风险，决策需谨慎。
     </div>
-    <router-link to="/content" class="dp-back">← 返回内容列表</router-link>
+    <router-link to="/content" class="dp-back">← 返回博客列表</router-link>
 
     <article class="dp-article">
       <h1 class="dp-title">{{ article.title }}</h1>

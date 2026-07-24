@@ -10,14 +10,14 @@
         </span>
       </div>
       <p class="card-desc">
-        让 7 个真实大模型基于 ALLFUND.CN 股票靠谱指数（stock_scores）真实行情数据，先选二级行业、再在该行业内选个股，
+        让 7 个真实大模型基于大厨先生股票靠谱指数（stock_scores）真实行情数据，先选二级行业、再在该行业内选个股，
         各 5 只 × 20% 等权，每月 1 日调仓，比一比谁的收益更好。
         由 <b>7 个真实大模型</b>基于股票靠谱指数（stock_scores）真实行情，先选二级行业、再在该行业内选个股（含豆包·火山方舟真实模型），
         并给出两层逻辑（第一层行业选择 · 第二层个股选择）；各模型按自身推理逻辑自主决策，目标只有一个——跑赢对手。
         通过「千问百炼」聚合平台调用的模型已在卡片上标注<span class="aipk-ds-badge">百炼</span>徽标。
         所有选股与推理均基于 stock_scores 真实指标（收益/回撤/夏普），模型不引用任何表外或网络信息，无编造、无模拟。
       </p>
-      <div class="aipk-src">数据来源：ALLFUND.CN 股票靠谱指数库（真实行情，非模拟）</div>
+      <div class="aipk-src">数据来源：大厨先生股票靠谱指数库（真实行情，非模拟）</div>
       <div class="aipk-disclaimer">
         <span class="aipk-disclaimer-icon" aria-hidden="true">!</span>
         <span>AI 模拟，不构成投资建议</span>
@@ -726,7 +726,7 @@ function drawShareHeader(ctx, W, pad, headerH, title) {
   ctx.fillStyle = '#ffffff'
   ctx.textAlign = 'left'
   ctx.font = 'bold 38px sans-serif'
-  ctx.fillText('ALLFUND.CN', pad, 34)
+  ctx.fillText('大厨先生', pad, 34)
   ctx.font = '24px sans-serif'
   ctx.fillStyle = 'rgba(255,255,255,0.92)'
   ctx.fillText('股票组合 · ' + title, pad, 86)
@@ -926,13 +926,13 @@ async function generateShareImage(section) {
     // 二维码 + 说明
     const qrY = usedY + 16
     const qrCanvas = document.createElement('canvas')
-    await QRCode.toCanvas(qrCanvas, 'https://www.allfund.cn', {
+    await QRCode.toCanvas(qrCanvas, 'https://www.dachu.space', {
       width: qrSize * scale, margin: 1, color: { dark: '#000000', light: '#ffffff' },
     })
     ctx.drawImage(qrCanvas, (W - qrSize) / 2, qrY, qrSize, qrSize)
     ctx.textAlign = 'center'
     ctx.fillStyle = '#1d70b8'; ctx.font = 'bold 24px sans-serif'
-    ctx.fillText('微信扫一扫 · 访问 www.allfund.cn', W / 2, qrY + qrSize + 14)
+    ctx.fillText('微信扫一扫 · 访问 www.dachu.space', W / 2, qrY + qrSize + 14)
     ctx.fillStyle = '#999999'; ctx.font = '16px sans-serif'
     ctx.fillText('识别二维码，查看靠谱指数与股票组合 PK', W / 2, qrY + qrSize + 44)
 

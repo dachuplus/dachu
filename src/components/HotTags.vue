@@ -84,7 +84,7 @@
 
     <!-- 数据来源说明（随阶段动态变化） -->
     <div class="tags-footnote" v-if="displayTags.length > 0">
-      {{ stageFootnote }}数据来源：ALLFUND.CN
+      {{ stageFootnote }}数据来源：大厨先生
     </div>
 
     <!-- 加载中 -->
@@ -159,7 +159,7 @@
             </div>
             <!-- 数据来源 -->
             <div class="data-source-line">
-              数据来源：ALLFUND.CN &nbsp;|&nbsp; 截止时间：{{ bottomUpdateTime || '—' }}
+              数据来源：大厨先生 &nbsp;|&nbsp; 截止时间：{{ bottomUpdateTime || '—' }}
             </div>
           </div>
         </div>
@@ -177,7 +177,7 @@
           </div>
           <div class="share-body">
             <img class="share-img" :src="shareImage" alt="分享图" />
-            <p class="share-source">数据来源：ALLFUND.CN &nbsp;|&nbsp; 截止时间：{{ shareUpdateTime || '—' }}</p>
+            <p class="share-source">数据来源：大厨先生 &nbsp;|&nbsp; 截止时间：{{ shareUpdateTime || '—' }}</p>
             <p class="share-hint">长按图片可保存到相册，或分享到朋友圈</p>
             <button class="share-save-btn" @click="saveShareImage">保存图片</button>
           </div>
@@ -1194,7 +1194,7 @@ async function generateShareImage() {
     ctx.fillStyle = '#ffffff'
     ctx.textAlign = 'left'
     ctx.font = 'bold 38px sans-serif'
-    ctx.fillText('ALLFUND.CN', pad, 34)
+    ctx.fillText('大厨先生', pad, 34)
     ctx.font = '24px sans-serif'
     ctx.fillStyle = 'rgba(255,255,255,0.92)'
     ctx.fillText('靠谱指数 · 热门基金', pad, 86)
@@ -1303,7 +1303,7 @@ async function generateShareImage() {
 
     // 二维码
     const qrCanvas = document.createElement('canvas')
-    await QRCode.toCanvas(qrCanvas, 'https://www.allfund.cn', {
+    await QRCode.toCanvas(qrCanvas, 'https://www.dachu.space', {
       width: qrSize * scale,
       margin: 1,
       color: { dark: '#000000', light: '#ffffff' },
@@ -1313,7 +1313,7 @@ async function generateShareImage() {
     ctx.textAlign = 'center'
     ctx.fillStyle = '#1d70b8'
     ctx.font = 'bold 26px sans-serif'
-    ctx.fillText('微信扫一扫 · 访问 www.allfund.cn', W / 2, qrY + qrSize + 18)
+    ctx.fillText('微信扫一扫 · 访问 www.dachu.space', W / 2, qrY + qrSize + 18)
     ctx.fillStyle = '#999999'
     ctx.font = '18px sans-serif'
     ctx.fillText('识别二维码，查看靠谱指数与更多热门基金', W / 2, qrY + qrSize + 52)
@@ -1322,11 +1322,11 @@ async function generateShareImage() {
     if (updateTimeStr) {
       ctx.fillStyle = '#bbbbbb'
       ctx.font = '15px sans-serif'
-      ctx.fillText('来源：ALLFUND.CN  |  ' + updateTimeStr, W / 2, qrY + qrSize + 80)
+      ctx.fillText('来源：大厨先生  |  ' + updateTimeStr, W / 2, qrY + qrSize + 80)
     } else {
       ctx.fillStyle = '#bbbbbb'
       ctx.font = '15px sans-serif'
-      ctx.fillText('来源：ALLFUND.CN', W / 2, qrY + qrSize + 80)
+      ctx.fillText('来源：大厨先生', W / 2, qrY + qrSize + 80)
     }
 
     shareImage.value = canvas.toDataURL('image/png')

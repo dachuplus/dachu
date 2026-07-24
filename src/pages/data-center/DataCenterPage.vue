@@ -10,7 +10,7 @@
     </div>
 
     <template v-else>
-    <p class="page-desc">ALLFUND.CN 数据库全部表一览。选择需要下载的数据表，点击下载 Excel 文件。数据每日 21:30（北京时间）自动更新。</p>
+    <p class="page-desc">大厨先生 数据库全部表一览。选择需要下载的数据表，点击下载 Excel 文件。数据每日 21:30（北京时间）自动更新。</p>
 
     <!-- 管理中心 header + tab 导航 -->
     <div class="mgmt-header">
@@ -116,7 +116,7 @@
 
     <!-- 项目简介 -->
     <div class="card" v-show="activeTab==='download'">
-      <div class="card-title">项目简介 · ALLFUND.CN</div>
+      <div class="card-title">项目简介 · 大厨先生</div>
       <p class="section-desc">本页面与整个 allfund 项目均托管于 GitHub，可依据本文档从零重新搭建网站与小程序。以下为项目全貌，供二次开发与部署参考。</p>
       <div class="intro-grid">
         <div class="intro-row">
@@ -140,7 +140,7 @@
         <div class="intro-row">
           <div class="intro-key">前端服务</div>
           <div class="intro-val">
-            网站：EdgeOne Pages（生产域名 <code>www.allfund.cn</code>）；小程序：微信小程序（allfund-max）。两端均直连 Supabase REST API 读取数据，无需自建后端应用服务器。
+            网站：EdgeOne Pages（生产域名 <code>www.dachu.space</code>）；小程序：微信小程序（allfund-max）。两端均直连 Supabase REST API 读取数据，无需自建后端应用服务器。
           </div>
         </div>
         <div class="intro-row">
@@ -468,7 +468,7 @@
     <div class="login-banner" v-if="!isLoggedIn">
       <div class="login-banner-text">
         <strong>注册并登录后可下载全部数据</strong>
-        <span>ALLFUND.CN 数据库每日自动更新，登录后即可导出每张表的 Excel 文件。</span>
+        <span>大厨先生 数据库每日自动更新，登录后即可导出每张表的 Excel 文件。</span>
       </div>
       <button class="btn-login" @click="showLogin()">登录 / 注册</button>
     </div>
@@ -519,7 +519,7 @@
     <!-- 评分方法论 -->
     <div class="card" v-show="activeTab==='download'">
       <div class="card-title">评分方法论 — V7 靠谱指数算法</div>
-      <p class="section-desc">ALLFUND.CN 的"靠谱指数"（k_all）是对全市场基金进行量化评分的核心指标。以下详细说明从原始数据到最终评分的完整计算过程。</p>
+      <p class="section-desc">大厨先生 的"靠谱指数"（k_all）是对全市场基金进行量化评分的核心指标。以下详细说明从原始数据到最终评分的完整计算过程。</p>
 
       <!-- 第一步 -->
       <h2 class="method-step-title">第一步：原始数据采集</h2>
@@ -709,7 +709,7 @@
     <!-- API 接口文档 -->
     <div class="card" v-show="activeTab==='download'">
       <div class="card-title">数据接口文档</div>
-      <p class="section-desc">以下是 ALLFUND.CN 使用的所有外部数据接口，所有接口均来源于公开数据平台。</p>
+      <p class="section-desc">以下是 大厨先生 使用的所有外部数据接口，所有接口均来源于公开数据平台。</p>
 
       <!-- 天天基金 API -->
       <h2 class="api-group-title">一、天天基金 API</h2>

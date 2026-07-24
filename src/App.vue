@@ -8,7 +8,7 @@
     <!-- 账号被封禁 -->
     <div v-if="blocked" class="stranger-screen">
       <div class="stranger-card">
-        <div class="stranger-brand">ALLFUND.CN</div>
+        <div class="stranger-brand">大厨先生</div>
         <div class="stranger-title">账号已被封禁</div>
         <p class="stranger-desc">您的账号已被管理员封禁，无法访问本站。如需恢复访问，请联系管理员。</p>
         <div class="stranger-actions">
@@ -23,7 +23,7 @@
     <!-- 已登录但权限申请被驳回：驳回提示（优先于陌生人提示） -->
     <div v-else-if="!authLoading && isLoggedIn && rejected" class="stranger-screen">
       <div class="stranger-card">
-        <div class="stranger-brand">ALLFUND.CN</div>
+        <div class="stranger-brand">大厨先生</div>
         <div class="stranger-title">申请已被驳回</div>
         <p class="stranger-desc">抱歉，您提交的访问权限申请未通过审核。如有疑问可联系管理员，或点击「重新申请」补充信息再次提交。</p>
         <div class="stranger-actions">
@@ -36,9 +36,9 @@
     <!-- 已登录但无权限：陌生人提示 -->
     <div v-else-if="!authLoading && isLoggedIn && isStranger" class="stranger-screen">
       <div class="stranger-card">
-        <div class="stranger-brand">ALLFUND.CN</div>
+        <div class="stranger-brand">大厨先生</div>
         <div class="stranger-title">暂无访问权限</div>
-        <p class="stranger-desc">抱歉，您的账户尚未开通 ALLFUND.CN 的访问权限。如需使用，请点击「申请权限」填写信息，管理员审核通过后将为您开通对应功能。</p>
+        <p class="stranger-desc">抱歉，您的账户尚未开通 大厨先生 的访问权限。如需使用，请点击「申请权限」填写信息，管理员审核通过后将为您开通对应功能。</p>
         <div class="stranger-actions">
           <button class="stranger-request" @click="showRequestDialog = true">申请权限</button>
           <button class="stranger-logout" @click="handleLogout">退出登录</button>
@@ -52,7 +52,7 @@
     <header class="govuk-header" v-if="!isMobile">
       <div class="govuk-header__container">
         <div class="govuk-header__logo">
-          <router-link to="/" class="govuk-header__logotype-text" style="text-decoration:none;color:#fff">靠谱指数工具 ALLFUND.CN</router-link>
+          <router-link to="/" class="govuk-header__logotype-text" style="text-decoration:none;color:#fff">大厨先生 · 个人博客</router-link>
         </div>
         <div class="govuk-header__content">
           <div class="govuk-header__auth">
@@ -82,7 +82,7 @@
       <p class="govuk-phase-banner__content">
         <strong class="govuk-tag govuk-phase-banner__tag">BETA</strong>
         <span class="govuk-phase-banner__text">
-          这是 ALLFUND.CN 的测试版本 — 数据每日更新，如有问题请反馈。
+          这是大厨先生的测试版本 — 数据每日更新，如有问题请反馈。
         </span>
       </p>
     </div>
@@ -122,6 +122,11 @@
           <component :is="Component" />
         </keep-alive>
       </router-view>
+
+      <!-- 全站免责声明（合规：个人观点，不构成投资建议） -->
+      <footer class="site-disclaimer">
+        个人观点，仅供参考，不构成任何投资建议或金融产品营销。市场有风险，投资需谨慎。
+      </footer>
 
       <!-- 底部访客计数条（对齐 1400px 内容列，gov.uk 风格） -->
       <footer v-if="visitorCount !== null" class="site-visitor-bar">
@@ -246,10 +251,10 @@ function onRequestSubmitted() {
 
 /* ---- 全局金刚区 ---- */
 const quickLinks = [
+  { path: '/content',          label: '博客', feature: null },
   { path: '/signal',           label: '信号', feature: 'signal' },
   { path: '/tools/fund-rank',  label: '工具', feature: 'fund-rank' },
   { path: '/portfolio',        label: '组合', feature: 'portfolio' },
-  { path: '/content',          label: '内容',  feature: 'content' },
 ]
 // 按功能权限过滤可见的金刚区入口（管理员显示全部；feature 为 null 的入口始终可见）
 const visibleQuickLinks = computed(() =>
@@ -273,12 +278,12 @@ const currentFeatureLabel = computed(() => {
 
 /* ---- Tab 数据（仅移动端 TabBar 使用）---- */
 const tabs = [
-  { key: 'home',      path: '/',                 label: '首页' },
-  { key: 'signal',    path: '/signal',           label: '信号' },
-  { key: 'fundrank',  path: '/tools/fund-rank',  label: '工具' },
-  { key: 'portfolio', path: '/portfolio',        label: '组合' },
-  { key: 'content',   path: '/content',          label: '内容' },
-  { key: 'profile',   path: '/profile',          label: '我的' },
+  { key: 'home',      path: '/',                 label: '首页',  feature: null },
+  { key: 'content',   path: '/content',          label: '博客',  feature: null },
+  { key: 'signal',    path: '/signal',           label: '信号',  feature: 'signal' },
+  { key: 'fundrank',  path: '/tools/fund-rank',  label: '工具',  feature: 'fund-rank' },
+  { key: 'portfolio', path: '/portfolio',        label: '组合',  feature: 'portfolio' },
+  { key: 'profile',   path: '/profile',          label: '我的',  feature: null },
 ]
 
 const pageTitle = computed(() => route.meta?.title || '投资助手')
@@ -459,6 +464,19 @@ const showBack  = computed(() => {
 .app-main.pc-main {
   padding-left: 0;
   padding-right: 0;
+}
+
+/* ========== 全站免责声明 ========== */
+.site-disclaimer {
+  margin-top: var(--space-xl);
+  padding: 12px 16px;
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  background: #f3f2f1;
+  text-align: center;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--text-secondary);
 }
 
 /* ========== 底部访客计数条 ========== */
