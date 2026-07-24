@@ -13,52 +13,6 @@
     <meta property="og:type" content="website" />
     <meta property="og:url" content="https://www.dachu.space/" />
     <title>大厨先生-个人博客</title>
-    <!-- 移除 EdgeOne 预览环境注入的演示提示横幅（unified.js 在运行时注入到本页 body，故可在文档内清除） -->
-    <script>
-      (function () {
-        var TARGET = 'For demonstration and testing purposes only';
-        var scheduled = false;
-        function sweep() {
-          if (!document.body) return;
-          var snap = document.evaluate(
-            "//text()[contains(., '" + TARGET + "')]",
-            document, null, XPathResult.UNORDERED_NODE_SNAPSHOT_TYPE, null
-          );
-          for (var i = 0; i < snap.snapshotLength; i++) {
-            var t = snap.snapshotItem(i);
-            var el = t.parentElement;
-            while (el && el.parentElement && el.parentElement.nodeType === 1
-                   && el.children.length <= 1
-                   && (el.textContent || '').indexOf(TARGET) !== -1) {
-              el = el.parentElement;
-            }
-            if (el && el.parentElement && el.parentElement.nodeType === 1) {
-              el.parentElement.removeChild(el);
-            }
-          }
-        }
-        function schedule() {
-          if (scheduled) return;
-          scheduled = true;
-          setTimeout(function () { scheduled = false; sweep(); }, 200);
-        }
-        function start() {
-          sweep();
-          if ('MutationObserver' in window) {
-            var mo = new MutationObserver(schedule);
-            mo.observe(document.documentElement, { childList: true, subtree: true });
-          }
-          // 兜底轮询：覆盖观察者未触发或延迟注入的情况，持续 ~15s
-          var ticks = 0;
-          var timer = setInterval(function () {
-            sweep();
-            if (++ticks >= 50) clearInterval(timer);
-          }, 300);
-        }
-        if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start);
-        else start();
-      })();
-    </script>
     <script type="application/ld+json">
     {
       "@context": "https://schema.org",
