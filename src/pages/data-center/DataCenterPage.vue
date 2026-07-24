@@ -46,8 +46,8 @@
         </span>
       </div>
 
-      <!-- 按日期分组展示（可展开） -->
-      <table class="data-table etl-day-table" v-if="etlLogs.length > 0">
+      <!-- 按日期分组展示（可展开；用 etlDaySummaries 而非 etlLogs 控制显隐，确保无记录的天也以「未运行」展示） -->
+      <table class="data-table etl-day-table" v-if="etlDaySummaries.length > 0">
         <thead>
           <tr>
             <th class="col-etl-date">日期</th>
