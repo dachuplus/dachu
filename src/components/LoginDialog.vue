@@ -7,7 +7,7 @@
 
       <!-- Tab 切换 -->
       <div class="login-tabs">
-        <span class="login-tab" :class="{ active: mode === 'signin' }" @click="mode = 'signin'">登录</span>
+        <span class="login-tab" :class="{ active: mode === 'signin' || mode === 'reset' }" @click="mode = 'signin'">登录</span>
         <span class="login-tab" :class="{ active: mode === 'signup' }" @click="mode = 'signup'; accType = 'phone'">注册（手机号）</span>
       </div>
 
@@ -20,6 +20,39 @@
 
       <!-- 表单 -->
       <div class="login-form">
+        <!-- 重置密码模式 -->
+        <template v-if="mode === 'reset'">
+          <p class="login-hint">输入注册时使用的邮箱或手机号，我们将发送密码重置链接到您的邮箱。</p>
+
+          <div class="login-acctype">
+            <button type="button" class="acctype-btn" :class="{ active: accType === 'email' }" @click="accType = 'email'">邮箱</button>
+            <button type="button" class="acctype-btn" :class="{ active: accType === 'phone' }" @click="accType = 'phone'">手机号</button>
+          </div>
+
+          <label class="login-label" :for="accType === 'email' ? 'reset-email' : 'reset-phone'">
+            {{ accType === 'email' ? '邮箱地址' : '手机号' }}
+          </label>
+          <input
+            :id="accType === 'email' ? 'reset-email' : 'reset-phone'"
+            class="login-input"
+            :type="accType === 'email' ? 'email' : 'tel'"
+            v-model="account"
+            :placeholder="accType === 'email' ? 'you@example.com' : '11 位手机号'"
+            @keyup.enter="sendReset"
+          />
+
+          <div class="login-error" v-if="error">{{ error }}</div>
+          <div class="login-success" v-if="success">{{ success }}</div>
+
+          <button class="login-submit" :disabled="loading" @click="sendReset">
+            {{ loading ? '发送中...' : '发送重置链接' }}
+          </button>
+
+          <button class="login-link-btn" type="button" @click="backToSignin">← 返回登录</button>
+        </template>
+
+        <!-- 登录 / 注册模式 -->
+        <template v-else>
         <label class="login-label" :for="accType === 'email' ? 'login-email' : 'login-phone'">
           {{ accType === 'email' ? '邮箱地址' : '手机号' }}
         </label>
@@ -45,6 +78,14 @@
         <div class="login-error" v-if="error">{{ error }}</div>
         <div class="login-success" v-if="success">{{ success }}</div>
 
+        <!-- 忘记密码：仅登录模式显示 -->
+        <button
+          v-if="mode === 'signin'"
+          class="login-forgot"
+          type="button"
+          @click="startReset"
+        >忘记密码？</button>
+
         <button class="login-submit" :disabled="loading" @click="submit">
           {{ loading ? '处理中...' : (mode === 'signup' ? '注册' : '登录') }}
         </button>
@@ -53,6 +94,7 @@
         <button class="login-wechat" type="button" @click="startWechatLogin" :disabled="wxLoading">
           <span class="login-wechat__icon">微</span>{{ wxLoading ? '跳转中...' : '微信扫码登录' }}
         </button>
+        </template>
       </div>
     </div>
   </div>
@@ -72,7 +114,7 @@ const props = defineProps({
 const emit = defineEmits(['close', 'logged-in'])
 const { markLogin } = useAuth()
 
-const mode = ref('signin')      // 'signin' | 'signup'
+const mode = ref('signin')      // 'signin' | 'signup' | 'reset'
 const accType = ref('email')    // 'email' | 'phone'
 const account = ref('')
 const password = ref('')
@@ -191,6 +233,59 @@ function translateError(msg) {
   }
   return map[msg] || msg
 }
+
+// ── 重置密码 ──
+function startReset() {
+  mode.value = 'reset'
+  error.value = ''
+  success.value = ''
+  account.value = ''
+}
+
+function backToSignin() {
+  mode.value = 'signin'
+  error.value = ''
+  success.value = ''
+}
+
+async function sendReset() {
+  error.value = ''
+  success.value = ''
+  const isPhone = accType.value === 'phone'
+  const identifier = isPhone ? normalizePhone(account.value) : (account.value || '').trim()
+
+  if (!identifier) {
+    error.value = isPhone ? '请填写手机号' : '请填写邮箱'
+    return
+  }
+  if (isPhone && !/^\+861\d{10}$/.test(identifier)) {
+    error.value = '请输入有效的 11 位手机号'
+    return
+  }
+  if (!isPhone && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(identifier)) {
+    error.value = '邮箱格式不正确'
+    return
+  }
+
+  loading.value = true
+  try {
+    const email = isPhone ? emailForPhone(identifier) : identifier
+    const { error: err } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: window.location.origin + '/wechat-callback', // 复用已有回调页处理 token
+    })
+    if (err) {
+      // 用户不存在时也返回友好提示（不泄露用户是否存在）
+      error.value = translateError(err.message)
+      return
+    }
+    success.value = '重置链接已发送到您的邮箱，请查收并按提示设置新密码。'
+  } catch (e) {
+    error.value = '网络错误，请稍后重试'
+    console.error('[LoginDialog reset]', e)
+  } finally {
+    loading.value = false
+  }
+}
 </script>
 
 <style scoped>
@@ -281,6 +376,23 @@ function translateError(msg) {
 }
 .login-submit:hover { background: #003078; }
 .login-submit:disabled { opacity: 0.6; cursor: not-allowed; }
+
+/* 忘记密码链接 */
+.login-forgot {
+  align-self: flex-end;
+  background: none; border: none; font-size: 14px; color: #1d70b8;
+  cursor: pointer; padding: 2px 4px; text-decoration: underline;
+}
+.login-forgot:hover { color: #003078; }
+
+/* 返回按钮 */
+.login-link-btn {
+  align-self: center;
+  background: none; border: 1px solid var(--border); font-size: 14px;
+  color: var(--text-secondary); cursor: pointer; padding: var(--space-xs) var(--space-md);
+  margin-top: var(--space-sm);
+}
+.login-link-btn:hover { color: #1d70b8; border-color: #1d70b8; }
 
 /* 微信扫码登录分隔与按钮 */
 .login-divider {
