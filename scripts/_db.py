@@ -23,6 +23,10 @@
     - 否则 → 回退到 Management API（需要 SUPABASE_PAT / SUPABASE_MGMT_TOKEN）。
 """
 import os
+import sys
+
+import psycopg2
+import psycopg2.extras
 
 PROJECT_REF = os.environ.get("SUPABASE_PROJECT_REF", "tqhtegazxykkqfcpejky")
 MGMT_API = f"https://api.supabase.com/v1/projects/{PROJECT_REF}/database/query"
@@ -123,10 +127,13 @@ def _ipv4_host(dsn):
 
 
 def _db_query(sql, params=None, timeout=300):
-    """直连路径：psycopg2 直连 postgres。返回 list[dict]（其余与 _mgmt_query 对齐）。"""
+    """直连路径：psycopg2 直连 postgres。返回 list[dict]（其余与 _mgmt_query 对齐）。
+
+    注：Supabase 的数据库主机只提供 IPv6，而 GitHub Actions runner 无 IPv6 出口，
+    直连在 CI 里会 'Network is unreachable'。本层会先尝试直连（有 IPv6 的环境用数据库密码），
+    调用方 run_sql 在连接失败时自动回退到 Management API（IPv4 + PAT）。
+    """
     import json
-    import psycopg2
-    import psycopg2.extras
 
     dsn = os.environ["SUPABASE_DB_URL"]
     statements = _split_statements(sql)
@@ -157,11 +164,28 @@ def _db_query(sql, params=None, timeout=300):
 def run_sql(sql, params=None, timeout=None):
     """
     执行 SQL，返回 list[dict]（SELECT）或 []（DDL/DML）。
-    优先 psycopg2 直连（SUPABASE_DB_URL），否则回退 Management API（PAT）。
+
+    后端选择（自动，业务代码无感）：
+      1. 若设置了 SUPABASE_DB_URL → 先试 psycopg2 直连（数据库密码，长期稳定）。
+      2. 直连失败（典型：CI runner 无 IPv6 出口，连不上 Supabase 的 IPv6-only 数据库）
+         → 自动回退到 Management API（走 IPv4 HTTPS，认 SUPABASE_PAT / SUPABASE_MGMT_TOKEN）。
+
+    这样同一套代码：本地/有 IPv6 的环境用「不会过期的数据库密码」，
+    GitHub Actions 等无 IPv6 的环境透明回退到 Management API，每日更新都不会因
+    单一通道问题而失败。
 
     兼容各脚本既有的 pg() / run_sql() / pg_query() 调用签名：
     可传入 timeout 关键字参数（直连路径会用作 connect_timeout，API 路径用作请求超时）。
     """
-    if os.environ.get("SUPABASE_DB_URL"):
-        return _db_query(sql, params, timeout)
+    db_url = os.environ.get("SUPABASE_DB_URL")
+    if db_url:
+        try:
+            return _db_query(sql, params, timeout)
+        except psycopg2.OperationalError as e:
+            # 仅连接/网络/认证类错误才回退；SQL 语法等错误不该静默回退。
+            pat = os.environ.get("SUPABASE_PAT") or os.environ.get("SUPABASE_MGMT_TOKEN")
+            if pat:
+                sys.stderr.write(f"[_db] 直连失败，回退 Management API(PAT): {e}\n")
+                return _mgmt_query(sql, params, timeout or 60)
+            raise
     return _mgmt_query(sql, params, timeout or 60)
