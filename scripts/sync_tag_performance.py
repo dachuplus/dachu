@@ -46,16 +46,12 @@ BASE_API = 'http://api.fund.eastmoney.com/ztjj/GetBKDetailInfoNew'
 
 
 def mgmt_query(sql):
-    """执行 Management API SQL（SELECT / DDL / DML），含重试应对沙箱网络抖动"""
+    """执行 SQL（SELECT/DDL/DML），含重试应对网络抖动。优先直连，否则 PAT 兜底。保持 {'result':{'rows':...}} 包装。"""
+    from _db import run_sql as _db_run_sql
     last_err = None
     for attempt in range(4):
         try:
-            r = requests.post(MGMT_URL, headers=HEADERS_MGMT, json={
-                'query': sql,
-            }, timeout=90)
-            r.raise_for_status()
-            data = r.json()
-            # SELECT 返回 list，DDL/DML 返回 {"command": ..., "rows_affected": ...}
+            data = _db_run_sql(sql)
             if isinstance(data, list):
                 return {'result': {'rows': data}}
             return data

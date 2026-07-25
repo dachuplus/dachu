@@ -32,11 +32,12 @@ HEADERS_MGMT = {"Authorization": f"Bearer {MGMT_TOKEN}", "Content-Type": "applic
 
 
 def mgmt_query(sql):
-    r = __import__("requests").post(MGMT_URL, headers=HEADERS_MGMT, json={"query": sql}, timeout=120)
-    if r.status_code not in (200, 201):
-        print(f"  SQL ERROR ({r.status_code}): {r.text[:300]}", flush=True)
+    from _db import run_sql as _db_run_sql
+    try:
+        return _db_run_sql(sql)
+    except Exception as e:
+        print(f"  SQL ERROR: {str(e)[:300]}", flush=True)
         return None
-    return r
 
 
 def rest_get_all(table, select, batch=1000):

@@ -315,19 +315,20 @@ def import_to_supabase(all_results, scores):
         })
 
         if len(batch) >= 50:
-            total += _insert_batch(batch, MGMT_URL, headers)
+            total += _insert_batch(batch)
             batch = []
             if total > 0 and total % 500 == 0:
                 print(f"  已入库: {total} 条", flush=True)
 
-    if batch:
-        total += _insert_batch(batch, MGMT_URL, headers)
+        if batch:
+            total += _insert_batch(batch)
 
     print(f"  入库完成: {total} 条")
 
 
-def _insert_batch(batch, url, headers):
-    """插入一批数据到 fund_quarterly_scores（用 dollar-quoting 避免 JSON 转义问题）"""
+def _insert_batch(batch):
+    """插入一批数据到 fund_quarterly_scores（用 dollar-quoting 避免 JSON 转义问题）。优先 psycopg2 直连，否则 PAT 兜底。"""
+    from _db import run_sql as _db_run_sql
     values_parts = []
     for row in batch:
         vals = []
@@ -347,13 +348,8 @@ def _insert_batch(batch, url, headers):
     sql = f"INSERT INTO public.fund_quarterly_scores ({columns}) VALUES {', '.join(values_parts)} ON CONFLICT (c) DO UPDATE SET quarterly_data=EXCLUDED.quarterly_data, score_3m=EXCLUDED.score_3m, score_6m=EXCLUDED.score_6m, score_1y=EXCLUDED.score_1y, score_2y=EXCLUDED.score_2y, score_3y=EXCLUDED.score_3y, score_5y=EXCLUDED.score_5y, score_7y=EXCLUDED.score_7y, score_10y=EXCLUDED.score_10y, updated_at=now()"
 
     try:
-        resp = http_requests.post(url, headers=headers, timeout=60,
-                                  json={"query": sql})
-        if resp.status_code == 201:
-            return len(batch)
-        else:
-            print(f"  插入失败 [{resp.status_code}]: {resp.text[:300]}")
-            return 0
+        _db_run_sql(sql)
+        return len(batch)
     except Exception as e:
         print(f"  插入异常: {e}")
         return 0

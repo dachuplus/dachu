@@ -55,14 +55,23 @@ QS_MAP = [
 
 
 def mgmt_query(query_str):
-    """通过 Management API 执行 SQL"""
-    resp = requests.post(MGMT_URL, headers=HEADERS_MGMT,
-                         json={"query": query_str}, timeout=120)
-    if resp.status_code not in (200, 201):
-        err_text = resp.text[:300]
-        print(f"  SQL ERROR ({resp.status_code}): {err_text}", flush=True)
-        return None
-    return resp
+    """执行 SQL：优先 psycopg2 直连（SUPABASE_DB_URL），否则 PAT 兜底。返回兼容 requests.Response 的包装（含 .json()/.status_code）。"""
+    from _db import run_sql as _db_run_sql
+    class _JSONResponse:
+        def __init__(self, data):
+            self.status_code = 200
+            self._data = data if data is not None else []
+        def json(self):
+            return self._data
+    try:
+        data = _db_run_sql(query_str)
+    except Exception as e:
+        print(f"  SQL ERROR: {str(e)[:300]}", flush=True)
+        class _ErrResp:
+            status_code = 500
+            def json(self): return []
+        return _ErrResp()
+    return _JSONResponse(data)
 
 
 def rest_get(path, params=""):

@@ -32,11 +32,8 @@ PERIODS = {"r0w": 5, "r1m": 22, "r3m": 66, "r6m": 125, "r1y": 252, "r2y": 504, "
 
 
 def run_sql(sql):
-    resp = requests.post(MGMT_API, headers=HEADERS, json={"query": sql}, timeout=30)
-    if resp.status_code not in (200, 201):
-        print(f"  SQL error {resp.status_code}: {resp.text[:200]}")
-        return None
-    return resp.json()
+    from _db import run_sql as _db_run_sql
+    return _db_run_sql(sql)
 
 
 def tx_symbol(code):

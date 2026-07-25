@@ -78,27 +78,8 @@ for _t in ('fund_scores', 'fund_scores_staging', 'fund_scores_test'):
 
 # ── SQL 执行工具 ───────────────────────────────────────────────────
 def pg(sql, timeout=300):
-    """通过 Management API 执行 SQL（用 curl 避免 Cloudflare 拦截）"""
-    payload = json.dumps({'query': sql})
-    r = subprocess.run(
-        ['curl', '-s', '--max-time', str(timeout), '-X', 'POST', MGMT_API,
-         '-H', f'Authorization: Bearer {PAT}',
-         '-H', 'Content-Type: application/json',
-         '-d', payload],
-        capture_output=True, text=True, timeout=timeout + 10
-    )
-    if r.returncode != 0:
-        raise RuntimeError(f'curl fail: {r.stderr[:200]}')
-    t = r.stdout.strip()
-    if not t:
-        return []
-    try:
-        resp = json.loads(t)
-    except json.JSONDecodeError:
-        raise RuntimeError(f'非JSON响应: {t[:200]}')
-    if isinstance(resp, dict) and resp.get('message'):
-        raise RuntimeError(resp['message'][:500])
-    return resp
+    from _db import run_sql as _db_run_sql
+    return _db_run_sql(sql, timeout=timeout)
 
 
 # ── 数据抓取函数 ────────────────────────────────────────────────────

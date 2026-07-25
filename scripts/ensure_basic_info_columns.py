@@ -31,25 +31,8 @@ NEW_COLUMNS = [
 
 
 def pg_query(sql, timeout=60):
-    if not MGMT_TOKEN:
-        print('[ERROR] SUPABASE_MGMT_TOKEN / SUPABASE_PAT 未设置')
-        sys.exit(1)
-    payload = json.dumps({'query': sql})
-    r = requests.post(
-        MGMT_API,
-        headers={
-            'Authorization': f'Bearer {MGMT_TOKEN}',
-            'Content-Type': 'application/json',
-        },
-        data=payload,
-        timeout=timeout,
-    )
-    if r.status_code not in (200, 201, 204):
-        raise RuntimeError(f'DDL failed HTTP {r.status_code}: {r.text[:300]}')
-    try:
-        return r.json()
-    except Exception:
-        return None
+    from _db import run_sql as _db_run_sql
+    return _db_run_sql(sql, timeout=timeout)
 
 
 def column_exists(col):

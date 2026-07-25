@@ -47,27 +47,9 @@ FUND_SCORES_COLS = [
 
 # ── 工具函数 ──────────────────────────────────────────────────────────────
 def pg(sql, timeout=180):
-    """通过 Management API 执行 SQL，用于 TRUNCATE / meta 更新 / 批量 INSERT（用 curl 避免 Cloudflare 拦截）"""
-    payload = json.dumps({'query': sql})
-    r = subprocess.run(
-        ['curl', '-s', '--max-time', str(timeout), '-X', 'POST', MGMT_API,
-         '-H', f'Authorization: Bearer {MGMT_TOKEN}',
-         '-H', 'Content-Type: application/json',
-         '-d', payload],
-        capture_output=True, text=True, timeout=timeout + 10
-    )
-    if r.returncode != 0:
-        raise RuntimeError(f'curl fail: {r.stderr[:100]}')
-    t = r.stdout.strip()
-    if not t:
-        return []
-    try:
-        resp = json.loads(t)
-    except json.JSONDecodeError:
-        raise RuntimeError(f'非JSON响应: {t[:200]}')
-    if isinstance(resp, dict) and resp.get('message'):
-        raise RuntimeError(resp['message'][:200])
-    return resp
+    """执行 SQL（TRUNCATE / meta 更新 / 批量 INSERT）：优先 psycopg2 直连，否则 PAT 兜底。"""
+    from _db import run_sql as _db_run_sql
+    return _db_run_sql(sql, timeout=timeout)
 
 def rest_post(path, data, method='POST', params='', prefer=''):
     """调用 Supabase REST API（用 curl 避免 Cloudflare 拦截）"""

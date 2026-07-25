@@ -72,21 +72,8 @@ UPSERT_COLS = [
 
 
 def mgmt_query(sql, timeout=120):
-    resp = requests.post(
-        MGMT_URL,
-        headers={'Authorization': f'Bearer {MGMT_TOKEN}', 'Content-Type': 'application/json'},
-        json={'query': sql},
-        timeout=timeout,
-    )
-    if resp.status_code not in (200, 201):
-        raise RuntimeError(f'MGMT {resp.status_code}: {resp.text[:300]}')
-    text = resp.text.strip()
-    if not text:
-        return []
-    try:
-        return resp.json()
-    except json.JSONDecodeError:
-        return []
+    from _db import run_sql as _db_run_sql
+    return _db_run_sql(sql, timeout=timeout)
 
 
 def fetch_jbgk_html(code, timeout=12):

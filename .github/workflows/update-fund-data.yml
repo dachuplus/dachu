@@ -27,6 +27,7 @@ jobs:
     timeout-minutes: 420
     env:
       SUPABASE_MGMT_TOKEN: ${{ secrets.SUPABASE_MGMT_TOKEN }}
+      SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
       SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
       SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
       SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
@@ -40,11 +41,19 @@ jobs:
         with:
           python-version: '3.11'
 
+      - name: 安装 Python 依赖（psycopg2 直连驱动 + requests）
+        run: pip install psycopg2-binary requests
+
       - name: 验证环境变量
         run: |
-          if [ -z "$SUPABASE_MGMT_TOKEN" ]; then
-            echo "ERROR: SUPABASE_MGMT_TOKEN 未设置！请在 GitHub Secrets 中配置。"
+          if [ -z "$SUPABASE_DB_URL" ] && [ -z "$SUPABASE_MGMT_TOKEN" ]; then
+            echo "ERROR: 需要 SUPABASE_DB_URL 或 SUPABASE_MGMT_TOKEN 其中之一（建议配置 SUPABASE_DB_URL 直连，永不过期）。"
             exit 1
+          fi
+          if [ -n "$SUPABASE_DB_URL" ]; then
+            echo "直连数据库(SUPABASE_DB_URL)已配置 ✓ —— 不再依赖会过期的 PAT"
+          else
+            echo "WARNING: 仅配置 SUPABASE_MGMT_TOKEN(PAT)，该 token 会过期，建议改为 SUPABASE_DB_URL 直连"
           fi
           if [ -z "$SUPABASE_ANON_KEY" ]; then
             echo "ERROR: SUPABASE_ANON_KEY 未设置！请在 GitHub Secrets 中配置。"

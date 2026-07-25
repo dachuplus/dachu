@@ -32,13 +32,12 @@ ZTJJ_H = {'User-Agent': 'Mozilla/5.0', 'Referer': 'https://fund.eastmoney.com/zt
 
 
 def mgmt_query(sql):
-    """执行 Supabase Management SQL，带重试"""
+    """执行 SQL：优先 psycopg2 直连（SUPABASE_DB_URL），否则回退 PAT。带重试。"""
+    from _db import run_sql as _db_run_sql
     for attempt in range(4):
         try:
-            r = requests.post(MGMT_URL, headers=MGMT_H, json={'query': sql}, timeout=90)
-            r.raise_for_status()
-            return r.json()
-        except requests.exceptions.RequestException as e:
+            return _db_run_sql(sql)
+        except Exception as e:
             if attempt < 3:
                 wait = (attempt + 1) * 5
                 print(f'  [retry {attempt+1}] {e}, 等待{wait}s...')

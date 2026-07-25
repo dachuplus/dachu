@@ -57,11 +57,8 @@ UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like 
 
 
 def run_sql(sql):
-    resp = requests.post(MGMT_API, headers=HEADERS, json={"query": sql}, timeout=30)
-    if resp.status_code not in (200, 201):
-        print(f"  SQL error {resp.status_code}: {resp.text[:200]}")
-        return None
-    return resp.json()
+    from _db import run_sql as _db_run_sql
+    return _db_run_sql(sql)
 
 
 def fetch_kline(secid):

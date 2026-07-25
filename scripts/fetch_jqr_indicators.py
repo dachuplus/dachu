@@ -46,25 +46,8 @@ MGMT_API = 'https://api.supabase.com/v1/projects/tqhtegazxykkqfcpejky/database/q
 
 
 def pg(sql, timeout=300):
-    payload = json.dumps({'query': sql})
-    r = subprocess.run(
-        ['curl', '-s', '--max-time', str(timeout), '-X', 'POST', MGMT_API,
-         '-H', f'Authorization: Bearer {MGMT_TOKEN}',
-         '-H', 'Content-Type: application/json', '-d', payload],
-        capture_output=True, text=True, timeout=timeout + 10
-    )
-    if r.returncode != 0:
-        raise RuntimeError(f'curl fail: {r.stderr[:100]}')
-    t = r.stdout.strip()
-    if not t:
-        return []
-    try:
-        resp = json.loads(t)
-    except json.JSONDecodeError:
-        raise RuntimeError(f'非JSON响应: {t[:200]}')
-    if isinstance(resp, dict) and resp.get('message'):
-        raise RuntimeError(resp['message'][:300])
-    return resp
+    from _db import run_sql as _db_run_sql
+    return _db_run_sql(sql, timeout=timeout)
 
 
 def pct_rank(history, current):
