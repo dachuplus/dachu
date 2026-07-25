@@ -1,0 +1,43 @@
+name: DB Pooler Connect Check
+
+on:
+  workflow_dispatch:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    env:
+      SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+      SUPABASE_MGMT_TOKEN: ${{ secrets.SUPABASE_MGMT_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install psycopg2-binary requests
+
+      - name: Verify env
+        run: |
+          if [ -n "$SUPABASE_DB_URL" ]; then
+            echo "✓ SUPABASE_DB_URL 已配置（Session Pooler 直连）"
+            # 隐藏密码只显示结构
+            echo "$SUPABASE_DB_URL" | sed 's/:[^@]*@/:***@/'
+          else
+            echo "✗ SUPABASE_DB_URL 未配置"
+          fi
+
+      - name: Test pooler direct connection + ensure_basic_info_columns
+        working-directory: dachu/scripts
+        run: |
+          python3 -c "
+          from _db import run_sql
+          print('SELECT 1 ->', run_sql('SELECT 1 AS ok'))
+          print('count   ->', run_sql('SELECT count(*) AS cnt FROM fund_scores'))
+          print('DB_POOLER_CONNECT_OK')
+          "
+          python3 ensure_basic_info_columns.py
+          echo "DB_POOLER_DDL_OK"
