@@ -77,16 +77,6 @@
       <span class="mobile-header__spacer"></span>
     </header>
 
-    <!-- Phase banner -->
-    <div class="govuk-phase-banner" v-if="!isMobile">
-      <p class="govuk-phase-banner__content">
-        <strong class="govuk-tag govuk-phase-banner__tag">BETA</strong>
-        <span class="govuk-phase-banner__text">
-          这是大厨先生的测试版本 — 数据每日更新，如有问题请反馈。
-        </span>
-      </p>
-    </div>
-
     <!-- 全局金刚区导航（所有页面可见） -->
     <nav class="quick-nav">
       <div class="quick-nav__inner">
