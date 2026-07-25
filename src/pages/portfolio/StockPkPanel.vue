@@ -17,7 +17,7 @@
         通过「千问百炼」聚合平台调用的模型已在卡片上标注<span class="aipk-ds-badge">百炼</span>徽标。
         所有选股与推理均基于 stock_scores 真实指标（收益/回撤/夏普），模型不引用任何表外或网络信息，无编造、无模拟。
       </p>
-      <div class="aipk-src">数据来源：大厨先生股票靠谱指数库（真实行情，非模拟）</div>
+      <div class="aipk-src">数据来源：公开网络（股票靠谱指数库，真实行情，非模拟）</div>
       <div class="aipk-disclaimer">
         <span class="aipk-disclaimer-icon" aria-hidden="true">!</span>
         <span>AI 模拟，不构成投资建议</span>

@@ -376,7 +376,7 @@
       <p class="bottom-line">
         <span>更新时间：{{ meta.updateTime ? fmtUpdateTime(meta.updateTime) : (dataLoaded ? '暂无' : '加载中...') }}</span>
       </p>
-      <p class="bottom-line">数据来源：大厨先生</p>
+      <p class="bottom-line">数据来源：公开网络</p>
       <p class="bottom-line">评分说明：靠谱指数评分为综合收益率、最大回撤、夏普比率、卡玛比率，信息比率，跟踪误差等指标，在全市场排名后加权计算。满分100分，分值越高表现越优秀。</p>
       <p class="bottom-warning">风险提示：评分仅供娱乐，不可作为投资依据，不对任何因此而产生的风险负责。市场有风险，投资需谨慎。</p>
     </div>
@@ -565,7 +565,7 @@
             <div class="help-section">
               <span class="help-section-label">数据更新</span>
               <span class="help-desc">
-                基金数据每个交易日 21:30 后更新（源自 大厨先生），靠谱分在数据更新后同步重算。净值日期见页面顶部。
+                基金数据每个交易日 21:30 后更新（源自 公开网络），靠谱分在数据更新后同步重算。净值日期见页面顶部。
               </span>
             </div>
           </div>

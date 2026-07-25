@@ -84,7 +84,7 @@
 
     <!-- 数据来源说明（随阶段动态变化） -->
     <div class="tags-footnote" v-if="displayTags.length > 0">
-      {{ stageFootnote }}数据来源：大厨先生
+      {{ stageFootnote }}数据来源：公开网络
     </div>
 
     <!-- 加载中 -->
@@ -159,7 +159,7 @@
             </div>
             <!-- 数据来源 -->
             <div class="data-source-line">
-              数据来源：大厨先生 &nbsp;|&nbsp; 截止时间：{{ bottomUpdateTime || '—' }}
+              数据来源：公开网络 &nbsp;|&nbsp; 截止时间：{{ bottomUpdateTime || '—' }}
             </div>
           </div>
         </div>
@@ -177,7 +177,7 @@
           </div>
           <div class="share-body">
             <img class="share-img" :src="shareImage" alt="分享图" />
-            <p class="share-source">数据来源：大厨先生 &nbsp;|&nbsp; 截止时间：{{ shareUpdateTime || '—' }}</p>
+            <p class="share-source">数据来源：公开网络 &nbsp;|&nbsp; 截止时间：{{ shareUpdateTime || '—' }}</p>
             <p class="share-hint">长按图片可保存到相册，或分享到朋友圈</p>
             <button class="share-save-btn" @click="saveShareImage">保存图片</button>
           </div>
@@ -1322,11 +1322,11 @@ async function generateShareImage() {
     if (updateTimeStr) {
       ctx.fillStyle = '#bbbbbb'
       ctx.font = '15px sans-serif'
-      ctx.fillText('来源：大厨先生  |  ' + updateTimeStr, W / 2, qrY + qrSize + 80)
+      ctx.fillText('来源：公开网络  |  ' + updateTimeStr, W / 2, qrY + qrSize + 80)
     } else {
       ctx.fillStyle = '#bbbbbb'
       ctx.font = '15px sans-serif'
-      ctx.fillText('来源：大厨先生', W / 2, qrY + qrSize + 80)
+      ctx.fillText('来源：公开网络', W / 2, qrY + qrSize + 80)
     }
 
     shareImage.value = canvas.toDataURL('image/png')

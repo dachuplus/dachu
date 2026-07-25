@@ -704,7 +704,7 @@
     <!-- API 接口文档 -->
     <div class="card" v-show="activeTab==='download'">
       <div class="card-title">数据接口文档</div>
-      <p class="section-desc">以下是 大厨先生 使用的所有外部数据接口，所有接口均来源于公开数据平台。</p>
+      <p class="section-desc">以下是 本站 使用的所有外部数据接口，所有接口均来源于公开数据平台。</p>
 
       <!-- 天天基金 API -->
       <h2 class="api-group-title">一、天天基金 API</h2>
