@@ -31,7 +31,7 @@ jobs:
           fi
 
       - name: Test pooler direct connection + ensure_basic_info_columns
-        working-directory: dachu/scripts
+        working-directory: scripts
         run: |
           python3 -c "
           from _db import run_sql
