@@ -11,8 +11,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-      - name: 安装 psycopg2 直连驱动
-        run: pip install psycopg2-binary
+      - name: 安装 psycopg2 直连驱动 + requests
+        run: pip install psycopg2-binary requests
       - name: 运行此前失败的步骤2c3（ensure_basic_info_columns，走直连写库）
         run: python scripts/ensure_basic_info_columns.py
       - name: 连通性探测 SELECT 1
