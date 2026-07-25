@@ -65,7 +65,7 @@ const cw = 9026;
 const children = [
   // ===== TITLE PAGE =====
   new P({ alignment: AT.CENTER, spacing: { before: 3000 }, children: [
-    new T({ text: "allfund.cn \u6295\u8D44\u5DE5\u4F5C\u52A9\u624B", bold: true, size: 44, font: "Arial" })
+    new T({ text: "dachu \u6295\u8D44\u5DE5\u4F5C\u52A9\u624B", bold: true, size: 44, font: "Arial" })
   ] }),
   new P({ alignment: AT.CENTER, spacing: { before: 200 }, children: [
     new T({ text: "\u9700\u6C42\u6587\u6863\u4E0E\u8FED\u4EE3\u8BB0\u5F55", bold: true, size: 36, font: "Arial" })
@@ -74,7 +74,7 @@ const children = [
     new T({ text: "\u7248\u672C\uFF1AV1.0  |  \u65E5\u671F\uFF1A2026-06-10", size: 24, font: "Arial", color: "666666" })
   ] }),
   new P({ alignment: AT.CENTER, spacing: { before: 100 }, children: [
-    new T({ text: "\u9879\u76EE\u5730\u5740\uFF1Ahttps://www.allfund.cn", size: 24, font: "Arial", color: "666666" })
+    new T({ text: "\u9879\u76EE\u5730\u5740\uFF1Ahttps://dachu", size: 24, font: "Arial", color: "666666" })
   ] }),
 
   new P({ children: [new PB()] }),
@@ -94,7 +94,7 @@ const children = [
   // ===== 一、文档概述 =====
   h1("\u4E00\u3001\u6587\u6863\u6982\u8FF0"),
   sp(),
-  boldP("\u9879\u76EE\u540D\u79F0\uFF1A", "allfund.cn \u6295\u8D44\u5DE5\u4F5C\u52A9\u624B H5"),
+  boldP("\u9879\u76EE\u540D\u79F0\uFF1A", "dachu \u6295\u8D44\u5DE5\u4F5C\u52A9\u624B H5"),
   boldP("\u6280\u672F\u6808\uFF1A", "Vue 3 + Vite + Vue Router 4 + Supabase + ECharts"),
   boldP("\u90E8\u7F72\u5E73\u53F0\uFF1A", "\u817E\u8BAF\u4E91 EdgeOne Pages"),
   boldP("\u6570\u636E\u5E93\uFF1A", "Supabase\uFF08\u65B0\u52A0\u5761\u8282\u70B9\uFF09"),
@@ -143,8 +143,8 @@ const children = [
   p("2. FundRankPage.vue \u76F4\u63A5\u4ECE\u9759\u6001\u6587\u4EF6\u5BFC\u5165\uFF0C\u65E0\u9700\u8FD0\u884C\u65F6\u8BA1\u7B97"),
   p("3. \u540C\u65F6\u5B58\u50A8\u5230 Supabase config \u8868\u4F5C\u4E3A\u5907\u4EFD"),
   h3("\u6D89\u53CA\u6587\u4EF6"),
-  p("  - allfund/src/data/class-stats.js\uFF08\u65B0\u589E\uFF09"),
-  p("  - allfund/src/pages/fund-rank/FundRankPage.vue\uFF08\u4FEE\u6539\uFF09"),
+  p("  - dachu/src/data/class-stats.js\uFF08\u65B0\u589E\uFF09"),
+  p("  - dachu/src/pages/fund-rank/FundRankPage.vue\uFF08\u4FEE\u6539\uFF09"),
   p("  - Supabase config \u8868\uFF08\u65B0\u589E\u6761\u76EE\uFF09"),
   h3("\u8FED\u4EE3\u5386\u53F2"),
   p("  \u65E0\u8FED\u4EE3\uFF0C\u4E00\u6B21\u5B8C\u6210\u3002"),
@@ -163,7 +163,7 @@ const children = [
   p("   - inside \u7C7B\u578B\uFF1A\u9F20\u6807\u6EDA\u8F6E\u7F29\u653E"),
   p("3. \u8C03\u6574 grid.bottom \u4ECE 30 \u2192 50\uFF0C\u4E3A\u6ED1\u5757\u9884\u7559\u7A7A\u95F4"),
   h3("\u6D89\u53CA\u6587\u4EF6"),
-  p("  - allfund/src/pages/home/HomePage.vue"),
+  p("  - dachu/src/pages/home/HomePage.vue"),
   h3("\u8FED\u4EE3\u5386\u53F2"),
   p("  \u65E0\u8FED\u4EE3\uFF0C\u4E00\u6B21\u5B8C\u6210\u3002"),
 
@@ -176,10 +176,10 @@ const children = [
   p("\u7528\u6237\u5E0C\u671B\u6BCF\u5F20\u57FA\u91D1\u5361\u7247\u4E0A\u6DFB\u52A0\u70B9\u8D5E\u548C\u5410\u69FD\u6309\u94AE\uFF0C\u8BB0\u5F55\u5BF9\u57FA\u91D1\u7684\u559C\u597D\u8BC4\u4EF7\u3002"),
   h3("\u89E3\u51B3\u65B9\u6848"),
   p("1. \u6BCF\u5F20\u57FA\u91D1\u5361\u7247\u5E95\u90E8\u6DFB\u52A0 SVG \u70B9\u8D5E/\u5410\u69FD\u56FE\u6807"),
-  p("2. localStorage \u5B58\u50A8\u6295\u7968\u6570\u636E\uFF08allfund_votes + allfund_vote_history\uFF09"),
+  p("2. localStorage \u5B58\u50A8\u6295\u7968\u6570\u636E\uFF08dachu_votes + dachu_vote_history\uFF09"),
   p("3. \u70B9\u51FB\u5207\u6362\u6295\u7968\u72B6\u6001\uFF08\u70B9\u8D5E/\u53D6\u6D88/\u5410\u69FD\uFF09\uFF0C\u5B9E\u65F6\u66F4\u65B0\u8BA1\u6570"),
   h3("\u6D89\u53CA\u6587\u4EF6"),
-  p("  - allfund/src/pages/fund-rank/FundRankPage.vue\uFF08\u4FEE\u6539\uFF09"),
+  p("  - dachu/src/pages/fund-rank/FundRankPage.vue\uFF08\u4FEE\u6539\uFF09"),
   h3("\u8FED\u4EE3\u5386\u53F2"),
   p("  \u65E0\u8FED\u4EE3\uFF0C\u4E00\u6B21\u5B8C\u6210\u3002"),
 
@@ -195,9 +195,9 @@ const children = [
   p("2. \u65B0\u5EFA src/auth/portfolio.js\uFF1A\u7EC4\u5408 CRUD\uFF08\u6BCF\u7528\u6237\u6700\u591A 3 \u4E2A\u7EC4\u5408\uFF09"),
   p("3. \u91CD\u5199 ProfilePage\uFF1A\u767B\u5F55/\u6CE8\u518C\u9762\u677F + \u7EC4\u5408\u5217\u8868\u7BA1\u7406"),
   h3("\u6D89\u53CA\u6587\u4EF6"),
-  p("  - allfund/src/auth/auth.js\uFF08\u65B0\u589E\uFF09"),
-  p("  - allfund/src/auth/portfolio.js\uFF08\u65B0\u589E\uFF09"),
-  p("  - allfund/src/pages/profile/ProfilePage.vue\uFF08\u91CD\u5199\uFF09"),
+  p("  - dachu/src/auth/auth.js\uFF08\u65B0\u589E\uFF09"),
+  p("  - dachu/src/auth/portfolio.js\uFF08\u65B0\u589E\uFF09"),
+  p("  - dachu/src/pages/profile/ProfilePage.vue\uFF08\u91CD\u5199\uFF09"),
   h3("\u8FED\u4EE3\u5386\u53F2"),
   p("  \u65E0\u8FED\u4EE3\uFF0C\u4E00\u6B21\u5B8C\u6210\u3002"),
 
@@ -213,8 +213,8 @@ const children = [
   p("2. \u70B9\u51FB\u540E\u6839\u636E\u767B\u5F55\u72B6\u6001\u5F39\u51FA\u4E0D\u540C\u5BF9\u8BDD\u6846\uFF08\u767B\u5F55\u63D0\u793A / \u521B\u5EFA\u7EC4\u5408 / \u9009\u62E9\u7EC4\u5408 + \u8BBE\u6743\u91CD\uFF09"),
   p("3. \u6DFB\u52A0\u540E PortfolioPage \u5B9E\u65F6\u66F4\u65B0"),
   h3("\u6D89\u53CA\u6587\u4EF6"),
-  p("  - allfund/src/pages/fund-rank/FundRankPage.vue\uFF08\u4FEE\u6539\uFF09"),
-  p("  - allfund/src/auth/portfolio.js\uFF08\u4FEE\u6539\uFF09"),
+  p("  - dachu/src/pages/fund-rank/FundRankPage.vue\uFF08\u4FEE\u6539\uFF09"),
+  p("  - dachu/src/auth/portfolio.js\uFF08\u4FEE\u6539\uFF09"),
   h3("\u8FED\u4EE3\u5386\u53F2"),
   p("  \u65E0\u8FED\u4EE3\uFF0C\u4E00\u6B21\u5B8C\u6210\u3002"),
 
@@ -232,7 +232,7 @@ const children = [
   p("   - \u6309\u6743\u91CD\u52A0\u6743\u8BA1\u7B97 10 \u4E2A\u5468\u671F\uFF081\u5468~10\u5E74\uFF09\u6536\u76CA"),
   p("   - \u7EA2\u8272\u67F1=\u6B63\u6536\u76CA\uFF0C\u7EFF\u8272\u67F1=\u8D1F\u6536\u76CA\uFF08\u4E2D\u56FD\u80A1\u5E02\u60EF\u4F8B\uFF09"),
   h3("\u6D89\u53CA\u6587\u4EF6"),
-  p("  - allfund/src/pages/portfolio/PortfolioPage.vue\uFF08\u91CD\u5199\uFF09"),
+  p("  - dachu/src/pages/portfolio/PortfolioPage.vue\uFF08\u91CD\u5199\uFF09"),
   h3("\u8FED\u4EE3\u5386\u53F2"),
   p("  \u65E0\u8FED\u4EE3\uFF0C\u4E00\u6B21\u5B8C\u6210\u3002"),
 
@@ -250,12 +250,12 @@ const children = [
   p("3. \u79FB\u9664 CSS \u53D8\u91CF\uFF1A--score-gold/orange/cyan/gray"),
   p("4. \u5E2E\u52A9\u5F39\u7A97\u6587\u5B57\u66F4\u65B0\u4E3A\u6E10\u53D8\u8BF4\u660E"),
   h3("\u6D89\u53CA\u6587\u4EF6"),
-  p("  - allfund/src/utils/color.js\uFF08\u65B0\u589E scoreColor()\uFF09"),
-  p("  - allfund/src/utils/format.js\uFF08\u65B0\u589E scoreBg \u5BFC\u51FA\uFF09"),
-  p("  - allfund/src/components/common/ScoreBadge.vue\uFF08\u52A8\u6001\u6837\u5F0F\uFF09"),
-  p("  - allfund/src/pages/fund-rank/FundRankPage.vue\uFF08\u79FB\u9664 scoreCls\uFF09"),
-  p("  - allfund/src/pages/portfolio/PortfolioPage.vue\uFF08\u79FB\u9664 scoreCls\uFF09"),
-  p("  - allfund/src/style.css\uFF08\u79FB\u9664\u79BB\u6563\u5206\u503C\u53D8\u91CF\uFF09"),
+  p("  - dachu/src/utils/color.js\uFF08\u65B0\u589E scoreColor()\uFF09"),
+  p("  - dachu/src/utils/format.js\uFF08\u65B0\u589E scoreBg \u5BFC\u51FA\uFF09"),
+  p("  - dachu/src/components/common/ScoreBadge.vue\uFF08\u52A8\u6001\u6837\u5F0F\uFF09"),
+  p("  - dachu/src/pages/fund-rank/FundRankPage.vue\uFF08\u79FB\u9664 scoreCls\uFF09"),
+  p("  - dachu/src/pages/portfolio/PortfolioPage.vue\uFF08\u79FB\u9664 scoreCls\uFF09"),
+  p("  - dachu/src/style.css\uFF08\u79FB\u9664\u79BB\u6563\u5206\u503C\u53D8\u91CF\uFF09"),
   h3("\u8FED\u4EE3\u5386\u53F2"),
   p("  \u4E00\u6B21\u5B8C\u6210\uFF0C\u65E0\u8FED\u4EE3\u3002\u4F46\u8BE5\u9700\u6C42\u662F Bug B-001 \u7684\u4E3B\u8981\u89E6\u53D1\u70B9\uFF08scoreBg \u6A21\u5757\u5BFC\u51FA\u5F02\u5E38\uFF09\u3002"),
 
@@ -277,8 +277,8 @@ const children = [
   p("   - \u5E95\u90E8 dataZoom \u6ED1\u5757"),
   p("   - \u52A0\u8F7D\u72B6\u6001\u63D0\u793A"),
   h3("\u6D89\u53CA\u6587\u4EF6"),
-  p("  - allfund/src/utils/fund-nav.js\uFF08\u65B0\u589E\uFF09"),
-  p("  - allfund/src/pages/portfolio/PortfolioPage.vue\uFF08\u4FEE\u6539\uFF09"),
+  p("  - dachu/src/utils/fund-nav.js\uFF08\u65B0\u589E\uFF09"),
+  p("  - dachu/src/pages/portfolio/PortfolioPage.vue\uFF08\u4FEE\u6539\uFF09"),
   h3("\u8FED\u4EE3\u5386\u53F2"),
   p("  \u7B2C\u4E00\u6B21\u5B9E\u73B0\u5B8C\u6210\u3002\u53D1\u73B0\u4E24\u4E2A\u62FC\u5199 Bug\uFF08localeCompare/json.stringify\uFF09\uFF0C\u5DF2\u4FEE\u590D\u3002\u4EE3\u7801\u56DE\u9000\u540E\u9700\u91CD\u65B0\u6784\u5EFA\u9A8C\u8BC1\u3002"),
 
@@ -288,7 +288,7 @@ const children = [
   h2("3.9 R-009\uFF1A\u6307\u6570\u4F30\u503C\u6A21\u5757\u8FC1\u79FB"),
   sp(),
   h3("\u80CC\u666F"),
-  p("\u539F\u8D44\u4EA7\u914D\u7F6E\u5C0F\u7A0B\u5E8F\u7684\u6307\u6570\u4F30\u503C\u6A21\u5757\u9700\u8FC1\u79FB\u5230 allfund.cn H5 \u9879\u76EE\uFF0C\u5C55\u793A\u5BBD\u57FA\u6307\u6570 PE/PB \u4F30\u503C\u548C\u767E\u5206\u4F4D\u3002"),
+  p("\u539F\u8D44\u4EA7\u914D\u7F6E\u5C0F\u7A0B\u5E8F\u7684\u6307\u6570\u4F30\u503C\u6A21\u5757\u9700\u8FC1\u79FB\u5230 dachu H5 \u9879\u76EE\uFF0C\u5C55\u793A\u5BBD\u57FA\u6307\u6570 PE/PB \u4F30\u503C\u548C\u767E\u5206\u4F4D\u3002"),
   h3("\u89E3\u51B3\u65B9\u6848"),
   p("1. \u6570\u636E\u5C42\u5DF2\u8FC1\u79FB\uFF1Adanjuan-api.js\uFF08fetchDanjuanEva / fetchPEHistory\uFF09"),
   p("   - \u6570\u636E\u6765\u6E90\uFF1A\u86CB\u5377\u57FA\u91D1 API"),
@@ -296,9 +296,9 @@ const children = [
   p("2. IndustryRankPage.vue \u5DF2\u5B8C\u6574\u5B9E\u73B0\uFF1A\u4F30\u503C\u8868\u683C + \u6392\u5E8F + \u7B5B\u9009 + PE\u8D70\u52BF\u56FE"),
   p("3. \u8DEF\u7531\u5DF2\u6CE8\u518C\uFF1A/tools/industry-rank"),
   h3("\u6D89\u53CA\u6587\u4EF6"),
-  p("  - allfund/src/api/danjuan-api.js\uFF08\u5DF2\u8FC1\u79FB\uFF09"),
-  p("  - allfund/src/pages/industry-rank/IndustryRankPage.vue\uFF08\u5DF2\u8FC1\u79FB\uFF09"),
-  p("  - allfund/src/router/index.js\uFF08\u5DF2\u6CE8\u518C\uFF09"),
+  p("  - dachu/src/api/danjuan-api.js\uFF08\u5DF2\u8FC1\u79FB\uFF09"),
+  p("  - dachu/src/pages/industry-rank/IndustryRankPage.vue\uFF08\u5DF2\u8FC1\u79FB\uFF09"),
+  p("  - dachu/src/router/index.js\uFF08\u5DF2\u6CE8\u518C\uFF09"),
   h3("\u8FED\u4EE3\u5386\u53F2"),
   p("  \u8BE5\u9875\u9762\u5728\u4EE3\u7801\u56DE\u9000\u524D\u5DF2\u5B8C\u6574\u5B58\u5728\u3002\u5206\u6790\u786E\u8BA4\uFF1A\u8BE5\u6A21\u5757\u5DF2\u8FC1\u79FB\u5B8C\u6210\uFF0C\u65E0\u9700\u989D\u5916\u5F00\u53D1\u3002\u4EE3\u7801\u56DE\u9000\u540E\u9700\u786E\u8BA4\u6587\u4EF6\u5B8C\u6574\u3002"),
 
@@ -355,7 +355,7 @@ const children = [
   h3("\u4FEE\u590D\u65B9\u6848"),
   p("\u7528\u5355\u4E00 app-root \u5BB9\u5668\u5305\u88F9\u6240\u6709\u5185\u5BB9\uFF0C\u5728\u5BB9\u5668\u5185\u6761\u4EF6\u6E32\u67D3\u9519\u8BEF\u9762\u677F\u548C\u5E94\u7528\u4E3B\u4F53\u3002"),
   h3("\u6D89\u53CA\u6587\u4EF6"),
-  p("  - allfund/src/App.vue"),
+  p("  - dachu/src/App.vue"),
 
   // --- B-003 ---
   h2("4.3 B-003\uFF1A\u90E8\u7F72 Token \u73AF\u5883\u53D8\u91CF\u540D"),
@@ -365,7 +365,7 @@ const children = [
   h3("\u4FEE\u590D\u65B9\u6848"),
   p(".env.local \u4E2D EDGEONE_PAGES_TOKEN \u2192 EDGEONE_PAGES_API_TOKEN\u3002"),
   h3("\u6D89\u53CA\u6587\u4EF6"),
-  p("  - allfund/.env.local"),
+  p("  - dachu/.env.local"),
 
   // --- B-004 ---
   h2("4.4 B-004\uFF1Adist.zip \u7F3A\u5931"),
@@ -408,37 +408,37 @@ const children = [
 
   h2("\u65B0\u589E\u6587\u4EF6\uFF08\u5171 17 \u4E2A\uFF09"),
   sp(),
-  p("  allfund/src/data/class-stats.js                   - \u9884\u8BA1\u7B97\u57FA\u91D1\u5206\u7C7B\u7EDF\u8BA1"),
-  p("  allfund/src/auth/auth.js                          - \u7528\u6237\u8BA4\u8BC1\uFF08\u624B\u673A\u53F7\uFF09"),
-  p("  allfund/src/auth/portfolio.js                     - \u6295\u8D44\u7EC4\u5408\u7BA1\u7406"),
-  p("  allfund/src/utils/color.js                        - \u53CC\u4E3B\u9898 + HSL \u989C\u8272\u7CFB\u7EDF"),
-  p("  allfund/src/utils/fund-nav.js                     - \u57FA\u91D1\u51C0\u503C\u83B7\u53D6\u4E0E\u8BA1\u7B97"),
-  p("  allfund/src/components/common/ScoreBadge.vue      - \u9760\u8C31\u5206\u5FBD\u7AE0"),
-  p("  allfund/src/components/common/HelpModal.vue       - \u901A\u7528\u5E2E\u52A9\u5F39\u7A97"),
-  p("  allfund/src/components/common/SectionHeader.vue   - \u533A\u5757\u6807\u9898"),
-  p("  allfund/src/components/common/ThemeToggle.vue     - \u4E3B\u9898\u5207\u6362"),
-  p("  allfund/src/components/common/RefreshButton.vue   - \u5237\u65B0\u6309\u94AE"),
-  p("  allfund/src/components/common/CardBlock.vue       - \u5361\u7247\u5BB9\u5668"),
-  p("  allfund/src/components/common/DataPair.vue        - \u6570\u636E\u952E\u503C\u5BF9"),
-  p("  allfund/src/components/common/StatCard.vue        - \u7EDF\u8BA1\u5361\u7247"),
-  p("  allfund/src/components/common/ChangeLabel.vue     - \u6DA8\u8DCC\u6807\u7B7E"),
-  p("  allfund/src/components/common/LoadingSkeleton.vue - \u52A0\u8F7D\u9AA8\u67B6\u5C4F"),
-  p("  allfund/src/components/common/EmptyState.vue      - \u7A7A\u72B6\u6001\u63D0\u793A"),
-  p("  allfund/src/components/common/ProgressBar.vue     - \u8FDB\u5EA6\u6761"),
+  p("  dachu/src/data/class-stats.js                   - \u9884\u8BA1\u7B97\u57FA\u91D1\u5206\u7C7B\u7EDF\u8BA1"),
+  p("  dachu/src/auth/auth.js                          - \u7528\u6237\u8BA4\u8BC1\uFF08\u624B\u673A\u53F7\uFF09"),
+  p("  dachu/src/auth/portfolio.js                     - \u6295\u8D44\u7EC4\u5408\u7BA1\u7406"),
+  p("  dachu/src/utils/color.js                        - \u53CC\u4E3B\u9898 + HSL \u989C\u8272\u7CFB\u7EDF"),
+  p("  dachu/src/utils/fund-nav.js                     - \u57FA\u91D1\u51C0\u503C\u83B7\u53D6\u4E0E\u8BA1\u7B97"),
+  p("  dachu/src/components/common/ScoreBadge.vue      - \u9760\u8C31\u5206\u5FBD\u7AE0"),
+  p("  dachu/src/components/common/HelpModal.vue       - \u901A\u7528\u5E2E\u52A9\u5F39\u7A97"),
+  p("  dachu/src/components/common/SectionHeader.vue   - \u533A\u5757\u6807\u9898"),
+  p("  dachu/src/components/common/ThemeToggle.vue     - \u4E3B\u9898\u5207\u6362"),
+  p("  dachu/src/components/common/RefreshButton.vue   - \u5237\u65B0\u6309\u94AE"),
+  p("  dachu/src/components/common/CardBlock.vue       - \u5361\u7247\u5BB9\u5668"),
+  p("  dachu/src/components/common/DataPair.vue        - \u6570\u636E\u952E\u503C\u5BF9"),
+  p("  dachu/src/components/common/StatCard.vue        - \u7EDF\u8BA1\u5361\u7247"),
+  p("  dachu/src/components/common/ChangeLabel.vue     - \u6DA8\u8DCC\u6807\u7B7E"),
+  p("  dachu/src/components/common/LoadingSkeleton.vue - \u52A0\u8F7D\u9AA8\u67B6\u5C4F"),
+  p("  dachu/src/components/common/EmptyState.vue      - \u7A7A\u72B6\u6001\u63D0\u793A"),
+  p("  dachu/src/components/common/ProgressBar.vue     - \u8FDB\u5EA6\u6761"),
   sp(),
 
   h2("\u4FEE\u6539\u6587\u4EF6\uFF08\u5171 9 \u4E2A\uFF09"),
   sp(),
-  p("  allfund/src/pages/fund-rank/FundRankPage.vue      - \u5206\u7C7B\u7B5B\u9009/\u70B9\u8D5E/+\u6309\u94AE/\u989C\u8272"),
-  p("  allfund/src/pages/home/HomePage.vue               - \u5B8F\u89C2\u6307\u6807 dataZoom"),
-  p("  allfund/src/pages/portfolio/PortfolioPage.vue     - \u91CD\u5199\uFF1A\u56DE\u6D4B+\u51C0\u503C+Tab"),
-  p("  allfund/src/pages/profile/ProfilePage.vue         - \u91CD\u5199\uFF1A\u767B\u5F55+\u7EC4\u5408\u7BA1\u7406"),
-  p("  allfund/src/App.vue                               - \u6A21\u677F\u4FEE\u590D + \u9519\u8BEF\u6355\u83B7"),
-  p("  allfund/src/main.js                               - Vue \u5168\u5C40\u9519\u8BEF\u5904\u7406\u5668"),
-  p("  allfund/src/router/index.js                       - \u8DEF\u7531\u6CE8\u518C"),
-  p("  allfund/src/style.css                             - \u79FB\u9664\u79BB\u6563\u5206\u503C\u53D8\u91CF"),
-  p("  allfund/src/utils/format.js                       - \u65B0\u589E scoreBg \u5BFC\u51FA"),
-  p("  allfund/.env.local                                - Token \u53D8\u91CF\u540D\u4FEE\u6B63"),
+  p("  dachu/src/pages/fund-rank/FundRankPage.vue      - \u5206\u7C7B\u7B5B\u9009/\u70B9\u8D5E/+\u6309\u94AE/\u989C\u8272"),
+  p("  dachu/src/pages/home/HomePage.vue               - \u5B8F\u89C2\u6307\u6807 dataZoom"),
+  p("  dachu/src/pages/portfolio/PortfolioPage.vue     - \u91CD\u5199\uFF1A\u56DE\u6D4B+\u51C0\u503C+Tab"),
+  p("  dachu/src/pages/profile/ProfilePage.vue         - \u91CD\u5199\uFF1A\u767B\u5F55+\u7EC4\u5408\u7BA1\u7406"),
+  p("  dachu/src/App.vue                               - \u6A21\u677F\u4FEE\u590D + \u9519\u8BEF\u6355\u83B7"),
+  p("  dachu/src/main.js                               - Vue \u5168\u5C40\u9519\u8BEF\u5904\u7406\u5668"),
+  p("  dachu/src/router/index.js                       - \u8DEF\u7531\u6CE8\u518C"),
+  p("  dachu/src/style.css                             - \u79FB\u9664\u79BB\u6563\u5206\u503C\u53D8\u91CF"),
+  p("  dachu/src/utils/format.js                       - \u65B0\u589E scoreBg \u5BFC\u51FA"),
+  p("  dachu/.env.local                                - Token \u53D8\u91CF\u540D\u4FEE\u6B63"),
   sp(),
 
   p("\u26A0\uFE0F \u4EE3\u7801\u56DE\u9000\u540E\u72B6\u6001\uFF1Agit checkout -- . \u6062\u590D\u4E86 tracked \u6587\u4EF6\uFF0C\u4F46 git clean -fd \u5220\u9664\u4E86\u6240\u6709 untracked \u65B0\u589E\u6587\u4EF6\u3002"),
@@ -479,7 +479,7 @@ const doc = new docx.Document({
     headers: {
       default: new Hdr({ children: [
         new P({ alignment: AT.RIGHT, children: [
-          new T({ text: "allfund.cn \u9700\u6C42\u6587\u6863 | V1.0", size: 18, font: "Arial", color: "999999" })
+          new T({ text: "dachu \u9700\u6C42\u6587\u6863 | V1.0", size: 18, font: "Arial", color: "999999" })
         ] })
       ] })
     },
@@ -496,8 +496,8 @@ const doc = new docx.Document({
   }]
 });
 
-const outDir = process.env.HOME + '/WorkBuddy/20260405093252/allfund/docs';
-const outPath = outDir + '/allfund_requirements.docx';
+const outDir = process.env.HOME + '/WorkBuddy/20260405093252/dachu/docs';
+const outPath = outDir + '/dachu_requirements.docx';
 if (!fs.existsSync(outDir)) fs.mkdirSync(outDir, { recursive: true });
 
 docx.Packer.toBuffer(doc).then(buffer => {

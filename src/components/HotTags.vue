@@ -1354,7 +1354,7 @@ function saveShareImage() {
   if (!shareImage.value) return
   const a = document.createElement('a')
   a.href = shareImage.value
-  const safeName = (selectedTag.value?.name || 'fund') + '-allfund.png'
+  const safeName = (selectedTag.value?.name || 'fund') + '-dachu.png'
   a.download = safeName
   document.body.appendChild(a)
   a.click()

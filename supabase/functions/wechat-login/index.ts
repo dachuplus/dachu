@@ -155,12 +155,20 @@ serve(async (req: Request) => {
 
     const { openid, unionid } = await exchangeOpenid(type, code)
     const suffix = unionid ? `u_${unionid}` : `${type}_${openid}`
-    const email = `wx_${suffix}@allfund.wechat`
+    // 新账号使用 @dachu.wechat；历史账号为 @allfund.wechat，按候选顺序查找以保证兼容。
+    // 注意：PEPPER 为派生密码盐，切勿修改，否则既有微信用户无法登录。
+    const emailCandidates = [`wx_${suffix}@dachu.wechat`, `wx_${suffix}@allfund.wechat`]
     const password = 'wx' + (await sha256Hex(openid + ':' + (PEPPER || 'allfund')))
     if (password.length < 6) throw new Error('派生密码长度不足')
 
-    const exists = await findUserByEmail(email)
-    if (!exists) await createUser(email, password, type)
+    let email = ''
+    for (const cand of emailCandidates) {
+      if (await findUserByEmail(cand)) { email = cand; break }
+    }
+    if (!email) {
+      email = emailCandidates[0]
+      await createUser(email, password, type)
+    }
 
     const session = await signInWithPassword(email, password)
     return json({

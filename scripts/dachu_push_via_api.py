@@ -87,6 +87,19 @@ def main():
         # index 3) while a STAGED change is "M  path" / "M path" (path at index
         # 2). Robustly strip the 2-char status then any leading separator space.
         filepath = line[2:].lstrip(' ')
+        # --- Rename handling: "R  old -> new" (status[0] == 'R') ---
+        # Without this, the combined "old -> new" path matches neither a
+        # deletion nor an existing file, so the rename is silently dropped —
+        # the old file lingers on GitHub and the new file is never added.
+        if status[0] == 'R' and ' -> ' in filepath:
+            old_path, new_path = filepath.split(' -> ', 1)
+            if old_path in base_paths:
+                deletions.append(old_path)
+                print(f"    🗑 重命名源删除 {old_path}")
+            if os.path.isfile(new_path):
+                changed.append(new_path)
+                print(f"    ✓ 重命名目标 {new_path}")
+            continue
         # 删除的文件：记录到 deletions，稍后通过 tree entry sha=None 从仓库移除
         # 但若该路径在「基准树」中已不存在（之前已删过），再删会触发
         # GitHub "GitRPC::BadObjectState" 422 错误 —— 直接跳过。

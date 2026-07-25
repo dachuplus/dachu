@@ -1,6 +1,6 @@
 # 数据模型与评分来源规则（DATA MODEL RULES）
 
-> 本文件是 allfund 数据层的**权威规则文档**。每日自动更新（GitHub Actions `update-fund-data.yml`）
+> 本文件是 dachu 数据层的**权威规则文档**。每日自动更新（GitHub Actions `update-fund-data.yml`）
 > 与所有数据脚本**必须**遵守以下规则。任何改动不得违反。
 
 ---

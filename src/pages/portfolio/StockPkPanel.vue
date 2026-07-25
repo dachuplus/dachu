@@ -384,10 +384,17 @@ const DEFAULT_SYSTEM_PROMPT =
   '只基于给出的真实行情数据做判断，不要引用任何表外或网络信息，不编造、不模拟。'
 
 // 匿名用户标识（localStorage），后续接登录后可替换为手机号/用户ID
-const USER_ID_KEY = 'allfund_anon_uid'
+const USER_ID_KEY = 'dachu_anon_uid'
+const USER_ID_KEY_LEGACY = 'allfund_anon_uid'
 function getUserId() {
   let id = ''
-  try { id = localStorage.getItem(USER_ID_KEY) || '' } catch (e) {}
+  try {
+    id = localStorage.getItem(USER_ID_KEY) || localStorage.getItem(USER_ID_KEY_LEGACY) || ''
+    if (id && localStorage.getItem(USER_ID_KEY) === null && localStorage.getItem(USER_ID_KEY_LEGACY)) {
+      localStorage.setItem(USER_ID_KEY, id) // 迁移
+      localStorage.removeItem(USER_ID_KEY_LEGACY)
+    }
+  } catch (e) {}
   if (!id) {
     id = 'anon_' + (crypto?.randomUUID?.() || Date.now() + '-' + Math.random().toString(16).slice(2))
     try { localStorage.setItem(USER_ID_KEY, id) } catch (e) {}
@@ -956,7 +963,7 @@ function saveShareImage() {
   if (!shareImage.value) return
   const a = document.createElement('a')
   a.href = shareImage.value
-  const safeName = ('stockpk-' + (shareSection.value || 'share')) + '-allfund.png'
+  const safeName = ('stockpk-' + (shareSection.value || 'share')) + '-dachu.png'
   a.download = safeName
   document.body.appendChild(a)
   a.click()

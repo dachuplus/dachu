@@ -211,15 +211,34 @@ export async function updateFundWeight(portfolioId, code, weight) {
 
 // ========== localStorage 兜底（未登录时使用） ==========
 
+const LS_PORTFOLIO = 'dachu_portfolio'
+const LS_PORTFOLIO_LEGACY = 'allfund_portfolio'
+
+// 读取本地组合：兼容旧 key，并在首次读取时迁移到新 key
+function readLocalPortfolio() {
+  try {
+    const legacy = localStorage.getItem(LS_PORTFOLIO_LEGACY)
+    const raw = localStorage.getItem(LS_PORTFOLIO) || legacy || '[]'
+    const arr = JSON.parse(raw)
+    if (!Array.isArray(arr)) return []
+    if (legacy && localStorage.getItem(LS_PORTFOLIO) === null) {
+      localStorage.setItem(LS_PORTFOLIO, JSON.stringify(arr)) // 迁移
+      localStorage.removeItem(LS_PORTFOLIO_LEGACY)
+    }
+    return arr
+  } catch (e) {
+    return []
+  }
+}
+
 function addToLocalPortfolio(code, name) {
   try {
-    const raw = localStorage.getItem('allfund_portfolio') || '[]'
-    const portfolio = JSON.parse(raw)
+    const portfolio = readLocalPortfolio()
     if (portfolio.find(p => p.code === code)) {
       return { success: false, message: `${name} 已在组合中` }
     }
     portfolio.push({ code, name, weight: 0, addedAt: new Date().toISOString() })
-    localStorage.setItem('allfund_portfolio', JSON.stringify(portfolio))
+    localStorage.setItem(LS_PORTFOLIO, JSON.stringify(portfolio))
     return { success: true, message: `已将 ${name} 添加到本地组合` }
   } catch (e) {
     return { success: false, error: e.message }
@@ -273,8 +292,5 @@ export async function deletePortfolio(portfolioId) {
 }
 
 export function getLocalPortfolio() {
-  try {
-    const raw = localStorage.getItem('allfund_portfolio') || '[]'
-    return JSON.parse(raw)
-  } catch { return [] }
+  return readLocalPortfolio()
 }

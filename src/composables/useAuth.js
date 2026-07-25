@@ -18,7 +18,8 @@ import { upsertUserProfile, getMyPortfolios } from '../api/user-data'
 
 // 会话最长有效期：1 周（用户要求从默认 30 天缩短）
 const SESSION_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000
-const LS_LOGIN_AT = 'allfund_auth_login_at'
+const LS_LOGIN_AT = 'dachu_auth_login_at'
+const LS_LOGIN_AT_LEGACY = 'allfund_auth_login_at'
 
 // 数据中心（数据下载 / 用户权限管理）唯一授权管理员账户
 export const ADMIN_EMAIL = '57502460@qq.com'
@@ -275,7 +276,7 @@ export function useAuth() {
     const u = user.value
     if (!u) return ''
     const e = u.email || ''
-    if (e.endsWith('@allfund.wechat')) return '微信用户'
+    if (e.endsWith('@dachu.wechat') || e.endsWith('@allfund.wechat')) return '微信用户'
     return e || u.phone || '用户'
   })
   const displayInitial = computed(() => {
@@ -285,12 +286,15 @@ export function useAuth() {
 
   /** 记录本次登录起始时间（用于 1 周会话过期强制登出） */
   function markLogin() {
-    localStorage.setItem(LS_LOGIN_AT, String(Date.now()))
+    const now = String(Date.now())
+    localStorage.setItem(LS_LOGIN_AT, now)
+    // 兼容旧 key：写入新 key 后清掉历史 key，避免重复
+    try { localStorage.removeItem(LS_LOGIN_AT_LEGACY) } catch (e) {}
   }
 
   /** 检查会话是否已超过 1 周，超过则强制登出。返回 true 表示已过期登出 */
   function checkSessionExpiry() {
-    const at = Number(localStorage.getItem(LS_LOGIN_AT) || '0')
+    const at = Number(localStorage.getItem(LS_LOGIN_AT) || localStorage.getItem(LS_LOGIN_AT_LEGACY) || '0')
     if (at && Date.now() - at > SESSION_MAX_AGE_MS) {
       signOut()
       toast('登录已过期（超过 7 天），请重新登录', 'info')

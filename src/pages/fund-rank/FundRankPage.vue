@@ -1212,7 +1212,7 @@ function exportCsv() {
   const a = document.createElement('a')
   const ts = new Date()
   const pad = n => String(n).padStart(2, '0')
-  const fname = `allfund_靠谱指数_${ts.getFullYear()}${pad(ts.getMonth() + 1)}${pad(ts.getDate())}_${pad(ts.getHours())}${pad(ts.getMinutes())}${pad(ts.getSeconds())}.csv`
+  const fname = `dachu_靠谱指数_${ts.getFullYear()}${pad(ts.getMonth() + 1)}${pad(ts.getDate())}_${pad(ts.getHours())}${pad(ts.getMinutes())}${pad(ts.getSeconds())}.csv`
   a.href = url
   a.download = fname
   document.body.appendChild(a)

@@ -1,9 +1,9 @@
-# allfund.cn 产品需求文档（PRD）
+# dachu 产品需求文档（PRD）
 
 **版本**: v2.0  
 **更新时间**: 2026-06-10  
 **技术栈**: Vue 3 + Vite + Vue Router 4 + Supabase + ECharts  
-**线上地址**: https://www.allfund.cn  
+**线上地址**: https://dachu  
 **部署平台**: EdgeOne Pages
 
 > 📌 **数据模型与评分来源规则（权威）**：见 [`docs/data-model-rules.md`](./data-model-rules.md)。
@@ -14,7 +14,7 @@
 
 ## 一、产品定位
 
-allfund.cn 是一个面向个人基金投资者的专业工具型网站。核心理念：**用数据说话，帮助普通投资者做出更好的投资决策**。
+dachu 是一个面向个人基金投资者的专业工具型网站。核心理念：**用数据说话，帮助普通投资者做出更好的投资决策**。
 
 **目标用户**：有一定投资经验、希望系统化管理基金投资组合的个人投资者  
 **核心价值**：数据透明、工具专业、操作简洁、加载快速
@@ -242,7 +242,7 @@ allfund.cn 是一个面向个人基金投资者的专业工具型网站。核心
 **布局示意**：
 ```
 ┌────────────────────────────────────────┐
-│  allfund.cn   指标信号 靠谱指数 组合 我的 │  ← 顶部黑色导航栏
+│  dachu   指标信号 靠谱指数 组合 我的 │  ← 顶部黑色导航栏
 ├────────────────────────────────────────┤
 │                                        │
 │  靠谱指数                    排序 ▼     │  ← 大号页面标题
@@ -301,7 +301,7 @@ allfund.cn 是一个面向个人基金投资者的专业工具型网站。核心
 | 开发成本 | ⭐⭐⭐⭐⭐ 低 | ⭐⭐⭐ 中等 |
 | 差异化 | ⭐⭐⭐⭐⭐ 极强 | ⭐⭐⭐ 与同类接近 |
 
-**推荐选方案 A**：更符合你说的「降低系统压力、提高速度」，而且投资工具类产品，用户要的是数据准确，不是视觉好看。gov.uk 风格的极简主义也让 allfund.cn 在同类产品中非常有辨识度。
+**推荐选方案 A**：更符合你说的「降低系统压力、提高速度」，而且投资工具类产品，用户要的是数据准确，不是视觉好看。gov.uk 风格的极简主义也让 dachu 在同类产品中非常有辨识度。
 
 ---
 
@@ -368,7 +368,7 @@ allfund.cn 是一个面向个人基金投资者的专业工具型网站。核心
 
 ```bash
 # 标准构建 + 部署命令
-cd allfund && npm run build
+cd dachu && npm run build
 cd dist && zip -r ../dist.zip . -x "*.DS_Store"
 cd .. && export $(grep -v '^#' .env.local | xargs) && npx edgeone makers deploy dist.zip -n dachu -a overseas
 ```
@@ -432,7 +432,7 @@ cd .. && export $(grep -v '^#' .env.local | xargs) && npx edgeone makers deploy 
 
 - [基金分类体系](./fund-classification.md) — 恒生聚源六级分类说明
 - 靠谱指数算法说明（见 MEMORY.md）
-- 每日更新流水线（allfund/scripts/daily_supabase_update.sh）
+- 每日更新流水线（dachu/scripts/daily_supabase_update.sh）
 
 ---
 

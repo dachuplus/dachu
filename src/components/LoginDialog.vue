@@ -134,9 +134,10 @@ function normalizePhone(v) {
 
 // 手机号 → 确定性合成邮箱（Supabase 手机号注册未开启，且需短信OTP，
 // 故以合成邮箱承载「手机号+密码」身份，复用既有的邮件自动确认与邮箱权限体系）。
-function emailForPhone(phone) {
+// 新账号使用 @dachu.user；历史账号为 @allfund.user，登录时按候选顺序逐一尝试以保证兼容。
+function phoneCandidates(phone) {
   const p = normalizePhone(phone).replace(/^\+/, '')
-  return `${p}@allfund.user`
+  return [`${p}@dachu.user`, `${p}@allfund.user`]
 }
 
 async function submit() {
@@ -168,29 +169,62 @@ async function submit() {
   loading.value = true
   try {
     if (mode.value === 'signup') {
-        const creds = isPhone
-          ? { email: emailForPhone(identifier), password: password.value }
-          : { email: identifier, password: password.value }
-      const { data, error: err } = await supabase.auth.signUp(creds)
-      if (err) { error.value = translateError(err.message); return }
-      if (data?.user?.identities?.length === 0) {
-        error.value = isPhone ? '该手机号已注册，请直接登录' : '该邮箱已注册，请直接登录'
-        mode.value = 'signin'
-        return
-      }
-      markLogin()
-      if (data?.session) {
-        toast('注册成功', 'success')
-        emit('logged-in')
+      if (isPhone) {
+        // 历史账号可能落在 @allfund.user，先逐一尝试验证是否已注册
+        let existing = false
+        for (const email of phoneCandidates(identifier)) {
+          const { error: e2 } = await supabase.auth.signInWithPassword({ email, password: password.value })
+          if (!e2) { existing = true; break }
+        }
+        if (existing) {
+          error.value = '该手机号已注册，请直接登录'
+          mode.value = 'signin'
+          return
+        }
+        const { data, error: err } = await supabase.auth.signUp({ email: phoneCandidates(identifier)[0], password: password.value })
+        if (err) { error.value = translateError(err.message); return }
+        if (data?.user?.identities?.length === 0) {
+          error.value = '该手机号已注册，请直接登录'
+          mode.value = 'signin'
+          return
+        }
+        markLogin()
+        if (data?.session) {
+          toast('注册成功', 'success')
+          emit('logged-in')
+        } else {
+          success.value = '注册成功！请直接登录。'
+        }
       } else {
-        success.value = '注册成功！请直接登录。'
+        const creds = { email: identifier, password: password.value }
+        const { data, error: err } = await supabase.auth.signUp(creds)
+        if (err) { error.value = translateError(err.message); return }
+        if (data?.user?.identities?.length === 0) {
+          error.value = '该邮箱已注册，请直接登录'
+          mode.value = 'signin'
+          return
+        }
+        markLogin()
+        if (data?.session) {
+          toast('注册成功', 'success')
+          emit('logged-in')
+        } else {
+          success.value = '注册成功！请直接登录。'
+        }
       }
     } else {
-        const creds = isPhone
-          ? { email: emailForPhone(identifier), password: password.value }
-          : { email: identifier, password: password.value }
-      const { error: err } = await supabase.auth.signInWithPassword(creds)
-      if (err) { error.value = translateError(err.message); return }
+      if (isPhone) {
+        // 新账号 @dachu.user，历史账号 @allfund.user，按候选顺序逐一登录
+        let ok = false
+        for (const email of phoneCandidates(identifier)) {
+          const { error: err } = await supabase.auth.signInWithPassword({ email, password: password.value })
+          if (!err) { ok = true; break }
+        }
+        if (!ok) { error.value = '账号或密码错误'; return }
+      } else {
+        const { error: err } = await supabase.auth.signInWithPassword({ email: identifier, password: password.value })
+        if (err) { error.value = translateError(err.message); return }
+      }
       markLogin()
       toast('登录成功', 'success')
       emit('logged-in')

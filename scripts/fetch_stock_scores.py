@@ -23,7 +23,7 @@ fetch_stock_scores.py — 抓取 A 股股票数据写入 stock_scores_staging（
   如未来东财限流解除，可无缝切回（接口已封装在 _em_* 函数中）。
 
 用法：
-  export SUPABASE_PAT="$(grep -E '^SUPABASE_PAT=' allfund/.env.local | cut -d= -f2-)"
+  export SUPABASE_PAT="$(grep -E '^SUPABASE_PAT=' dachu/.env.local | cut -d= -f2-)"
   python3 scripts/fetch_stock_scores.py
 """
 import os

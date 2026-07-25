@@ -3,7 +3,7 @@
 """
 promote_stock_scores.py — 校验 stock_scores_staging 后原子切到 stock_scores（股票版）
 
-严格镜像 allfund/scripts/promote_staging.py 的设计：
+严格镜像 dachu/scripts/promote_staging.py 的设计：
   - 抓取全程写入 stock_scores_staging（第1级），绝不直写生产 stock_scores。
   - 本脚本在 staging 写入完成后做严格校验：
         1) staging 条数 >= 1500；
@@ -14,7 +14,7 @@ promote_stock_scores.py — 校验 stock_scores_staging 后原子切到 stock_sc
   - 通过 Management API（curl，防 Cloudflare 拦截）执行，需 SUPABASE_PAT 环境变量。
 
 用法：
-  export SUPABASE_PAT="$(grep -E '^SUPABASE_PAT=' allfund/.env.local | cut -d= -f2-)"
+  export SUPABASE_PAT="$(grep -E '^SUPABASE_PAT=' dachu/.env.local | cut -d= -f2-)"
   python3 scripts/promote_stock_scores.py
 """
 import os

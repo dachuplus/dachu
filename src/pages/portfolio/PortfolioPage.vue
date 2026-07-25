@@ -713,10 +713,19 @@ const aiGenerating = ref(false)
 const aiStatusText = ref('')
 const aiPortfolio = ref(null)
 const aiHistory = ref([])
-const AI_STORAGE_KEY = 'allfund_ai_portfolios'
+const AI_STORAGE_KEY = 'dachu_ai_portfolios'
+const AI_STORAGE_KEY_LEGACY = 'allfund_ai_portfolios'
 
 function loadAiHistory() {
-  try { const r = localStorage.getItem(AI_STORAGE_KEY); aiHistory.value = r ? JSON.parse(r) : [] } catch { aiHistory.value = [] }
+  try {
+    let r = localStorage.getItem(AI_STORAGE_KEY)
+    if (!r && localStorage.getItem(AI_STORAGE_KEY_LEGACY)) {
+      r = localStorage.getItem(AI_STORAGE_KEY_LEGACY)
+      localStorage.setItem(AI_STORAGE_KEY, r) // 迁移
+      localStorage.removeItem(AI_STORAGE_KEY_LEGACY)
+    }
+    aiHistory.value = r ? JSON.parse(r) : []
+  } catch { aiHistory.value = [] }
 }
 function saveAiToHistory(pf) {
   const h = [...aiHistory.value]; h.unshift(pf); if (h.length > 10) h.length = 10

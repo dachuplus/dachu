@@ -147,7 +147,7 @@ rows = mgmt(
     "ORDER BY k1 DESC LIMIT 500"
 )
 if rows:
-    PATH = os.path.expanduser('~/WorkBuddy/20260405093252/allfund/exports/fund_combined_new_scores.csv')
+    PATH = os.path.expanduser('~/WorkBuddy/20260405093252/dachu/exports/fund_combined_new_scores.csv')
     with open(PATH,'w',newline='',encoding='utf-8-sig') as f:
         csv.DictWriter(f, fieldnames=rows[0].keys()).writeheader()
         csv.DictWriter(f, fieldnames=rows[0].keys()).writerows(rows)

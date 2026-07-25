@@ -117,7 +117,7 @@
     <!-- 项目简介 -->
     <div class="card" v-show="activeTab==='download'">
       <div class="card-title">项目简介 · 大厨先生</div>
-      <p class="section-desc">本页面与整个 allfund 项目均托管于 GitHub，可依据本文档从零重新搭建网站与小程序。以下为项目全貌，供二次开发与部署参考。</p>
+      <p class="section-desc">本页面与整个 dachu 项目均托管于 GitHub，可依据本文档从零重新搭建网站。以下为项目全貌，供二次开发与部署参考。</p>
       <div class="intro-grid">
         <div class="intro-row">
           <div class="intro-key">项目功能</div>
@@ -132,15 +132,9 @@
           </div>
         </div>
         <div class="intro-row">
-          <div class="intro-key">技术栈 · 小程序</div>
-          <div class="intro-val">
-            uni-app（Vue3）+ uCharts + Supabase REST API。仓库 <code>allfund-max</code>，执行 <code>npm run build:mp-weixin</code> 产出 <code>dist/build/mp-weixin/</code> 后导入微信开发者工具。
-          </div>
-        </div>
-        <div class="intro-row">
           <div class="intro-key">前端服务</div>
           <div class="intro-val">
-            网站：EdgeOne Pages（生产域名 <code>www.dachu.space</code>）；小程序：微信小程序（allfund-max）。两端均直连 Supabase REST API 读取数据，无需自建后端应用服务器。
+            网站：EdgeOne Pages（海外节点部署）。直连 Supabase REST API 读取数据，无需自建后端应用服务器。
           </div>
         </div>
         <div class="intro-row">
@@ -164,7 +158,7 @@
         <div class="intro-row">
           <div class="intro-key">GitHub 保存路径</div>
           <div class="intro-val">
-            网站仓库：<code>github.com/{owner}/allfund</code>；小程序仓库：<code>github.com/{owner}/allfund-max</code>。本地与远程仓库保持逐字节一致，推送使用受控脚本（非 git push 直推）。
+            网站仓库：<code>github.com/dachuplus/dachu</code>。本地与远程仓库保持逐字节一致，推送使用受控脚本（非 git push 直推）。
           </div>
         </div>
         <div class="intro-row">
@@ -1842,13 +1836,14 @@ async function loadUserAnalytics() {
 }
 
 // ========== 用户权限管理 ==========
-// 用户名展示：手机号注册用户的 user_email 为合成邮箱（如 8613800138000@allfund.user），
-// 去掉后缀只显示手机号；小程序微信登录用户为 wx_xxx@allfund.wechat，显示为「微信用户」；
-// 真实邮箱（如管理员）原样显示。
+// 用户名展示：手机号注册用户的 user_email 为合成邮箱（如 8613800138000@dachu.user，
+// 历史账号为 @allfund.user），去掉后缀只显示手机号；微信登录用户为 wx_xxx@dachu.wechat
+// （历史为 @allfund.wechat），显示为「微信用户」；真实邮箱（如管理员）原样显示。
 function displayUsername(email) {
   if (!email) return '—'
   if (email === 'authenticated') return '已登录访客'
-  if (email.endsWith('@allfund.wechat')) return '微信用户'
+  if (email.endsWith('@dachu.wechat') || email.endsWith('@allfund.wechat')) return '微信用户'
+  if (email.endsWith('@dachu.user')) return email.slice(0, -'@dachu.user'.length)
   if (email.endsWith('@allfund.user')) return email.slice(0, -'@allfund.user'.length)
   return email
 }

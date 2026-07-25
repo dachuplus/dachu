@@ -138,7 +138,7 @@ TABLES = {
     'user_portfolios': {
         'name': '用户组合表',
         'desc': '用户自建基金组合数据（portfolio_data JSON），关联用户 ID',
-        'source': '用户通过 ALLFUND.CN 网站自行创建',
+        'source': '用户通过 大厨先生 网站自行创建',
         'update': '用户操作时实时更新',
         'scoring': False,
     },
@@ -173,7 +173,7 @@ TABLES = {
     'ai_pk_models': {
         'name': 'AI大PK 模型表',
         'desc': 'AI 大PK 参赛模型信息（模型名/厂商/头像/描述/状态等）',
-        'source': 'ALLFUND.CN 内部配置 + 各大模型 API',
+        'source': '大厨先生 内部配置 + 各大模型 API',
         'update': '按需更新',
         'scoring': False,
     },
@@ -245,8 +245,8 @@ TABLES = {
 # 无元数据表的通用兜底说明（自动发现的新表）
 GENERIC_META = {
     'name': '数据表',
-    'desc': 'ALLFUND.CN 数据库表（暂无详细说明）',
-    'source': 'ALLFUND.CN',
+    'desc': '大厨先生 数据库表（暂无详细说明）',
+    'source': '大厨先生',
     'update': '按需更新',
     'scoring': False,
 }
@@ -423,7 +423,7 @@ def export_to_excel(table_name, rows, output_path):
     row_idx = 1
     
     # 标题
-    ws_meta.cell(row=row_idx, column=1, value='ALLFUND.CN 数据说明').font = header_font
+    ws_meta.cell(row=row_idx, column=1, value='大厨先生 数据说明').font = header_font
     ws_meta.merge_cells(start_row=row_idx, start_column=1, end_row=row_idx, end_column=2)
     row_idx += 2
     
@@ -476,7 +476,7 @@ def export_to_excel(table_name, rows, output_path):
     ws_meta.cell(row=row_idx, column=1, value='免责声明').font = Font(name='微软雅黑', bold=True, size=11, color='999999')
     row_idx += 1
     disclaimer = (
-        '本数据由 ALLFUND.CN 通过公开数据接口自动采集和计算，仅供参考，不构成任何投资建议。'
+        '本数据由 大厨先生 通过公开数据接口自动采集和计算，仅供参考，不构成任何投资建议。'
         '数据可能存在延迟或误差，请以天天基金等官方平台实时数据为准。'
         '投资有风险，入市需谨慎。'
     )
@@ -516,7 +516,7 @@ def discover_tables():
 
 
 def main():
-    print(f'📊 导出 allfund 数据库全部表到 {OUTPUT_DIR}/')
+    print(f'📊 导出 dachu 数据库全部表到 {OUTPUT_DIR}/')
     print(f'⏰ {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}\n')
     
     # 优先自动发现全部 public 表（含后续新建表）；失败则回退内置清单

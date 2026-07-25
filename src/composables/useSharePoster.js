@@ -154,7 +154,7 @@ export function useSharePoster() {
   }
 
   /** 保存 PNG dataURL 到本地（触发浏览器下载） */
-  function savePoster(dataUrl, filename = 'allfund-share.png') {
+  function savePoster(dataUrl, filename = 'dachu-share.png') {
     if (!dataUrl) return
     const a = document.createElement('a')
     a.href = dataUrl
