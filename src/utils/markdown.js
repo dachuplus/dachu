@@ -88,6 +88,8 @@ export function renderMarkdown(md) {
   let inCode = false
   let codeBuf = []
   let para = []
+  let inAlign = null // 'left' | 'center' | 'right' | 'justify'
+  let alignBuf = []
 
   function flushPara() {
     if (para.length) {
@@ -120,6 +122,26 @@ export function renderMarkdown(md) {
     }
     if (inCode) {
       codeBuf.push(line)
+      continue
+    }
+
+    // 对齐容器 :::left / :::center / :::right / :::justify ... :::（白名单，仅四类，防 XSS）
+    const alignOpen = line.match(/^:::\s*(left|center|right|justify)\s*$/)
+    if (alignOpen) {
+      flushPara()
+      closeList()
+      inAlign = alignOpen[1]
+      alignBuf = []
+      continue
+    }
+    if (inAlign) {
+      if (/^:::\s*$/.test(line)) {
+        html += '<div class="align-' + inAlign + '">' + renderInline(alignBuf.join(' ')) + '</div>'
+        inAlign = null
+        alignBuf = []
+      } else {
+        alignBuf.push(line)
+      }
       continue
     }
 
@@ -188,6 +210,9 @@ export function renderMarkdown(md) {
 
   flushPara()
   closeList()
+  if (inAlign) {
+    html += '<div class="align-' + inAlign + '">' + renderInline(alignBuf.join(' ')) + '</div>'
+  }
   if (inCode) {
     html += '<pre><code>' + codeBuf.join('\n') + '</code></pre>'
   }

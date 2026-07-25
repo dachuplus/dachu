@@ -72,14 +72,14 @@ jobs:
           echo "============================================"
           python scripts/fetch_and_import_funds.py --output-only
 
-      - name: 步骤2 — 抓取风险指标（回撤+夏普，pingzhongdata HTTPS）
+      - name: 步骤2 — 抓取风险指标（回撤+夏普，pingzhongdata HTTPS，4 进程分批并行）
         if: ${{ !inputs.skip_risk }}
         id: risk_indicators
-        timeout-minutes: 20
+        timeout-minutes: 60
         continue-on-error: true
         run: |
           echo "============================================"
-          echo "  步骤2: 抓取风险指标 (回撤+夏普比率)"
+          echo "  步骤2: 抓取风险指标 (回撤+夏普比率) — 4 进程分批并行"
           echo "  开始时间: $(date '+%Y-%m-%d %H:%M:%S')"
           echo "============================================"
           # 先检查是否有第一步输出的 NDJSON
@@ -87,12 +87,22 @@ jobs:
             echo "未找到 funds_output.ndjson，跳过风险指标计算"
             exit 0
           fi
-          python scripts/fetch_risk_indicators.py \
-            --input scripts/funds_output.ndjson \
-            --output scripts/risk_indicators.ndjson \
-            --workers 8 \
-            --delay 0.3 \
-            --resume
+          mkdir -p scripts/_risk_chunks
+          # 按行均分为 4 份，4 个进程并发抓取（缩短总耗时，避免单进程超时）
+          split -n l/4 -d --additional-suffix=.ndjson scripts/funds_output.ndjson scripts/_risk_chunks/part_
+          echo "已切分为以下分片:"
+          ls -1 scripts/_risk_chunks/
+          for f in scripts/_risk_chunks/part_*.ndjson; do
+            python scripts/fetch_risk_indicators.py \
+              --input "$f" \
+              --output "${f%.ndjson}.out.ndjson" \
+              --workers 6 --delay 0.25 --resume &
+          done
+          wait
+          echo "各分片完成，合并输出到 risk_indicators.ndjson ..."
+          cat scripts/_risk_chunks/part_*.out.ndjson > scripts/risk_indicators.ndjson
+          echo "合并后记录数: $(wc -l < scripts/risk_indicators.ndjson)"
+          rm -rf scripts/_risk_chunks
           echo "风险指标计算完成: $(date '+%Y-%m-%d %H:%M:%S')"
 
       - name: 步骤2a — 补充风险指标（tsdata 页面夏普比率+标准差）

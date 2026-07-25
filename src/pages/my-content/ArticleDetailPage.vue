@@ -179,6 +179,12 @@ onMounted(load)
   border-top: 1px solid var(--border);
   margin: var(--space-lg) 0;
 }
+.dp-content :deep(.align-left) { text-align: left; }
+.dp-content :deep(.align-center) { text-align: center; }
+.dp-content :deep(.align-right) { text-align: right; }
+.dp-content :deep(.align-justify) { text-align: justify; }
+.dp-content :deep(.align-center img) { margin-left: auto; margin-right: auto; }
+.dp-content :deep(.align-right img) { margin-left: auto; margin-right: 0; }
 .dp-tags { margin-top: var(--space-lg); display: flex; gap: 8px; flex-wrap: wrap; }
 .dp-tag {
   background: #f3f2f1;
