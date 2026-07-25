@@ -1,0 +1,19 @@
+name: DB 直连连通性检查（临时验证，跑完即删）
+on:
+  workflow_dispatch:
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    env:
+      SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: 安装 psycopg2 直连驱动
+        run: pip install psycopg2-binary
+      - name: 运行此前失败的步骤2c3（ensure_basic_info_columns，走直连写库）
+        run: python scripts/ensure_basic_info_columns.py
+      - name: 连通性探测 SELECT 1
+        run: python -c "import sys; sys.path.insert(0,'scripts'); from _db import run_sql; print('SELECT 1 ->', run_sql('SELECT 1 AS ok')); print('DB_CONNECT_OK')"

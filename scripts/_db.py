@@ -99,6 +99,29 @@ def _mgmt_query(sql, params=None, timeout=60):
     return []
 
 
+def _ipv4_host(dsn):
+    """把 DSN 里的主机名解析成 IPv4 地址字面量。
+
+    GitHub Actions 的 runner 默认 DNS 优先返回 IPv6，而 runner 没有 IPv6 出口，
+    直连会报 'Network is unreachable'。这里强制解析出 IPv4 地址覆盖 DSN 中的主机名，
+    每次连接实时解析，故 Supabase 后端 IP 变更也不影响。
+    """
+    import socket
+    from urllib.parse import urlparse
+
+    try:
+        p = urlparse(dsn)
+        host = p.hostname
+        if not host:
+            return None
+        infos = socket.getaddrinfo(host, p.port or 5432, socket.AF_INET, socket.SOCK_STREAM)
+        if infos:
+            return infos[0][4][0]
+    except Exception:
+        return None
+    return None
+
+
 def _db_query(sql, params=None, timeout=300):
     """直连路径：psycopg2 直连 postgres。返回 list[dict]（其余与 _mgmt_query 对齐）。"""
     import json
@@ -110,7 +133,11 @@ def _db_query(sql, params=None, timeout=300):
     if not statements:
         return []
     out_rows = []
-    conn_kwargs = {"dsn": dsn}
+    conn_kwargs = {"dsn": dsn, "sslmode": "require"}
+    # 强制 IPv4：runner 解析到 IPv6 但无 IPv6 出口会导致 Network is unreachable。
+    ipv4 = _ipv4_host(dsn)
+    if ipv4:
+        conn_kwargs["host"] = ipv4
     if timeout:
         try:
             conn_kwargs["connect_timeout"] = int(timeout)
