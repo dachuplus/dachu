@@ -933,13 +933,13 @@ async function generateShareImage(section) {
     // 二维码 + 说明
     const qrY = usedY + 16
     const qrCanvas = document.createElement('canvas')
-    await QRCode.toCanvas(qrCanvas, 'https://www.dachu.space', {
+    await QRCode.toCanvas(qrCanvas, 'https://dachu.me', {
       width: qrSize * scale, margin: 1, color: { dark: '#000000', light: '#ffffff' },
     })
     ctx.drawImage(qrCanvas, (W - qrSize) / 2, qrY, qrSize, qrSize)
     ctx.textAlign = 'center'
     ctx.fillStyle = '#1d70b8'; ctx.font = 'bold 24px sans-serif'
-    ctx.fillText('微信扫一扫 · 访问 www.dachu.space', W / 2, qrY + qrSize + 14)
+    ctx.fillText('微信扫一扫 · 访问 dachu.me', W / 2, qrY + qrSize + 14)
     ctx.fillStyle = '#999999'; ctx.font = '16px sans-serif'
     ctx.fillText('识别二维码，查看靠谱指数与股票组合 PK', W / 2, qrY + qrSize + 44)
 

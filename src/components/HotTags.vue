@@ -1303,7 +1303,7 @@ async function generateShareImage() {
 
     // 二维码
     const qrCanvas = document.createElement('canvas')
-    await QRCode.toCanvas(qrCanvas, 'https://www.dachu.space', {
+    await QRCode.toCanvas(qrCanvas, 'https://dachu.me', {
       width: qrSize * scale,
       margin: 1,
       color: { dark: '#000000', light: '#ffffff' },
@@ -1313,7 +1313,7 @@ async function generateShareImage() {
     ctx.textAlign = 'center'
     ctx.fillStyle = '#1d70b8'
     ctx.font = 'bold 26px sans-serif'
-    ctx.fillText('微信扫一扫 · 访问 www.dachu.space', W / 2, qrY + qrSize + 18)
+    ctx.fillText('微信扫一扫 · 访问 dachu.me', W / 2, qrY + qrSize + 18)
     ctx.fillStyle = '#999999'
     ctx.font = '18px sans-serif'
     ctx.fillText('识别二维码，查看靠谱指数与更多热门基金', W / 2, qrY + qrSize + 52)
