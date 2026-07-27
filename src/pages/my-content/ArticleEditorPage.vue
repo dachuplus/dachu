@@ -275,6 +275,11 @@ async function onSave(targetStatus) {
       status: targetStatus,
       // 分块上传进度回调
       onProgress: (done, total) => { uploadProgress.value = { done, total } },
+      // 网络重试回调：单步失败自动重试时通知用户
+      onRetry: (nextAttempt, maxAttempts) => {
+        const msg = targetStatus === 'published' ? '发布' : '保存'
+        toast(msg + ' 网络慢，正在自动重试 (' + nextAttempt + '/' + maxAttempts + ')…', 'info')
+      },
     }
     // 分块上传：每块都很小，整体放宽到 90 秒防极端弱网
     const controller = new AbortController()

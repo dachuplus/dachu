@@ -42,6 +42,36 @@ function withTimeout(promise, label) {
 }
 
 /**
+ * 网络抖动自动重试：超时/网络错误时按指数退避重试最多 maxAttempts 次。
+ * 业务错误（如 RLS 拒绝、合规拦截）立即抛出，不重试。
+ * @param {() => Promise<any>} fn 实际执行函数（每次都重新调用，避免重发幂等性问题需自行处理）
+ * @param {number} maxAttempts 总尝试次数（含首次）
+ * @param {(attempt:number, err:Error) => void} onRetry 重试时的回调（用于显示「重试中」提示）
+ */
+async function withRetry(fn, maxAttempts, onRetry) {
+  let lastErr
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      return await fn()
+    } catch (e) {
+      lastErr = e
+      const msg = (e && e.message) || String(e)
+      // 只对网络类错误重试：超时/连接失败/5xx；业务错误（合规、RLS、参数错）立刻抛
+      const isNetErr = msg.indexOf('请求超时') !== -1
+        || msg.indexOf('Failed to fetch') !== -1
+        || msg.indexOf('NetworkError') !== -1
+        || msg.indexOf('网络') !== -1
+        || msg.indexOf('aborted') !== -1
+      if (!isNetErr || attempt >= maxAttempts) throw e
+      const delay = 800 * attempt // 0.8s, 1.6s, 2.4s ...
+      if (onRetry) onRetry(attempt + 1, maxAttempts, e)
+      await new Promise((r) => setTimeout(r, delay))
+    }
+  }
+  throw lastErr
+}
+
+/**
  * 列表文章。
  * @param {object} opts
  *  - status: 'published' | 'draft' | null(全部)
@@ -161,28 +191,41 @@ export async function createArticle(payload) {
     status: 'draft',
     published_at: null,
   }
-  const { data, error } = await withTimeout(
-    supabase.from('articles').insert(meta).select('id').single(),
-    '创建文章'
+  const onNetRetry = payload.onRetry
+  const { data, error } = await withRetry(
+    () => withTimeout(
+      supabase.from('articles').insert(meta).select('id').single(),
+      '创建文章'
+    ),
+    3,
+    onNetRetry
   )
   if (error) throw error
   const id = data.id
-  // 2) 分块上传正文
+  // 2) 分块上传正文（内部已有逐块重试）
   await uploadChunks(id, payload.content, payload.onProgress)
   // 3) 服务端拼装
-  const { error: ae } = await withTimeout(
-    supabase.rpc('assemble_article_content', { p_article_id: id }),
-    '拼装正文'
+  const { error: ae } = await withRetry(
+    () => withTimeout(
+      supabase.rpc('assemble_article_content', { p_article_id: id }),
+      '拼装正文'
+    ),
+    3,
+    onNetRetry
   )
   if (ae) throw ae
   // 4) 需要发布则置为已发布
   if (payload.status === 'published') {
-    const { error: pe } = await withTimeout(
-      supabase
-        .from('articles')
-        .update({ status: 'published', published_at: new Date().toISOString() })
-        .eq('id', id),
-      '发布文章'
+    const { error: pe } = await withRetry(
+      () => withTimeout(
+        supabase
+          .from('articles')
+          .update({ status: 'published', published_at: new Date().toISOString() })
+          .eq('id', id),
+        '发布文章'
+      ),
+      3,
+      onNetRetry
     )
     if (pe) throw pe
   }
@@ -200,27 +243,40 @@ export async function updateArticle(id, payload) {
   if (payload.tags !== undefined) meta.tags = payload.tags
   // 拼装完成前保持 draft，避免旧/空内容被发布
   meta.status = payload.status === 'published' ? 'draft' : (payload.status || 'draft')
-  const { error } = await withTimeout(
-    supabase.from('articles').update(meta).eq('id', Number(id)),
-    '更新文章'
+  const onNetRetry = payload.onRetry
+  const { error } = await withRetry(
+    () => withTimeout(
+      supabase.from('articles').update(meta).eq('id', Number(id)),
+      '更新文章'
+    ),
+    3,
+    onNetRetry
   )
   if (error) throw error
   // 分块上传正文
   await uploadChunks(Number(id), payload.content, payload.onProgress)
   // 服务端拼装
-  const { error: ae } = await withTimeout(
-    supabase.rpc('assemble_article_content', { p_article_id: Number(id) }),
-    '拼装正文'
+  const { error: ae } = await withRetry(
+    () => withTimeout(
+      supabase.rpc('assemble_article_content', { p_article_id: Number(id) }),
+      '拼装正文'
+    ),
+    3,
+    onNetRetry
   )
   if (ae) throw ae
   // 需要发布则置为已发布
   if (payload.status === 'published') {
-    const { error: pe } = await withTimeout(
-      supabase
-        .from('articles')
-        .update({ status: 'published', published_at: new Date().toISOString() })
-        .eq('id', Number(id)),
-      '发布文章'
+    const { error: pe } = await withRetry(
+      () => withTimeout(
+        supabase
+          .from('articles')
+          .update({ status: 'published', published_at: new Date().toISOString() })
+          .eq('id', Number(id)),
+        '发布文章'
+      ),
+      3,
+      onNetRetry
     )
     if (pe) throw pe
   }
