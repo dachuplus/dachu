@@ -20,6 +20,7 @@ const corsHeaders = {
 }
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') || ''
+const SUPABASE_ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY') || ''
 const SERVICE_ROLE = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || ''
 
 /** 合规关键词（与触发器 guard_article_compliance 保持一致） */
@@ -61,14 +62,18 @@ serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response(null, { headers: corsHeaders })
 
   try {
-    const { data: { user }, error: authErr } = await (
-      await fetch(`${SUPABASE_URL}/auth/v1/user`, {
-        method: 'GET',
-        headers: { Authorization: req.headers.get('Authorization') || '' },
-      })
-    ).json()
-
-    if (authErr || !user?.email) {
+    const authResp = await fetch(`${SUPABASE_URL}/auth/v1/user`, {
+      method: 'GET',
+      headers: {
+        Authorization: req.headers.get('Authorization') || '',
+        apikey: SUPABASE_ANON_KEY,
+      },
+    })
+    if (!authResp.ok) {
+      return json({ error: '未登录或会话已过期' }, 401)
+    }
+    const user = await authResp.json()
+    if (!user?.email) {
       return json({ error: '未登录或会话已过期' }, 401)
     }
 
@@ -85,7 +90,10 @@ serve(async (req) => {
       console.log(`[publish-article] 合规提示：命中敏感词「${violation}」，已放行`)
     }
 
-    const srHeader = `Bearer ${SERVICE_ROLE}`
+    const srAuth = {
+      Authorization: `Bearer ${SERVICE_ROLE}`,
+      apikey: SERVICE_ROLE,
+    }
     const authorEmail = user.email
     const isUpdate = !!article_id
     let id: number
@@ -96,7 +104,7 @@ serve(async (req) => {
         `${SUPABASE_URL}/rest/v1/articles?id=eq.${article_id}&author_email=eq.${encodeURIComponent(authorEmail)}`,
         {
           method: 'PATCH',
-          headers: { ...corsHeaders, Authorization: srHeader, 'Content-Type': 'application/json', Prefer: 'return=representation' },
+          headers: { ...corsHeaders, ...srAuth, 'Content-Type': 'application/json', Prefer: 'return=representation' },
           body: JSON.stringify({
             title: title.trim(),
             summary: summary?.trim() || '',
@@ -117,7 +125,7 @@ serve(async (req) => {
       // 新建
       const insRes = await fetch(`${SUPABASE_URL}/rest/v1/articles`, {
         method: 'POST',
-        headers: { ...corsHeaders, Authorization: srHeader, 'Content-Type': 'application/json', Prefer: 'return=representation' },
+        headers: { ...corsHeaders, ...srAuth, 'Content-Type': 'application/json', Prefer: 'return=representation' },
         body: JSON.stringify({
           title: title.trim(),
           summary: summary?.trim() || '',
@@ -142,18 +150,18 @@ serve(async (req) => {
       // 先清旧块
       await fetch(
         `${SUPABASE_URL}/rest/v1/article_chunks?article_id=eq.${id}`,
-        { method: 'DELETE', headers: { ...corsHeaders, Authorization: srHeader } }
+        { method: 'DELETE', headers: { ...corsHeaders, ...srAuth } }
       )
       // 批量插入新块
       const chunkRows = parts.map((part, seq) => ({ article_id: id, seq, part }))
       const chRes = await fetch(`${SUPABASE_URL}/rest/v1/article_chunks`, {
         method: 'POST',
-        headers: { ...corsHeaders, Authorization: srHeader, 'Content-Type': 'application/json', Prefer: 'resolution=merge-duplicates' },
+        headers: { ...corsHeaders, ...srAuth, 'Content-Type': 'application/json', Prefer: 'resolution=merge-duplicates' },
         body: JSON.stringify(chunkRows),
       })
       if (!chRes.ok) {
         // 清理孤儿文章
-        await fetch(`${SUPABASE_URL}/rest/v1/articles?id=eq.${id}`, { method: 'DELETE', headers: { ...corsHeaders, Authorization: srHeader } })
+        await fetch(`${SUPABASE_URL}/rest/v1/articles?id=eq.${id}`, { method: 'DELETE', headers: { ...corsHeaders, ...srAuth } })
         return json({ error: '分块上传正文失败' }, 500)
       }
     }
@@ -161,8 +169,8 @@ serve(async (req) => {
     // 服务端拼装
     const asmRes = await fetch(`${SUPABASE_URL}/rest/v1/rpc/assemble_article_content`, {
       method: 'POST',
-      headers: { ...corsHeaders, Authorization: srHeader, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ p_article_id: id }),
+      headers: { ...corsHeaders, ...srAuth, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ p_article_id: id, p_author_email: authorEmail }),
     })
     if (!asmRes.ok) {
       const asmErr = await asmRes.json().catch(() => ({}))
@@ -175,7 +183,7 @@ serve(async (req) => {
         `${SUPABASE_URL}/rest/v1/articles?id=eq.${id}`,
         {
           method: 'PATCH',
-          headers: { ...corsHeaders, Authorization: srHeader, 'Content-Type': 'application/json' },
+          headers: { ...corsHeaders, ...srAuth, 'Content-Type': 'application/json' },
           body: JSON.stringify({ status: 'published', published_at: new Date().toISOString() }),
         }
       )
