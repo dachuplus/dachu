@@ -23,6 +23,24 @@ function currentEmail() {
 import { checkCompliance } from '../utils/markdown.js'
 export { checkCompliance }
 
+/* ========== 网络超时工具 ========== */
+
+/** 单次 supabase 调用超时（毫秒）。新加坡节点国内延迟高，给 20s 足够正常完成但不会无限等 */
+const REQ_TIMEOUT = 20000
+
+/**
+ * 给任意 Promise 加超时。
+ * 超时后原 Promise 不会被取消（浏览器限制），但调用方会立刻拿到错误继续走重试/报错逻辑。
+ */
+function withTimeout(promise, label) {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) =>
+      setTimeout(() => reject(new Error(label + ' 请求超时（>' + (REQ_TIMEOUT / 1000) + 's），请检查网络')), REQ_TIMEOUT)
+    )
+  ])
+}
+
 /**
  * 列表文章。
  * @param {object} opts
@@ -99,19 +117,28 @@ function splitChunks(text) {
 async function uploadChunks(articleId, content, onProgress) {
   const parts = splitChunks(content)
   const total = parts.length
-  // 先清旧块（编辑场景）
-  await supabase.from('article_chunks').delete().eq('article_id', articleId)
+  // 先清旧块（编辑场景）——带超时
+  await withTimeout(
+    supabase.from('article_chunks').delete().eq('article_id', articleId),
+    '清理旧分块'
+  )
   for (let seq = 0; seq < total; seq++) {
     let lastErr = null
     for (let attempt = 1; attempt <= 3; attempt++) {
-      const { error } = await supabase
-        .from('article_chunks')
-        .insert({ article_id: articleId, seq, part: parts[seq] })
-      if (!error) {
-        lastErr = null
-        break
+      try {
+        const { error } = await withTimeout(
+          supabase.from('article_chunks').insert({ article_id: articleId, seq, part: parts[seq] }),
+          '上传第' + (seq + 1) + '块'
+        )
+        if (!error) {
+          lastErr = null
+          break
+        }
+        lastErr = error
+      } catch (e) {
+        // 超时报错也计入重试
+        lastErr = e
       }
-      lastErr = error
       await new Promise((r) => setTimeout(r, 400 * attempt))
     }
     if (lastErr) throw new Error('分块上传失败（第 ' + (seq + 1) + '/' + total + ' 块）：' + (lastErr.message || lastErr))
@@ -134,20 +161,29 @@ export async function createArticle(payload) {
     status: 'draft',
     published_at: null,
   }
-  const { data, error } = await supabase.from('articles').insert(meta).select('id').single()
+  const { data, error } = await withTimeout(
+    supabase.from('articles').insert(meta).select('id').single(),
+    '创建文章'
+  )
   if (error) throw error
   const id = data.id
   // 2) 分块上传正文
   await uploadChunks(id, payload.content, payload.onProgress)
   // 3) 服务端拼装
-  const { error: ae } = await supabase.rpc('assemble_article_content', { p_article_id: id })
+  const { error: ae } = await withTimeout(
+    supabase.rpc('assemble_article_content', { p_article_id: id }),
+    '拼装正文'
+  )
   if (ae) throw ae
   // 4) 需要发布则置为已发布
   if (payload.status === 'published') {
-    const { error: pe } = await supabase
-      .from('articles')
-      .update({ status: 'published', published_at: new Date().toISOString() })
-      .eq('id', id)
+    const { error: pe } = await withTimeout(
+      supabase
+        .from('articles')
+        .update({ status: 'published', published_at: new Date().toISOString() })
+        .eq('id', id),
+      '发布文章'
+    )
     if (pe) throw pe
   }
   return { id, ok: true }
@@ -164,19 +200,28 @@ export async function updateArticle(id, payload) {
   if (payload.tags !== undefined) meta.tags = payload.tags
   // 拼装完成前保持 draft，避免旧/空内容被发布
   meta.status = payload.status === 'published' ? 'draft' : (payload.status || 'draft')
-  const { error } = await supabase.from('articles').update(meta).eq('id', Number(id))
+  const { error } = await withTimeout(
+    supabase.from('articles').update(meta).eq('id', Number(id)),
+    '更新文章'
+  )
   if (error) throw error
   // 分块上传正文
   await uploadChunks(Number(id), payload.content, payload.onProgress)
   // 服务端拼装
-  const { error: ae } = await supabase.rpc('assemble_article_content', { p_article_id: Number(id) })
+  const { error: ae } = await withTimeout(
+    supabase.rpc('assemble_article_content', { p_article_id: Number(id) }),
+    '拼装正文'
+  )
   if (ae) throw ae
   // 需要发布则置为已发布
   if (payload.status === 'published') {
-    const { error: pe } = await supabase
-      .from('articles')
-      .update({ status: 'published', published_at: new Date().toISOString() })
-      .eq('id', Number(id))
+    const { error: pe } = await withTimeout(
+      supabase
+        .from('articles')
+        .update({ status: 'published', published_at: new Date().toISOString() })
+        .eq('id', Number(id)),
+      '发布文章'
+    )
     if (pe) throw pe
   }
   return { ok: true }
