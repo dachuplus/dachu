@@ -2,7 +2,7 @@
  * 文章数据层（我的内容 / 类公众号）
  *
  * 封装文章 CRUD、作者、封面图上传、阅读量自增。
- * 发文合规前端预检复用 markdown.js 的 checkCompliance（与后端触发器双重保险）。
+ * 发文合规：前端预检（ArticleEditorPage 调 checkCompliance）+ 数据库触发器 guard_article_compliance 兜底。
  *
  * 权限边界（后端 RLS 为准）：
  *  - 公开只读已发布文章；作者可读/写/删自己的全部（含草稿）。
@@ -76,14 +76,10 @@ export async function listAuthors() {
   return data || []
 }
 
-/** 新建文章（含合规前端预检） */
+/** 新建文章（前端已做合规预检；数据库触发器 guard_article_compliance 兜底） */
 export async function createArticle(payload) {
   const email = currentEmail()
   if (!email) throw new Error('请先登录')
-  const hits = checkCompliance(
-    (payload.title || '') + ' ' + (payload.summary || '') + ' ' + (payload.content || '')
-  )
-  if (hits.length) throw new Error('COMPLIANCE_VIOLATION: ' + hits.join('、'))
   const row = {
     author_email: email,
     title: payload.title,
@@ -99,14 +95,10 @@ export async function createArticle(payload) {
   return data
 }
 
-/** 更新文章（含合规前端预检） */
+/** 更新文章（前端已做合规预检；数据库触发器 guard_article_compliance 兜底） */
 export async function updateArticle(id, payload) {
   const email = currentEmail()
   if (!email) throw new Error('请先登录')
-  const hits = checkCompliance(
-    (payload.title || '') + ' ' + (payload.summary || '') + ' ' + (payload.content || '')
-  )
-  if (hits.length) throw new Error('COMPLIANCE_VIOLATION: ' + hits.join('、'))
   const row = {}
   if (payload.title !== undefined) row.title = payload.title
   if (payload.summary !== undefined) row.summary = payload.summary
