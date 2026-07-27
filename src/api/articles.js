@@ -185,23 +185,31 @@ async function uploadChunks(articleId, content, onProgress) {
  */
 const PUBLISH_FN_URL = 'https://tqhtegazxykkqfcpejky.supabase.co/functions/v1/publish-article'
 
-/** 调用 publish-article Edge Function */
+/** 调用 publish-article Edge Function（带超时保护） */
 async function callPublishFn(body) {
   const { data: { session } } = await supabase.auth.getSession()
   if (!session?.access_token) throw new Error('未登录')
-  const res = await fetch(PUBLISH_FN_URL, {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${session.access_token}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(body),
-  })
-  const result = await res.json()
-  if (!res.ok || !result.ok) {
-    throw new Error(result.error || '发布失败（HTTP ' + res.status + '）')
+  // Edge Function 内部做 4-5 次 DB 操作，给 90 秒总超时
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), 90000)
+  try {
+    const res = await fetch(PUBLISH_FN_URL, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${session.access_token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(body),
+      signal: controller.signal,
+    })
+    const result = await res.json()
+    if (!res.ok || !result.ok) {
+      throw new Error(result.error || '发布失败（HTTP ' + res.status + '）')
+    }
+    return result
+  } finally {
+    clearTimeout(timer)
   }
-  return result
 }
 
 /** 新建文章（通过 Edge Function 代理，一次请求完成全流程） */
@@ -213,8 +221,8 @@ export async function createArticle(payload) {
   const v = checkCompliance(`${payload.title} ${payload.summary || ''} ${payload.content}`)
   // 不再 throw，命中时由调用方决定是否提示
 
-  // 模拟进度反馈（Edge Function 内部一次性完成，无法报告中间状态）
-  if (payload.onProgress) payload.onProgress(1, 1)
+  // 注意：Edge Function 内部一次性完成全部 DB 操作，不报告中间进度
+  // onProgress 不在此处调用，按钮保持"发布中…"状态直到返回
 
   return callPublishFn({
     title: payload.title,
@@ -231,8 +239,7 @@ export async function updateArticle(id, payload) {
   const email = currentEmail()
   if (!email) throw new Error('请先登录')
 
-  if (payload.onProgress) payload.onProgress(1, 1)
-
+  // Edge Function 一次性完成，不报告中间进度
   return callPublishFn({
     article_id: Number(id),
     title: payload.title,
