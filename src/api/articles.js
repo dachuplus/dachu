@@ -25,8 +25,8 @@ export { checkCompliance }
 
 /* ========== 网络超时工具 ========== */
 
-/** 单次 supabase 调用超时（毫秒）。新加坡节点国内延迟高，给 20s 足够正常完成但不会无限等 */
-const REQ_TIMEOUT = 20000
+/** 单次 supabase 调用超时（毫秒）。国内→新加坡偶尔延迟高，给 60s 足够覆盖极端弱网 */
+const REQ_TIMEOUT = 60000
 
 /**
  * 给任意 Promise 加超时。
