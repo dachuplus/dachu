@@ -244,15 +244,18 @@ async function onSave(targetStatus) {
   errorMsg.value = ''
   if (!form.value.title.trim()) {
     errorMsg.value = '请填写标题'
+    toast('请填写文章标题', 'error')
     return
   }
   if (!form.value.content.trim()) {
     errorMsg.value = '请填写正文'
+    toast('请填写正文内容', 'error')
     return
   }
   const hits = checkCompliance(form.value.title + ' ' + form.value.summary + ' ' + form.value.content)
   if (hits.length) {
     complianceHits.value = hits
+    toast('合规拦截：' + hits.join('、'), 'error')
     return
   }
   saving.value = true
@@ -274,8 +277,10 @@ async function onSave(targetStatus) {
     if (msg.indexOf('COMPLIANCE_VIOLATION') !== -1) {
       const m = msg.match(/COMPLIANCE_VIOLATION:\s*(.+)$/)
       complianceHits.value = m ? m[1].split('、') : ['不合规表述']
+      toast('合规拦截：' + (complianceHits.value.join('、') || '不合规表述'), 'error')
     } else {
       errorMsg.value = '保存失败：' + msg
+      toast('保存失败：' + msg, 'error')
     }
   } finally {
     saving.value = false
