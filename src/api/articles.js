@@ -176,111 +176,72 @@ async function uploadChunks(articleId, content, onProgress) {
   }
 }
 
-/** 新建文章（分块上传正文；前端已做合规预检，数据库触发器兜底） */
+/* ========== Edge Function 代理写入 ========== */
+
+/**
+ * 文章发布 Edge Function 端点。
+ * 浏览器只需一次 HTTP 调用，函数在服务端完成：建文章→分块→拼装→发布。
+ * 解决国内直连新加坡 PostgREST 超时问题。
+ */
+const PUBLISH_FN_URL = 'https://tqhtegazxykkqfcpejky.supabase.co/functions/v1/publish-article'
+
+/** 调用 publish-article Edge Function */
+async function callPublishFn(body) {
+  const { data: { session } } = await supabase.auth.getSession()
+  if (!session?.access_token) throw new Error('未登录')
+  const res = await fetch(PUBLISH_FN_URL, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${session.access_token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(body),
+  })
+  const result = await res.json()
+  if (!res.ok || !result.ok) {
+    throw new Error(result.error || '发布失败（HTTP ' + res.status + '）')
+  }
+  return result
+}
+
+/** 新建文章（通过 Edge Function 代理，一次请求完成全流程） */
 export async function createArticle(payload) {
   const email = currentEmail()
   if (!email) throw new Error('请先登录')
-  // 1) 先插元数据行（content 暂空，状态 draft，避免空内容被发布）
-  const meta = {
-    author_email: email,
+
+  // 前端合规预检
+  const v = checkCompliance(`${payload.title} ${payload.summary || ''} ${payload.content}`)
+  if (v) throw new Error(`内容包含不合规表述「${v}」`)
+
+  // 模拟进度反馈（Edge Function 内部一次性完成，无法报告中间状态）
+  if (payload.onProgress) payload.onProgress(1, 1)
+
+  return callPublishFn({
     title: payload.title,
-    summary: payload.summary || null,
-    content: '',
+    summary: payload.summary || '',
+    content: payload.content,
     cover_image: payload.cover_image || null,
     tags: payload.tags || [],
-    status: 'draft',
-    published_at: null,
-  }
-  const onNetRetry = payload.onRetry
-  const { data, error } = await withRetry(
-    () => withTimeout(
-      supabase.from('articles').insert(meta).select('id').single(),
-      '创建文章'
-    ),
-    3,
-    onNetRetry
-  )
-  if (error) throw error
-  const id = data.id
-  // 2) 分块上传正文（内部已有逐块重试）
-  await uploadChunks(id, payload.content, payload.onProgress)
-  // 3) 服务端拼装
-  const { error: ae } = await withRetry(
-    () => withTimeout(
-      supabase.rpc('assemble_article_content', { p_article_id: id }),
-      '拼装正文'
-    ),
-    3,
-    onNetRetry
-  )
-  if (ae) throw ae
-  // 4) 需要发布则置为已发布
-  if (payload.status === 'published') {
-    const { error: pe } = await withRetry(
-      () => withTimeout(
-        supabase
-          .from('articles')
-          .update({ status: 'published', published_at: new Date().toISOString() })
-          .eq('id', id),
-        '发布文章'
-      ),
-      3,
-      onNetRetry
-    )
-    if (pe) throw pe
-  }
-  return { id, ok: true }
+    status: payload.status || 'draft',
+  })
 }
 
-/** 更新文章（分块上传正文；前端已做合规预检，数据库触发器兜底） */
+/** 更新文章（通过 Edge Function 代理） */
 export async function updateArticle(id, payload) {
   const email = currentEmail()
   if (!email) throw new Error('请先登录')
-  const meta = {}
-  if (payload.title !== undefined) meta.title = payload.title
-  if (payload.summary !== undefined) meta.summary = payload.summary
-  if (payload.cover_image !== undefined) meta.cover_image = payload.cover_image
-  if (payload.tags !== undefined) meta.tags = payload.tags
-  // 拼装完成前保持 draft，避免旧/空内容被发布
-  meta.status = payload.status === 'published' ? 'draft' : (payload.status || 'draft')
-  const onNetRetry = payload.onRetry
-  const { error } = await withRetry(
-    () => withTimeout(
-      supabase.from('articles').update(meta).eq('id', Number(id)),
-      '更新文章'
-    ),
-    3,
-    onNetRetry
-  )
-  if (error) throw error
-  // 分块上传正文
-  await uploadChunks(Number(id), payload.content, payload.onProgress)
-  // 服务端拼装
-  const { error: ae } = await withRetry(
-    () => withTimeout(
-      supabase.rpc('assemble_article_content', { p_article_id: Number(id) }),
-      '拼装正文'
-    ),
-    3,
-    onNetRetry
-  )
-  if (ae) throw ae
-  // 需要发布则置为已发布
-  if (payload.status === 'published') {
-    const { error: pe } = await withRetry(
-      () => withTimeout(
-        supabase
-          .from('articles')
-          .update({ status: 'published', published_at: new Date().toISOString() })
-          .eq('id', Number(id)),
-        '发布文章'
-      ),
-      3,
-      onNetRetry
-    )
-    if (pe) throw pe
-  }
-  return { ok: true }
+
+  if (payload.onProgress) payload.onProgress(1, 1)
+
+  return callPublishFn({
+    article_id: Number(id),
+    title: payload.title,
+    summary: payload.summary || '',
+    content: payload.content,
+    cover_image: payload.cover_image || null,
+    tags: payload.tags || [],
+    status: payload.status || 'draft',
+  })
 }
 
 /** 删除文章（作者本人，RLS 兜底） */
