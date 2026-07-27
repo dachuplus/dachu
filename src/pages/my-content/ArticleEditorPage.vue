@@ -83,7 +83,7 @@
         <div class="ed-actions">
           <button class="ed-btn ed-btn--draft" :disabled="saving" @click="onSave('draft')">{{ saving ? '保存中...' : '保存草稿' }}</button>
           <button class="ed-btn ed-btn--pub" :disabled="saving" @click="onSave('published')">
-            {{ saving ? '发布中...' : (isEdit ? '更新发布' : '发布') }}
+            {{ saving ? (uploadProgress ? '上传中 ' + uploadProgress.done + '/' + uploadProgress.total : '发布中...') : (isEdit ? '更新发布' : '发布') }}
           </button>
         </div>
       </div>
@@ -116,6 +116,7 @@ const lastUploadedUrl = ref('')
 const complianceHits = ref([])
 const errorMsg = ref('')
 const saving = ref(false)
+const uploadProgress = ref(null) // { done, total } 或 null
 const form = ref({ title: '', summary: '', tagsRaw: '', cover_image: '', content: '' })
 
 function goBack() {
@@ -259,6 +260,7 @@ async function onSave(targetStatus) {
     return
   }
   saving.value = true
+  uploadProgress.value = null
   try {
     const payload = {
       title: form.value.title.trim(),
@@ -267,10 +269,12 @@ async function onSave(targetStatus) {
       cover_image: form.value.cover_image.trim() || null,
       tags: parseTags(form.value.tagsRaw),
       status: targetStatus,
+      // 分块上传进度回调
+      onProgress: (done, total) => { uploadProgress.value = { done, total } },
     }
-    // 15 秒超时保护，避免网络卡死时界面无响应
+    // 分块上传：每块都很小，整体放宽到 90 秒防极端弱网
     const controller = new AbortController()
-    const timer = setTimeout(() => controller.abort(), 15000)
+    const timer = setTimeout(() => controller.abort(), 90000)
     let result
     if (isEdit.value) {
       result = await Promise.race([
@@ -288,9 +292,11 @@ async function onSave(targetStatus) {
       ])
     }
     clearTimeout(timer)
+    uploadProgress.value = null
     toast(targetStatus === 'published' ? '已发布' : '已保存草稿', 'success')
     router.replace('/content')
   } catch (err) {
+    uploadProgress.value = null
     const msg = err.message || String(err)
     if (msg.indexOf('COMPLIANCE_VIOLATION') !== -1) {
       const m = msg.match(/COMPLIANCE_VIOLATION:\s*(.+)$/)

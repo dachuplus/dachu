@@ -76,46 +76,109 @@ export async function listAuthors() {
   return data || []
 }
 
-/** 新建文章（前端已做合规预检；数据库触发器 guard_article_compliance 兜底） */
+/**
+ * 分块上传：把长文切成小块逐块传到 Supabase（新加坡节点），
+ * 避免单次大请求在弱网/高延迟链路上超时或失败。
+ * 每块插入 article_chunks，最后由 assemble_article_content() 合并回 articles.content。
+ */
+
+/** 每块字符数（中文约 3 字节/字 → 约 3KB/块，足够小且可靠） */
+const CHUNK_SIZE = 1000
+
+function splitChunks(text) {
+  const out = []
+  const s = text || ''
+  for (let i = 0; i < s.length; i += CHUNK_SIZE) {
+    out.push(s.slice(i, i + CHUNK_SIZE))
+  }
+  if (out.length === 0) out.push('') // 至少一块，保证能拼出空内容
+  return out
+}
+
+/** 逐块上传，带进度回调与单块失败重试 */
+async function uploadChunks(articleId, content, onProgress) {
+  const parts = splitChunks(content)
+  const total = parts.length
+  // 先清旧块（编辑场景）
+  await supabase.from('article_chunks').delete().eq('article_id', articleId)
+  for (let seq = 0; seq < total; seq++) {
+    let lastErr = null
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      const { error } = await supabase
+        .from('article_chunks')
+        .insert({ article_id: articleId, seq, part: parts[seq] })
+      if (!error) {
+        lastErr = null
+        break
+      }
+      lastErr = error
+      await new Promise((r) => setTimeout(r, 400 * attempt))
+    }
+    if (lastErr) throw new Error('分块上传失败（第 ' + (seq + 1) + '/' + total + ' 块）：' + (lastErr.message || lastErr))
+    if (onProgress) onProgress(seq + 1, total)
+  }
+}
+
+/** 新建文章（分块上传正文；前端已做合规预检，数据库触发器兜底） */
 export async function createArticle(payload) {
   const email = currentEmail()
   if (!email) throw new Error('请先登录')
-  const row = {
+  // 1) 先插元数据行（content 暂空，状态 draft，避免空内容被发布）
+  const meta = {
     author_email: email,
     title: payload.title,
     summary: payload.summary || null,
-    content: payload.content,
+    content: '',
     cover_image: payload.cover_image || null,
     tags: payload.tags || [],
-    status: payload.status || 'draft',
-    published_at: payload.status === 'published' ? new Date().toISOString() : null,
+    status: 'draft',
+    published_at: null,
   }
-  // 发布后直接跳走，不需要返回整篇内容（避免大体积下载拖慢速度）
-  const { error } = await supabase.from('articles').insert(row)
+  const { data, error } = await supabase.from('articles').insert(meta).select('id').single()
   if (error) throw error
-  return { ok: true }
+  const id = data.id
+  // 2) 分块上传正文
+  await uploadChunks(id, payload.content, payload.onProgress)
+  // 3) 服务端拼装
+  const { error: ae } = await supabase.rpc('assemble_article_content', { p_article_id: id })
+  if (ae) throw ae
+  // 4) 需要发布则置为已发布
+  if (payload.status === 'published') {
+    const { error: pe } = await supabase
+      .from('articles')
+      .update({ status: 'published', published_at: new Date().toISOString() })
+      .eq('id', id)
+    if (pe) throw pe
+  }
+  return { id, ok: true }
 }
 
-/** 更新文章（前端已做合规预检；数据库触发器 guard_article_compliance 兜底） */
+/** 更新文章（分块上传正文；前端已做合规预检，数据库触发器兜底） */
 export async function updateArticle(id, payload) {
   const email = currentEmail()
   if (!email) throw new Error('请先登录')
-  const row = {}
-  if (payload.title !== undefined) row.title = payload.title
-  if (payload.summary !== undefined) row.summary = payload.summary
-  if (payload.content !== undefined) row.content = payload.content
-  if (payload.cover_image !== undefined) row.cover_image = payload.cover_image
-  if (payload.tags !== undefined) row.tags = payload.tags
-  if (payload.status !== undefined) {
-    row.status = payload.status
-    if (payload.status === 'published') row.published_at = new Date().toISOString()
-  }
-  // 更新后直接跳走，不需要返回整篇内容（避免大体积下载拖慢速度）
-  const { error } = await supabase
-    .from('articles')
-    .update(row)
-    .eq('id', Number(id))
+  const meta = {}
+  if (payload.title !== undefined) meta.title = payload.title
+  if (payload.summary !== undefined) meta.summary = payload.summary
+  if (payload.cover_image !== undefined) meta.cover_image = payload.cover_image
+  if (payload.tags !== undefined) meta.tags = payload.tags
+  // 拼装完成前保持 draft，避免旧/空内容被发布
+  meta.status = payload.status === 'published' ? 'draft' : (payload.status || 'draft')
+  const { error } = await supabase.from('articles').update(meta).eq('id', Number(id))
   if (error) throw error
+  // 分块上传正文
+  await uploadChunks(Number(id), payload.content, payload.onProgress)
+  // 服务端拼装
+  const { error: ae } = await supabase.rpc('assemble_article_content', { p_article_id: Number(id) })
+  if (ae) throw ae
+  // 需要发布则置为已发布
+  if (payload.status === 'published') {
+    const { error: pe } = await supabase
+      .from('articles')
+      .update({ status: 'published', published_at: new Date().toISOString() })
+      .eq('id', Number(id))
+    if (pe) throw pe
+  }
   return { ok: true }
 }
 
