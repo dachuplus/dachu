@@ -77,7 +77,19 @@ serve(async (req) => {
       return json({ error: '未登录或会话已过期' }, 401)
     }
 
-    const body = await req.json()
+    // 读取请求体（支持 gzip 压缩，减少国内→海外上传时间）
+    const contentEncoding = req.headers.get('Content-Encoding') || ''
+    let body: any
+    if (contentEncoding.includes('gzip')) {
+      const buf = await (await req.blob())
+        .stream()
+        .pipeThrough(new DecompressionStream('gzip'))
+        .getReader()
+        .read()
+      body = JSON.parse(new TextDecoder().decode(buf.value))
+    } else {
+      body = await req.json()
+    }
     const { title, summary, content, cover_image, tags, status, article_id } = body
 
     // 基本校验

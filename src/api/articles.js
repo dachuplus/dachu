@@ -185,21 +185,51 @@ async function uploadChunks(articleId, content, onProgress) {
  */
 const PUBLISH_FN_URL = 'https://tqhtegazxykkqfcpejky.supabase.co/functions/v1/publish-article'
 
-/** 调用 publish-article Edge Function（带超时保护） */
-async function callPublishFn(body) {
+/**
+ * 压缩请求体（gzip）。中文文本压缩率 60-70%，大幅缩短国内→海外上传时间。
+ * 返回 { body: Blob, contentEncoding: string } 或原始 JSON 字符串（降级）。
+ */
+async function compressBody(obj) {
+  const json = JSON.stringify(obj)
+  // 小于 512B 不值得压缩（gzip 头本身 ~20B）
+  if (json.length < 512) return { body: json, encoding: null }
+  try {
+    const stream = new ReadableStream({
+      start(controller) {
+        controller.enqueue(new TextEncoder().encode(json))
+        controller.close()
+      }
+    })
+    const compressed = stream.pipeThrough(new CompressionStream('gzip'))
+    const blob = await new Response(compressed).blob()
+    return { body: blob, encoding: 'gzip' }
+  } catch (e) {
+    // 浏览器不支持 CompressionStream 时降级为明文
+    return { body: json, encoding: null }
+  }
+}
+
+/** 调用 publish-article Edge Function（带超时保护 + gzip 压缩） */
+async function callPublishFn(payload) {
   const { data: { session } } = await supabase.auth.getSession()
   if (!session?.access_token) throw new Error('未登录')
-  // Edge Function 内部做 4-5 次 DB 操作，给 90 秒总超时
+  const { body, encoding } = await compressBody(payload)
+  // Edge Function 内部做 4-5 次 DB 操作，给 120 秒总超时（压缩后应远快于此）
   const controller = new AbortController()
-  const timer = setTimeout(() => controller.abort(), 90000)
+  const timer = setTimeout(() => controller.abort(), 120000)
   try {
+    const headers = {
+      'Authorization': `Bearer ${session.access_token}`,
+    }
+    if (encoding) {
+      headers['Content-Encoding'] = encoding
+    } else {
+      headers['Content-Type'] = 'application/json'
+    }
     const res = await fetch(PUBLISH_FN_URL, {
       method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${session.access_token}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(body),
+      headers,
+      body,
       signal: controller.signal,
     })
     const result = await res.json()
