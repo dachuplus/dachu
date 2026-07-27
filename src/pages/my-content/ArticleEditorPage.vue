@@ -81,9 +81,11 @@
         <div v-if="errorMsg" class="ed-error">{{ errorMsg }}</div>
 
         <div class="ed-actions">
-          <button class="ed-btn ed-btn--draft" :disabled="saving" @click="onSave('draft')">{{ saving ? '保存中...' : '保存草稿' }}</button>
+          <button class="ed-btn ed-btn--draft" :disabled="saving" @click="onSave('draft')">
+            {{ saving && savingAction === 'draft' ? (uploadProgress ? '上传中 ' + uploadProgress.done + '/' + uploadProgress.total : '保存中...') : '保存草稿' }}
+          </button>
           <button class="ed-btn ed-btn--pub" :disabled="saving" @click="onSave('published')">
-            {{ saving ? (uploadProgress ? '上传中 ' + uploadProgress.done + '/' + uploadProgress.total : '发布中...') : (isEdit ? '更新发布' : '发布') }}
+            {{ saving && savingAction === 'published' ? (uploadProgress ? '上传中 ' + uploadProgress.done + '/' + uploadProgress.total : '发布中...') : (isEdit ? '更新发布' : '发布') }}
           </button>
         </div>
       </div>
@@ -116,6 +118,7 @@ const lastUploadedUrl = ref('')
 const complianceHits = ref([])
 const errorMsg = ref('')
 const saving = ref(false)
+const savingAction = ref(null) // 'draft' | 'published' | null
 const uploadProgress = ref(null) // { done, total } 或 null
 const form = ref({ title: '', summary: '', tagsRaw: '', cover_image: '', content: '' })
 
@@ -260,6 +263,7 @@ async function onSave(targetStatus) {
     return
   }
   saving.value = true
+  savingAction.value = targetStatus
   uploadProgress.value = null
   try {
     const payload = {
@@ -310,6 +314,7 @@ async function onSave(targetStatus) {
     }
   } finally {
     saving.value = false
+    savingAction.value = null
   }
 }
 
