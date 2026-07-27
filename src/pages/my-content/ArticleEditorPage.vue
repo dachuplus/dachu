@@ -81,9 +81,9 @@
         <div v-if="errorMsg" class="ed-error">{{ errorMsg }}</div>
 
         <div class="ed-actions">
-          <button class="ed-btn ed-btn--draft" :disabled="saving" @click="onSave('draft')">保存草稿</button>
+          <button class="ed-btn ed-btn--draft" :disabled="saving" @click="onSave('draft')">{{ saving ? '保存中...' : '保存草稿' }}</button>
           <button class="ed-btn ed-btn--pub" :disabled="saving" @click="onSave('published')">
-            {{ isEdit ? '更新发布' : '发布' }}
+            {{ saving ? '发布中...' : (isEdit ? '更新发布' : '发布') }}
           </button>
         </div>
       </div>
@@ -268,8 +268,26 @@ async function onSave(targetStatus) {
       tags: parseTags(form.value.tagsRaw),
       status: targetStatus,
     }
-    if (isEdit.value) await updateArticle(route.params.id, payload)
-    else await createArticle(payload)
+    // 加 15 秒超时，避免网络卡死时界面无响应
+    const controller = new AbortController()
+    const timer = setTimeout(() => controller.abort(), 15000)
+    let result
+    if (isEdit.value) {
+      result = await Promise.race([
+        updateArticle(route.params.id, payload),
+        new Promise((_, reject) =>
+          controller.signal.addEventListener('abort', () => reject(new Error('请求超时，请检查网络后重试')))
+        )
+      ])
+    } else {
+      result = await Promise.race([
+        createArticle(payload),
+        new Promise((_, reject) =>
+          controller.signal.addEventListener('abort', () => reject(new Error('请求超时，请检查网络后重试')))
+        )
+      ])
+    }
+    clearTimeout(timer)
     toast(targetStatus === 'published' ? '已发布' : '已保存草稿', 'success')
     router.replace('/content')
   } catch (err) {
@@ -278,6 +296,8 @@ async function onSave(targetStatus) {
       const m = msg.match(/COMPLIANCE_VIOLATION:\s*(.+)$/)
       complianceHits.value = m ? m[1].split('、') : ['不合规表述']
       toast('合规拦截：' + (complianceHits.value.join('、') || '不合规表述'), 'error')
+    } else if (msg === '请求超时，请检查网络后重试' || msg.indexOf('abort') !== -1 || msg.indexOf('timeout') !== -1) {
+      toast('发布超时，请检查网络连接后重试', 'error')
     } else {
       errorMsg.value = '保存失败：' + msg
       toast('保存失败：' + msg, 'error')
