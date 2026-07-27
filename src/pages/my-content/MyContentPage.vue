@@ -3,7 +3,6 @@
     <header class="cp-header">
       <div class="cp-head-main">
         <h1 class="cp-title">大厨先生 · 博客</h1>
-        <p class="cp-subtitle">个人投资研究观点与方法论 · 仅代表个人观点，不构成投资建议或金融产品营销</p>
       </div>
       <router-link v-if="canManageContent" to="/content/editor" class="cp-new-btn">+ 写文章</router-link>
     </header>

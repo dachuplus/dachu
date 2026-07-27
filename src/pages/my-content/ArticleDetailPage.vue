@@ -1,8 +1,5 @@
 <template>
   <div class="dp-page" v-if="article">
-    <div class="dp-disclaimer">
-      大厨先生-个人博客声明：本站所有内容仅代表作者个人研究观点，不构成任何投资建议，亦不构成金融产品营销。市场有风险，决策需谨慎。
-    </div>
     <router-link to="/content" class="dp-back">← 返回博客列表</router-link>
 
     <article class="dp-article">
@@ -19,9 +16,6 @@
       <div class="dp-content" v-html="renderedContent"></div>
       <div v-if="article.tags && article.tags.length" class="dp-tags">
         <span v-for="t in article.tags" :key="t" class="dp-tag">{{ t }}</span>
-      </div>
-      <div class="dp-disclaimer dp-disclaimer--footer">
-        风险提示：以上内容基于公开信息整理，仅供研究参考。投资有风险，过往业绩不代表未来表现，请独立判断并自担风险。
       </div>
     </article>
   </div>
