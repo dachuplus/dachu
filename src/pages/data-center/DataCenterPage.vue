@@ -205,6 +205,7 @@
             <th class="col-perm-email">用户名</th>
             <th class="col-perm-features">开通功能</th>
             <th class="col-perm-granted">开通人</th>
+            <th class="col-perm-pwd">密码状态</th>
             <th class="col-perm-action">操作</th>
           </tr>
         </thead>
@@ -233,6 +234,15 @@
               </template>
             </td>
             <td class="col-perm-granted">{{ row.granted_by || '—' }}</td>
+            <td class="col-perm-pwd">
+              <template v-if="passwordInfo[row.user_email]">
+                <span class="pwd-tag" :class="passwordInfo[row.user_email].is_weak_password ? 'pwd-weak' : 'pwd-ok'">
+                  {{ passwordInfo[row.user_email].is_weak_password ? '弱密码 123456' : '已自定义' }}
+                </span>
+                <div class="pwd-time">{{ passwordInfo[row.user_email].last_change ? fmtTime(passwordInfo[row.user_email].last_change) : '—' }}</div>
+              </template>
+              <span v-else class="text-muted">—</span>
+            </td>
             <td class="col-perm-action">
               <button class="btn-download" :disabled="row._saving" @click="saveRow(row)">保存</button>
               <button class="btn-reset" :disabled="row._saving || row.user_email === adminEmail" @click="resetPassword(row)">重置密码</button>
@@ -319,6 +329,7 @@
             <th class="col-ua-name">用户名</th>
             <th class="col-ua-ip">IP 地址</th>
             <th class="col-ua-region">地区</th>
+            <th class="col-ua-pwd">密码</th>
             <th class="col-ua-firstvisit">首次访问时间</th>
             <th class="col-ua-duration">在线时间</th>
             <th class="col-ua-paths">访问路径</th>
@@ -340,6 +351,15 @@
             </td>
             <td class="col-ua-ip">{{ v.ip }}</td>
             <td class="col-ua-region">{{ v.region || '—' }}</td>
+            <td class="col-ua-pwd">
+              <template v-if="v.email && v.email !== 'anonymous' && v.email !== 'authenticated' && passwordInfo[v.email]">
+                <span class="pwd-tag" :class="passwordInfo[v.email].is_weak_password ? 'pwd-weak' : 'pwd-ok'">
+                  {{ passwordInfo[v.email].is_weak_password ? '弱密码 123456' : '已自定义' }}
+                </span>
+                <div class="pwd-time">{{ passwordInfo[v.email].last_change ? fmtTime(passwordInfo[v.email].last_change) : '—' }}</div>
+              </template>
+              <span v-else class="text-muted">—</span>
+            </td>
             <td class="col-ua-firstvisit">{{ v.firstVisit ? fmtTime(v.firstVisit) : '—' }}</td>
             <td class="col-ua-duration">{{ v.durationMin > 0 ? v.durationMin + ' 分钟' : '—' }}</td>
             <td class="col-ua-paths">
@@ -1264,6 +1284,23 @@ const permMsg = ref('')
 const permMsgType = ref('')
 function clearPermMsg() { permMsg.value = '' }
 
+// 密码状态（来自 get_user_password_info RPC：是否弱密码123456 / 最后改密时间），按邮箱索引
+const passwordInfo = ref({})
+async function loadPasswordInfo() {
+  if (!isOwner.value) return
+  try {
+    const { supabase } = await import('../../api/supabase.js')
+    if (!supabase) return
+    const { data, error } = await supabase.rpc('get_user_password_info')
+    if (error) { console.warn('[perm] password info error', error); return }
+    const map = {}
+    ;(data || []).forEach(r => { map[r.user_email] = r })
+    passwordInfo.value = map
+  } catch (e) {
+    console.warn('[perm] password info failed', e)
+  }
+}
+
 // 用户组合明细弹窗（get_user_portfolios_by_email）
 const portfolioModal = ref({
   open: false,
@@ -2033,6 +2070,7 @@ onMounted(() => {
   loadUserAnalytics()
   loadPermissionsList()
   loadRequests()
+  loadPasswordInfo()
 })
 
 // 保底：auth 初始化时序可能导致 onMounted 时 isOwner 尚未为 true
@@ -2041,6 +2079,9 @@ watch(isOwner, (val) => {
   if (val && permUsers.value.length === 0) {
     console.log('[perm] watch(isOwner) triggered reload, email=' + (user?.email || ''))
     loadPermissionsList()
+  }
+  if (val) {
+    loadPasswordInfo()
   }
 })
 </script>
@@ -2131,6 +2172,15 @@ watch(isOwner, (val) => {
 }
 .btn-download:hover { background: #003078; }
 .text-muted { font-size: 12px; color: var(--text-secondary); }
+
+/* 密码状态标签 */
+.pwd-tag {
+  display: inline-block; font-size: 13px; font-weight: 700;
+  padding: 2px 8px; border-left: 4px solid transparent;
+}
+.pwd-weak { color: #d4351c; background: #fbe9e7; border-left-color: #d4351c; }
+.pwd-ok { color: #00703c; background: #f0faf3; border-left-color: #00703c; }
+.pwd-time { font-size: 12px; color: var(--text-secondary); margin-top: 2px; }
 
 .table-footer { margin-top: var(--space-md); }
 .update-time { font-size: 14px; color: var(--text-secondary); margin: 0; }

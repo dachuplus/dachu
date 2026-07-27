@@ -224,7 +224,12 @@ async function logVisitor() {
 
 /* ---- 认证 ---- */
 async function handleLogout() {
-  await signOut()
+  // 乐观更新：先清本地状态，避免 signOut 网络请求卡住时界面无反应
+  user.value = null
+  // 异步调用 signOut（不 await），即使网络超时也不影响登出体验
+  supabase.auth.signOut().catch((e) => console.error('[auth] signOut error:', e))
+  // 跳转首页（当前页可能是 ownerOnly 页面，登出后无权访问）
+  router.push('/')
 }
 
 function onLoggedIn() {
