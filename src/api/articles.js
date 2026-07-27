@@ -90,9 +90,10 @@ export async function createArticle(payload) {
     status: payload.status || 'draft',
     published_at: payload.status === 'published' ? new Date().toISOString() : null,
   }
-  const { data, error } = await supabase.from('articles').insert(row).select().single()
+  // 发布后直接跳走，不需要返回整篇内容（避免大体积下载拖慢速度）
+  const { error } = await supabase.from('articles').insert(row)
   if (error) throw error
-  return data
+  return { ok: true }
 }
 
 /** 更新文章（前端已做合规预检；数据库触发器 guard_article_compliance 兜底） */
@@ -109,14 +110,13 @@ export async function updateArticle(id, payload) {
     row.status = payload.status
     if (payload.status === 'published') row.published_at = new Date().toISOString()
   }
-  const { data, error } = await supabase
+  // 更新后直接跳走，不需要返回整篇内容（避免大体积下载拖慢速度）
+  const { error } = await supabase
     .from('articles')
     .update(row)
     .eq('id', Number(id))
-    .select()
-    .single()
   if (error) throw error
-  return data
+  return { ok: true }
 }
 
 /** 删除文章（作者本人，RLS 兜底） */
