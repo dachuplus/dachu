@@ -79,10 +79,10 @@ serve(async (req) => {
     if (!title?.trim()) return json({ error: '标题不能为空' }, 400)
     if (!content) return json({ error: '正文不能为空' }, 400)
 
-    // 合规检查
+    // 合规提示（仅记录，不拦截）
     const violation = checkCompliance(`${title} ${summary || ''} ${content}`)
     if (violation) {
-      return json({ error: `内容包含不合规表述「${violation}」，请修改后重试` }, 400)
+      console.log(`[publish-article] 合规提示：命中敏感词「${violation}」，已放行`)
     }
 
     const srHeader = `Bearer ${SERVICE_ROLE}`

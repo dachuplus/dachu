@@ -9,7 +9,7 @@
 
     <template v-else>
       <div class="ed-disclaimer">
-        合规提示：内容须为独立性研究，严禁出现「保本 / 稳赚 / 必涨 / 推荐买入 / 代客理财」等违规表述，违者将被系统拦截。
+        合规提示：内容须为独立性研究，建议避免「保本 / 稳赚 / 必涨 / 推荐买入 / 代客理财」等表述。
       </div>
 
       <div class="ed-form">
@@ -258,9 +258,8 @@ async function onSave(targetStatus) {
   }
   const hits = checkCompliance(form.value.title + ' ' + form.value.summary + ' ' + form.value.content)
   if (hits.length) {
-    complianceHits.value = hits
-    toast('合规拦截：' + hits.join('、'), 'error')
-    return
+    // 仅提示，不拦截
+    toast('提示：内容包含敏感词「' + hits.join('、') + '」，请确认无误后继续', 'warning')
   }
   saving.value = true
   savingAction.value = targetStatus
@@ -309,8 +308,7 @@ async function onSave(targetStatus) {
     const msg = err.message || String(err)
     if (msg.indexOf('COMPLIANCE_VIOLATION') !== -1) {
       const m = msg.match(/COMPLIANCE_VIOLATION:\s*(.+)$/)
-      complianceHits.value = m ? m[1].split('、') : ['不合规表述']
-      toast('合规拦截：' + (complianceHits.value.join('、') || '不合规表述'), 'error')
+      toast('提示：内容包含敏感词「' + (m ? m[1] : '不合规表述') + '」', 'warning')
     } else if (msg === '请求超时，请检查网络后重试' || msg.indexOf('abort') !== -1 || msg.indexOf('timeout') !== -1) {
       toast('发布超时，请检查网络连接后重试', 'error')
     } else {

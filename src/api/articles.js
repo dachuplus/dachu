@@ -209,9 +209,9 @@ export async function createArticle(payload) {
   const email = currentEmail()
   if (!email) throw new Error('请先登录')
 
-  // 前端合规预检（checkCompliance 返回数组，空数组=通过）
+  // 前端合规提示（仅提示，不拦截；DB 触发器仍会记录但不再 RAISE）
   const v = checkCompliance(`${payload.title} ${payload.summary || ''} ${payload.content}`)
-  if (v.length > 0) throw new Error(`内容包含不合规表述「${v.join('、')}」`)
+  // 不再 throw，命中时由调用方决定是否提示
 
   // 模拟进度反馈（Edge Function 内部一次性完成，无法报告中间状态）
   if (payload.onProgress) payload.onProgress(1, 1)
