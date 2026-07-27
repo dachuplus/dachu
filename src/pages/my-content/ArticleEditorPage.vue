@@ -82,10 +82,10 @@
 
         <div class="ed-actions">
           <button class="ed-btn ed-btn--draft" :disabled="saving" @click="onSave('draft')">
-            {{ saving && savingAction === 'draft' ? (uploadProgress ? '上传中 ' + uploadProgress.done + '/' + uploadProgress.total : '保存中...') : '保存草稿' }}
+            {{ saving && savingAction === 'draft' ? (uploadProgress ? '上传中 ' + Math.round(uploadProgress.done / uploadProgress.total * 100) + '%' : '保存中...') : '保存草稿' }}
           </button>
           <button class="ed-btn ed-btn--pub" :disabled="saving" @click="onSave('published')">
-            {{ saving && savingAction === 'published' ? (uploadProgress ? '上传中 ' + uploadProgress.done + '/' + uploadProgress.total : '发布中...') : (isEdit ? '更新发布' : '发布') }}
+            {{ saving && savingAction === 'published' ? (uploadProgress ? '上传中 ' + Math.round(uploadProgress.done / uploadProgress.total * 100) + '%' : '发布中...') : (isEdit ? '更新发布' : '发布') }}
           </button>
         </div>
       </div>
