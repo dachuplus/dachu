@@ -268,7 +268,7 @@ async function onSave(targetStatus) {
       tags: parseTags(form.value.tagsRaw),
       status: targetStatus,
     }
-    // 加 15 秒超时，避免网络卡死时界面无响应
+    // 15 秒超时保护，避免网络卡死时界面无响应
     const controller = new AbortController()
     const timer = setTimeout(() => controller.abort(), 15000)
     let result
