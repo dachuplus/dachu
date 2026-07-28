@@ -1,0 +1,14 @@
+name: CI诊断测试
+
+on:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 检查环境
+        run: |
+          echo "测试成功！"
+          echo "Runner: $(uname -a)"
+          date
