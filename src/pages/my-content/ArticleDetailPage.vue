@@ -88,18 +88,17 @@ onMounted(load)
 
 <style scoped>
 .dp-layout {
-  display: flex;
-  gap: var(--space-lg);
   padding: var(--space-md);
-  align-items: flex-start;
 }
 
-/* 左侧边栏 */
+/* 左侧边栏 - 固定定位，不占文档流 */
 .dp-sidebar {
-  flex: none;
+  position: fixed;
+  left: var(--space-md);
+  top: calc(var(--space-md) + 48px); /* 导航栏高度约48px */
   width: 220px;
-  position: sticky;
-  top: var(--space-md);
+  bottom: var(--space-md);
+  overflow-y: auto;
 }
 .dp-sidebar-title {
   font-size: 15px;
@@ -160,12 +159,11 @@ onMounted(load)
   font-size: 14px;
 }
 
-/* 右侧正文 - 居中 */
+/* 右侧正文 - 在整页居中，左侧留出侧边栏空间 */
 .dp-main {
-  flex: none;
   max-width: 680px;
-  margin-left: auto;
-  margin-right: auto;
+  margin: 0 auto; /* 整页居中 */
+  padding-left: 250px; /* 为固定侧边栏留空间 (220px + gap) */
 }
 .dp-article {
   /* 由 dp-main 控制宽度 */
@@ -283,15 +281,13 @@ onMounted(load)
 
 /* 移动端：侧边栏隐藏，正文全宽 */
 @media (max-width: 768px) {
-  .dp-layout {
-    flex-direction: column;
-    padding: var(--space-md);
-  }
   .dp-sidebar {
     display: none;
   }
   .dp-main {
     max-width: 100%;
+    padding-left: var(--space-md);
+    padding-right: var(--space-md);
   }
 }
 </style>
