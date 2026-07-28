@@ -421,7 +421,7 @@ jobs:
           echo "============================================"
           rm -f dist.zip
           cd dist && zip -r ../dist.zip . && cd ..
-          npx edgeone makers deploy dist.zip -n dachu -a overseas -t "$EDGEONE_PAGES_API_TOKEN"
+          npx edgeone pages deploy dist.zip -n dachu -a overseas -t "$EDGEONE_PAGES_API_TOKEN"
           echo "部署完成: $(date '+%Y-%m-%d %H:%M:%S')"
 
       - name: 失败通知
