@@ -280,9 +280,9 @@ async function onSave(targetStatus) {
         toast(msg + ' 网络慢，正在自动重试 (' + nextAttempt + '/' + maxAttempts + ')…', 'info')
       },
     }
-    // 分块上传：每块都很小，整体放宽到 90 秒防极端弱网
+    // 分块上传：Edge Function 在新加坡执行，国内弱网给 180 秒
     const controller = new AbortController()
-    const timer = setTimeout(() => controller.abort(), 90000)
+    const timer = setTimeout(() => controller.abort(), 180000)
     let result
     if (isEdit.value) {
       result = await Promise.race([
