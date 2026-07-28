@@ -209,15 +209,15 @@ async function compressBody(obj) {
   }
 }
 
-/** 从 localStorage 读取 Supabase access_token（零网络开销）
+/** 从 Supabase 内部存储同步读取 access_token（零网络开销）
  *
- * supabase-js v2 把 session 存在 localStorage key='supabase.auth.token'，
- * 结构为 { current: { access_token, ... }, expires_at }。
- * 直接读内存比 getSession() 快 100 倍（后者是 HTTP 请求到新加坡 GoTrue）。
+ * supabase-js v2 用 auth.storageKey 作为 localStorage key（如 sb-xxx-auth-token），
+ * 值为 JSON { current: { access_token, ... }, expires_at }。
+ * 直接从 supabase.auth.storage 读取，不依赖硬编码 key 名。
  */
 function getAccessToken() {
   try {
-    const raw = localStorage.getItem('supabase.auth.token')
+    const raw = supabase.auth.storage.getItem(supabase.auth.storageKey)
     if (!raw) return null
     const data = JSON.parse(raw)
     return data?.current?.access_token || data?.access_token || null
