@@ -92,8 +92,6 @@ onMounted(load)
   gap: var(--space-lg);
   padding: var(--space-md);
   align-items: flex-start;
-  max-width: 960px;
-  margin: 0 auto;
 }
 
 /* 左侧边栏 */
@@ -162,11 +160,12 @@ onMounted(load)
   font-size: 14px;
 }
 
-/* 右侧正文 */
+/* 右侧正文 - 居中 */
 .dp-main {
-  flex: 1;
-  min-width: 0;
+  flex: none;
   max-width: 680px;
+  margin-left: auto;
+  margin-right: auto;
 }
 .dp-article {
   /* 由 dp-main 控制宽度 */
