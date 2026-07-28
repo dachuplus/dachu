@@ -87,7 +87,7 @@ export async function listArticles({ status = 'published', authorEmail = null, l
   if (tag) q = q.contains('tags', [tag])
   q = q.order('published_at', { ascending: false, nullsFirst: false })
   q = q.range(offset, Math.max(offset, offset + limit - 1))
-  const { data, error } = await q
+  const { data, error } = await withTimeout(q, '文章列表')
   if (error) throw error
   return data || []
 }
@@ -95,11 +95,10 @@ export async function listArticles({ status = 'published', authorEmail = null, l
 /** 取单篇文章（已发布所有人可读；草稿仅作者可读，越权返回 null） */
 export async function getArticle(id) {
   if (!supabase) throw new Error('未连接数据库')
-  const { data, error } = await supabase
-    .from('articles')
-    .select('*')
-    .eq('id', Number(id))
-    .maybeSingle()
+  const { data, error } = await withTimeout(
+    supabase.from('articles').select('*').eq('id', Number(id)).maybeSingle(),
+    '文章详情'
+  )
   if (error) throw error
   return data
 }
@@ -107,11 +106,10 @@ export async function getArticle(id) {
 /** 取作者信息（公开） */
 export async function getAuthor(email) {
   if (!supabase || !email) return null
-  const { data, error } = await supabase
-    .from('article_authors')
-    .select('*')
-    .eq('email', email)
-    .maybeSingle()
+  const { data, error } = await withTimeout(
+    supabase.from('article_authors').select('*').eq('email', email).maybeSingle(),
+    '作者信息'
+  )
   if (error) throw error
   return data
 }
@@ -119,7 +117,10 @@ export async function getAuthor(email) {
 /** 取全部作者（公开） */
 export async function listAuthors() {
   if (!supabase) return []
-  const { data, error } = await supabase.from('article_authors').select('*')
+  const { data, error } = await withTimeout(
+    supabase.from('article_authors').select('*'),
+    '作者列表'
+  )
   if (error) throw error
   return data || []
 }
