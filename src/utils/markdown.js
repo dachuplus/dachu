@@ -77,10 +77,10 @@ function renderInline(text) {
 
 /**
  * 渲染对齐容器内的内容（保留段落/列表/标题等块级结构）。
- * 输入为原始行数组（未 escape），内部自行 escape + 解析。
+ * 输入为已 escapeHtml 的行数组（由 renderMarkdown 转入），不再二次转义。
  */
 function renderAlignContent(lines) {
-  const escaped = lines.map(l => escapeHtml(l))
+  // 注意：lines 已经由 renderMarkdown 统一 escapeHtml 过，此处不可再转义
   let html = ''
   let para = []
   let inList = null
@@ -95,7 +95,7 @@ function renderAlignContent(lines) {
     if (inList) { html += '</' + inList + '>'; inList = null }
   }
 
-  for (const line of escaped) {
+  for (const line of lines) {
     // 标题
     const h = line.match(/^(#{1,4})\s+(.*)$/)
     if (h) {
