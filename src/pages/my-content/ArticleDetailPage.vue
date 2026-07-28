@@ -88,17 +88,20 @@ onMounted(load)
 
 <style scoped>
 .dp-layout {
+  display: flex;
+  gap: var(--space-lg);
   padding: var(--space-md);
+  align-items: flex-start;
+  max-width: 1000px;
+  margin: 0 auto;
 }
 
-/* 左侧边栏 - 固定定位，不占文档流 */
+/* 左侧边栏 */
 .dp-sidebar {
-  position: fixed;
-  left: var(--space-md);
-  top: calc(var(--space-md) + 48px); /* 导航栏高度约48px */
+  flex: none;
   width: 220px;
-  bottom: var(--space-md);
-  overflow-y: auto;
+  position: sticky;
+  top: var(--space-md);
 }
 .dp-sidebar-title {
   font-size: 15px;
@@ -159,11 +162,11 @@ onMounted(load)
   font-size: 14px;
 }
 
-/* 右侧正文 - 在整页居中，左侧留出侧边栏空间 */
+/* 右侧正文 */
 .dp-main {
+  flex: 1;
+  min-width: 0;
   max-width: 680px;
-  margin: 0 auto; /* 整页居中 */
-  padding-left: 250px; /* 为固定侧边栏留空间 (220px + gap) */
 }
 .dp-article {
   /* 由 dp-main 控制宽度 */
@@ -281,13 +284,16 @@ onMounted(load)
 
 /* 移动端：侧边栏隐藏，正文全宽 */
 @media (max-width: 768px) {
+  .dp-layout {
+    flex-direction: column;
+    padding: var(--space-md);
+    max-width: 100%;
+  }
   .dp-sidebar {
     display: none;
   }
   .dp-main {
     max-width: 100%;
-    padding-left: var(--space-md);
-    padding-right: var(--space-md);
   }
 }
 </style>
