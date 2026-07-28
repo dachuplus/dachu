@@ -92,6 +92,8 @@ onMounted(load)
   gap: var(--space-lg);
   padding: var(--space-md);
   align-items: flex-start;
+  max-width: 960px;
+  margin: 0 auto;
 }
 
 /* 左侧边栏 */
