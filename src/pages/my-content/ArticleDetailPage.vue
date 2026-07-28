@@ -87,19 +87,22 @@ onMounted(load)
 </script>
 
 <style scoped>
+/* 三列 Grid：左空间 | 文章主体(680px居中) | 右空间 */
 .dp-layout {
-  display: flex;
-  gap: var(--space-lg);
-  padding: var(--space-md);
-  align-items: flex-start;
-  max-width: 1000px;
+  max-width: 1400px;
   margin: 0 auto;
+  padding: var(--space-md);
+  display: grid;
+  grid-template-columns: 1fr 680px 1fr;
+  align-items: start;
+  gap: var(--space-lg);
 }
 
-/* 左侧边栏 */
+/* 左侧边栏 - 在左侧空间内居中 */
 .dp-sidebar {
-  flex: none;
   width: 220px;
+  grid-column: 1;
+  justify-self: center;
   position: sticky;
   top: var(--space-md);
 }
@@ -162,11 +165,10 @@ onMounted(load)
   font-size: 14px;
 }
 
-/* 右侧正文 */
+/* 右侧正文 - 占据中间列，自然居中 */
 .dp-main {
-  flex: 1;
+  grid-column: 2;
   min-width: 0;
-  max-width: 680px;
 }
 .dp-article {
   /* 由 dp-main 控制宽度 */
@@ -285,7 +287,7 @@ onMounted(load)
 /* 移动端：侧边栏隐藏，正文全宽 */
 @media (max-width: 768px) {
   .dp-layout {
-    flex-direction: column;
+    grid-template-columns: 1fr;
     padding: var(--space-md);
     max-width: 100%;
   }
@@ -293,6 +295,7 @@ onMounted(load)
     display: none;
   }
   .dp-main {
+    grid-column: 1;
     max-width: 100%;
   }
 }
