@@ -76,6 +76,76 @@ function renderInline(text) {
 }
 
 /**
+ * 渲染对齐容器内的内容（保留段落/列表/标题等块级结构）。
+ * 输入为原始行数组（未 escape），内部自行 escape + 解析。
+ */
+function renderAlignContent(lines) {
+  const escaped = lines.map(l => escapeHtml(l))
+  let html = ''
+  let para = []
+  let inList = null
+
+  function flushPara() {
+    if (para.length) {
+      html += '<p>' + renderInline(para.join(' ')) + '</p>'
+      para = []
+    }
+  }
+  function closeList() {
+    if (inList) { html += '</' + inList + '>'; inList = null }
+  }
+
+  for (const line of escaped) {
+    // 标题
+    const h = line.match(/^(#{1,4})\s+(.*)$/)
+    if (h) {
+      flushPara(); closeList()
+      html += '<h' + h[1].length + '>' + renderInline(h[2]) + '</h' + h[1].length + '>'
+      continue
+    }
+    // 分隔线
+    if (/^(\s*[-*_])\s*(\1\s*){2,}$/.test(line)) {
+      flushPara(); closeList()
+      html += '<hr />'
+      continue
+    }
+    // 引用
+    if (/^>\s?/.test(line)) {
+      flushPara(); closeList()
+      html += '<blockquote>' + renderInline(line.replace(/^>\s?/, '')) + '</blockquote>'
+      continue
+    }
+    // 无序列表
+    const ul = line.match(/^\s*[-*+]\s+(.*)$/)
+    if (ul) {
+      flushPara()
+      if (inList !== 'ul') { closeList(); html += '<ul>'; inList = 'ul' }
+      html += '<li>' + renderInline(ul[1]) + '</li>'
+      continue
+    }
+    // 有序列表
+    const ol = line.match(/^\s*\d+\.\s+(.*)$/)
+    if (ol) {
+      flushPara()
+      if (inList !== 'ol') { closeList(); html += '<ol>'; inList = 'ol' }
+      html += '<li>' + renderInline(ol[1]) + '</li>'
+      continue
+    }
+    // 空行 → 段落分隔
+    if (/^\s*$/.test(line)) {
+      flushPara(); closeList()
+      continue
+    }
+    // 普通行
+    para.push(line)
+  }
+
+  flushPara()
+  closeList()
+  return html
+}
+
+/**
  * 渲染 Markdown 安全子集为 HTML 字符串。
  * 输入会先经 escapeHtml，因此用户无法注入 HTML / 脚本。
  */
@@ -136,7 +206,8 @@ export function renderMarkdown(md) {
     }
     if (inAlign) {
       if (/^:::\s*$/.test(line)) {
-        html += '<div class="align-' + inAlign + '">' + renderInline(alignBuf.join(' ')) + '</div>'
+        // 对齐容器内：保留段落/列表等结构，不拍平
+        html += '<div class="align-' + inAlign + '">' + renderAlignContent(alignBuf) + '</div>'
         inAlign = null
         alignBuf = []
       } else {
@@ -211,7 +282,7 @@ export function renderMarkdown(md) {
   flushPara()
   closeList()
   if (inAlign) {
-    html += '<div class="align-' + inAlign + '">' + renderInline(alignBuf.join(' ')) + '</div>'
+    html += '<div class="align-' + inAlign + '">' + renderAlignContent(alignBuf) + '</div>'
   }
   if (inCode) {
     html += '<pre><code>' + codeBuf.join('\n') + '</code></pre>'
