@@ -12,7 +12,11 @@
       <button :class="{ active: view === 'mine' }" @click="setView('mine')">我的全部（含草稿）</button>
     </div>
 
-    <div v-if="loading" class="cp-loading">加载中…</div>
+    <div v-if="loading && !articles.length" class="cp-loading">加载中…</div>
+    <div v-else-if="loadError" class="cp-error">
+      <p class="cp-error-msg">{{ loadError }}</p>
+      <button class="cp-retry-btn" @click="load">重新加载</button>
+    </div>
     <div v-else-if="articles.length === 0" class="cp-empty">
       {{ isOwner && view === 'mine' ? '还没有文章，点击右上角「写文章」开始吧。' : '暂无已发布内容。' }}
     </div>
@@ -56,6 +60,7 @@ const { isOwner, user } = useAuth()
 const route = useRoute()
 const articles = ref([])
 const loading = ref(false)
+const loadError = ref('')
 const view = ref('published')
 
 // 可管理内容：仅管理员可写/编辑/删除
@@ -63,6 +68,7 @@ const canManageContent = computed(() => isOwner.value)
 
 async function load() {
   loading.value = true
+  loadError.value = ''
   try {
     if (canManageContent.value && view.value === 'mine') {
       const email = user.value?.email
@@ -71,7 +77,17 @@ async function load() {
       articles.value = await listArticles({ status: 'published', limit: 200 })
     }
   } catch (e) {
-    toast('加载失败：' + (e.message || e), 'error')
+    const msg = (e && e.message) || String(e)
+    // 友好化错误信息
+    if (msg.indexOf('超时') !== -1 || msg.indexOf('timeout') !== -1) {
+      loadError.value = '网络较慢，加载超时了。请点击下方按钮重试，或稍后再来。'
+    } else if (msg.indexOf('Failed to fetch') !== -1 || msg.indexOf('NetworkError') !== -1) {
+      loadError.value = '网络连接失败，请检查网络后重试。'
+    } else if (msg.indexOf('未登录') !== -1) {
+      loadError.value = '登录已过期，请刷新页面重新登录。'
+    } else {
+      loadError.value = '加载失败：' + msg
+    }
   } finally {
     loading.value = false
   }
@@ -172,6 +188,26 @@ watch(() => route.fullPath, () => {
   color: var(--text-secondary);
   font-size: 15px;
 }
+.cp-error {
+  padding: 40px 20px;
+  text-align: center;
+}
+.cp-error-msg {
+  color: #d4351c;
+  font-size: 15px;
+  margin: 0 0 16px;
+  line-height: 1.6;
+}
+.cp-retry-btn {
+  background: #1d70b8;
+  color: #fff;
+  border: none;
+  font-size: 15px;
+  font-weight: 700;
+  padding: 10px 24px;
+  cursor: pointer;
+}
+.cp-retry-btn:hover { background: #003078; }
 .cp-list { list-style: none; margin: 0; padding: 0; }
 .cp-card {
   background: var(--bg-card);

@@ -71,17 +71,56 @@ async function withRetry(fn, maxAttempts, onRetry) {
   throw lastErr
 }
 
+/* ========== 文章列表浏览器缓存 ========== */
+
+/** 缓存 TTL：5 分钟。国内→新加坡延迟高时，缓存命中 = 零等待 */
+const CACHE_TTL_MS = 5 * 60 * 1000
+const CACHE_KEY_PREFIX = 'dachu_articles_'
+
 /**
- * 列表文章。
- * @param {object} opts
- *  - status: 'published' | 'draft' | null(全部)
- *  - authorEmail: 指定作者（null 表示不按作者过滤）
- *  - tag: 按标签筛选（可选）
- *  - limit / offset: 分页
+ * 从 sessionStorage 读缓存。
+ * 用 sessionStorage 而非 localStorage：关标签页自动清理，不占长期存储。
+ */
+function readCache(key) {
+  try {
+    const raw = sessionStorage.getItem(CACHE_KEY_PREFIX + key)
+    if (!raw) return null
+    const { ts, data } = JSON.parse(raw)
+    if (Date.now() - ts > CACHE_TTL_MS) return null // 过期
+    return data
+  } catch { return null }
+}
+
+function writeCache(key, data) {
+  try {
+    sessionStorage.setItem(CACHE_KEY_PREFIX + key, JSON.stringify({ ts: Date.now(), data }))
+  } catch { /* storage full / private mode: silently skip */ }
+}
+
+/** 根据查询参数生成缓存 key */
+function cacheKey(opts) {
+  return 'list_' + (opts.status || 'all') + '_' + (opts.authorEmail || '') + '_' + (opts.tag || '')
+}
+
+/**
+ * 列表文章（带缓存）。
+ * 命中缓存 → 瞬间返回旧数据，同时后台静默刷新（下次打开就是新的）。
  */
 export async function listArticles({ status = 'published', authorEmail = null, limit = 50, offset = 0, tag = null } = {}) {
   if (!supabase) throw new Error('未连接数据库')
-  let q = supabase.from('articles').select('*')
+
+  const ck = cacheKey({ status, authorEmail, tag })
+  // 1. 缓存命中 → 立刻返回（零等待）
+  const cached = readCache(ck)
+  if (cached && offset === 0) {
+    // 后台静默刷新（不阻塞 UI）
+    refreshListInBackground({ status, authorEmail, limit, tag }, ck)
+    return cached.slice(0, limit)
+  }
+
+  // 2. 无缓存 → 正常请求（列表只查必要字段，不取大字段 content）
+  const FIELDS = 'id,title,summary,status,published_at,updated_at,views,tags,cover_image,author_email'
+  let q = supabase.from('articles').select(FIELDS)
   if (status) q = q.eq('status', status)
   if (authorEmail) q = q.eq('author_email', authorEmail)
   if (tag) q = q.contains('tags', [tag])
@@ -89,7 +128,24 @@ export async function listArticles({ status = 'published', authorEmail = null, l
   q = q.range(offset, Math.max(offset, offset + limit - 1))
   const { data, error } = await withTimeout(q, '文章列表')
   if (error) throw error
-  return data || []
+  const result = data || []
+  if (offset === 0) writeCache(ck, result)
+  return result
+}
+
+/** 后台静默刷新：失败时静默忽略，不弹错误 */
+async function refreshListInBackground(opts, ck) {
+  try {
+    const FIELDS = 'id,title,summary,status,published_at,updated_at,views,tags,cover_image,author_email'
+    let q = supabase.from('articles').select(FIELDS)
+    if (opts.status) q = q.eq('status', opts.status)
+    if (opts.authorEmail) q = q.eq('author_email', opts.authorEmail)
+    if (opts.tag) q = q.contains('tags', [opts.tag])
+    q = q.order('published_at', { ascending: false, nullsFirst: false })
+    q = q.range(0, Math.max(0, (opts.limit || 50) - 1))
+    const { data, error } = await withTimeout(q, '文章列表(后台刷新)')
+    if (!error && data) writeCache(ck, data)
+  } catch { /* 静默：缓存仍有效，下次再试 */ }
 }
 
 /** 取单篇文章（已发布所有人可读；草稿仅作者可读，越权返回 null） */
