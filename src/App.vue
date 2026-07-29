@@ -261,14 +261,12 @@ const quickLinks = [
   { path: '/tools/fund-rank',  label: '工具', feature: 'fund-rank' },
   { path: '/portfolio',        label: '组合', feature: 'portfolio' },
 ]
-// 按功能开放状态 + 用户权限过滤可见的金刚区入口
+// 按全局开关过滤可见的金刚区入口（全部展示，权限由路由级 routeAllowed 拦截）
 const visibleQuickLinks = computed(() =>
   quickLinks.filter(item => {
     const f = item.feature
     if (!f) return true                    // 无功能标签的入口始终可见
-    if (!featureEnabled(f)) return false   // 全局关闭则隐藏入口
-    if (f === 'content') return true       // 内容公开可读，任何登录用户都可见入口
-    return isAdmin.value || hasFeature(f)  // 其余按用户权限
+    return featureEnabled(f)               // 全局开关开着就显示，权限由路由守卫控制
   })
 )
 
