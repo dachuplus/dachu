@@ -132,7 +132,7 @@
     <ConfirmDialog />
 
     <!-- 登录弹窗（非墙模式：公开路由中点击「登录/注册」触发） -->
-    <LoginDialog v-if="!isLoggedIn && showLoginDialogValue" @logged-in="onLoggedIn" />
+    <LoginDialog v-if="!isLoggedIn && showLoginDialogValue && !authLoading" @logged-in="onLoggedIn" @close="hideLogin" />
     </div>
 
     <!-- 申请权限弹窗：独立于各分支，任何登录状态下均可弹出 -->
