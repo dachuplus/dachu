@@ -87,13 +87,27 @@ def main():
         print("ERROR: 缺少 SUPABASE_DB_URL（CI 已配置；本地可临时 export 后运行）")
         sys.exit(1)
 
-    kwargs = {"dsn": db_url, "sslmode": "require"}
-    ip = ipv4_host(db_url)
-    if ip:
-        kwargs["host"] = ip
-    print("connecting to", ip or "(dsn host)")
+    # 重建 DSN：把主机名替换为解析到的 IPv4 地址（避免 runner 无 IPv6 出口导致的连不上）。
+    # 直接拼一个新 DSN，而不是 dsn+host 双传（psycopg2 对两者的优先级处理在不同版本不一致）。
+    from urllib.parse import urlparse, urlunparse
 
-    conn = psycopg2.connect(**kwargs)
+    p = urlparse(db_url)
+    netloc = p.netloc
+    if "@" in netloc:
+        userinfo, hostport = netloc.split("@", 1)
+    else:
+        userinfo, hostport = "", netloc
+    if ":" in hostport:
+        host, port = hostport.rsplit(":", 1)
+    else:
+        host, port = hostport, ""
+    ip = ipv4_host(db_url)
+    new_host = ip or host
+    new_netloc = f"{userinfo}@{new_host}" + (f":{port}" if port else "")
+    new_dsn = urlunparse((p.scheme, new_netloc, p.path, p.params, p.query, p.fragment))
+    print("connecting to", new_host)
+
+    conn = psycopg2.connect(new_dsn, sslmode="require")
     cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
     ok = 0
     for i, s in enumerate(stmts):
