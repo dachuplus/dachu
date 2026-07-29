@@ -16,20 +16,29 @@
 import { computed } from 'vue'
 import { useRoute } from 'vue-router'
 import { useAuth } from '../composables/useAuth'
+import { useFeatureFlags } from '../composables/useFeatureFlags'
 
 const route = useRoute()
 const { isAdmin, hasFeature } = useAuth()
+const { featureEnabled } = useFeatureFlags()
 
 const allTabs = [
-  { key: 'home',    path: '/',                 label: '首页',     feature: 'fund-rank' },
+  { key: 'home',    path: '/',                 label: '首页',     feature: 'content' },
   { key: 'signal',  path: '/signal',           label: '信号',     feature: 'signal' },
   { key: 'fundrank',path: '/tools/fund-rank',  label: '工具',     feature: 'fund-rank' },
   { key: 'portfolio',path:'/portfolio',        label: '组合',     feature: 'portfolio' },
   { key: 'content',  path: '/content',          label: '内容',     feature: 'content' },
   { key: 'profile', path: '/profile',          label: '我的',     feature: null },
 ]
-// 按功能权限过滤可见 Tab（管理员显示全部；无 feature 的「我的」始终可见）
-const tabs = computed(() => allTabs.filter(t => !t.feature || isAdmin.value || hasFeature(t.feature)))
+// 按功能开放状态 + 用户权限过滤可见 Tab
+// 内容公开可读（任何用户可见）；其余功能按权限；全局关闭则隐藏入口
+const tabs = computed(() => allTabs.filter(t => {
+  const f = t.feature
+  if (!f) return true                    // 无功能标签（首页/我的）始终可见
+  if (!featureEnabled(f)) return false   // 全局关闭则隐藏入口
+  if (f === 'content') return true       // 内容公开可读，任何用户都可见
+  return isAdmin.value || hasFeature(f)  // 其余按用户权限
+}))
 
 const currentTab = computed(() => route.meta?.tab || 'home')
 </script>

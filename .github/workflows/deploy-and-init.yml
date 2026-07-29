@@ -1,0 +1,64 @@
+name: 部署 + 初始化（边缘函数 & 功能开关）
+
+# 手动触发（无需 push 即运行）。用于：
+#   1) 初始化 feature_flags 表 + set_feature_flag RPC（经 SUPABASE_DB_URL 直连，CI 可跑 DDL）
+#   2) 构建前端并把边缘函数 functions/ + package.json 打入产物，部署到 EdgeOne Pages
+# 这样边缘缓存提速 + 功能开放控制两块都可在一次流水线里完成，无需人工执行 SQL。
+on:
+  workflow_dispatch:
+    inputs:
+      skip_deploy:
+        description: '仅执行 SQL 初始化，不部署前端（调试用）'
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+      EDGEONE_PAGES_API_TOKEN: ${{ secrets.EDGEONE_PAGES_API_TOKEN }}
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 设置 Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: 初始化功能开关表 + RPC（feature_flags）
+        run: |
+          pip install -q psycopg2-binary
+          python scripts/run_feature_flags_sql.py
+
+      - name: 设置 Node
+        if: ${{ !inputs.skip_deploy }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: 安装依赖并构建前端
+        if: ${{ !inputs.skip_deploy }}
+        run: |
+          npm ci
+          npm run build
+
+      - name: 拷贝边缘函数 + 写入 package.json（激活 Pages Functions 必需）
+        if: ${{ !inputs.skip_deploy }}
+        run: |
+          rm -rf dist/functions && cp -r functions dist/functions
+          printf '{\n  "name": "dachu-pages-functions",\n  "version": "1.0.0",\n  "private": true\n}\n' > dist/package.json
+          echo "--- dist/functions/api ---"; ls dist/functions/api
+          echo "--- dist/package.json ---"; cat dist/package.json
+
+      - name: 打包并部署 EdgeOne Pages（overseas）
+        if: ${{ !inputs.skip_deploy }}
+        run: |
+          cd dist && zip -r ../dist.zip . && cd ..
+          npx edgeone pages deploy dist.zip -n dachu -a overseas -t "$EDGEONE_PAGES_API_TOKEN"

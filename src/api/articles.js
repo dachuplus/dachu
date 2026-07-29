@@ -107,6 +107,27 @@ function cacheKey(opts) {
  * 命中缓存 → 瞬间返回旧数据，同时后台静默刷新（下次打开就是新的）。
  */
 export async function listArticles({ status = 'published', authorEmail = null, limit = 50, offset = 0, tag = null } = {}) {
+  // 边缘加速：已发布全量列表优先走同域 /api/articles（免跨境直连新加坡）。
+  // 仅对「status=published 且无条件过滤」的首屏列表启用；其余（草稿/作者/标签筛选）走原逻辑。
+  if (status === 'published' && !authorEmail && !tag && offset === 0) {
+    try {
+      const res = await withTimeout(
+        fetch('/api/articles', { headers: { Accept: 'application/json' } }),
+        '文章列表(边缘)'
+      )
+      if (res.ok) {
+        const data = await res.json()
+        if (Array.isArray(data)) {
+          writeCache(cacheKey({ status, authorEmail, tag }), data) // 保持本地缓存语义
+          return data.slice(0, limit)
+        }
+      }
+      // 边缘返 502 / 异常 → 下方直连兜底
+    } catch (e) {
+      // 边缘接口不可用（本地 dev、节点异常）→ 兜底
+    }
+  }
+
   if (!supabase) throw new Error('未连接数据库')
 
   const ck = cacheKey({ status, authorEmail, tag })
@@ -148,11 +169,39 @@ async function refreshListInBackground(opts, ck) {
   } catch { /* 静默：缓存仍有效，下次再试 */ }
 }
 
-/** 取单篇文章（已发布所有人可读；草稿仅作者可读，越权返回 null） */
+/** 文章边缘缓存接口（同域，EdgeOne 边缘节点就近返回，免跨境直连新加坡） */
+const EDGE_ARTICLE_API = '/api/article'
+
+/**
+ * 取单篇文章。
+ * 提速优化：已发布文章优先走同域边缘缓存接口 /api/article/:id，命中即秒回，
+ *           不再跨境直连 Supabase（新加坡）。
+ * 兜底：边缘接口返 404（未发布/草稿）或异常 → 回退直连 Supabase，
+ *       保证作者阅读自己草稿、以及边缘接口不可用时的正常访问。
+ */
 export async function getArticle(id) {
+  const numId = Number(id)
+  if (!Number.isFinite(numId)) throw new Error('文章 ID 无效')
+
+  // 1. 优先走边缘缓存接口
+  try {
+    const res = await withTimeout(
+      fetch(`${EDGE_ARTICLE_API}/${numId}`, { headers: { Accept: 'application/json' } }),
+      '文章详情(边缘)'
+    )
+    if (res.ok) {
+      const data = await res.json()
+      if (data && data.id === numId) return data
+    }
+    // 404 / 未发布 → 走下方直连兜底
+  } catch (e) {
+    // 边缘接口不可用（如本地 dev、节点异常）→ 兜底
+  }
+
+  // 2. 兜底：直连 Supabase
   if (!supabase) throw new Error('未连接数据库')
   const { data, error } = await withTimeout(
-    supabase.from('articles').select('*').eq('id', Number(id)).maybeSingle(),
+    supabase.from('articles').select('*').eq('id', numId).maybeSingle(),
     '文章详情'
   )
   if (error) throw error

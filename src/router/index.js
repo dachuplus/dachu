@@ -7,6 +7,7 @@ const routes = [
     component: () => import('../pages/my-content/MyContentPage.vue'),
     meta: {
       tab: 'home',
+      feature: 'content',
       title: '博客',
       description: '大厨先生-个人博客：分享个人投资研究观点与方法论，仅代表个人观点，不构成投资建议或金融产品营销。',
       keywords: '大厨先生,个人博客,投资观点,研究方法,独立思考'
@@ -137,6 +138,7 @@ const routes = [
     component: () => import('../pages/my-content/MyContentPage.vue'),
     meta: {
       tab: 'content',
+      feature: 'content',
       title: '博客 · 个人观点',
       description: '大厨先生-个人博客：分享个人投资研究观点与方法论，仅代表个人观点，不构成投资建议。',
       keywords: '大厨先生,个人博客,投资观点,研究方法'
@@ -147,6 +149,7 @@ const routes = [
     component: () => import('../pages/my-content/ArticleDetailPage.vue'),
     meta: {
       tab: 'content',
+      feature: 'content',
       title: '文章详情',
       description: '大厨先生-个人博客文章详情。',
       keywords: '大厨先生,个人博客,投资观点'

@@ -17,8 +17,8 @@
       </div>
     </div>
 
-    <!-- 未登录：全屏登录墙（看不到任何内容） -->
-    <LoginDialog v-else-if="!authLoading && !isLoggedIn" :wall="true" @logged-in="onLoggedIn" />
+    <!-- 未登录：全屏登录墙（公开内容/回调路由除外，放行以渲染应用） -->
+    <LoginDialog v-else-if="!authLoading && !isLoggedIn && !isPublicContentRoute" :wall="true" @logged-in="onLoggedIn" />
 
     <!-- 已登录但权限申请被驳回：驳回提示（优先于陌生人提示） -->
     <div v-else-if="!authLoading && isLoggedIn && rejected" class="stranger-screen">
@@ -146,11 +146,20 @@ import ConfirmDialog from './components/ConfirmDialog.vue'
 import LoginDialog from './components/LoginDialog.vue'
 import PermissionRequestDialog from './components/PermissionRequestDialog.vue'
 import { useAuth, FEATURES } from './composables/useAuth'
+import { useFeatureFlags } from './composables/useFeatureFlags'
 import { supabase } from './api/supabase'
 
 const route   = useRoute()
 const router  = useRouter()
 const { user, isLoggedIn, isAdmin, isOwner, isStranger, blocked, rejected, loading: authLoading, hasFeature, displayName, init, signOut, showLoginDialog, showLogin, hideLogin, checkRejected } = useAuth()
+const { featureEnabled, loadFeatureFlags } = useFeatureFlags()
+
+/* 公开内容路由（内容/微信回调）：未登录也可访问，登录墙对其放行 */
+const isPublicContentRoute = computed(() => {
+  if (route.meta?.public) return true
+  if (route.meta?.feature === 'content' && featureEnabled('content')) return true
+  return false
+})
 
 /* ---- 响应式断点 ---- */
 const isMobile = ref(window.innerWidth < 769)
@@ -160,6 +169,7 @@ function onResize() {
 onMounted(async () => {
   window.addEventListener('resize', onResize)
   await init()        // 初始化全局 auth（恢复 session 后再上报，确保能拿到登录邮箱）
+  loadFeatureFlags()  // 加载功能开放开关（失败回退默认，不阻塞页面）
   logVisitor()        // 上报本次访问（IP / 邮箱 / 地区 / 页面）
   loadVisitorCount()  // 拉取累计访客数（写入 visitor_logs 的总条数）
 })
@@ -246,22 +256,31 @@ function onRequestSubmitted() {
 
 /* ---- 全局金刚区 ---- */
 const quickLinks = [
-  { path: '/content',          label: '博客', feature: null },
+  { path: '/content',          label: '博客', feature: 'content' },
   { path: '/signal',           label: '信号', feature: 'signal' },
   { path: '/tools/fund-rank',  label: '工具', feature: 'fund-rank' },
   { path: '/portfolio',        label: '组合', feature: 'portfolio' },
 ]
-// 按功能权限过滤可见的金刚区入口（管理员显示全部；feature 为 null 的入口始终可见）
+// 按功能开放状态 + 用户权限过滤可见的金刚区入口
 const visibleQuickLinks = computed(() =>
-  quickLinks.filter(item => !item.feature || isAdmin.value || hasFeature(item.feature))
+  quickLinks.filter(item => {
+    const f = item.feature
+    if (!f) return true                    // 无功能标签的入口始终可见
+    if (!featureEnabled(f)) return false   // 全局关闭则隐藏入口
+    if (f === 'content') return true       // 内容公开可读，任何登录用户都可见入口
+    return isAdmin.value || hasFeature(f)  // 其余按用户权限
+  })
 )
 
 /* ---- 当前路由的功能权限拦截（未授权功能显示「无访问权限」） ---- */
 const routeAllowed = computed(() => {
-  if (route.meta?.ownerOnly && !isOwner.value) return false
-  if (isAdmin.value) return true
+  // ownerOnly 路由：仅管理员可进；管理员始终可进，不受功能开关影响（避免把自己锁在门外）
+  if (route.meta?.ownerOnly) return isOwner.value
   const feat = route.meta?.feature
+  if (feat && !featureEnabled(feat)) return false  // 全局关闭的功能：任何登录用户都无权限
+  if (isAdmin.value) return true
   if (!feat) return true
+  if (feat === 'content') return true              // 内容公开可读
   return hasFeature(feat)
 })
 const currentFeatureLabel = computed(() => {
@@ -274,7 +293,7 @@ const currentFeatureLabel = computed(() => {
 /* ---- Tab 数据（仅移动端 TabBar 使用）---- */
 const tabs = [
   { key: 'home',      path: '/',                 label: '首页',  feature: null },
-  { key: 'content',   path: '/content',          label: '博客',  feature: null },
+  { key: 'content',   path: '/content',          label: '博客',  feature: 'content' },
   { key: 'signal',    path: '/signal',           label: '信号',  feature: 'signal' },
   { key: 'fundrank',  path: '/tools/fund-rank',  label: '工具',  feature: 'fund-rank' },
   { key: 'portfolio', path: '/portfolio',        label: '组合',  feature: 'portfolio' },

@@ -488,6 +488,36 @@
       <button class="btn-login" @click="showLogin()">登录 / 注册</button>
     </div>
 
+    <!-- 功能开放控制（仅主管理员可调） -->
+    <div class="card" v-show="activeTab==='users'">
+      <div class="card-title">功能开放控制</div>
+      <p class="section-desc">
+        全局开关：开启后对应功能对「已登录且已开通权限」的用户可见；「内容（博客）」开启时，任何人（含未注册访客）均可直接访问。
+        仅主管理员 <strong>{{ adminEmail }}</strong> 可修改，其余授权账户仅可查看。
+      </p>
+      <div class="feature-flag-list">
+        <div class="feature-flag-row" v-for="f in toggleableFeatures" :key="f.key">
+          <div class="feature-flag-info">
+            <div class="feature-flag-label">{{ f.label }}</div>
+            <div class="feature-flag-desc">{{ f.desc }}</div>
+          </div>
+          <label class="switch" :class="{ 'switch--disabled': !isSuperAdmin }">
+            <input
+              type="checkbox"
+              :checked="featureEnabled(f.key)"
+              :disabled="!isSuperAdmin || savingFlag === f.key"
+              @change="toggleFeature(f.key, $event.target.checked)"
+            />
+            <span class="switch__track"><span class="switch__thumb"></span></span>
+            <span class="switch__state">{{ featureEnabled(f.key) ? '开放' : '关闭' }}</span>
+          </label>
+        </div>
+      </div>
+      <p v-if="!isSuperAdmin" class="feature-flag-readonly">
+        当前账户 {{ user?.email }} 为授权管理员但非主管理员，功能开关为只读。如需调整请联系主管理员 {{ adminEmail }}。
+      </p>
+    </div>
+
     <!-- 数据库表列表 -->
     <div class="card" v-show="activeTab==='download'">
       <div class="card-title">数据库表 ({{ visibleTables.length }} 张)</div>
@@ -1242,10 +1272,29 @@ import { ref, computed, onMounted, watch } from 'vue'
 import { useAuth, FEATURES, ADMIN_EMAIL } from '../../composables/useAuth'
 import { confirm, toast } from '../../composables/useToast'
 import { usePermissionRequests } from '../../composables/usePermissionRequests'
+import { useFeatureFlags, TOGGLEABLE_FEATURES } from '../../composables/useFeatureFlags'
 
 const { user, isLoggedIn, isOwner, showLogin, savePermissions, deletePermissions, blockUser } = useAuth()
 const permFeatures = FEATURES
 const adminEmail = ADMIN_EMAIL
+
+// 功能开放控制：全局开关（仅主管理员 57502460@qq.com 可改）
+const { featureEnabled, setFeatureFlag, loadFeatureFlags } = useFeatureFlags()
+const toggleableFeatures = TOGGLEABLE_FEATURES
+const isSuperAdmin = computed(() => user.value?.email === adminEmail)
+const savingFlag = ref('')
+async function toggleFeature(key, open) {
+  if (!isSuperAdmin.value) return
+  savingFlag.value = key
+  try {
+    await setFeatureFlag(key, open)
+    toast(open ? `已开放「${key}」` : `已关闭「${key}」`, 'success')
+  } catch (e) {
+    toast('操作失败：' + (e?.message || '无权限'), 'error')
+  } finally {
+    savingFlag.value = ''
+  }
+}
 
 // 管理中心 tab：'download' 数据下载 / 'users' 用户管理
 const activeTab = ref('users')
@@ -2071,6 +2120,7 @@ onMounted(() => {
   loadPermissionsList()
   loadRequests()
   loadPasswordInfo()
+  loadFeatureFlags()
 })
 
 // 保底：auth 初始化时序可能导致 onMounted 时 isOwner 尚未为 true
@@ -2129,6 +2179,34 @@ watch(isOwner, (val) => {
 }
 .card-title { font-size: 24px; font-weight: 700; color: var(--text-primary); margin-bottom: var(--space-md); }
 .section-desc { font-size: 16px; color: var(--text-secondary); margin-bottom: var(--space-lg); }
+
+/* ===== 功能开放控制 ===== */
+.feature-flag-list { display: flex; flex-direction: column; margin-top: var(--space-md); }
+.feature-flag-row {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: var(--space-md); padding: var(--space-md) 0;
+  border-bottom: 1px solid var(--border);
+}
+.feature-flag-row:last-child { border-bottom: none; }
+.feature-flag-info { flex: 1; }
+.feature-flag-label { font-size: 18px; font-weight: 700; color: var(--text-primary); }
+.feature-flag-desc { font-size: 14px; color: var(--text-secondary); margin-top: 4px; line-height: 1.5; }
+
+.switch { display: inline-flex; align-items: center; gap: 10px; cursor: pointer; flex-shrink: 0; }
+.switch--disabled { cursor: not-allowed; opacity: 0.7; }
+.switch input { position: absolute; opacity: 0; width: 0; height: 0; }
+.switch__track {
+  position: relative; width: 52px; height: 28px;
+  background: #b1b4b6; border: 2px solid #0b0c0c; transition: background 0.15s;
+}
+.switch__thumb {
+  position: absolute; top: 2px; left: 2px; width: 20px; height: 20px;
+  background: #0b0c0c; transition: transform 0.15s, background 0.15s;
+}
+.switch input:checked + .switch__track { background: #1d70b8; }
+.switch input:checked + .switch__track .switch__thumb { transform: translateX(24px); background: #ffffff; }
+.switch__state { font-size: 14px; font-weight: 700; min-width: 32px; color: var(--text-primary); }
+.feature-flag-readonly { margin-top: var(--space-md); color: #d4351c; font-weight: 700; }
 
 /* 项目简介 */
 .intro-grid { border: 1px solid var(--border); }
