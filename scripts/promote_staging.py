@@ -228,14 +228,21 @@ def main():
     hb_after = pg("SELECT count(*) AS tot, count(k_all) AS scored FROM fund_scores WHERE t0='货币型'")[0]
     print(f'  ✓ 货币型评分: {hb_after["scored"]}/{hb_after["tot"]} 有 k_all', flush=True)
 
-    # ── 2.2 保护 12 个配置/规模/持有人列：用备份恢复非空值 ─────────────
-    # 若当日 fetch_fund_allocation 步骤未成功写入 staging 的 12 列（例如东财限流/超时），
+    # ── 2.2 保护配置/规模/持有人列 + 基本信息列：用备份恢复非空值 ─────────
+    # 若当日抓取步骤未成功写入 staging 的这些列（例如东财限流/超时/接口变更），
     # staging 对应列为 NULL，原子切换会清空生产表这些列。此处用上一版生产(_fs_backup)
     # 的非空值回填，确保历史抓取数据不丢失（COALESCE 优先保留 staging 已写入的新值）。
-    print('\n[2.2] 保护 12 个配置类列（COALESCE 备份回填）', flush=True)
+    # ⚠ 2026-07-27 修复：此前保护列表漏掉了基本信息 8 列（fund_manager/fund_scale/
+    # manage_fee/company/found_date/share_scale/custody_fee/sale_fee），导致抓取失败当日
+    # TRUNCATE+INSERT 把生产表这些历史值擦成 NULL 且备份被 DROP，数据永久丢失。
+    # 现已全部纳入保护，任何列抓取失败都不会再擦除生产历史值。
+    print('\n[2.2] 保护配置类 12 列 + 基本信息 8 列（COALESCE 备份回填）', flush=True)
     _alloc_cols = ['stock_pct', 'bond_pct', 'cash_pct', 'sub_purchase', 'sub_redemption',
                    'net_sub_share', 'total_share_end', 'net_asset_end', 'nav_change_rate',
-                   'inst_hold_pct', 'indiv_hold_pct', 'internal_hold_pct']
+                   'inst_hold_pct', 'indiv_hold_pct', 'internal_hold_pct',
+                   # 基本信息列（2026-07-27 起纳入保护，防止抓取失败擦除历史值）
+                   'fund_manager', 'fund_scale', 'manage_fee', 'company',
+                   'found_date', 'share_scale', 'custody_fee', 'sale_fee']
     _set = ', '.join([f'{c} = COALESCE(f.{c}, b.{c})' for c in _alloc_cols])
     try:
         pg(f'UPDATE fund_scores f SET {_set} FROM _fs_backup b WHERE f.c = b.c', timeout=300)
