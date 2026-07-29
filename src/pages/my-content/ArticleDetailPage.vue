@@ -5,11 +5,11 @@
       <h3 class="dp-sidebar-title">文章列表</h3>
       <ul v-if="articleList.length" class="dp-sidebar-list">
         <li v-for="a in articleList" :key="a.id"
-            :class="['dp-sidebar-item', { active: Number(a.id) === Number(route.params.id) }]">
-          <router-link :to="`/content/${a.id}`" class="dp-sidebar-link">
+            :class="['dp-sidebar-item', { active: Number(a.id) === Number(currentId) }]">
+          <a href="#" class="dp-sidebar-link" @click.prevent="switchArticle(a)">
             <span class="dp-sidebar-title-text">{{ a.title }}</span>
             <span class="dp-sidebar-date">{{ formatDate(a.published_at || a.updated_at) }}</span>
-          </router-link>
+          </a>
         </li>
       </ul>
       <div v-else class="dp-sidebar-empty">暂无文章</div>
@@ -40,30 +40,29 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
-import { useRoute } from 'vue-router'
+import { ref, computed, onMounted, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { getArticle, getAuthor, incrementViews, listArticles } from '../../api/articles'
 import { renderMarkdown } from '../../utils/markdown'
 
 const route = useRoute()
+const router = useRouter()
 const article = ref(null)
 const author = ref(null)
 const loading = ref(false)
 const articleList = ref([])
 
+// 当前显示的文章 ID（用于侧边栏高亮）
+const currentId = computed(() => article.value?.id)
+
 const renderedContent = computed(() => renderMarkdown(article.value?.content || ''))
 
-async function load() {
+/** 加载单篇文章（含作者 + 阅读量） */
+async function loadArticle(id) {
   loading.value = true
   try {
-    const id = route.params.id
-    // 并行加载文章详情和侧边栏列表
-    const [a, list] = await Promise.all([
-      getArticle(id),
-      listArticles({ status: 'published', limit: 200 }).catch(() => [])
-    ])
+    const a = await getArticle(id)
     article.value = a || null
-    articleList.value = list || []
     if (a) {
       author.value = await getAuthor(a.author_email)
       if (a.status === 'published') incrementViews(id).catch(() => {})
@@ -75,6 +74,23 @@ async function load() {
   }
 }
 
+/** 切换文章（右侧就地切换 + 更新 URL） */
+async function switchArticle(a) {
+  if (Number(a.id) === currentId.value) return
+  // 用 replace 更新 URL（不触发组件重建），用户可分享/刷新回到当前文章
+  router.replace(`/content/${a.id}`)
+  await loadArticle(a.id)
+}
+
+async function load() {
+  const id = route.params.id
+  // 并行加载侧边栏列表（只加载一次）
+  if (!articleList.value.length) {
+    articleList.value = await listArticles({ status: 'published', limit: 200 }).catch(() => [])
+  }
+  await loadArticle(id)
+}
+
 function formatDate(s) {
   if (!s) return ''
   const d = new Date(s)
@@ -84,6 +100,12 @@ function formatDate(s) {
 }
 
 onMounted(load)
+// 监听路由变化（浏览器前进/后退 / 直接输入 URL）：只切换右侧文章，不重建组件
+watch(() => route.params.id, (newId) => {
+  if (newId && Number(newId) !== currentId.value) {
+    loadArticle(newId)
+  }
+})
 </script>
 
 <style scoped>
