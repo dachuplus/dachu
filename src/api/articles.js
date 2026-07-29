@@ -140,11 +140,13 @@ export async function listArticles({ status = 'published', authorEmail = null, l
   }
 
   // 2. 无缓存 → 正常请求（列表只查必要字段，不取大字段 content）
-  const FIELDS = 'id,title,summary,status,published_at,updated_at,views,tags,cover_image,author_email'
+  const FIELDS = 'id,title,summary,status,published_at,updated_at,views,tags,cover_image,author_email,is_pinned'
   let q = supabase.from('articles').select(FIELDS)
   if (status) q = q.eq('status', status)
   if (authorEmail) q = q.eq('author_email', authorEmail)
   if (tag) q = q.contains('tags', [tag])
+  // 置顶文章排最前，其次按发布时间倒序
+  q = q.order('is_pinned', { ascending: false })
   q = q.order('published_at', { ascending: false, nullsFirst: false })
   q = q.range(offset, Math.max(offset, offset + limit - 1))
   const { data, error } = await withTimeout(q, '文章列表')
@@ -157,11 +159,13 @@ export async function listArticles({ status = 'published', authorEmail = null, l
 /** 后台静默刷新：失败时静默忽略，不弹错误 */
 async function refreshListInBackground(opts, ck) {
   try {
-    const FIELDS = 'id,title,summary,status,published_at,updated_at,views,tags,cover_image,author_email'
+    const FIELDS = 'id,title,summary,status,published_at,updated_at,views,tags,cover_image,author_email,is_pinned'
     let q = supabase.from('articles').select(FIELDS)
     if (opts.status) q = q.eq('status', opts.status)
     if (opts.authorEmail) q = q.eq('author_email', opts.authorEmail)
     if (opts.tag) q = q.contains('tags', [opts.tag])
+    // 置顶文章排最前，其次按发布时间倒序
+    q = q.order('is_pinned', { ascending: false })
     q = q.order('published_at', { ascending: false, nullsFirst: false })
     q = q.range(0, Math.max(0, (opts.limit || 50) - 1))
     const { data, error } = await withTimeout(q, '文章列表(后台刷新)')
@@ -417,6 +421,16 @@ export async function updateArticle(id, payload) {
 export async function deleteArticle(id) {
   if (!supabase) throw new Error('未连接数据库')
   const { error } = await supabase.from('articles').delete().eq('id', Number(id))
+  if (error) throw error
+}
+
+/** 置顶 / 取消置顶文章（管理员，RLS 兜底：has_content_permission 允许） */
+export async function setArticlePinned(id, pinned) {
+  if (!supabase) throw new Error('未连接数据库')
+  const { error } = await supabase
+    .from('articles')
+    .update({ is_pinned: !!pinned })
+    .eq('id', Number(id))
   if (error) throw error
 }
 

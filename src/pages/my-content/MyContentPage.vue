@@ -36,12 +36,14 @@
               <span>{{ formatDate(a.published_at || a.updated_at) }}</span>
               <span class="cp-dot">·</span>
               <span>{{ a.views || 0 }} 浏览</span>
+              <span v-if="a.is_pinned" class="cp-pinned">置顶</span>
               <span v-for="t in (a.tags || [])" :key="t" class="cp-tag">{{ t }}</span>
             </div>
           </div>
         </router-link>
         <div v-if="canManageContent" class="cp-card-actions">
           <router-link :to="`/content/editor/${a.id}`" class="cp-link-edit">编辑</router-link>
+          <button class="cp-link-pin" @click="onTogglePin(a)">{{ a.is_pinned ? '取消置顶' : '置顶' }}</button>
           <button class="cp-link-del" @click="onDelete(a)">删除</button>
         </div>
       </li>
@@ -53,7 +55,7 @@
 import { ref, onMounted, watch, computed } from 'vue'
 import { useRoute } from 'vue-router'
 import { useAuth } from '../../composables/useAuth'
-import { listArticles, deleteArticle } from '../../api/articles'
+import { listArticles, deleteArticle, setArticlePinned } from '../../api/articles'
 import { confirm, toast } from '../../composables/useToast'
 
 const { isOwner, user } = useAuth()
@@ -107,6 +109,26 @@ async function onDelete(a) {
     await load()
   } catch (e) {
     toast('删除失败：' + (e.message || e), 'error')
+  }
+}
+
+async function onTogglePin(a) {
+  const target = !a.is_pinned
+  try {
+    await setArticlePinned(a.id, target)
+    // 本地立即生效：更新标记并重排，避免等待缓存刷新
+    const list = articles.value.map((x) =>
+      x.id === a.id ? { ...x, is_pinned: target } : x
+    )
+    list.sort(
+      (x, y) =>
+        (y.is_pinned ? 1 : 0) - (x.is_pinned ? 1 : 0) ||
+        new Date(y.published_at || 0) - new Date(x.published_at || 0)
+    )
+    articles.value = list
+    toast(target ? '已置顶' : '已取消置顶', 'success')
+  } catch (e) {
+    toast('操作失败：' + (e.message || e), 'error')
   }
 }
 
@@ -263,6 +285,23 @@ watch(() => route.fullPath, () => {
   padding: 1px 8px;
   font-size: 12px;
 }
+.cp-pinned {
+  background: #1d70b8;
+  color: #fff;
+  padding: 1px 8px;
+  font-size: 12px;
+  font-weight: 700;
+}
+.cp-link-pin {
+  background: transparent;
+  border: none;
+  color: #1d70b8;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  padding: 0;
+}
+.cp-link-pin:hover { text-decoration: underline; }
 .cp-badge {
   font-size: 12px;
   font-weight: 700;

@@ -13,7 +13,7 @@ const SUPABASE_URL = 'https://tqhtegazxykkqfcpejky.supabase.co'
 const ANON_KEY = 'sb_publishable_iFtMcvav774gqF28gGYQVw_QMmuS-z3'
 // 与前端 listArticles 的 FIELDS 保持一致（不含大字段 content，降低体积）
 const FIELDS =
-  'id,title,summary,status,published_at,updated_at,views,tags,cover_image,author_email'
+  'id,title,summary,status,published_at,updated_at,views,tags,cover_image,author_email,is_pinned'
 const CACHE_TTL = 60 // 秒（列表变化较快，缓存短一些）
 
 export async function onRequestGet(context) {
@@ -42,7 +42,7 @@ export async function onRequestGet(context) {
     SUPABASE_URL +
     '/rest/v1/articles?select=' +
     encodeURIComponent(FIELDS) +
-    '&status=eq.published&order=published_at.desc.nullslast&limit=200'
+    '&status=eq.published&order=is_pinned.desc,published_at.desc.nullslast&limit=200'
   let upstream
   try {
     upstream = await fetch(url, {
