@@ -75,7 +75,8 @@ async function load() {
   try {
     if (canManageContent.value && view.value === 'mine') {
       const email = user.value?.email
-      articles.value = await listArticles({ status: null, authorEmail: email, limit: 200 })
+      // 「我的全部」仅显示草稿/定时文章，已发布的不在此显示
+      articles.value = await listArticles({ status: 'draft', authorEmail: email, limit: 200 })
     } else {
       articles.value = await listArticles({ status: 'published', limit: 200 })
     }
