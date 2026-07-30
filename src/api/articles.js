@@ -107,12 +107,6 @@ function cacheKey(opts) {
  * 命中缓存 → 瞬间返回旧数据，同时后台静默刷新（下次打开就是新的）。
  */
 export async function listArticles({ status = 'published', authorEmail = null, limit = 50, offset = 0, tag = null } = {}) {
-  // 注意：EdgeOne Pages Functions 出站请求有超时限制（连 Supabase 新加坡会 504 超时），
-  // 因此 /api/articles 边缘函数在 EdgeOne 环境下不可用，已跳过，直接走 Supabase 直连。
-  // 浏览器端有 localStorage 缓存（5min TTL）+ 后台静默刷新 + 网络重试，体验仍可接受。
-
-  if (!supabase) throw new Error('未连接数据库')
-
   const ck = cacheKey({ status, authorEmail, tag })
   // 1. 缓存命中 → 立刻返回（零等待）
   const cached = readCache(ck)
@@ -122,7 +116,30 @@ export async function listArticles({ status = 'published', authorEmail = null, l
     return cached.slice(0, limit)
   }
 
-  // 2. 无缓存 → 正常请求（列表只查必要字段，不取大字段 content）
+  // 2. 已发布全量列表首屏优先走同域边缘函数（EdgeOne 境外节点就近返回，免跨境直连新加坡提速）。
+  //    仅对「status=published 且无作者/标签过滤」的首屏启用；边缘偶发超时/502 → 2.5s 内超时即回退直连，绝不白屏。
+  if (status === 'published' && !authorEmail && !tag && offset === 0) {
+    try {
+      const res = await Promise.race([
+        fetch('/api/articles', { headers: { Accept: 'application/json' } }),
+        new Promise((_, rej) => setTimeout(() => rej(new Error('edge-timeout')), 2500)),
+      ])
+      if (res.ok) {
+        const data = await res.json()
+        if (Array.isArray(data) && data.length) {
+          if (offset === 0) writeCache(ck, data)
+          return data.slice(0, limit)
+        }
+      }
+      // 502 / 空数组 → 走下方直连兜底
+    } catch (e) {
+      // 边缘超时或异常 → 忽略，走兜底
+    }
+  }
+
+  // 3. 兜底：直连 Supabase（列表只查必要字段，不取大字段 content）
+  if (!supabase) throw new Error('未连接数据库')
+
   const FIELDS = 'id,title,summary,status,published_at,updated_at,views,tags,cover_image,author_email,is_pinned,scheduled_at'
   let q = supabase.from('articles').select(FIELDS)
   if (status) q = q.eq('status', status)
@@ -158,14 +175,29 @@ async function refreshListInBackground(opts, ck) {
 
 /**
  * 取单篇文章。
- * 注意：EdgeOne Pages Functions 出站请求超时限制导致 /api/article/:id 边缘函数不可用，
- *       已跳过边缘缓存，直接走 Supabase 直连（浏览器端有 localStorage 缓存兜底）。
+ * 提速优化：已发布文章优先走同域边缘缓存接口 /api/article/:id（EdgeOne 境外节点就近返回，免跨境直连新加坡）。
+ * 兜底：边缘 2.5s 内未响应/返 404（未发布/草稿）→ 回退直连 Supabase，保证作者可读自己草稿。
  */
 export async function getArticle(id) {
   const numId = Number(id)
   if (!Number.isFinite(numId)) throw new Error('文章 ID 无效')
 
-  // 直连 Supabase（边缘函数在 EdgeOne 环境下不可用，见 listArticles 注释）
+  // 1. 优先走边缘缓存接口（2.5s 超时，避免偶发慢回源拖白屏）
+  try {
+    const res = await Promise.race([
+      fetch(`/api/article/${numId}`, { headers: { Accept: 'application/json' } }),
+      new Promise((_, rej) => setTimeout(() => rej(new Error('edge-timeout')), 2500)),
+    ])
+    if (res.ok) {
+      const data = await res.json()
+      if (data && data.id === numId) return data
+    }
+    // 404 / 非预期 → 走下方直连兜底
+  } catch (e) {
+    // 边缘超时或异常 → 忽略，走兜底
+  }
+
+  // 2. 兜底：直连 Supabase
   if (!supabase) throw new Error('未连接数据库')
   const { data, error } = await withTimeout(
     supabase.from('articles').select('*').eq('id', numId).maybeSingle(),

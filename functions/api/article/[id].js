@@ -53,6 +53,8 @@ export async function onRequestGet(context) {
   const url =
     SUPABASE_URL + '/rest/v1/articles?id=eq.' + encodeURIComponent(id) + '&select=*'
   let upstream
+  const ac = new AbortController()
+  const acTimer = setTimeout(() => ac.abort(), 8000) // 上游 8s 超时：避免函数长时间挂起，快速返 502 让前端回退
   try {
     upstream = await fetch(url, {
       headers: {
@@ -60,14 +62,17 @@ export async function onRequestGet(context) {
         Authorization: 'Bearer ' + ANON_KEY,
         Accept: 'application/json',
       },
+      signal: ac.signal,
     })
   } catch (e) {
-    // 边缘 → Supabase 失败：返 502，前端会回退直连
+    // 边缘 → Supabase 失败（含超时）：返 502，前端会回退直连
+    clearTimeout(acTimer)
     return new Response(JSON.stringify({ error: 'upstream error' }), {
       status: 502,
       headers: { 'Content-Type': 'application/json; charset=utf-8' },
     })
   }
+  clearTimeout(acTimer)
 
   if (!upstream.ok) {
     return new Response(JSON.stringify({ error: 'not found' }), {
