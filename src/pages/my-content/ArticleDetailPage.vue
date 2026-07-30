@@ -8,7 +8,7 @@
             :class="['dp-sidebar-item', { active: Number(a.id) === Number(currentId) }]">
           <a href="#" class="dp-sidebar-link" @click.prevent="switchArticle(a)">
             <span class="dp-sidebar-title-text">{{ a.title }}</span>
-            <span class="dp-sidebar-date">{{ formatDate(a.published_at || a.updated_at) }}</span>
+            <span class="dp-sidebar-date">{{ formatDateTime(a.published_at || a.updated_at) }}</span>
           </a>
         </li>
       </ul>
@@ -20,9 +20,8 @@
       <article class="dp-article">
         <h1 class="dp-title">{{ article.title }}</h1>
         <div class="dp-meta">
-          <span v-if="author">{{ author.author_name }}</span>
-          <span v-else>编辑部</span>
-          <span v-if="article.published_at">· {{ formatDate(article.published_at) }}</span>
+          <span>个人观点</span>
+          <span v-if="article.published_at">· {{ formatDateTime(article.published_at) }}</span>
           <span>· {{ article.views || 0 }} 浏览</span>
         </div>
         <div v-if="article.cover_image" class="dp-cover">
@@ -91,12 +90,12 @@ async function load() {
   await loadArticle(id)
 }
 
-function formatDate(s) {
+function formatDateTime(s) {
   if (!s) return ''
   const d = new Date(s)
   if (isNaN(d.getTime())) return ''
   const p = (x) => String(x).padStart(2, '0')
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`
 }
 
 onMounted(load)
