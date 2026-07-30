@@ -45,4 +45,9 @@ window.addEventListener('unhandledrejection', (e) => {
   console.error('[Unhandled Rejection]', e.reason)
 })
 
-app.mount('#app')
+// 关键：先等路由解析完成（首屏 route.meta 就绪）再挂载 App，
+// 否则首屏第一帧 route.meta 为空，isPublicContentRoute 误判为 false，
+// 导致全屏登录墙闪现一帧（即便 loading 初始为 true 也无法覆盖路由解析窗口）。
+router.isReady().then(() => {
+  app.mount('#app')
+})

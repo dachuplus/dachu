@@ -160,6 +160,9 @@ const { featureEnabled, loadFeatureFlags } = useFeatureFlags()
 
 /* 公开内容路由（内容/微信回调）：未登录也可访问，登录墙对其放行 */
 const isPublicContentRoute = computed(() => {
+  // 兜底：路由尚未解析完成（首屏第一帧）时，先视为公开路由，
+  // 避免 route.meta 为空导致 isPublicContentRoute 误判为 false、登录墙闪现一帧。
+  if (!route.matched || route.matched.length === 0) return true
   if (route.meta?.public) return true
   if (route.meta?.feature === 'content' && featureEnabled('content')) return true
   return false
