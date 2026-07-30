@@ -71,6 +71,30 @@ async function withRetry(fn, maxAttempts, onRetry) {
   throw lastErr
 }
 
+/* ========== 瞬时网络故障统一提示 ========== */
+
+/** 504/超时/断网等瞬时网络故障的统一友好提示语 */
+export const NETWORK_SLOW_MSG = '网络速度慢，请稍后再试。'
+
+/**
+ * 判断错误是否为瞬时网络类故障（边缘函数 502/504、请求超时、断网等）。
+ * 命中后统一提示「网络速度慢，请稍后再试。」。
+ */
+export function isNetworkError(e) {
+  const msg = (e && (e.message || (e.error && e.error.message))) || String(e || '')
+  return (
+    msg.indexOf('504') !== -1 ||
+    msg.indexOf('502') !== -1 ||
+    msg.indexOf('超时') !== -1 ||
+    msg.indexOf('timeout') !== -1 ||
+    msg.indexOf('Failed to fetch') !== -1 ||
+    msg.indexOf('NetworkError') !== -1 ||
+    msg.indexOf('网络') !== -1 ||
+    msg.indexOf('aborted') !== -1 ||
+    msg.indexOf('edge-timeout') !== -1
+  )
+}
+
 /* ========== 文章列表浏览器缓存 ========== */
 
 /** 缓存 TTL：5 分钟。国内→新加坡延迟高时，缓存命中 = 零等待 */
@@ -149,11 +173,17 @@ export async function listArticles({ status = 'published', authorEmail = null, l
   q = q.order('is_pinned', { ascending: false })
   q = q.order('published_at', { ascending: false, nullsFirst: false })
   q = q.range(offset, Math.max(offset, offset + limit - 1))
-  const { data, error } = await withTimeout(q, '文章列表')
-  if (error) throw error
-  const result = data || []
-  if (offset === 0) writeCache(ck, result)
-  return result
+  try {
+    const { data, error } = await withTimeout(q, '文章列表')
+    if (error) throw error
+    const result = data || []
+    if (offset === 0) writeCache(ck, result)
+    return result
+  } catch (e) {
+    // 瞬时网络故障（504/超时/断网）→ 统一友好提示
+    if (isNetworkError(e)) throw new Error(NETWORK_SLOW_MSG)
+    throw e
+  }
 }
 
 /** 后台静默刷新：失败时静默忽略，不弹错误 */
@@ -199,12 +229,18 @@ export async function getArticle(id) {
 
   // 2. 兜底：直连 Supabase
   if (!supabase) throw new Error('未连接数据库')
-  const { data, error } = await withTimeout(
-    supabase.from('articles').select('*').eq('id', numId).maybeSingle(),
-    '文章详情'
-  )
-  if (error) throw error
-  return data
+  try {
+    const { data, error } = await withTimeout(
+      supabase.from('articles').select('*').eq('id', numId).maybeSingle(),
+      '文章详情'
+    )
+    if (error) throw error
+    return data
+  } catch (e) {
+    // 瞬时网络故障（504/超时/断网）→ 统一友好提示
+    if (isNetworkError(e)) throw new Error(NETWORK_SLOW_MSG)
+    throw e
+  }
 }
 
 /** 取作者信息（公开） */

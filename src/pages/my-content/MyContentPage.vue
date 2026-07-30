@@ -56,7 +56,7 @@
 import { ref, onMounted, watch, computed } from 'vue'
 import { useRoute } from 'vue-router'
 import { useAuth } from '../../composables/useAuth'
-import { listArticles, deleteArticle, setArticlePinned } from '../../api/articles'
+import { listArticles, deleteArticle, setArticlePinned, NETWORK_SLOW_MSG, isNetworkError } from '../../api/articles'
 import { confirm, toast } from '../../composables/useToast'
 
 const { isOwner, user } = useAuth()
@@ -82,11 +82,9 @@ async function load() {
     }
   } catch (e) {
     const msg = (e && e.message) || String(e)
-    // 友好化错误信息
-    if (msg.indexOf('超时') !== -1 || msg.indexOf('timeout') !== -1) {
-      loadError.value = '网络较慢，加载超时了。请点击下方按钮重试，或稍后再来。'
-    } else if (msg.indexOf('Failed to fetch') !== -1 || msg.indexOf('NetworkError') !== -1) {
-      loadError.value = '网络连接失败，请检查网络后重试。'
+    // 瞬时网络故障（504/超时/断网等）→ 统一提示
+    if (msg === NETWORK_SLOW_MSG || isNetworkError(e)) {
+      loadError.value = '网络速度慢，请稍后再试。'
     } else if (msg.indexOf('未登录') !== -1) {
       loadError.value = '登录已过期，请刷新页面重新登录。'
     } else {

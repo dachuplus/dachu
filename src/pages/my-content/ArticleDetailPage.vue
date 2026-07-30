@@ -41,8 +41,9 @@
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { getArticle, getAuthor, incrementViews, listArticles } from '../../api/articles'
+import { getArticle, getAuthor, incrementViews, listArticles, NETWORK_SLOW_MSG, isNetworkError } from '../../api/articles'
 import { renderMarkdown } from '../../utils/markdown'
+import { toast } from '../../composables/useToast.js'
 
 const route = useRoute()
 const router = useRouter()
@@ -68,6 +69,8 @@ async function loadArticle(id) {
     }
   } catch (e) {
     article.value = null
+    // 瞬时网络故障（504/超时/断网）→ 统一友好提示
+    if (isNetworkError(e)) toast(NETWORK_SLOW_MSG, 'error')
   } finally {
     loading.value = false
   }
