@@ -122,7 +122,7 @@ export async function listArticles({ status = 'published', authorEmail = null, l
     try {
       const res = await Promise.race([
         fetch('/api/articles', { headers: { Accept: 'application/json' } }),
-        new Promise((_, rej) => setTimeout(() => rej(new Error('edge-timeout')), 2500)),
+        new Promise((_, rej) => setTimeout(() => rej(new Error('edge-timeout')), 1500)),
       ])
       if (res.ok) {
         const data = await res.json()
