@@ -80,12 +80,24 @@
         </div>
         <div v-if="errorMsg" class="ed-error">{{ errorMsg }}</div>
 
+        <div class="ed-schedule">
+          <span class="ed-label">发布方式</span>
+          <div class="ed-schedule-opts">
+            <label class="ed-radio"><input type="radio" value="now" v-model="scheduleMode" /> 立即发布</label>
+            <label class="ed-radio"><input type="radio" value="scheduled" v-model="scheduleMode" /> 定时发布</label>
+          </div>
+          <div v-if="scheduleMode === 'scheduled'" class="ed-schedule-when">
+            <input type="datetime-local" v-model="scheduledAt" class="ed-input" />
+            <p class="ed-hint">选择未来的日期与时间，到点后系统自动发布（精确到分钟）。</p>
+          </div>
+        </div>
+
         <div class="ed-actions">
           <button class="ed-btn ed-btn--draft" :disabled="saving" @click="onSave('draft')">
             {{ saving && savingAction === 'draft' ? (uploadProgress ? '上传中 ' + Math.round(uploadProgress.done / uploadProgress.total * 100) + '%' : '保存中...') : '保存草稿' }}
           </button>
           <button class="ed-btn ed-btn--pub" :disabled="saving" @click="onSave('published')">
-            {{ saving && savingAction === 'published' ? (uploadProgress ? '上传中 ' + Math.round(uploadProgress.done / uploadProgress.total * 100) + '%' : '发布中...') : (isEdit ? '更新发布' : '发布') }}
+            {{ saving && savingAction === 'published' ? (uploadProgress ? '上传中 ' + Math.round(uploadProgress.done / uploadProgress.total * 100) + '%' : '发布中...') : (scheduleMode === 'scheduled' ? '定时发布' : (isEdit ? '更新发布' : '发布')) }}
           </button>
         </div>
       </div>
@@ -121,9 +133,20 @@ const saving = ref(false)
 const savingAction = ref(null) // 'draft' | 'published' | null
 const uploadProgress = ref(null) // { done, total } 或 null
 const form = ref({ title: '', summary: '', tagsRaw: '', cover_image: '', content: '' })
+const scheduleMode = ref('now') // 'now' | 'scheduled'
+const scheduledAt = ref('')    // datetime-local 字符串（本地时间）
 
 function goBack() {
   router.replace('/content')
+}
+
+/** 将 UTC ISO 时间转为本地 datetime-local 输入值（YYYY-MM-DDTHH:MM） */
+function toLocalInput(iso) {
+  if (!iso) return ''
+  const d = new Date(iso)
+  if (isNaN(d.getTime())) return ''
+  const local = new Date(d.getTime() - d.getTimezoneOffset() * 60000)
+  return local.toISOString().slice(0, 16)
 }
 
 async function load() {
@@ -145,6 +168,14 @@ async function load() {
         tagsRaw: (a.tags || []).join(', '),
         cover_image: a.cover_image || '',
         content: a.content || '',
+      }
+      // 回填定时发布状态（仅当为定时草稿时）
+      if (a.scheduled_at && a.status === 'draft') {
+        scheduleMode.value = 'scheduled'
+        scheduledAt.value = toLocalInput(a.scheduled_at)
+      } else {
+        scheduleMode.value = 'now'
+        scheduledAt.value = ''
       }
     } catch (e) {
       toast('加载失败：' + (e.message || e), 'error')
@@ -261,6 +292,20 @@ async function onSave(targetStatus) {
     // 仅提示，不拦截
     toast('提示：内容包含敏感词「' + hits.join('、') + '」，请确认无误后继续', 'warning')
   }
+  // 定时发布校验：选中定时模式且点击发布时，时间必须晚于当前
+  if (scheduleMode.value === 'scheduled' && targetStatus === 'published') {
+    if (!scheduledAt.value) {
+      errorMsg.value = '请选择定时发布的时间'
+      toast('请选择定时发布的时间', 'error')
+      return
+    }
+    const t = new Date(scheduledAt.value)
+    if (isNaN(t.getTime()) || t.getTime() <= Date.now()) {
+      errorMsg.value = '定时发布时间必须晚于当前时间'
+      toast('定时发布时间必须晚于当前时间', 'error')
+      return
+    }
+  }
   saving.value = true
   savingAction.value = targetStatus
   uploadProgress.value = null
@@ -272,6 +317,10 @@ async function onSave(targetStatus) {
       cover_image: form.value.cover_image.trim() || null,
       tags: parseTags(form.value.tagsRaw),
       status: targetStatus,
+      // 定时发布：仅在「定时模式 + 点击发布」时透传未来时间；其他情况清空定时
+      scheduled_at: (scheduleMode.value === 'scheduled' && targetStatus === 'published')
+        ? new Date(scheduledAt.value).toISOString()
+        : null,
       // 分块上传进度回调
       onProgress: (done, total) => { uploadProgress.value = { done, total } },
       // 网络重试回调：单步失败自动重试时通知用户
@@ -301,7 +350,7 @@ async function onSave(targetStatus) {
     }
     clearTimeout(timer)
     uploadProgress.value = null
-    toast(targetStatus === 'published' ? '已发布' : '已保存草稿', 'success')
+    toast(result && result.scheduled ? '已设置定时发布' : (targetStatus === 'published' ? '已发布' : '已保存草稿'), 'success')
     router.replace('/content')
   } catch (err) {
     uploadProgress.value = null
@@ -481,6 +530,12 @@ onMounted(load)
   color: #d4351c;
   font-size: 14px;
 }
+.ed-schedule { display: flex; flex-direction: column; gap: 8px; border: 1px solid #b1b4b6; padding: 12px; background: #f3f2f1; }
+.ed-schedule-opts { display: flex; gap: 18px; }
+.ed-radio { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; font-weight: 700; color: var(--text-primary); cursor: pointer; }
+.ed-radio input { width: 16px; height: 16px; accent-color: #1d70b8; }
+.ed-schedule-when { display: flex; flex-direction: column; gap: 4px; }
+.ed-schedule-when .ed-input { max-width: 280px; }
 .ed-actions { display: flex; gap: var(--space-sm); margin-top: var(--space-sm); }
 .ed-btn {
   flex: 1;

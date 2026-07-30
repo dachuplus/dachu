@@ -35,7 +35,8 @@ export const FEATURES = [
 
 // ---- 全局单例状态 ----
 const user = ref(null)
-const loading = ref(false)
+// 初始为 true：auth 未初始化完成前不渲染登录墙，避免首屏闪现登录页
+const loading = ref(true)
 const portfolios = ref([])
 const profile = ref(null)
 const showLoginDialog = ref(false)

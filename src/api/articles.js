@@ -140,7 +140,7 @@ export async function listArticles({ status = 'published', authorEmail = null, l
   }
 
   // 2. 无缓存 → 正常请求（列表只查必要字段，不取大字段 content）
-  const FIELDS = 'id,title,summary,status,published_at,updated_at,views,tags,cover_image,author_email,is_pinned'
+  const FIELDS = 'id,title,summary,status,published_at,updated_at,views,tags,cover_image,author_email,is_pinned,scheduled_at'
   let q = supabase.from('articles').select(FIELDS)
   if (status) q = q.eq('status', status)
   if (authorEmail) q = q.eq('author_email', authorEmail)
@@ -159,7 +159,7 @@ export async function listArticles({ status = 'published', authorEmail = null, l
 /** 后台静默刷新：失败时静默忽略，不弹错误 */
 async function refreshListInBackground(opts, ck) {
   try {
-    const FIELDS = 'id,title,summary,status,published_at,updated_at,views,tags,cover_image,author_email,is_pinned'
+    const FIELDS = 'id,title,summary,status,published_at,updated_at,views,tags,cover_image,author_email,is_pinned,scheduled_at'
     let q = supabase.from('articles').select(FIELDS)
     if (opts.status) q = q.eq('status', opts.status)
     if (opts.authorEmail) q = q.eq('author_email', opts.authorEmail)
@@ -397,6 +397,7 @@ export async function createArticle(payload) {
     cover_image: payload.cover_image || null,
     tags: payload.tags || [],
     status: payload.status || 'draft',
+    scheduled_at: payload.scheduled_at || null,
   })
 }
 
@@ -414,6 +415,7 @@ export async function updateArticle(id, payload) {
     cover_image: payload.cover_image || null,
     tags: payload.tags || [],
     status: payload.status || 'draft',
+    scheduled_at: payload.scheduled_at || null,
   })
 }
 

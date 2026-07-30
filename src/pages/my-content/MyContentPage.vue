@@ -27,7 +27,8 @@
           <div v-if="a.cover_image" class="cp-cover" :style="{ backgroundImage: 'url(' + a.cover_image + ')' }"></div>
           <div class="cp-card-body">
             <div class="cp-card-top">
-              <span v-if="a.status === 'draft'" class="cp-badge cp-badge--draft">草稿</span>
+              <span v-if="a.scheduled_at && new Date(a.scheduled_at).getTime() > Date.now()" class="cp-badge cp-badge--sched">定时 · {{ formatDateTime(a.scheduled_at) }}</span>
+              <span v-else-if="a.status === 'draft'" class="cp-badge cp-badge--draft">草稿</span>
               <span v-else class="cp-badge cp-badge--pub">已发布</span>
               <h2 class="cp-card-title">{{ a.title }}</h2>
             </div>
@@ -138,6 +139,14 @@ function formatDate(s) {
   if (isNaN(d.getTime())) return ''
   const p = (x) => String(x).padStart(2, '0')
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`
+}
+
+function formatDateTime(s) {
+  if (!s) return ''
+  const d = new Date(s)
+  if (isNaN(d.getTime())) return ''
+  const p = (x) => String(x).padStart(2, '0')
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`
 }
 
 onMounted(load)
@@ -309,6 +318,7 @@ watch(() => route.fullPath, () => {
 }
 .cp-badge--draft { background: #fff; color: #b1b4b6; border: 1px solid #b1b4b6; }
 .cp-badge--pub { background: #1d70b8; color: #fff; }
+.cp-badge--sched { background: #ffdd00; color: #0b0c0c; border: 1px solid #ffdd00; }
 .cp-card-actions {
   display: flex;
   gap: var(--space-md);

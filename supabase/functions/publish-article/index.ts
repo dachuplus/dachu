@@ -90,7 +90,14 @@ serve(async (req) => {
     } else {
       body = await req.json()
     }
-    const { title, summary, content, cover_image, tags, status, article_id } = body
+    const { title, summary, content, cover_image, tags, status, article_id, scheduled_at } = body
+
+    // 规范化 scheduled_at：合法时间字符串转 ISO，否则置 null（清空定时）
+    let schedISO: string | null = null
+    if (scheduled_at) {
+      const t = new Date(scheduled_at)
+      if (!isNaN(t.getTime())) schedISO = t.toISOString()
+    }
 
     // 基本校验
     if (!title?.trim()) return json({ error: '标题不能为空' }, 400)
@@ -123,6 +130,7 @@ serve(async (req) => {
             cover_image: cover_image?.trim() || null,
             tags: tags || [],
             updated_at: new Date().toISOString(),
+            scheduled_at: schedISO,
             content: '', // 清空，后续由 chunk 拼装写入
           }),
         }
@@ -146,6 +154,7 @@ serve(async (req) => {
           tags: tags || [],
           author_email: authorEmail,
           status: 'draft',
+          scheduled_at: schedISO,
         }),
       })
       if (!insRes.ok) {
@@ -189,7 +198,19 @@ serve(async (req) => {
       return json({ error: '拼装正文失败', detail: asmErr }, 500)
     }
 
-    // 需要发布则置为已发布
+    // 定时发布：若指定了未来时间，则保持草稿状态，由 pg_cron 到点自动发布
+    const isFuture = schedISO && new Date(schedISO).getTime() > Date.now()
+    if (isFuture) {
+      return json({
+        id,
+        ok: true,
+        scheduled: true,
+        scheduled_at: schedISO,
+        message: isUpdate ? '已更新并设置为定时发布' : '已保存为定时发布',
+      })
+    }
+
+    // 需要立即发布则置为已发布
     if (status === 'published') {
       const pubRes = await fetch(
         `${SUPABASE_URL}/rest/v1/articles?id=eq.${id}`,
