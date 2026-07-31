@@ -107,6 +107,7 @@
       <div v-if="!routeAllowed" class="no-feature-access">
         <p class="no-feature-access__title">无访问权限</p>
         <p class="no-feature-access__desc">您暂无「{{ currentFeatureLabel }}」功能的访问权限。</p>
+        <button class="no-feature-access__btn" @click="handleRequestAccess">申请访问权限</button>
       </div>
       <router-view v-else v-slot="{ Component }">
         <keep-alive :include="['FundRankPage']">
@@ -264,6 +265,16 @@ function onRequestSubmitted() {
   showRequestDialog.value = false
   // 重新申请后清掉「已被驳回」状态，避免仍卡在驳回屏
   checkRejected(user.value?.email)
+}
+
+/** 「无访问权限」卡片 → 点击「申请访问权限」：
+ *  未登录 → 先弹登录框；已登录 → 直接弹权限申请表单 */
+function handleRequestAccess() {
+  if (!isLoggedIn.value) {
+    showLogin()
+  } else {
+    showRequestDialog.value = true
+  }
 }
 
 /* ---- 全局金刚区 ---- */
@@ -578,4 +589,10 @@ const showBack  = computed(() => {
 .no-feature-access__desc {
   font-size: 16px; color: var(--text-secondary); margin: 0;
 }
+.no-feature-access__btn {
+  display: inline-block; margin-top: var(--space-md);
+  padding: 10px 24px; font-size: 16px; font-weight: 700;
+  color: #fff; background: #1d70b8; border: none; cursor: pointer;
+}
+.no-feature-access__btn:hover { background: #003078; }
 </style>
