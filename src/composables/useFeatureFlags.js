@@ -18,6 +18,7 @@ const DEFAULT_FLAGS = {
   signal: true,
   portfolio: true,
   content: true,
+  'login-wall': true,   // 首页权限墙（默认开启=未登录需登录才能看）
 }
 
 // 可在面板中切换的功能清单（核心管理类 admin / data-center 不放入开关，避免把自己锁门外）
@@ -26,6 +27,7 @@ export const TOGGLEABLE_FEATURES = [
   { key: 'signal', label: '信号', desc: '宏观信号、股债性价比、风格因子、行业估值' },
   { key: 'fund-rank', label: '工具', desc: '靠谱指数评分、基金详情、基金对比' },
   { key: 'portfolio', label: '组合', desc: '自建组合、AI 组合、组合回测' },
+  { key: 'login-wall', label: '首页权限墙', desc: '开启后未登录用户必须登录才能访问网站；关闭后所有人可直接浏览（无需登录）' },
 ]
 
 // 模块级单例：所有组件共享同一份 flags

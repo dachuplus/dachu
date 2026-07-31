@@ -17,8 +17,9 @@
       </div>
     </div>
 
-    <!-- 未登录：全屏登录墙（公开内容/回调路由除外，放行以渲染应用） -->
-    <LoginDialog v-else-if="!authLoading && !isLoggedIn && !isPublicContentRoute" :wall="true" @logged-in="onLoggedIn" />
+    <!-- 未登录：全屏登录墙（公开内容/回调路由除外，放行以渲染应用）；
+         login-wall 功能开关关闭时，所有人可直接浏览（不弹墙） -->
+    <LoginDialog v-else-if="!authLoading && !isLoggedIn && !isPublicContentRoute && featureEnabled('login-wall')" :wall="true" @logged-in="onLoggedIn" />
 
     <!-- 已登录但权限申请被驳回：驳回提示（优先于陌生人提示） -->
     <div v-else-if="!authLoading && isLoggedIn && rejected" class="stranger-screen">
