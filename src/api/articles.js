@@ -97,27 +97,30 @@ export function isNetworkError(e) {
 
 /* ========== 文章列表浏览器缓存 ========== */
 
-/** 缓存 TTL：5 分钟。国内→新加坡延迟高时，缓存命中 = 零等待 */
-const CACHE_TTL_MS = 5 * 60 * 1000
+/** 缓存 TTL：30 分钟。Supabase（新加坡）偶发延迟高时，缓存命中 = 零等待 */
+const CACHE_TTL_MS = 30 * 60 * 1000
 const CACHE_KEY_PREFIX = 'dachu_articles_'
 
 /**
- * 从 sessionStorage 读缓存。
- * 用 sessionStorage 而非 localStorage：关标签页自动清理，不占长期存储。
+ * 从 localStorage 读缓存。
+ * 用 localStorage 而非 sessionStorage：关闭标签页后仍保留，半小时内重访秒开。
  */
 function readCache(key) {
   try {
-    const raw = sessionStorage.getItem(CACHE_KEY_PREFIX + key)
+    const raw = localStorage.getItem(CACHE_KEY_PREFIX + key)
     if (!raw) return null
     const { ts, data } = JSON.parse(raw)
-    if (Date.now() - ts > CACHE_TTL_MS) return null // 过期
+    if (Date.now() - ts > CACHE_TTL_MS) { // 过期则清理
+      localStorage.removeItem(CACHE_KEY_PREFIX + key)
+      return null
+    }
     return data
   } catch { return null }
 }
 
 function writeCache(key, data) {
   try {
-    sessionStorage.setItem(CACHE_KEY_PREFIX + key, JSON.stringify({ ts: Date.now(), data }))
+    localStorage.setItem(CACHE_KEY_PREFIX + key, JSON.stringify({ ts: Date.now(), data }))
   } catch { /* storage full / private mode: silently skip */ }
 }
 
@@ -141,12 +144,12 @@ export async function listArticles({ status = 'published', authorEmail = null, l
   }
 
   // 2. 已发布全量列表首屏优先走同域边缘函数（EdgeOne 境外节点就近返回，免跨境直连新加坡提速）。
-  //    仅对「status=published 且无作者/标签过滤」的首屏启用；边缘偶发超时/502 → 2.5s 内超时即回退直连，绝不白屏。
+  //    仅对「status=published 且无作者/标签过滤」的首屏启用；边缘偶发超时/502 → 5s 内超时即回退直连，绝不白屏。
   if (status === 'published' && !authorEmail && !tag && offset === 0) {
     try {
       const res = await Promise.race([
         fetch('/api/articles', { headers: { Accept: 'application/json' } }),
-        new Promise((_, rej) => setTimeout(() => rej(new Error('edge-timeout')), 1500)),
+        new Promise((_, rej) => setTimeout(() => rej(new Error('edge-timeout')), 5000)),
       ])
       if (res.ok) {
         const data = await res.json()
@@ -212,11 +215,11 @@ export async function getArticle(id) {
   const numId = Number(id)
   if (!Number.isFinite(numId)) throw new Error('文章 ID 无效')
 
-  // 1. 优先走边缘缓存接口（2.5s 超时，避免偶发慢回源拖白屏）
+  // 1. 优先走边缘缓存接口（5s 超时，避免偶发慢回源拖白屏）
   try {
     const res = await Promise.race([
       fetch(`/api/article/${numId}`, { headers: { Accept: 'application/json' } }),
-      new Promise((_, rej) => setTimeout(() => rej(new Error('edge-timeout')), 2500)),
+      new Promise((_, rej) => setTimeout(() => rej(new Error('edge-timeout')), 5000)),
     ])
     if (res.ok) {
       const data = await res.json()
