@@ -87,7 +87,7 @@
         >忘记密码？</button>
 
         <button class="login-submit" :disabled="loading" @click="submit">
-          {{ loading ? '处理中...' : (mode === 'signup' ? '注册' : '登录') }}
+          {{ loading ? loadingText : (mode === 'signup' ? '注册' : '登录') }}
         </button>
 
         <div class="login-divider"><span>或</span></div>
@@ -119,6 +119,7 @@ const accType = ref('email')    // 'email' | 'phone'
 const account = ref('')
 const password = ref('')
 const loading = ref(false)
+const loadingText = ref('处理中...')
 const error = ref('')
 const success = ref('')
 const wxLoading = ref(false)
@@ -167,6 +168,7 @@ async function submit() {
   }
 
   loading.value = true
+  loadingText.value = '验证中...'
   try {
     if (mode.value === 'signup') {
       if (isPhone) {
@@ -226,11 +228,18 @@ async function submit() {
         if (err) { error.value = translateError(err.message); return }
       }
       markLogin()
+      loadingText.value = '加载权限中...'
       toast('登录成功', 'success')
       emit('logged-in')
     }
   } catch (e) {
-    error.value = '网络错误，请稍后重试'
+    // 超时（AbortError）/网络错 → 友好提示，避免无限"处理中…"
+    const msg = (e && e.message) || String(e)
+    if (msg.indexOf('aborted') !== -1 || msg.indexOf('timeout') !== -1 || msg.indexOf('网络') !== -1) {
+      error.value = '登录服务响应慢，请稍后重试'
+    } else {
+      error.value = '网络错误，请稍后重试'
+    }
     console.error('[LoginDialog]', e)
   } finally {
     loading.value = false
