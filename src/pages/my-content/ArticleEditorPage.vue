@@ -92,6 +92,30 @@
           </div>
         </div>
 
+        <!-- 公众号同步发布 -->
+        <div class="ed-wechat">
+          <label class="ed-wechat__toggle">
+            <input type="checkbox" v-model="wechatEnabled" />
+            <span class="ed-label">同步发布到微信公众号</span>
+          </label>
+          <template v-if="wechatEnabled">
+            <label class="ed-field">
+              <span class="ed-label">公众号 AppID *</span>
+              <input v-model="wechatAppId" class="ed-input" placeholder="wx 开头的 AppID" />
+            </label>
+            <label class="ed-field">
+              <span class="ed-label">公众号 AppSecret *</span>
+              <input v-model="wechatAppSecret" type="password" class="ed-input" placeholder="AppSecret（仅本次使用，不存储）" />
+            </label>
+            <p class="ed-hint">填写后点击「发布」或「定时发布」，文章会同时推送到公众号后台。凭证经服务器转发，不会保存在浏览器或数据库中。</p>
+          </template>
+        </div>
+
+        <!-- 微信发布结果 -->
+        <div v-if="wechatResult" :class="['ed-wechat-result', wechatResult.success ? 'ed-wechat-result--ok' : 'ed-wechat-result--err']">
+          {{ wechatResult.success ? '✅ ' + wechatResult.message : '❌ ' + wechatResult.error }}
+        </div>
+
         <div class="ed-actions">
           <button class="ed-btn ed-btn--draft" :disabled="saving" @click="onSave('draft')">
             {{ saving && savingAction === 'draft' ? (uploadProgress ? '上传中 ' + Math.round(uploadProgress.done / uploadProgress.total * 100) + '%' : '保存中...') : '保存草稿' }}
@@ -135,6 +159,13 @@ const uploadProgress = ref(null) // { done, total } 或 null
 const form = ref({ title: '', summary: '', tagsRaw: '', cover_image: '', content: '' })
 const scheduleMode = ref('now') // 'now' | 'scheduled'
 const scheduledAt = ref('')    // datetime-local 字符串（本地时间）
+
+// 公众号同步发布
+const wechatEnabled = ref(false)
+const wechatAppId = ref('')
+const wechatAppSecret = ref('')
+const wechatResult = ref(null)  // { success, message/error } | null
+const wechatPublishing = ref(false)
 
 function goBack() {
   router.replace('/content')
@@ -351,6 +382,12 @@ async function onSave(targetStatus) {
     clearTimeout(timer)
     uploadProgress.value = null
     toast(result && result.scheduled ? '已设置定时发布' : (targetStatus === 'published' ? '已发布' : '已保存草稿'), 'success')
+
+    // 公众号同步发布（仅在「已发布」状态且用户开启了微信同步时触发）
+    if (targetStatus === 'published' && wechatEnabled.value && wechatAppId.value.trim() && wechatAppSecret.value.trim()) {
+      await pushToWechat()
+    }
+
     router.replace('/content')
   } catch (err) {
     uploadProgress.value = null
@@ -367,6 +404,41 @@ async function onSave(targetStatus) {
   } finally {
     saving.value = false
     savingAction.value = null
+  }
+}
+
+/** 推送文章到微信公众号 */
+async function pushToWechat() {
+  wechatResult.value = null
+  wechatPublishing.value = true
+  try {
+    const res = await fetch('/api/wechat-publish', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        appid: wechatAppId.value.trim(),
+        appsecret: wechatAppSecret.value.trim(),
+        title: form.value.title.trim(),
+        content: form.value.content,
+        summary: form.value.summary.trim(),
+        cover_image: form.value.cover_image.trim() || '',
+        author: '大厨先生', // 公众号文章作者
+      }),
+    })
+    const data = await res.json()
+    if (data.success) {
+      wechatResult.value = { success: true, message: data.message }
+      toast('已同步推送到公众号', 'success')
+    } else {
+      wechatResult.value = { success: false, error: data.error || '公众号发布失败' }
+      toast('公众号推送失败：' + (data.error || '未知错误'), 'error')
+    }
+  } catch (e) {
+    const msg = e.message || String(e)
+    wechatResult.value = { success: false, error: msg }
+    toast('公众号推送失败：' + msg, 'error')
+  } finally {
+    wechatPublishing.value = false
   }
 }
 
@@ -536,6 +608,30 @@ onMounted(load)
 .ed-radio input { width: 16px; height: 16px; accent-color: #1d70b8; }
 .ed-schedule-when { display: flex; flex-direction: column; gap: 4px; }
 .ed-schedule-when .ed-input { max-width: 280px; }
+
+/* 公众号同步发布 */
+.ed-wechat { display: flex; flex-direction: column; gap: 10px; border: 1px solid #b1b4b6; padding: 12px; background: #f3f2f1; }
+.ed-wechat__toggle { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; font-size: 14px; font-weight: 700; color: var(--text-primary); }
+.ed-wechat__toggle input[type="checkbox"] { width: 16px; height: 16px; accent-color: #1d70b8; cursor: pointer; }
+
+/* 微信发布结果 */
+.ed-wechat-result {
+  padding: 10px 14px;
+  font-size: 14px;
+  font-weight: 700;
+  border-left-width: 5px;
+  border-left-style: solid;
+}
+.ed-wechat-result--ok {
+  background: #f0f9f0;
+  border-color: #00703c;
+  color: #00703c;
+}
+.ed-wechat-result--err {
+  background: #fff2f0;
+  border-color: #d4351c;
+  color: #d4351c;
+}
 .ed-actions { display: flex; gap: var(--space-sm); margin-top: var(--space-sm); }
 .ed-btn {
   flex: 1;
