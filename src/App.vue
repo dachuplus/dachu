@@ -159,13 +159,17 @@ const { user, isLoggedIn, isAdmin, isOwner, isStranger, blocked, rejected, loadi
 const showLoginDialogValue = showLoginDialog  // 模板中用于 v-if 控制弹窗显隐
 const { featureEnabled, loadFeatureFlags } = useFeatureFlags()
 
-/* 公开内容路由（内容/微信回调）：未登录也可访问，登录墙对其放行 */
+/* 公开内容路由（微信回调等）：未登录也可访问，登录墙对其放行。
+ * 注意：当 login-wall 权限墙开启时，仅 meta.public 的回调路由放行，
+ *       博客（content）路由不再视为公开——必须登录才能看。 */
 const isPublicContentRoute = computed(() => {
   // 兜底：路由尚未解析完成（首屏第一帧）时，先视为公开路由，
   // 避免 route.meta 为空导致 isPublicContentRoute 误判为 false、登录墙闪现一帧。
   if (!route.matched || route.matched.length === 0) return true
+  // 回调类路由（微信扫码、OAuth 等）始终放行，否则无法完成登录流程
   if (route.meta?.public) return true
-  if (route.meta?.feature === 'content' && featureEnabled('content')) return true
+  // 权限墙关闭时：博客作为公开内容放行；权限墙开启时：博客也需登录
+  if (route.meta?.feature === 'content' && featureEnabled('content') && !featureEnabled('login-wall')) return true
   return false
 })
 
