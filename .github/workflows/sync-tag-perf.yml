@@ -32,7 +32,7 @@ jobs:
           python-version: '3.11'
 
       - name: 安装依赖
-        run: pip install requests
+        run: pip install requests psycopg2-binary
 
       - name: 同步标签涨跌幅 + 板块资金流（写入 fund_tag_perf）
         run: python scripts/sync_tag_performance.py

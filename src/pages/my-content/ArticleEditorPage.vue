@@ -99,6 +99,12 @@
             <span class="ed-label">同步发布到微信公众号</span>
           </label>
           <template v-if="wechatEnabled">
+            <div class="ed-ip-box">
+              <span class="ed-label">服务器出口 IP（请加入公众号 IP 白名单）</span>
+              <span v-if="detectingIp" class="ed-ip-value ed-ip-loading">检测中…</span>
+              <span v-else-if="detectedIp" class="ed-ip-value">{{ detectedIp }} <button type="button" class="ed-ip-copy" @click="copyIp">复制</button></span>
+              <span v-else class="ed-ip-value ed-ip-err">检测失败，请刷新重试</span>
+            </div>
             <label class="ed-field">
               <span class="ed-label">公众号 AppID *</span>
               <input v-model="wechatAppId" class="ed-input" placeholder="wx 开头的 AppID" />
@@ -107,7 +113,7 @@
               <span class="ed-label">公众号 AppSecret *</span>
               <input v-model="wechatAppSecret" type="password" class="ed-input" placeholder="AppSecret（仅本次使用，不存储）" />
             </label>
-            <p class="ed-hint">填写后点击「发布」或「定时发布」，文章会同时推送到公众号后台。凭证经服务器转发，不会保存在浏览器或数据库中。</p>
+            <p class="ed-hint">发布时服务器会自动检测出口 IP。如果提示 IP 白名单错误，请将显示的 IP 加入公众号后台「IP 白名单」后重试。</p>
           </template>
         </div>
 
@@ -130,7 +136,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, nextTick } from 'vue'
+import { ref, computed, onMounted, nextTick, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuth } from '../../composables/useAuth'
 import {
@@ -166,6 +172,40 @@ const wechatAppId = ref('')
 const wechatAppSecret = ref('')
 const wechatResult = ref(null)  // { success, message/error } | null
 const wechatPublishing = ref(false)
+const detectedIp = ref('')
+const detectingIp = ref(false)
+
+/** 检测 EdgeOne 函数当前出口 IP（用于填入微信白名单） */
+async function detectEgressIp() {
+  detectingIp.value = true
+  detectedIp.value = ''
+  try {
+    const res = await fetch('/api/detect-ip')
+    const data = await res.json()
+    if (data.ip && data.ip !== 'unknown') {
+      detectedIp.value = data.ip
+    }
+  } catch (_) {
+    detectedIp.value = ''
+  } finally {
+    detectingIp.value = false
+  }
+}
+
+/** 勾选/取消同步时触发 IP 检测 */
+watch(wechatEnabled, (val) => {
+  if (val) detectEgressIp()
+})
+
+/** 复制 IP 到剪贴板 */
+async function copyIp() {
+  try {
+    await navigator.clipboard.writeText(detectedIp.value)
+    toast('IP 已复制', 'success')
+  } catch (_) {
+    toast('复制失败，请手动选择', 'error')
+  }
+}
 
 function goBack() {
   router.replace('/content')
@@ -407,7 +447,50 @@ async function onSave(targetStatus) {
   }
 }
 
-/** 推送文章到微信公众号 */
+/**
+ * Markdown → 微信公众号 HTML（简化版，与 functions/api/wechat-publish.js 保持一致）
+ */
+function mdToWechatHtml(md) {
+  if (!md) return ''
+  let html = md
+    .replace(/```(\w*)\n([\s\S]*?)```/g, (_, lang, code) =>
+      '<pre style="background:#f5f5f5;padding:12px;border-radius:4px;overflow-x:auto;font-size:14px;line-height:1.6;"><code>' + code.trim().replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;') + '</code></pre>')
+    .replace(/`([^`]+)`/g, '<code style="background:#f0f0f0;padding:2px 4px;border-radius:3px;font-size:14px;">$1</code>')
+    .replace(/^#### (.+)$/gm, '<h4 style="font-size:16px;font-weight:bold;margin:16px 0 8px;">$1</h4>')
+    .replace(/^### (.+)$/gm, '<h3 style="font-size:18px;font-weight:bold;margin:18px 0 8px;">$1</h3>')
+    .replace(/^## (.+)$/gm, '<h2 style="font-size:20px;font-weight:bold;margin:20px 0 10px;">$1</h2>')
+    .replace(/^# (.+)$/gm, '<h1 style="font-size:22px;font-weight:bold;margin:22px 0 10px;">$1</h1>')
+    .replace(/\*\*\*(.+?)\*\*\*/g, '<strong><em>$1</em></strong>')
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/\*(.+?)\*/g, '<em>$1</em>')
+    .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" style="color:#1d70b8;text-decoration:none;">$1</a>')
+    .replace(/!\[([^\]]*)\]\(([^)]+)\)/g, '<img src="$2" alt="$1" style="max-width:100%;display:block;" />')
+    .replace(/^&gt; (.+)$/gm, '<blockquote style="border-left:4px solid #b1b4b6;padding:8px 14px;color:#505050;margin:8px 0;">$1</blockquote>')
+    .replace(/^- (.+)$/gm, '<li style="margin:4px 0;list-style:disc inside;">$1</li>')
+    .replace(/^\d+\. (.+)$/gm, '<li style="margin:4px 0;list-style:decimal inside;">$1</li>')
+    .replace(/^---$/gm, '<hr style="border:none;border-top:1px solid #ddd;margin:16px 0;" />')
+    .replace(/\n\n+/g, '</p><p style="margin:12px 0;font-size:15px;line-height:1.8;">')
+    .replace(/\n/g, '<br />')
+  if (!html.startsWith('<')) html = '<p style="margin:12px 0;font-size:15px;line-height:1.8;">' + html + '</p>'
+  return html
+}
+
+/** 翻译微信错误码 */
+function translateWechatErr(code, msg) {
+  const map = {
+    40013: 'AppID 不正确',
+    40001: 'access_token 无效或过期',
+    40125: 'AppSecret 不正确',
+    40164: 'IP 不在白名单中（请将当前公网 IP 加入公众号后台 IP 白名单）',
+    48001: '该账号未开通群发接口权限，需完成微信认证并开通「发布能力」',
+    45009: '今日群发次数已达上限',
+    45027: '草稿箱已达上限',
+    50007: '图文消息内容不合法',
+  }
+  return map[code] || msg || '未知错误'
+}
+
+/** 推送文章到微信公众号 — 通过 EdgeOne 函数代理调用微信 API */
 async function pushToWechat() {
   wechatResult.value = null
   wechatPublishing.value = true
@@ -422,16 +505,24 @@ async function pushToWechat() {
         content: form.value.content,
         summary: form.value.summary.trim(),
         cover_image: form.value.cover_image.trim() || '',
-        author: '大厨先生', // 公众号文章作者
+        author: '大厨先生',
       }),
     })
     const data = await res.json()
+    // 用函数返回的实际出口 IP 更新界面显示
+    if (data.egress_ip) detectedIp.value = data.egress_ip
+
     if (data.success) {
       wechatResult.value = { success: true, message: data.message }
       toast('已同步推送到公众号', 'success')
     } else {
-      wechatResult.value = { success: false, error: data.error || '公众号发布失败' }
-      toast('公众号推送失败：' + (data.error || '未知错误'), 'error')
+      let errMsg = data.error || '公众号发布失败'
+      // IP 错误时确保界面上的 IP 是精确值
+      if (data.egress_ip && errMsg.indexOf('IP') !== -1) {
+        detectedIp.value = data.egress_ip
+      }
+      wechatResult.value = { success: false, error: errMsg }
+      toast('公众号推送失败', 'error')
     }
   } catch (e) {
     const msg = e.message || String(e)
@@ -573,6 +664,11 @@ onMounted(load)
   background: #fff;
 }
 .ed-hint { font-size: 12px; color: var(--text-muted); margin: 6px 0 0; }
+.ed-ip-box { display: flex; flex-direction: column; gap: 4px; padding: 8px 10px; background: #fff; border: 2px solid #1d70b8; margin-bottom: 10px; }
+.ed-ip-value { font-size: 14px; font-weight: 700; color: #1d70b8; font-family: monospace; display: flex; align-items: center; gap: 8px; }
+.ed-ip-loading, .ed-ip-err { color: #505050; font-weight: 400; font-family: inherit; }
+.ed-ip-copy { font-size: 12px; padding: 2px 8px; border: 1px solid #1d70b8; background: #1d70b8; color: #fff; cursor: pointer; }
+.ed-ip-copy:hover { background: #0b4f8a; }
 .ed-textarea {
   border: 2px solid #b1b4b6;
   padding: 10px;

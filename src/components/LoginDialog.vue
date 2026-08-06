@@ -225,7 +225,13 @@ async function submit() {
         if (!ok) { error.value = '账号或密码错误'; return }
       } else {
         const { error: err } = await supabase.auth.signInWithPassword({ email: identifier, password: password.value })
-        if (err) { error.value = translateError(err.message); return }
+        if (err) {
+          // 防御：supabase 偶发返回空 error {} 或 message 为空
+          const errMsg = (err && typeof err.message === 'string' && err.message.trim()) ? err.message.trim() : ''
+          console.error('[LoginDialog] Supabase auth error:', JSON.stringify(err), '| extracted msg:', errMsg)
+          error.value = translateError(errMsg)
+          return
+        }
       }
       markLogin()
       loadingText.value = '加载权限中...'
@@ -234,13 +240,17 @@ async function submit() {
     }
   } catch (e) {
     // 超时（AbortError）/网络错 → 友好提示，避免无限"处理中…"
-    const msg = (e && e.message) || String(e)
-    if (msg.indexOf('aborted') !== -1 || msg.indexOf('timeout') !== -1 || msg.indexOf('网络') !== -1) {
-      error.value = '登录服务响应慢，请稍后重试'
+    const msg = (e && e.message) ? String(e.message) : String(e || '')
+    console.error('[LoginDialog] 登录异常:', { name: e?.name, message: e?.message, code: e?.code, string: String(e) })
+    if (msg.indexOf('aborted') !== -1 || msg.indexOf('timeout') !== -1) {
+      error.value = '登录服务响应慢（服务器限速中），请等待 30 秒后重试'
+    } else if (msg.indexOf('Failed to fetch') !== -1 || msg.indexOf('NetworkError') !== -1 || msg.indexOf('网络') !== -1) {
+      error.value = '网络连接失败，请检查网络后重试'
+    } else if (!msg || msg.length < 2) {
+      error.value = '登录失败，请稍后重试'
     } else {
-      error.value = '网络错误，请稍后重试'
+      error.value = '登录出错：' + msg
     }
-    console.error('[LoginDialog]', e)
   } finally {
     loading.value = false
   }
@@ -262,7 +272,9 @@ function startWechatLogin() {
 }
 
 function translateError(msg) {
-  if (!msg) return '未知错误'
+  // 防御：msg 为空/非字符串/纯空白时统一兜底
+  const s = (typeof msg === 'string' ? msg : '').trim()
+  if (!s) return '登录失败，请检查账号密码或稍后重试'
   const map = {
     'Invalid login credentials': '账号或密码错误',
     'Email not confirmed': '邮箱尚未确认，请直接尝试登录',
@@ -274,7 +286,7 @@ function translateError(msg) {
     'Phone auth is not enabled': '手机号注册未启用，请改用邮箱或联系管理员',
     'Signups not allowed for this method': '该注册方式未开启',
   }
-  return map[msg] || msg
+  return map[s] || s
 }
 
 // ── 重置密码 ──
