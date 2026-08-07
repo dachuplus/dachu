@@ -424,6 +424,11 @@ jobs:
           echo "============================================"
           echo "  步骤7: 打包并部署到 EdgeOne Pages"
           echo "============================================"
+          # 复制 Edge Functions 进构建产物（否则线上函数会被覆盖清除）
+          rm -rf dist/functions
+          cp -r functions dist/functions
+          # 写入 package.json 激活 Pages Functions（与本地 deploy_pages.sh 一致）
+          echo '{"name":"dachu-pages-functions","version":"1.0.0","private":true}' > dist/package.json
           rm -f dist.zip
           cd dist && zip -r ../dist.zip . && cd ..
           npx edgeone pages deploy dist.zip -n dachu -a overseas -t "$EDGEONE_PAGES_API_TOKEN"

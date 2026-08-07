@@ -23,13 +23,64 @@ HEADERS = {
 
 BASE_URL = 'https://fund.eastmoney.com/data/rankhandler.aspx'
 
+# 重试配置：东财对频繁请求会临时限速（HTTP 超时），重试+退避可大幅提升成功率
+MAX_RETRIES = 5
+RETRY_BASE_DELAY = 3.0  # 秒，退避基数（指数增长）
+
 
 def fetch_page(page, page_size=200):
-    """抓取一页基金排名数据"""
+    """抓取一页基金排名数据（带重试与指数退避）"""
     url = f'{BASE_URL}?op=ph&dt=kf&ft=all&rs=&gs=0&sc=dm&st=asc&pi={page}&pn={page_size}&v=0.1'
-    req = urllib.request.Request(url, headers=HEADERS)
-    resp = urllib.request.urlopen(req, timeout=30)
-    raw = resp.read().decode('utf-8')
+    last_err = None
+    for attempt in range(1, MAX_RETRIES + 1):
+        try:
+            req = urllib.request.Request(url, headers=HEADERS)
+            resp = urllib.request.urlopen(req, timeout=30)
+            raw = resp.read().decode('utf-8')
+            return _parse_page(raw)
+        except Exception as e:  # noqa: BLE001 — 超时/连接错统一重试
+            last_err = e
+            if attempt < MAX_RETRIES:
+                backoff = RETRY_BASE_DELAY * (2 ** (attempt - 1))
+                print(f'  [warn] 第{page}页第{attempt}次失败: {type(e).__name__}: {e}，{backoff:.0f}s 后重试')
+                time.sleep(backoff)
+            else:
+                print(f'  [error] 第{page}页重试{MAX_RETRIES}次仍失败: {last_err}')
+    # 全部重试失败：返回空结果（非致命，跳过该页继续），不让整个任务中断
+    return [], 0
+
+
+def _parse_page(raw):
+    """解析单页原始 HTML/JS 为 (results, total)"""
+    # 提取 allRecords 总数
+    total = 0
+    m_total = re.search(r'allRecords:(\d+)', raw)
+    if m_total:
+        total = int(m_total.group(1))
+
+    # 提取 datas 数组
+    m = re.search(r'datas:\[(.*?)\],allRecords', raw)
+    if not m:
+        return [], total
+
+    results = []
+    items = m.group(1).split('"')
+    for item in items:
+        item = item.strip()
+        if not item or item.startswith(',') or len(item) < 20:
+            continue
+        fields = item.split(',')
+        code = fields[0]
+        return_all_str = fields[15] if len(fields) > 15 else ''
+        # 只有有效的收益率才输出
+        if return_all_str and return_all_str.strip():
+            try:
+                return_all = float(return_all_str)
+                results.append({'c': f'{code}.OF', 'return_all': return_all})
+            except ValueError:
+                pass
+
+    return results, total
 
     # 提取 allRecords 总数
     total = 0
