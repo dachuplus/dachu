@@ -1353,11 +1353,13 @@ onUnmounted(() => {
   cursor: pointer; text-decoration: underline;
 }
 .filter-action-btn {
-  display: flex; align-items: center; gap: 4px;
-  padding: var(--space-sm) var(--space-md); font-size: 16px; color: var(--link);
-  cursor: pointer; text-decoration: underline; text-underline-offset: 4px;
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 6px 12px; font-size: 14px; font-weight: 700;
+  color: #1d70b8; background: #ffffff;
+  border: 1px solid #1d70b8;
+  cursor: pointer; text-decoration: none;
 }
-.filter-action-btn:hover { color: #1d70b8; }
+.filter-action-btn:hover { background: #f3f2f1; }
 .filter-action-btn .wt-icon { display: inline-flex; }
 .toggle-arrow { display: inline-block; transition: transform 0.2s; font-size: 16px; }
 .toggle-arrow.open { transform: rotate(180deg); }
