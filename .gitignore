@@ -42,3 +42,6 @@ public/fund_combined.xlsx
 # 本地工具态（不入git）
 .workbuddy/automations/
 .workbuddy/memory/2026-07-11.md
+
+# 自动导出的数据文件（CI 生成，不入git）
+public/downloads/*.xlsx
