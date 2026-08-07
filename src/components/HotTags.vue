@@ -193,6 +193,15 @@ import QRCode from 'qrcode'
 import { fetchFundTags, fetchFundMeta } from '../api/data.js'
 import { fmtRetPlain } from '../utils/format.js'
 
+function formatMetaTime(raw) {
+  if (!raw) return ''
+  try {
+    const d = new Date(raw)
+    if (isNaN(d.getTime())) return ''
+    return d.toLocaleString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false })
+  } catch { return '' }
+}
+
 const props = defineProps({
   /** 最大展示行数，默认显示全部 */
   maxRows: { type: Number, default: 0 },
@@ -817,10 +826,15 @@ async function loadTagM6(tag) {
   }
 }
 function ensureTagM6(tag) { return loadTagM6(tag) }
-// 优先用系统级 meta 时间（fund_scores_meta 的 tsq/update_time/nav_date，由 openTagDetail 写入 fundMetaUpdateTime）；
-// 若系统 meta 取不到，则兜底取该标签下「有数据的基金」（.OF 类）的最新净值日期 nav_date，避免显示「—」。
+// 优先用系统级 meta 时间（fund_scores_meta 的 tsq/update_time/nav_date，由 openTagDetail/mounted 写入 fundMetaUpdateTime）；
+// 若系统 meta 取不到，则兜底用标签列表自带的 updated_at，避免弹窗刚打开时显示「—」。
 const bottomUpdateTime = computed(() => {
   if (fundMetaUpdateTime.value) return fundMetaUpdateTime.value
+  const tagRaw = selectedTag.value?.updated_at
+  if (tagRaw) {
+    const formatted = formatMetaTime(tagRaw)
+    if (formatted) return formatted
+  }
   const dates = tagFunds.value.map(f => f.nav_date).filter(Boolean)
   if (dates.length === 0) return ''
   let max = dates[0]
@@ -856,16 +870,8 @@ function openTagDetail(tag) {
   // 获取 fund_scores 更新时间（优先 tsq，其次 update_time / nav_date）
   fetchFundMeta().then(m => {
     if (!m) return
-    // 后备链：tsq → update_time → nav_date
-    const raw = m.tsq || m.update_time || m.nav_date || ''
-    if (raw) {
-      try {
-        const d = new Date(raw)
-        if (!isNaN(d.getTime())) {
-          fundMetaUpdateTime.value = d.toLocaleString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false })
-        }
-      } catch { /* ignore */ }
-    }
+    const formatted = formatMetaTime(m.tsq || m.update_time || m.nav_date)
+    if (formatted) fundMetaUpdateTime.value = formatted
   }).catch(e => {
     console.warn('[HotTags] fetchFundMeta failed', e)
   })
@@ -1149,14 +1155,12 @@ async function generateShareImage() {
     let updateTimeStr = ''
     try {
       const meta = await fetchFundMeta()
-      const rawTime = meta?.updateTime || meta?.tsq || meta?.update_time || meta?.nav_date
-      if (rawTime) {
-        const d = new Date(rawTime)
-        if (!isNaN(d.getTime())) {
-          updateTimeStr = d.toLocaleString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false })
-        }
+      updateTimeStr = formatMetaTime(meta?.updateTime || meta?.tsq || meta?.update_time || meta?.nav_date)
+      // 兜底：系统 meta 无时间时，用标签自带的 updated_at
+      if (!updateTimeStr) {
+        updateTimeStr = formatMetaTime(selectedTag.value?.updated_at)
       }
-      // 兜底：系统 meta 无时间时，取标签下「有数据的基金」(.OF 类) 的最新净值日期
+      // 再兜底：取标签下「有数据的基金」(.OF 类) 的最新净值日期
       if (!updateTimeStr) {
         const dates = list.map(f => f.nav_date).filter(Boolean)
         if (dates.length > 0) {
@@ -1369,6 +1373,14 @@ onMounted(async () => {
   await fetchBoardRealtime()
   // 直连 push2his K线实时多周期 → 覆盖 ETL 近1周~今年来（best-effort，失败回退 ETL 快照）
   refreshAllKlinePerf()
+  // 预取 fund_scores 更新时间，避免用户打开标签弹窗时底部「截止时间」短暂为空
+  fetchFundMeta().then(m => {
+    if (!m) return
+    const formatted = formatMetaTime(m.tsq || m.update_time || m.nav_date)
+    if (formatted) fundMetaUpdateTime.value = formatted
+  }).catch(e => {
+    console.warn('[HotTags] prefetch fund meta failed', e)
+  })
 })
 
 defineExpose({ refresh: loadTags })
