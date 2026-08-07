@@ -1,7 +1,7 @@
 <template>
   <div class="page-placeholder">
     <div class="card">
-      <div class="card-title">工具集合</div>
+      <div class="card-title">选基集合</div>
       <div class="tool-grid">
         <router-link to="/tools/tougu"       class="tool-item">投顾产品精选</router-link>
         <router-link to="/tools/fund-rank"   class="tool-item">靠谱基金指数</router-link>

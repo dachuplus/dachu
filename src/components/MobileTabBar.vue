@@ -23,7 +23,7 @@ const { featureEnabled } = useFeatureFlags()
 const allTabs = [
   { key: 'home',    path: '/',                 label: '首页',     feature: 'content' },
   { key: 'signal',  path: '/signal',           label: '信号',     feature: 'signal' },
-  { key: 'fundrank',path: '/tools/fund-rank',  label: '工具',     feature: 'fund-rank' },
+  { key: 'fundrank',path: '/tools/fund-rank',  label: '选基',     feature: 'fund-rank' },
   { key: 'portfolio',path:'/portfolio',        label: '组合',     feature: 'portfolio' },
   { key: 'content',  path: '/content',          label: '内容',     feature: 'content' },
   { key: 'profile', path: '/profile',          label: '我的',     feature: null },
