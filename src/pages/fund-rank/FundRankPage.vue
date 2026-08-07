@@ -50,7 +50,7 @@
 
         <!-- 评分指标（弹窗入口） -->
         <div class="filter-action-btn" @click="showScoreIndicator = true">
-          <SvgIcon name="gear" :size="16" class="wt-icon" /> 评分指标
+          <span>评分指标</span>
         </div>
       </div>
 
@@ -1353,14 +1353,14 @@ onUnmounted(() => {
   cursor: pointer; text-decoration: underline;
 }
 .filter-action-btn {
-  display: inline-flex; align-items: center; gap: 6px;
-  padding: 6px 12px; font-size: 14px; font-weight: 700;
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  min-width: 92px; padding: 6px 12px; font-size: 14px; font-weight: 700;
   color: #1d70b8; background: #ffffff;
   border: 1px solid #1d70b8;
   cursor: pointer; text-decoration: none;
+  box-sizing: border-box;
 }
 .filter-action-btn:hover { background: #f3f2f1; }
-.filter-action-btn .wt-icon { display: inline-flex; }
 .toggle-arrow { display: inline-block; transition: transform 0.2s; font-size: 16px; }
 .toggle-arrow.open { transform: rotate(180deg); }
 .filter-scale-range { display: flex; align-items: center; gap: 6px; flex: 1; }
