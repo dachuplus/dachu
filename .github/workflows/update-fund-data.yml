@@ -26,10 +26,20 @@ permissions:
   actions: write
   id-token: write
 
+# =====================================================================
+# 拆分为两个 job：
+#   update-data —— 数据抓取 + 落库（重，接近 6h 上限）
+#   deploy      —— 前端构建 + 部署 EdgeOne（轻，~10min，needs update-data，
+#                  且 if: always() 保证即使数据 job 超时/取消也照常部署，
+#                  不再被单 job 6 小时上限连累跳过。
+# 注意：GitHub 托管 runner 单 job 硬上限 360 分钟，无法调高，
+#       故数据 job 设 360 跑满；部署独立成 job 后不受其超时影响。
+# =====================================================================
+
 jobs:
-  update-fund-data:
+  update-data:
     runs-on: ubuntu-latest
-    timeout-minutes: 420
+    timeout-minutes: 360
     env:
       SUPABASE_MGMT_TOKEN: ${{ secrets.SUPABASE_MGMT_TOKEN }}
       SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
@@ -395,6 +405,29 @@ jobs:
           python scripts/sync_etfs_to_fund_scores.py --workers 6 --delay 0.25
           echo "ETF/LOF 补充完成: $(date '+%Y-%m-%d %H:%M:%S')"
 
+      - name: 数据更新通知
+        if: ${{ failure() || cancelled() }}
+        run: |
+          echo "数据更新 job 失败或被取消！请检查 GitHub Actions 日志。"
+          echo "时间: $(date '+%Y-%m-%d %H:%M:%S')"
+
+  deploy:
+    # 部署独立成 job：即使数据 job 超时/取消也照常构建部署，
+    # 不再被单 job 6 小时上限连累跳过（之前每次都被腰斩在步骤7）。
+    needs: update-data
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      EDGEONE_PAGES_API_TOKEN: ${{ secrets.EDGEONE_PAGES_API_TOKEN }}
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+      DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
       - name: 步骤6 — 安装 Node.js
         uses: actions/setup-node@v4
         with:
@@ -418,8 +451,6 @@ jobs:
           echo "构建完成: $(date '+%Y-%m-%d %H:%M:%S')"
 
       - name: 步骤7 — 打包并部署到 EdgeOne Pages
-        env:
-          EDGEONE_PAGES_API_TOKEN: ${{ secrets.EDGEONE_PAGES_API_TOKEN }}
         run: |
           echo "============================================"
           echo "  步骤7: 打包并部署到 EdgeOne Pages"
@@ -434,8 +465,8 @@ jobs:
           npx edgeone pages deploy dist.zip -n dachu -a overseas -t "$EDGEONE_PAGES_API_TOKEN"
           echo "部署完成: $(date '+%Y-%m-%d %H:%M:%S')"
 
-      - name: 失败通知
-        if: ${{ failure() || cancelled() }}
+      - name: 部署通知
+        if: ${{ failure() }}
         run: |
-          echo "数据更新失败！请检查 GitHub Actions 日志。"
+          echo "前端部署 job 失败！请检查 GitHub Actions 日志。"
           echo "时间: $(date '+%Y-%m-%d %H:%M:%S')"
