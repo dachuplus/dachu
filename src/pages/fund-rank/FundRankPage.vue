@@ -375,7 +375,7 @@
     <!-- 底部说明 -->
     <div class="bottom-info">
       <p class="bottom-line">
-        <span>更新时间：{{ meta.updateTime ? fmtUpdateTime(meta.updateTime) : (dataLoaded ? '暂无' : '加载中...') }}</span>
+        <span>更新时间：{{ meta.updateTime ? fmtUpdateTime(meta.updateTime) : (metaLoading ? '加载中...' : '暂无') }}</span>
       </p>
       <p class="bottom-line">数据来源：公开网络</p>
       <p class="bottom-line">评分说明：靠谱指数评分为综合收益率、最大回撤、夏普比率、卡玛比率，信息比率，跟踪误差等指标，在全市场排名后加权计算。满分100分，分值越高表现越优秀。</p>
@@ -703,6 +703,7 @@ function onResize() { isMobile.value = window.innerWidth < 641 }
 // ========== 状态 ==========
 const funds = ref([])
 const meta = ref({})
+const metaLoading = ref(false)
 
 // 分类筛选
 const filterT0 = ref('')
@@ -1027,12 +1028,15 @@ function buildSearchText() {
 }
 
 async function loadMeta() {
+  metaLoading.value = true
   try {
     const m = await fetchFundMeta()
     if (m) meta.value = m
     else console.warn('[fund-rank] meta: no data')
   } catch (e) {
     console.error('[fund-rank] meta load error:', e)
+  } finally {
+    metaLoading.value = false
   }
 }
 
