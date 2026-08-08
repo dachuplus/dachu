@@ -51,6 +51,7 @@
         <!-- 评分指标（弹窗入口） -->
         <div class="filter-action-btn" @click="showScoreIndicator = true">
           <span>评分指标</span>
+          <span class="toggle-arrow">▾</span>
         </div>
       </div>
 
