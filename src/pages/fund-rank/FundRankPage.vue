@@ -649,7 +649,13 @@ const riskPeriods = [
 // 通过 Supabase RPC get_fund_categories() 聚合，保证筛选项与数据完全一致
 const catLoading = ref(false)
 const t0List = ref([])   // [{ value, label, cnt }]
-const t1Map = ref({})    // { [t0]: [{ value, label, cnt }] }
+const t1Map = ref({})    // { [normalizedT0]: [{ value, label, cnt }] }
+const t0RawMap = ref({}) // { [normalizedT0]: [rawT0Values] }，用于归一化后按多个原始 t0 过滤
+
+// 一级分类归一化：数据库里同时存在「混合型」和「混合型基金」，应合并展示为「混合型」
+function normT0(t0) {
+  return (t0 || '').replace(/基金$/, '')
+}
 
 async function fetchCategories() {
   catLoading.value = true
@@ -657,14 +663,29 @@ async function fetchCategories() {
     const data = await fetchFundCategories()
     const t0Arr = (data && data.t0) || []
     const t1Arr = (data && data.t1) || []
-    // 一级分类
-    t0List.value = t0Arr.map(x => ({ value: x.t0, label: x.t0, cnt: x.cnt }))
-    // 二级分类按 t0 分组
+
+    // 一级分类归一化并合并计数（如 "混合型" + "混合型基金" → "混合型"）
+    const t0Merged = {}
+    const rawMap = {}
+    for (const x of t0Arr) {
+      const key = normT0(x.t0)
+      if (!t0Merged[key]) {
+        t0Merged[key] = { value: key, label: key, cnt: 0 }
+        rawMap[key] = new Set()
+      }
+      t0Merged[key].cnt += x.cnt
+      rawMap[key].add(x.t0)
+    }
+    t0List.value = Object.values(t0Merged).sort((a, b) => b.cnt - a.cnt)
+    t0RawMap.value = Object.fromEntries(Object.entries(rawMap).map(([k, v]) => [k, [...v]]))
+
+    // 二级分类按归一化后的一级分类分组
     const map = {}
     for (const x of t1Arr) {
       if (!x.t1_tt) continue
-      if (!map[x.t0]) map[x.t0] = []
-      map[x.t0].push({ value: x.t1_tt, label: x.t1_tt, cnt: x.cnt })
+      const t0Key = normT0(x.t0)
+      if (!map[t0Key]) map[t0Key] = []
+      map[t0Key].push({ value: x.t1_tt, label: x.t1_tt, cnt: x.cnt })
     }
     t1Map.value = map
   } catch (e) {
@@ -937,10 +958,19 @@ async function loadData(reset = true, _retryCount = 0) {
   if (reset) page.value = 1
 
   try {
-    // 确定 t0 过滤（FOF 类型筛选用 t0_eq）
-    let t0Filter = filterT0.value || undefined
-    if (filterFOF.value === '1') t0Filter = 'FOF'
-    if (filterFOF.value === '0' && !filterT0.value) t0Filter = undefined
+    // 确定 t0 过滤（FOF 类型筛选用 'FOF'）
+    // 一级分类已归一化（"混合型"+"混合型基金"→"混合型"），查询时按原始 t0 数组匹配，保证计数与展示一致
+    let t0Filter
+    if (filterFOF.value === '1') {
+      t0Filter = 'FOF'
+    } else if (filterFOF.value === '0' && !filterT0.value) {
+      t0Filter = undefined
+    } else if (filterT0.value) {
+      const raw = t0RawMap.value[filterT0.value]
+      t0Filter = raw && raw.length ? raw : filterT0.value
+    } else {
+      t0Filter = undefined
+    }
 
     // t0（一级分类）/ t1（二级分类 t1_tt）直接来自 fund_scores，服务端按总表过滤
     const result = await withTimeout(fetchFundScores({

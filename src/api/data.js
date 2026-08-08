@@ -225,7 +225,12 @@ async function fetchFundScoresImpl(params = {}) {
       query = query.eq('t1_tt', t1)
     } else if (t0) {
       // 一级分类：按聚源 t0 过滤（货币型 t1_tt 为 NULL，也走此分支）
-      query = query.eq('t0', t0)
+      // 支持数组（如归一化后同时匹配 "混合型" 和 "混合型基金"）
+      if (Array.isArray(t0) && t0.length > 0) {
+        query = query.in('t0', t0)
+      } else {
+        query = query.eq('t0', t0)
+      }
     }
     if (search) query = query.or(`n.ilike.%${search}%,c.ilike.%${search}%`)
     // 服务端下推：产品类型/状态筛选（避免前端只过滤首页导致计数与展示不一致）
