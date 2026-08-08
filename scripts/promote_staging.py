@@ -280,6 +280,20 @@ def main():
     else:
         print('\n[3] 跳过 fund_combined 重建（--skip-combined）', flush=True)
 
+    # ── 3.5 更新 fund_scores_meta 时间戳（页面底部"更新时间"的唯一来源）──
+    # 根因：此前 CI 刷新 fund_scores 后从不写这张元数据表，导致页面"更新时间"
+    # 长期停留在 2026-07-07。现改为每次成功 promote 后追加一行最新时间戳，
+    # 前端 ORDER BY tsq DESC LIMIT 1 即取最新值，时间随数据刷新自动前进。
+    # 追加式写入（不 UPDATE 历史行），失败仅告警不影响评分切换。
+    print('\n[3.5] 更新 fund_scores_meta 时间戳（页面"更新时间"来源）', flush=True)
+    try:
+        pg("""INSERT INTO fund_scores_meta (tsq, update_time, total_count, scored_count)
+              SELECT now(), now()::text, count(*), count(k_all) FROM fund_scores""")
+        mm = pg("SELECT tsq, total_count, scored_count FROM fund_scores_meta ORDER BY tsq DESC LIMIT 1")[0]
+        print(f"  ✓ fund_scores_meta 已更新: tsq={mm['tsq']}, 总数={mm['total_count']}, 已评分={mm['scored_count']}", flush=True)
+    except Exception as e:
+        print(f'  [WARN] fund_scores_meta 时间戳更新失败（不影响评分切换）: {e}', flush=True)
+
     # ── 5. 清理备份 ──────────────────────────────────────────────────────
     print('\n[4] 清理备份表 _fs_backup', flush=True)
     pg('DROP TABLE IF EXISTS _fs_backup')
