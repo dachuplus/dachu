@@ -1,0 +1,45 @@
+name: AI大PK月度调仓
+
+on:
+  # 每月 1 号 北京时间 23:00（UTC 15:00）自动触发，刷新当期月度调仓
+  schedule:
+    - cron: '0 15 1 * *'
+  # 手动触发（测试 / 补跑用）
+  workflow_dispatch:
+    inputs:
+      period:
+        description: '期次 YYYY-MM，默认当月'
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  rebalance:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      SUPABASE_PAT: ${{ secrets.SUPABASE_PAT }}
+      ARK_API_KEY: ${{ secrets.ARK_API_KEY }}
+      QWEN_API_KEY: ${{ secrets.QWEN_API_KEY }}
+      WENXIN_API_KEY: ${{ secrets.WENXIN_API_KEY }}
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 安装 Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: 安装依赖
+        run: pip install requests
+
+      - name: 运行 AI 大 PK 月度调仓
+        run: |
+          if [ -n "${{ github.event.inputs.period }}" ]; then
+            python3 scripts/ai_pk_real.py --period "${{ github.event.inputs.period }}"
+          else
+            python3 scripts/ai_pk_real.py
+          fi
