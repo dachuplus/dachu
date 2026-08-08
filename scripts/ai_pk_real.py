@@ -333,20 +333,33 @@ def call_ark(model_id, prompt_messages, key, timeout=300, max_retries=2):
 
 def call_qwen(model_id, prompt_messages, key):
     url = "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions"
-    body = {
-        "model": model_id,
-        "messages": prompt_messages,
-        "temperature": 0.7,
-        "max_tokens": 8192,
-        "response_format": {"type": "json_object"},
-    }
-    r = requests.post(url, headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
-                      json=body, timeout=150)
-    if r.status_code != 200:
-        raise RuntimeError(f"百炼 API 返回 {r.status_code}: {r.text[:400]}")
-    content = r.json()["choices"][0]["message"]["content"]
+
+    def _do(extra=None):
+        body = {
+            "model": model_id,
+            "messages": prompt_messages,
+            "temperature": 0.7,
+            "max_tokens": 8192,
+            "response_format": {"type": "json_object"},
+        }
+        if extra:
+            body.update(extra)
+        r = requests.post(url, headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
+                          json=body, timeout=150)
+        if r.status_code != 200:
+            raise RuntimeError(f"百炼 API 返回 {r.status_code}: {r.text[:400]}")
+        msg = r.json()["choices"][0]["message"]
+        return (msg.get("content") or ""), (msg.get("reasoning_content") or "")
+
+    content, rc = _do()
+    # 推理模型（如 MiniMax-M3）可能因「思考」耗尽 token 预算而 content 为空，
+    # 此时关闭思考重试一次，直接产出 JSON 答案。
     if not content:
-        rc = r.json()["choices"][0]["message"].get("reasoning_content", "")
+        try:
+            content, rc = _do({"enable_thinking": False})
+        except Exception:
+            pass
+    if not content:
         raise RuntimeError(f"百炼模型({model_id})返回空内容，reasoning={rc[:200]}… 可能需要更大 max_tokens")
     return content
 
