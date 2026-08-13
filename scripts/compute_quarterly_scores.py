@@ -386,6 +386,88 @@ def get_fund_codes_from_supabase(limit=0):
     return codes
 
 
+def run_fetch(fund_codes, workers, delay):
+    """多线程抓取给定基金列表，返回 all_results（季度原始指标列表）。"""
+    global success_count, fail_count
+    all_results = []
+    start_time = time.time()
+    effective_delay = delay / max(workers, 1)
+
+    with ThreadPoolExecutor(max_workers=workers) as executor:
+        futures = {executor.submit(fetch_and_calc_quarterly, code, effective_delay): code
+                   for code in fund_codes}
+
+        done = 0
+        for future in as_completed(futures):
+            done += 1
+            result = future.result()
+            if result:
+                all_results.append(result)
+
+            if done % 500 == 0 or done == len(futures):
+                elapsed = time.time() - start_time
+                rate = done / elapsed if elapsed > 0 else 0
+                eta = (len(futures) - done) / rate if rate > 0 else 0
+                print(f"  进度: {done}/{len(futures)} ({done/len(futures)*100:.1f}%) | "
+                      f"成功: {success_count} | 失败: {fail_count} | "
+                      f"速率: {rate:.1f}/s | ETA: {eta/60:.1f}min")
+
+    elapsed = time.time() - start_time
+    print(f"\n数据抓取完成: {elapsed/60:.1f} 分钟 | 成功: {success_count} | 失败: {fail_count}")
+    return all_results
+
+
+def read_all_from_supabase():
+    """读取 fund_quarterly_scores 全部 c + quarterly_data（--score-only 用）。"""
+    from _db import run_sql as _db_run_sql
+    rows = _db_run_sql("SELECT c, quarterly_data FROM fund_quarterly_scores")
+    results = []
+    for r in rows:
+        qd = r.get('quarterly_data')
+        if not qd:
+            continue
+        results.append({
+            'c': r['c'],
+            'q_ret': qd.get('q_ret'),
+            'q_dd': qd.get('q_dd'),
+            'q_sr': qd.get('q_sr'),
+            'q_n': qd.get('q_n'),
+        })
+    return results
+
+
+def update_scores_only(scores):
+    """仅把横截面评分写回 fund_quarterly_scores（--score-only 用，不动 quarterly_data）。"""
+    from _db import run_sql as _db_run_sql
+    cols = [w for w, _, _ in WINDOWS]
+    batch = []
+    total = 0
+
+    def _flush(b):
+        nonlocal total
+        if not b:
+            return
+        sql = (f"INSERT INTO fund_quarterly_scores (c, {', '.join(cols)}) VALUES {', '.join(b)} "
+               f"ON CONFLICT (c) DO UPDATE SET " + ', '.join([f"{w}=EXCLUDED.{w}" for w in cols]))
+        try:
+            _db_run_sql(sql)
+            total += len(b)
+        except Exception as e:
+            print(f"  [WARN] 批量更新评分失败: {e}")
+
+    for c, s in scores.items():
+        parts = [f"'{c}'"]
+        for w in cols:
+            v = s.get(w)
+            parts.append(str(v) if v is not None else 'NULL')
+        batch.append('(' + ', '.join(parts) + ')')
+        if len(batch) >= 500:
+            _flush(batch)
+            batch = []
+    _flush(batch)
+    print(f"  评分已更新: {total} 条")
+
+
 def main():
     parser = argparse.ArgumentParser(description='计算全量基金季度靠谱指数评分')
     parser.add_argument('--limit', type=int, default=0, help='限制数量（0=全部）')
@@ -394,70 +476,89 @@ def main():
     parser.add_argument('--from-file', type=str, default='', help='从 NDJSON 文件读取季度数据（跳过抓取）')
     parser.add_argument('--output', type=str, default='', help='输出季度数据到 NDJSON 文件')
     parser.add_argument('--no-import', action='store_true', help='不导入 Supabase')
+    # ── 方案B：分片并行 + 评分单列 ──
+    parser.add_argument('--shard', type=int, default=None,
+                        help='分片索引（0-based），配合 --shards 把抓取任务拆成 N 片并行')
+    parser.add_argument('--shards', type=int, default=1,
+                        help='总分片数（>=1）。--shard/--shards 仅在抓取阶段使用，UPSERT 幂等可并行')
+    parser.add_argument('--score-only', action='store_true',
+                        help='仅读库重算横截面评分（分片抓取完成后由单一 job 调用，禁止分片）')
     args = parser.parse_args()
 
-    all_results = []
+    # 分片参数预校验（在联网抓取前快速失败，避免浪费一轮全量拉取）
+    if args.shard is not None:
+        if args.shards < 1:
+            sys.exit('ERROR: --shards 必须 >= 1')
+        if not (0 <= args.shard < args.shards):
+            sys.exit(f'ERROR: --shard 必须在 [0, {args.shards}) 范围内')
 
-    if args.from_file:
-        # 从文件读取季度数据
-        print(f"从文件读取: {args.from_file}")
-        with open(args.from_file, 'r') as f:
-            for line in f:
-                line = line.strip()
-                if line:
-                    all_results.append(json.loads(line))
-        print(f"读取 {len(all_results)} 条记录")
-    else:
-        # 从 Supabase 获取基金列表
-        print("从 Supabase fund_scores 获取基金列表...")
-        fund_codes = get_fund_codes_from_supabase(args.limit)
-        print(f"获取到 {len(fund_codes)} 只基金")
+    # ── 模式1：score-only（单 job，读全量算横截面评分）──
+    if args.score_only:
+        print('=' * 60, flush=True)
+        print(' [score-only] 读 fund_quarterly_scores 重算横截面评分', flush=True)
+        print('=' * 60, flush=True)
+        all_results = read_all_from_supabase()
+        print(f"  读取 {len(all_results)} 条季度原始数据")
+        if not all_results:
+            print("  无数据，退出")
+            return
+        print(f"\n计算横截面评分（{len(all_results)} 只基金）...")
+        scores = compute_scores(all_results)
+        for wname, nq, years in WINDOWS:
+            count = sum(1 for s in scores.values() if wname in s)
+            print(f"  {wname} ({nq}Q): {count} 只有效")
+        if not args.no_import:
+            print(f"\n写回 Supabase（仅评分列）...")
+            update_scores_only(scores)
+        else:
+            print(f"\n跳过写回（--no-import）")
+        print(f"\n✅ score-only 完成!")
+        return
 
-        total = len(fund_codes)
+    # ── 取基金列表（供分片/全量共用）──
+    print("从 Supabase fund_scores 获取基金列表...")
+    fund_codes = get_fund_codes_from_supabase(args.limit)
+    total = len(fund_codes)
+    print(f"获取到 {total} 只基金")
+
+    # ── 模式2：分片抓取（UPSERT 幂等，各片写不相交代码集）──
+    if args.shard is not None:
+        my_codes = [c for i, c in enumerate(fund_codes) if i % args.shards == args.shard]
         if args.limit > 0:
-            fund_codes = fund_codes[:args.limit]
-
-        print(f"{'=' * 60}")
-        print(f"季度靠谱指数评分计算")
-        print(f"基金总数: {total}, 本次处理: {len(fund_codes)}")
-        print(f"并发数: {args.workers}, 节流间隔: {args.delay}s (工作线程内)")
-        print(f"{'=' * 60}")
-
-        # 多线程抓取（一次性提交，工作线程内部节流）
-        start_time = time.time()
-        effective_delay = args.delay / max(args.workers, 1)
-        
-        with ThreadPoolExecutor(max_workers=args.workers) as executor:
-            futures = {}
-            for code in fund_codes:
-                future = executor.submit(fetch_and_calc_quarterly, code, effective_delay)
-                futures[future] = code
-
-            done = 0
-            for future in as_completed(futures):
-                done += 1
-                result = future.result()
-                if result:
-                    all_results.append(result)
-
-                if done % 500 == 0 or done == len(futures):
-                    elapsed = time.time() - start_time
-                    rate = done / elapsed if elapsed > 0 else 0
-                    eta = (len(futures) - done) / rate if rate > 0 else 0
-                    print(f"  进度: {done}/{len(futures)} ({done/len(futures)*100:.1f}%) | "
-                          f"成功: {success_count} | 失败: {fail_count} | "
-                          f"速率: {rate:.1f}/s | ETA: {eta/60:.1f}min")
-
-        elapsed = time.time() - start_time
-        print(f"\n数据抓取完成: {elapsed/60:.1f} 分钟")
-        print(f"  成功: {success_count} | 失败: {fail_count} | 总计: {len(all_results)}")
-
-        # 保存原始数据（可选）
+            my_codes = my_codes[:args.limit]
+        print('=' * 60, flush=True)
+        print(f' [分片抓取] shard={args.shard}/{args.shards}，本片 {len(my_codes)} 只（共 {total}）', flush=True)
+        print(f' 并发数: {args.workers}, 节流间隔: {args.delay}s', flush=True)
+        print('=' * 60, flush=True)
+        all_results = run_fetch(my_codes, args.workers, args.delay)
         if args.output:
             with open(args.output, 'w') as f:
                 for r in all_results:
                     f.write(json.dumps(r, ensure_ascii=False) + '\n')
             print(f"  季度数据已保存: {args.output}")
+        if not all_results:
+            print("  本片无有效数据，结束")
+            return
+        if not args.no_import:
+            # 仅写 quarterly_data；评分列留空，由 --score-only 统一重算（避免分片内横截面失真）
+            print(f"\n导入 Supabase（仅 quarterly_data，评分留待 score-only）...")
+            import_to_supabase(all_results, {})
+        else:
+            print(f"\n跳过导入（--no-import）")
+        print(f"\n✅ 分片抓取完成（shard={args.shard}）")
+        return
+
+    # ── 模式3：默认全量（保持原行为：抓取 + 评分 + 导入一次完成）──
+    if args.limit > 0:
+        fund_codes = fund_codes[:args.limit]
+
+    print('=' * 60, flush=True)
+    print(' 季度靠谱指数评分计算（全量）', flush=True)
+    print(f'基金总数: {total}, 本次处理: {len(fund_codes)}')
+    print(f'并发数: {args.workers}, 节流间隔: {args.delay}s (工作线程内)')
+    print('=' * 60, flush=True)
+
+    all_results = run_fetch(fund_codes, args.workers, args.delay)
 
     if not all_results:
         print("无有效数据，退出")

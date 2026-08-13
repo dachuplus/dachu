@@ -1,4 +1,4 @@
-name: 每2天更新基金数据（v7靠谱指数）
+name: 每2天更新基金数据（v8 分片并行）
 
 on:
   # 定时触发：北京时间每 2 天 21:30（UTC 13:30，奇数日执行 ≈ 每48小时一次）
@@ -27,17 +27,28 @@ permissions:
   id-token: write
 
 # =====================================================================
-# 拆分为两个 job：
-#   update-data —— 数据抓取 + 落库（重，接近 6h 上限）
-#   deploy      —— 前端构建 + 部署 EdgeOne（轻，~10min，needs update-data，
-#                  且 if: always() 保证即使数据 job 超时/取消也照常部署，
-#                  不再被单 job 6 小时上限连累跳过。
-# 注意：GitHub 托管 runner 单 job 硬上限 360 分钟，无法调高，
-#       故数据 job 设 360 跑满；部署独立成 job 后不受其超时影响。
+# 方案B：把两个超时重灾区（步骤3a 资产配置 / 步骤3b 季度评分）拆成
+# 并行分片 job，根治 8/9、8/11 的 120 分钟超时。
+#
+# 结构：
+#   prep              —— 步骤1~3（天天基金抓取 + 风险指标 + 写入 staging）
+#   allocation-shard  —— matrix 8 片并行跑 fetch_fund_allocation.py（写入 staging 12 列）
+#   quarterly-shard   —— matrix 8 片并行跑 compute_quarterly_scores.py --shard（UPSERT 幂等）
+#   quarterly-score   —— 单 job 读库重算横截面评分（--score-only，必须全量一次算）
+#   finalize          —— promote_staging.py（含季度评分覆盖率守卫，防 fund_combined 半成品污染）
+#   post-finalize     —— 步骤3d~5h（经理回填/校验/导出/标签等轻量收尾）
+#   deploy            —— 前端构建 + 部署 EdgeOne（needs post-finalize，if always()）
+#
+# 各分片 UPSERT 幂等可并行；quarterly-shard 仅写 quarterly_data，评分由
+# quarterly-score 统一算，避免分片内横截面失真。任一分片失败 continue-on-error，
+# 由 finalize 的覆盖率守卫兜底（新鲜度<80% 跳过 fund_combined 重建）。
 # =====================================================================
 
 jobs:
-  update-data:
+  # ───────────────────────────────────────────────────────────────
+  # prep：步骤1~3，产出 fund_scores_staging（含评分）。不含 3a/3b。
+  # ───────────────────────────────────────────────────────────────
+  prep:
     runs-on: ubuntu-latest
     timeout-minutes: 360
     env:
@@ -46,6 +57,7 @@ jobs:
       SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
       SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
       SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+      SUPABASE_PAT: ${{ secrets.SUPABASE_MGMT_TOKEN }}
 
     steps:
       - name: 检出代码
@@ -222,54 +234,193 @@ jobs:
           # --staging：写入 fund_scores_staging（含货币型种子 + 货币阶段收益合并），不触碰生产表
           python scripts/import_via_rest.py --staging
 
-      - name: 步骤3-alt — 仅收益靠谱分写入临时表（跳过风险指标）
-        if: ${{ inputs.skip_risk }}
+      - name: 数据更新通知
+        if: ${{ failure() || cancelled() }}
         run: |
-          echo "============================================"
-          echo "  步骤3-alt: 仅收益靠谱分 + 写入 STAGING"
-          echo "  开始时间: $(date '+%Y-%m-%d %H:%M:%S')"
-          echo "============================================"
-          python scripts/import_via_rest.py --staging
+          echo "prep job 失败或被取消！请检查 GitHub Actions 日志。"
+          echo "时间: $(date '+%Y-%m-%d %H:%M:%S')"
 
-      - name: 步骤3a — 抓取基金配置/规模/持有人数据（东财F10，增量写入 staging）
-        timeout-minutes: 120
-        continue-on-error: true
+  # ───────────────────────────────────────────────────────────────
+  # allocation-shard：matrix 8 片并行抓配置/规模/持有人 → staging 12 列
+  # ───────────────────────────────────────────────────────────────
+  allocation-shard:
+    needs: prep
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    continue-on-error: true
+    strategy:
+      matrix:
+        shard: [0, 1, 2, 3, 4, 5, 6, 7]
+    env:
+      SUPABASE_MGMT_TOKEN: ${{ secrets.SUPABASE_MGMT_TOKEN }}
+      SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+      SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+      SUPABASE_PAT: ${{ secrets.SUPABASE_MGMT_TOKEN }}
+
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 安装 Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: 安装 Python 依赖（psycopg2 直连驱动 + requests）
+        run: pip install psycopg2-binary requests
+
+      - name: 步骤3a — 抓取基金配置/规模/持有人数据（分片 ${{ matrix.shard }}/8，写入 staging）
         env:
           SUPABASE_PAT: ${{ secrets.SUPABASE_MGMT_TOKEN }}
         run: |
           echo "============================================"
-          echo "  步骤3a: 抓取资产配置/规模变动/持有人结构（东财F10）"
+          echo "  步骤3a[shard=${{ matrix.shard }}/8]: 抓取资产配置/规模变动/持有人结构（东财F10）"
           echo "  开始时间: $(date '+%Y-%m-%d %H:%M:%S')"
-          echo "  说明: 增量写入 fund_scores_staging 的 12 列，promote 时随临时表切到生产；"
+          echo "  说明: 增量写入 fund_scores_staging 的 12 列（分片专属临时表，并行无冲突）；"
           echo "        失败时 promote 的 COALESCE 备份回填会保护生产表已有数据。"
           echo "============================================"
-          pip install requests
-          python scripts/fetch_fund_allocation.py
-          echo "配置类数据抓取完成: $(date '+%Y-%m-%d %H:%M:%S')"
+          python scripts/fetch_fund_allocation.py --shard ${{ matrix.shard }} --shards 8
+          echo "配置类数据抓取完成(分片 ${{ matrix.shard }}): $(date '+%Y-%m-%d %H:%M:%S')"
 
-      - name: 步骤3b — 刷新 fund_quarterly_scores（季度引擎评分，供 fund_combined 派生）
-        timeout-minutes: 120
-        continue-on-error: true
+  # ───────────────────────────────────────────────────────────────
+  # quarterly-shard：matrix 8 片并行刷 fund_quarterly_scores（仅 quarterly_data）
+  # ───────────────────────────────────────────────────────────────
+  quarterly-shard:
+    needs: prep
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    continue-on-error: true
+    strategy:
+      matrix:
+        shard: [0, 1, 2, 3, 4, 5, 6, 7]
+    env:
+      SUPABASE_MGMT_TOKEN: ${{ secrets.SUPABASE_MGMT_TOKEN }}
+      SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+      SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 安装 Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: 安装 Python 依赖（psycopg2 直连驱动 + requests）
+        run: pip install psycopg2-binary requests
+
+      - name: 步骤3b — 刷新 fund_quarterly_scores（分片 ${{ matrix.shard }}/8，UPSERT 幂等）
         run: |
           echo "============================================"
-          echo "  步骤3b: 刷新 fund_quarterly_scores（季度引擎）"
+          echo "  步骤3b[shard=${{ matrix.shard }}/8]: 刷新 fund_quarterly_scores（季度引擎）"
           echo "  开始时间: $(date '+%Y-%m-%d %H:%M:%S')"
-          echo "  说明: 该表是 fund_combined 评分的来源（见 docs/data-model-rules.md）"
-          echo "        联网抓取净值，若被限流失败不阻断整体流程，下一轮补齐。"
+          echo "  说明: 本片仅抓取净值写 quarterly_data（评分列留空），"
+          echo "        由后续 quarterly-score 单 job 读库统一重算横截面评分。"
           echo "============================================"
-          pip install requests
-          python scripts/compute_quarterly_scores.py --workers 5 --delay 0.3
-          echo "fund_quarterly_scores 刷新完成: $(date '+%Y-%m-%d %H:%M:%S')"
+          python scripts/compute_quarterly_scores.py --shard ${{ matrix.shard }} --shards 8 --workers 5 --delay 0.3
+          echo "fund_quarterly_scores 分片刷新完成(${{ matrix.shard }}): $(date '+%Y-%m-%d %H:%M:%S')"
 
-      - name: 步骤3c2 — 校验临时表并原子切换到 fund_scores（含重建 fund_combined）
+  # ───────────────────────────────────────────────────────────────
+  # quarterly-score：单 job 读全量重算横截面评分（必须全量一次算）
+  # ───────────────────────────────────────────────────────────────
+  quarterly-score:
+    needs: quarterly-shard
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      SUPABASE_MGMT_TOKEN: ${{ secrets.SUPABASE_MGMT_TOKEN }}
+      SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+      SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 安装 Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: 安装 Python 依赖（psycopg2 直连驱动 + requests）
+        run: pip install psycopg2-binary requests
+
+      - name: 步骤3b-score — 读库重算横截面评分（--score-only）
         run: |
           echo "============================================"
-          echo "  步骤3c2: 校验 staging + 原子切换 + 重建 fund_combined"
+          echo "  步骤3b-score: 读 fund_quarterly_scores 重算横截面评分"
           echo "  开始时间: $(date '+%Y-%m-%d %H:%M:%S')"
           echo "============================================"
-          pip install requests
+          python scripts/compute_quarterly_scores.py --score-only
+          echo "横截面评分重算完成: $(date '+%Y-%m-%d %H:%M:%S')"
+
+  # ───────────────────────────────────────────────────────────────
+  # finalize：校验 + 原子切换 + 覆盖率守卫重建 fund_combined
+  # ───────────────────────────────────────────────────────────────
+  finalize:
+    needs: [allocation-shard, quarterly-score]
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      SUPABASE_MGMT_TOKEN: ${{ secrets.SUPABASE_MGMT_TOKEN }}
+      SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+      SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 安装 Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: 安装 Python 依赖（psycopg2 直连驱动 + requests）
+        run: pip install psycopg2-binary requests
+
+      - name: 步骤3c2 — 校验临时表 + 原子切换 + 覆盖率守卫重建 fund_combined
+        run: |
+          echo "============================================"
+          echo "  步骤3c2: 校验 staging + 原子切换 + 覆盖率守卫重建 fund_combined"
+          echo "  开始时间: $(date '+%Y-%m-%d %H:%M:%S')"
+          echo "============================================"
           python scripts/promote_staging.py
           echo "切换完成: $(date '+%Y-%m-%d %H:%M:%S')"
+
+  # ───────────────────────────────────────────────────────────────
+  # post-finalize：步骤3d~5h 轻量收尾（依赖 finalize）
+  # ───────────────────────────────────────────────────────────────
+  post-finalize:
+    needs: finalize
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      SUPABASE_MGMT_TOKEN: ${{ secrets.SUPABASE_MGMT_TOKEN }}
+      SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+      SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+      SUPABASE_PAT: ${{ secrets.SUPABASE_MGMT_TOKEN }}
+
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 安装 Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: 安装 Python 依赖（psycopg2 直连驱动 + requests）
+        run: pip install psycopg2-binary requests
 
       - name: 步骤3d — 基金经理空值回填与--标记
         continue-on-error: true
@@ -408,13 +559,16 @@ jobs:
       - name: 数据更新通知
         if: ${{ failure() || cancelled() }}
         run: |
-          echo "数据更新 job 失败或被取消！请检查 GitHub Actions 日志。"
+          echo "post-finalize job 失败或被取消！请检查 GitHub Actions 日志。"
           echo "时间: $(date '+%Y-%m-%d %H:%M:%S')"
 
+  # ───────────────────────────────────────────────────────────────
+  # deploy：前端构建 + 部署 EdgeOne（依赖 post-finalize，if always()）
+  # ───────────────────────────────────────────────────────────────
   deploy:
     # 部署独立成 job：即使数据 job 超时/取消也照常构建部署，
     # 不再被单 job 6 小时上限连累跳过（之前每次都被腰斩在步骤7）。
-    needs: update-data
+    needs: post-finalize
     if: ${{ always() }}
     runs-on: ubuntu-latest
     timeout-minutes: 30

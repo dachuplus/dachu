@@ -254,20 +254,38 @@ def main():
     parser.add_argument('--limit', type=int, default=0, help='限制抓取数量（0=全部）')
     parser.add_argument('--batch-size', type=int, default=50, help='每批请求数量')
     parser.add_argument('--delay', type=float, default=0.3, help='每批间隔秒数')
+    # ── 方案B：分片并行（各片写专属临时表，避免并行 DROP/CREATE _alloc_tmp 冲突）──
+    parser.add_argument('--shard', type=int, default=None,
+                        help='分片索引（0-based），配合 --shards 把待抓取列表拆成 N 片并行')
+    parser.add_argument('--shards', type=int, default=1, help='总分片数（>=1）')
     args = parser.parse_args()
+
+    if args.shard is not None:
+        if args.shards < 1:
+            sys.exit('ERROR: --shards 必须 >= 1')
+        if not (0 <= args.shard < args.shards):
+            sys.exit(f'ERROR: --shard 必须在 [0, {args.shards}) 范围内')
+    # 分片专属临时表名（避免 8 个并行 job 抢同一张 _alloc_tmp 导致冲突）
+    tmp_table = f'_alloc_tmp_{args.shard}' if args.shard is not None else '_alloc_tmp'
 
     print('=' * 64, flush=True)
     print(' 基金配置/规模/持有人数据 ETL（staging → test → prod）', flush=True)
     print('=' * 64, flush=True)
 
     # 1. 确保三张表都有 12 个新列
+    #    分片模式下 8 个 job 并发跑本步，ALTER IF NOT EXISTS 可能因竞态报
+    #    "column already exists"，此时列其实已存在，故分片模式降级为告警不退出；
+    #    非分片模式仍严格退出（列缺失会导致后续 UPDATE 失败）。
     print('\n[1] 确保 12 列存在于 fund_scores / staging / test...', flush=True)
     try:
         pg(NEW_COLUMNS, timeout=120)
         print('  ✓ ALTER TABLE 完成（12 列 × 3 表）', flush=True)
     except Exception as e:
-        print(f'  ✗ ALTER TABLE 失败: {e}', flush=True)
-        sys.exit(1)
+        if args.shard is not None:
+            print(f'  [WARN] ALTER TABLE 竞态（分片模式忽略）: {e}', flush=True)
+        else:
+            print(f'  ✗ ALTER TABLE 失败: {e}', flush=True)
+            sys.exit(1)
 
     if args.dry_run:
         code = '000001'
@@ -296,6 +314,10 @@ def main():
         print(f'  增量模式：已跳过 {len(skip_set)} 只（生产已有数据），待抓取 {total - len(skip_set)} 只', flush=True)
 
     todo = [c for c in codes if c not in skip_set]
+    # 分片：把待抓取列表按索引切分给各并行 job（不相交，避免并行冲突）
+    if args.shard is not None:
+        todo = [c for i, c in enumerate(todo) if i % args.shards == args.shard]
+        print(f'  分片模式: shard={args.shard}/{args.shards}, 本片待抓取 {len(todo)} 只', flush=True)
     if args.limit > 0:
         todo = todo[:args.limit]
         print(f'  限制前 {args.limit} 只（--limit）', flush=True)
@@ -361,10 +383,10 @@ def main():
         print('\n⚠ 无有效数据，结束', flush=True)
         return
 
-    # 4. 写入临时表 _alloc_tmp（高效批量）
-    print(f'\n[4] 写入临时表 _alloc_tmp（{len(results)} 条）...', flush=True)
-    pg('DROP TABLE IF EXISTS _alloc_tmp')
-    pg(f'CREATE TABLE _alloc_tmp (c text PRIMARY KEY, {", ".join(ALLOC_COLS)})')
+    # 4. 写入临时表（分片专属表名，避免并行冲突）
+    print(f'\n[4] 写入临时表 {tmp_table}（{len(results)} 条）...', flush=True)
+    pg(f'DROP TABLE IF EXISTS {tmp_table}')
+    pg(f'CREATE TABLE {tmp_table} (c text PRIMARY KEY, {", ".join(ALLOC_COLS)})')
 
     insert_batch = 500
     cols_sql = ', '.join(ALLOC_COLS)
@@ -379,24 +401,24 @@ def main():
                 v = data.get(col)
                 parts.append('NULL' if v is None else str(v))
             vals.append(f'({", ".join(parts)})')
-        sql = f'INSERT INTO _alloc_tmp (c, {cols_sql}) VALUES {", ".join(vals)}'
+        sql = f'INSERT INTO {tmp_table} (c, {cols_sql}) VALUES {", ".join(vals)}'
         try:
             pg(sql, timeout=120)
             inserted += len(chunk)
         except Exception as e:
             print(f'  [WARN] 批量插入失败: {e}', flush=True)
-    print(f'  ✓ _alloc_tmp 写入 {inserted} 条', flush=True)
+    print(f'  ✓ {tmp_table} 写入 {inserted} 条', flush=True)
 
     # 5. 合并到 staging（一级）：COALESCE 保护已有值
     print('\n[5] 合并到 fund_scores_staging（一级，COALESCE 保护）...', flush=True)
     set_clause = ', '.join([f'{c} = COALESCE(t.{c}, fs.{c})' for c in ALLOC_COLS])
-    pg(f'UPDATE fund_scores_staging fs SET {set_clause} FROM _alloc_tmp t WHERE fs.c = t.c', timeout=300)
+    pg(f'UPDATE fund_scores_staging fs SET {set_clause} FROM {tmp_table} t WHERE fs.c = t.c', timeout=300)
     print('  ✓ staging 已更新', flush=True)
 
     # 6. 镜像到 fund_scores_test（二级：验证用）
     print('\n[6] 镜像到 fund_scores_test（二级，验证）...', flush=True)
     set_clause_t = ', '.join([f'{c} = COALESCE(t.{c}, ft.{c})' for c in ALLOC_COLS])
-    pg(f'UPDATE fund_scores_test ft SET {set_clause_t} FROM _alloc_tmp t WHERE ft.c = t.c', timeout=300)
+    pg(f'UPDATE fund_scores_test ft SET {set_clause_t} FROM {tmp_table} t WHERE ft.c = t.c', timeout=300)
     print('  ✓ test 已更新', flush=True)
 
     # 7. 校验摘要（test 表）
@@ -415,9 +437,9 @@ def main():
 
     # 8. 可选：合并进生产
     if args.to_prod:
-        print('\n[8] 合并 _alloc_tmp → fund_scores（生产，COALESCE 保护）...', flush=True)
+        print(f'\n[8] 合并 {tmp_table} → fund_scores（生产，COALESCE 保护）...', flush=True)
         set_clause_p = ', '.join([f'{c} = COALESCE(t.{c}, f.{c})' for c in ALLOC_COLS])
-        pg(f'UPDATE fund_scores f SET {set_clause_p} FROM _alloc_tmp t WHERE f.c = t.c', timeout=600)
+        pg(f'UPDATE fund_scores f SET {set_clause_p} FROM {tmp_table} t WHERE f.c = t.c', timeout=600)
         prod_check = pg(f"""
             SELECT count(*) AS total,
                    count(stock_pct) AS has_zcpz,
@@ -432,7 +454,7 @@ def main():
         print('    确认无误后运行: python3 scripts/fetch_fund_allocation.py --to-prod', flush=True)
 
     # 清理
-    pg('DROP TABLE IF EXISTS _alloc_tmp')
+    pg(f'DROP TABLE IF EXISTS {tmp_table}')
     print('\n✅ ETL 完成！', flush=True)
 
 

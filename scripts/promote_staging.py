@@ -58,6 +58,8 @@ def main():
     parser = argparse.ArgumentParser(description='校验并原子切换 fund_scores_staging → fund_scores')
     parser.add_argument('--skip-combined', action='store_true',
                         help='跳过 fund_combined 重建（仅切换 fund_scores）')
+    parser.add_argument('--force-combined', action='store_true',
+                        help='忽略覆盖率守卫，强制重建 fund_combined（手动全量刷新用）')
     args = parser.parse_args()
 
     print('=' * 64, flush=True)
@@ -268,8 +270,32 @@ def main():
     except Exception as e:
         print(f'  [WARN] 标签重新应用失败（不影响评分切换）: {e}', flush=True)
 
+    # ── 2.9 覆盖率守卫：季度评分刷新完整性（防 fund_combined 半成品污染）──
+    # fund_quarterly_scores 累积 UPSERT 永不删除，故"是否有数据"长期≈100% 不能反映
+    # 本次运行是否完整刷新。改用【新鲜度】信号：分片 UPSERT 把 updated_at 写为 now()，
+    # 任一分片超时/失败 → 对应基金保留旧 updated_at。以"近 24h 内刷新占比"衡量完整度，
+    # 低于阈值则跳过 fund_combined 重建，保留上一轮完整状态，下一轮补齐后自动重建。
+    print('\n[2.9] 季度评分覆盖率守卫（防 fund_combined 半成品污染）', flush=True)
+    cov = pg("""SELECT
+        (SELECT count(*) FROM fund_scores) AS tot,
+        (SELECT count(*) FROM fund_quarterly_scores WHERE quarterly_data IS NOT NULL) AS covered,
+        (SELECT count(*) FROM fund_quarterly_scores WHERE updated_at >= now() - interval '24 hours') AS fresh
+    """)[0]
+    total_c = cov['tot'] or 0
+    covered_rate = (cov['covered'] / total_c) if total_c else 0
+    fresh_rate = (cov['fresh'] / total_c) if total_c else 0
+    print(f'  覆盖率(有季度数据): {covered_rate*100:.1f}% ({cov["covered"]}/{total_c})')
+    print(f'  新鲜度(近24h刷新): {fresh_rate*100:.1f}% ({cov["fresh"]}/{total_c})')
+    skip_combined = args.skip_combined
+    if fresh_rate < 0.80 and not args.force_combined:
+        print(f'  ⚠ 季度评分新鲜度 {fresh_rate*100:.1f}% < 80%，跳过 fund_combined 重建（防污染）', flush=True)
+        print(f'    fund_combined 保留上一轮完整状态，下一轮补齐后自动重建。', flush=True)
+        skip_combined = True
+    elif args.force_combined:
+        print('  [--force-combined] 已强制重建（忽略新鲜度守卫）', flush=True)
+
     # ── 3. 重建 fund_combined（复用已验证的增量同步脚本，非破坏性）──────
-    if not args.skip_combined:
+    if not skip_combined:
         print('\n[3] 重建 fund_combined（复用 sync_fund_combined_scores.py）', flush=True)
         rc = subprocess.run(
             [sys.executable, os.path.join(SCRIPT_DIR, 'sync_fund_combined_scores.py')],
