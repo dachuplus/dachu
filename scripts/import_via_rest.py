@@ -373,7 +373,11 @@ periods = [
     ('k3','r3y','dd3y','sr3y'),('k5','r5y','dd5y','sr5y'),
 ]
 for pk, rk, dk, sk in periods:
-    valid = [(i, funds[i]) for i in range(len(funds))]
+    # 仅纳入「该期限收益非 null」的基金参与排名；无对应期限业绩（r2y/r3y/r5y 为
+    # NULL，如成立不足年限的基金、货币型缺 r5y）的基金不赋分，k 列保持 None → 写库
+    # 为 NULL → 前端展示 '--'。修复：此前 valid 含全部基金、null 收益被 or 0 当 0
+    # 参与排名，导致「无业绩却有评分」的展示 bug。
+    valid = [(i, funds[i]) for i in range(len(funds)) if funds[i].get(rk) is not None]
     vn = len(valid)
     # 收益排位
     ret_ranked = sorted(valid, key=lambda x: x[1].get(rk,0) or 0, reverse=True)
