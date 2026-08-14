@@ -1,0 +1,209 @@
+name: 每日更新资产配置与季度评分（方案B-B）
+
+# =====================================================================
+# 方案 B 拆分后的「资产配置/季度评分流水线 B」
+#
+# 与 update-scores.yml（流水线 A）完全独立、互不阻塞：
+#   - A 负责「收益+风险 → fund_scores」每日稳定提升（21:30 北京）。
+#   - B 负责「资产配置(12列) + 季度评分(fund_quarterly_scores) + 重建 fund_combined」，
+#     在 A 之后跑（22:30 北京），即使本流水线假死/失败，也绝不会拖垮 A 的评分更新。
+#
+# 关键设计（经过论证安全）：
+#   - allocation-shard 使用 fetch_fund_allocation.py --to-prod：仅 UPDATE 生产
+#     fund_scores 的 12 配置列（COALESCE 保护，不覆盖其余列），不碰 staging 快照、
+#     不碰整体 TRUNCATE 切换 → 与 A 的原子切换顺序无关、互不冲突。
+#   - quarterly-shard 仅写 fund_quarterly_scores（quarterly_data），评分由
+#     quarterly-score 单 job 读库统一重算横截面，避免分片内失真。
+#   - rebuild-combined 跑 sync_fund_combined_scores.py，基于最新 fund_quarterly_scores
+#     （+ fund_scores 的 k0w/k1m）重建 fund_combined。
+#
+# 注意：本流水线失败不影响 A。A 的 promote 已用 COALESCE 备份回填保护配置列，
+# 即使 B 当天没跑，生产配置列保留上一轮值，不会清空。
+# =====================================================================
+
+on:
+  # 定时触发：北京时间每天 22:30（UTC 14:30），在流水线 A（13:30 UTC）之后。
+  schedule:
+    - cron: '30 14 * * *'
+  # 手动触发
+  workflow_dispatch:
+
+env:
+  PYTHONUNBUFFERED: '1'
+
+permissions:
+  contents: write
+  actions: write
+  id-token: write
+
+jobs:
+  # ───────────────────────────────────────────────────────────────
+  # allocation-shard：matrix 8 片并行抓配置/规模/持有人 → 直写生产 12 列（--to-prod）
+  # ───────────────────────────────────────────────────────────────
+  allocation-shard:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    continue-on-error: true
+    strategy:
+      matrix:
+        shard: [0, 1, 2, 3, 4, 5, 6, 7]
+    env:
+      SUPABASE_MGMT_TOKEN: ${{ secrets.SUPABASE_MGMT_TOKEN }}
+      SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+      SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+      SUPABASE_PAT: ${{ secrets.SUPABASE_MGMT_TOKEN }}
+
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 安装 Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: 安装 Python 依赖（psycopg2 直连驱动 + requests）
+        run: pip install psycopg2-binary requests
+
+      - name: 步骤3a — 抓取基金配置/规模/持有人数据并直写生产（分片 ${{ matrix.shard }}/8，--to-prod）
+        env:
+          SUPABASE_PAT: ${{ secrets.SUPABASE_MGMT_TOKEN }}
+        run: |
+          echo "============================================"
+          echo "  步骤3a[shard=${{ matrix.shard }}/8]: 抓取资产配置/规模变动/持有人结构（东财F10）直写生产"
+          echo "  开始时间: $(date '+%Y-%m-%d %H:%M:%S')"
+          echo "  说明: --to-prod 仅 UPDATE 生产 fund_scores 的 12 配置列（COALESCE 保护），"
+          echo "        不写 staging、不碰整体切换，与流水线 A 互不冲突；"
+          echo "        分片专属临时表 _alloc_tmp_{shard} 并行无冲突。"
+          echo "============================================"
+          python scripts/fetch_fund_allocation.py --shard ${{ matrix.shard }} --shards 8 --to-prod
+          echo "配置类数据抓取完成(分片 ${{ matrix.shard }}): $(date '+%Y-%m-%d %H:%M:%S')"
+
+  # ───────────────────────────────────────────────────────────────
+  # quarterly-shard：matrix 8 片并行刷 fund_quarterly_scores（仅 quarterly_data）
+  # ───────────────────────────────────────────────────────────────
+  quarterly-shard:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    continue-on-error: true
+    strategy:
+      matrix:
+        shard: [0, 1, 2, 3, 4, 5, 6, 7]
+    env:
+      SUPABASE_MGMT_TOKEN: ${{ secrets.SUPABASE_MGMT_TOKEN }}
+      SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+      SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 安装 Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: 安装 Python 依赖（psycopg2 直连驱动 + requests）
+        run: pip install psycopg2-binary requests
+
+      - name: 步骤3b — 刷新 fund_quarterly_scores（分片 ${{ matrix.shard }}/8，UPSERT 幂等）
+        run: |
+          echo "============================================"
+          echo "  步骤3b[shard=${{ matrix.shard }}/8]: 刷新 fund_quarterly_scores（季度引擎）"
+          echo "  开始时间: $(date '+%Y-%m-%d %H:%M:%S')"
+          echo "  说明: 本片仅抓取净值写 quarterly_data（评分列留空），"
+          echo "        由后续 quarterly-score 单 job 读库统一重算横截面评分。"
+          echo "============================================"
+          python scripts/compute_quarterly_scores.py --shard ${{ matrix.shard }} --shards 8 --workers 5 --delay 0.3
+          echo "fund_quarterly_scores 分片刷新完成(${{ matrix.shard }}): $(date '+%Y-%m-%d %H:%M:%S')"
+
+  # ───────────────────────────────────────────────────────────────
+  # quarterly-score：单 job 读全量重算横截面评分（必须全量一次算）
+  # ───────────────────────────────────────────────────────────────
+  quarterly-score:
+    needs: quarterly-shard
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      SUPABASE_MGMT_TOKEN: ${{ secrets.SUPABASE_MGMT_TOKEN }}
+      SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+      SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 安装 Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: 安装 Python 依赖（psycopg2 直连驱动 + requests）
+        run: pip install psycopg2-binary requests
+
+      - name: 步骤3b-score — 读库重算横截面评分（--score-only）
+        run: |
+          echo "============================================"
+          echo "  步骤3b-score: 读 fund_quarterly_scores 重算横截面评分"
+          echo "  开始时间: $(date '+%Y-%m-%d %H:%M:%S')"
+          echo "============================================"
+          python scripts/compute_quarterly_scores.py --score-only
+          echo "横截面评分重算完成: $(date '+%Y-%m-%d %H:%M:%S')"
+
+  # ───────────────────────────────────────────────────────────────
+  # rebuild-combined：基于最新季度评分重建 fund_combined
+  # ───────────────────────────────────────────────────────────────
+  rebuild-combined:
+    needs: quarterly-score
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      SUPABASE_MGMT_TOKEN: ${{ secrets.SUPABASE_MGMT_TOKEN }}
+      SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+      SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 安装 Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: 安装 Python 依赖（psycopg2 直连驱动 + requests）
+        run: pip install psycopg2-binary requests
+
+      - name: 重建 fund_combined（sync_fund_combined_scores.py）
+        run: |
+          echo "============================================"
+          echo "  重建 fund_combined：基于 fund_quarterly_scores + fund_scores(k0w/k1m)"
+          echo "  开始时间: $(date '+%Y-%m-%d %H:%M:%S')"
+          echo "  说明: 流水线 A 的 promote 已用 --skip-combined 跳过此步；"
+          echo "        此处接管 combined 重建，保证季度评分刷新后 combined 同步。"
+          echo "============================================"
+          python scripts/sync_fund_combined_scores.py
+          echo "fund_combined 重建完成: $(date '+%Y-%m-%d %H:%M:%S')"
+
+  # ───────────────────────────────────────────────────────────────
+  # notify：汇总通知（任一分片失败也提醒，但不阻断）
+  # ───────────────────────────────────────────────────────────────
+  notify:
+    needs: [allocation-shard, quarterly-shard, quarterly-score, rebuild-combined]
+    if: ${{ failure() || cancelled() }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: 流水线B异常通知
+        run: |
+          echo "流水线 B（资产配置/季度评分）出现失败或取消的分片！"
+          echo "评分流水线 A 不受影响，仍可正常更新 fund_scores。"
+          echo "请检查 GitHub Actions 日志确认配置列/季度评分是否成功刷新。"
+          echo "时间: $(date '+%Y-%m-%d %H:%M:%S')"

@@ -1,7 +1,33 @@
-name: 每日更新基金数据（v8 分片并行）
+name: 每日更新基金评分（方案B-A：核心评分）
+
+# =====================================================================
+# 方案 B 拆分后的「核心评分流水线 A」
+#
+# 痛点：原 update-fund-data.yml 把 finalize 的 needs 绑死在
+#   allocation-shard + quarterly-score 上。这两个 job 抓取第三方
+#   （东财F10 / 季度净值）经常假死（8/9、8/11、run #81），导致
+#   finalize 永远等不到 → 生产 fund_scores 永不更新、收益冻结。
+#
+# 本流水线 A 只负责「收益 + 风险指标 → staging → 原子切换生产」，
+# finalize 的 needs 仅 [prep]，不再等待任何会假死的外部抓取。
+# 资产配置/季度评分已拆到 update-allocation-quarterly.yml（流水线 B），
+# 互不影响：A 每天稳定提升评分；B 失败也只是配置列/季度分不刷新，
+# 不会拖垮评分更新。
+#
+# 结构：
+#   prep           —— 步骤1~3（天天基金抓取 + 风险指标 + 写入 staging）
+#   finalize       —— promote_staging.py --skip-combined
+#                     （仅切换 fund_scores；不重建 fund_combined，
+#                       combined 重建交给流水线 B 的 rebuild-combined）
+#   post-finalize  —— 步骤3d~5h 轻量收尾（依赖 finalize）
+#   deploy         —— 前端构建 + 部署 EdgeOne（needs post-finalize，if always()）
+#
+# 关键保护：promote_staging 对 12 配置列 + 8 基本信息列做 COALESCE
+# 备份回填，即使 staging 不含资产配置数据，生产配置列也不会被清空。
+# =====================================================================
 
 on:
-  # 定时触发：北京时间每天 21:30（UTC 13:30）。仓库已转公开，GitHub Actions 无限免费，故改为每日一次
+  # 定时触发：北京时间每天 21:30（UTC 13:30）。
   schedule:
     - cron: '30 13 * * *'
   # 手动触发
@@ -26,27 +52,9 @@ permissions:
   actions: write
   id-token: write
 
-# =====================================================================
-# 方案B：把两个超时重灾区（步骤3a 资产配置 / 步骤3b 季度评分）拆成
-# 并行分片 job，根治 8/9、8/11 的 120 分钟超时。
-#
-# 结构：
-#   prep              —— 步骤1~3（天天基金抓取 + 风险指标 + 写入 staging）
-#   allocation-shard  —— matrix 8 片并行跑 fetch_fund_allocation.py（写入 staging 12 列）
-#   quarterly-shard   —— matrix 8 片并行跑 compute_quarterly_scores.py --shard（UPSERT 幂等）
-#   quarterly-score   —— 单 job 读库重算横截面评分（--score-only，必须全量一次算）
-#   finalize          —— promote_staging.py（含季度评分覆盖率守卫，防 fund_combined 半成品污染）
-#   post-finalize     —— 步骤3d~5h（经理回填/校验/导出/标签等轻量收尾）
-#   deploy            —— 前端构建 + 部署 EdgeOne（needs post-finalize，if always()）
-#
-# 各分片 UPSERT 幂等可并行；quarterly-shard 仅写 quarterly_data，评分由
-# quarterly-score 统一算，避免分片内横截面失真。任一分片失败 continue-on-error，
-# 由 finalize 的覆盖率守卫兜底（新鲜度<80% 跳过 fund_combined 重建）。
-# =====================================================================
-
 jobs:
   # ───────────────────────────────────────────────────────────────
-  # prep：步骤1~3，产出 fund_scores_staging（含评分）。不含 3a/3b。
+  # prep：步骤1~3，产出 fund_scores_staging（含评分）。不含配置/季度抓取。
   # ───────────────────────────────────────────────────────────────
   prep:
     runs-on: ubuntu-latest
@@ -109,13 +117,11 @@ jobs:
           echo "  步骤2: 抓取风险指标 (回撤+夏普比率) — 4 进程分批并行"
           echo "  开始时间: $(date '+%Y-%m-%d %H:%M:%S')"
           echo "============================================"
-          # 先检查是否有第一步输出的 NDJSON
           if [ ! -f scripts/funds_output.ndjson ]; then
             echo "未找到 funds_output.ndjson，跳过风险指标计算"
             exit 0
           fi
           mkdir -p scripts/_risk_chunks
-          # 按行均分为 4 份，4 个进程并发抓取（缩短总耗时，避免单进程超时）
           split -n l/4 -d --additional-suffix=.ndjson scripts/funds_output.ndjson scripts/_risk_chunks/part_
           echo "已切分为以下分片:"
           ls -1 scripts/_risk_chunks/
@@ -186,8 +192,6 @@ jobs:
           echo "  开始时间: $(date '+%Y-%m-%d %H:%M:%S')"
           echo "============================================"
           pip install requests
-          # 每日默认仅补缺失数据；全量回填用 --full（手动触发 full_basic_info=true）
-          # 并发 4 + 间隔 0.2s，避免被 fundf10 限流
           if [ "${{ inputs.full_basic_info }}" = "true" ]; then
             echo "[INFO] 全量模式：抓取全部基金基本概况"
             python scripts/fetch_fund_basic_info.py --full --workers 4 --delay 0.2 --output scripts/fund_basic_info.ndjson
@@ -227,11 +231,9 @@ jobs:
           echo "  步骤3: 合并风险指标 + 重算靠谱分 + 写入 STAGING"
           echo "  开始时间: $(date '+%Y-%m-%d %H:%M:%S')"
           echo "============================================"
-          # 风险指标失败时走备选：仅收益靠谱分
           if [ "${{ steps.risk_indicators.outcome }}" = "failure" ]; then
             echo "[WARN] 风险指标抓取超时/失败，跳过合并，仅使用收益靠谱分"
           fi
-          # --staging：写入 fund_scores_staging（含货币型种子 + 货币阶段收益合并），不触碰生产表
           python scripts/import_via_rest.py --staging
 
       - name: 数据更新通知
@@ -241,130 +243,10 @@ jobs:
           echo "时间: $(date '+%Y-%m-%d %H:%M:%S')"
 
   # ───────────────────────────────────────────────────────────────
-  # allocation-shard：matrix 8 片并行抓配置/规模/持有人 → staging 12 列
-  # ───────────────────────────────────────────────────────────────
-  allocation-shard:
-    needs: prep
-    runs-on: ubuntu-latest
-    timeout-minutes: 60
-    continue-on-error: true
-    strategy:
-      matrix:
-        shard: [0, 1, 2, 3, 4, 5, 6, 7]
-    env:
-      SUPABASE_MGMT_TOKEN: ${{ secrets.SUPABASE_MGMT_TOKEN }}
-      SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
-      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-      SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
-      SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
-      SUPABASE_PAT: ${{ secrets.SUPABASE_MGMT_TOKEN }}
-
-    steps:
-      - name: 检出代码
-        uses: actions/checkout@v4
-
-      - name: 安装 Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-
-      - name: 安装 Python 依赖（psycopg2 直连驱动 + requests）
-        run: pip install psycopg2-binary requests
-
-      - name: 步骤3a — 抓取基金配置/规模/持有人数据（分片 ${{ matrix.shard }}/8，写入 staging）
-        env:
-          SUPABASE_PAT: ${{ secrets.SUPABASE_MGMT_TOKEN }}
-        run: |
-          echo "============================================"
-          echo "  步骤3a[shard=${{ matrix.shard }}/8]: 抓取资产配置/规模变动/持有人结构（东财F10）"
-          echo "  开始时间: $(date '+%Y-%m-%d %H:%M:%S')"
-          echo "  说明: 增量写入 fund_scores_staging 的 12 列（分片专属临时表，并行无冲突）；"
-          echo "        失败时 promote 的 COALESCE 备份回填会保护生产表已有数据。"
-          echo "============================================"
-          python scripts/fetch_fund_allocation.py --shard ${{ matrix.shard }} --shards 8
-          echo "配置类数据抓取完成(分片 ${{ matrix.shard }}): $(date '+%Y-%m-%d %H:%M:%S')"
-
-  # ───────────────────────────────────────────────────────────────
-  # quarterly-shard：matrix 8 片并行刷 fund_quarterly_scores（仅 quarterly_data）
-  # ───────────────────────────────────────────────────────────────
-  quarterly-shard:
-    needs: prep
-    runs-on: ubuntu-latest
-    timeout-minutes: 60
-    continue-on-error: true
-    strategy:
-      matrix:
-        shard: [0, 1, 2, 3, 4, 5, 6, 7]
-    env:
-      SUPABASE_MGMT_TOKEN: ${{ secrets.SUPABASE_MGMT_TOKEN }}
-      SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
-      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-      SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
-      SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
-
-    steps:
-      - name: 检出代码
-        uses: actions/checkout@v4
-
-      - name: 安装 Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-
-      - name: 安装 Python 依赖（psycopg2 直连驱动 + requests）
-        run: pip install psycopg2-binary requests
-
-      - name: 步骤3b — 刷新 fund_quarterly_scores（分片 ${{ matrix.shard }}/8，UPSERT 幂等）
-        run: |
-          echo "============================================"
-          echo "  步骤3b[shard=${{ matrix.shard }}/8]: 刷新 fund_quarterly_scores（季度引擎）"
-          echo "  开始时间: $(date '+%Y-%m-%d %H:%M:%S')"
-          echo "  说明: 本片仅抓取净值写 quarterly_data（评分列留空），"
-          echo "        由后续 quarterly-score 单 job 读库统一重算横截面评分。"
-          echo "============================================"
-          python scripts/compute_quarterly_scores.py --shard ${{ matrix.shard }} --shards 8 --workers 5 --delay 0.3
-          echo "fund_quarterly_scores 分片刷新完成(${{ matrix.shard }}): $(date '+%Y-%m-%d %H:%M:%S')"
-
-  # ───────────────────────────────────────────────────────────────
-  # quarterly-score：单 job 读全量重算横截面评分（必须全量一次算）
-  # ───────────────────────────────────────────────────────────────
-  quarterly-score:
-    needs: quarterly-shard
-    runs-on: ubuntu-latest
-    timeout-minutes: 60
-    env:
-      SUPABASE_MGMT_TOKEN: ${{ secrets.SUPABASE_MGMT_TOKEN }}
-      SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
-      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-      SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
-      SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
-
-    steps:
-      - name: 检出代码
-        uses: actions/checkout@v4
-
-      - name: 安装 Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-
-      - name: 安装 Python 依赖（psycopg2 直连驱动 + requests）
-        run: pip install psycopg2-binary requests
-
-      - name: 步骤3b-score — 读库重算横截面评分（--score-only）
-        run: |
-          echo "============================================"
-          echo "  步骤3b-score: 读 fund_quarterly_scores 重算横截面评分"
-          echo "  开始时间: $(date '+%Y-%m-%d %H:%M:%S')"
-          echo "============================================"
-          python scripts/compute_quarterly_scores.py --score-only
-          echo "横截面评分重算完成: $(date '+%Y-%m-%d %H:%M:%S')"
-
-  # ───────────────────────────────────────────────────────────────
-  # finalize：校验 + 原子切换 + 覆盖率守卫重建 fund_combined
+  # finalize：校验 + 原子切换（仅 fund_scores，跳过 combined 重建）
   # ───────────────────────────────────────────────────────────────
   finalize:
-    needs: [allocation-shard, quarterly-score]
+    needs: [prep]
     runs-on: ubuntu-latest
     timeout-minutes: 60
     env:
@@ -386,13 +268,16 @@ jobs:
       - name: 安装 Python 依赖（psycopg2 直连驱动 + requests）
         run: pip install psycopg2-binary requests
 
-      - name: 步骤3c2 — 校验临时表 + 原子切换 + 覆盖率守卫重建 fund_combined
+      - name: 步骤3c2 — 校验临时表 + 原子切换 fund_scores（--skip-combined）
         run: |
           echo "============================================"
-          echo "  步骤3c2: 校验 staging + 原子切换 + 覆盖率守卫重建 fund_combined"
+          echo "  步骤3c2: 校验 staging + 原子切换 fund_scores（跳过 fund_combined 重建）"
           echo "  开始时间: $(date '+%Y-%m-%d %H:%M:%S')"
+          echo "  说明: fund_combined 重建已由流水线 B(update-allocation-quarterly.yml)"
+          echo "        的 rebuild-combined 步骤接管；本步仅切换 fund_scores，"
+          echo "        配置列靠 COALESCE 备份回填保护。"
           echo "============================================"
-          python scripts/promote_staging.py
+          python scripts/promote_staging.py --skip-combined
           echo "切换完成: $(date '+%Y-%m-%d %H:%M:%S')"
 
   # ───────────────────────────────────────────────────────────────
@@ -566,8 +451,6 @@ jobs:
   # deploy：前端构建 + 部署 EdgeOne（依赖 post-finalize，if always()）
   # ───────────────────────────────────────────────────────────────
   deploy:
-    # 部署独立成 job：即使数据 job 超时/取消也照常构建部署，
-    # 不再被单 job 6 小时上限连累跳过（之前每次都被腰斩在步骤7）。
     needs: post-finalize
     if: ${{ always() }}
     runs-on: ubuntu-latest
@@ -609,10 +492,8 @@ jobs:
           echo "============================================"
           echo "  步骤7: 打包并部署到 EdgeOne Pages"
           echo "============================================"
-          # 复制 Edge Functions 进构建产物（否则线上函数会被覆盖清除）
           rm -rf dist/functions
           cp -r functions dist/functions
-          # 写入 package.json 激活 Pages Functions（与本地 deploy_pages.sh 一致）
           echo '{"name":"dachu-pages-functions","version":"1.0.0","private":true}' > dist/package.json
           rm -f dist.zip
           cd dist && zip -r ../dist.zip . && cd ..

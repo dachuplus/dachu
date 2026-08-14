@@ -410,10 +410,17 @@ def main():
     print(f'  ✓ {tmp_table} 写入 {inserted} 条', flush=True)
 
     # 5. 合并到 staging（一级）：COALESCE 保护已有值
-    print('\n[5] 合并到 fund_scores_staging（一级，COALESCE 保护）...', flush=True)
-    set_clause = ', '.join([f'{c} = COALESCE(t.{c}, fs.{c})' for c in ALLOC_COLS])
-    pg(f'UPDATE fund_scores_staging fs SET {set_clause} FROM {tmp_table} t WHERE fs.c = t.c', timeout=300)
-    print('  ✓ staging 已更新', flush=True)
+    #    --to-prod 模式（方案B-B 独立流水线）下跳过 staging 写入：
+    #    该流水线直写生产 fund_scores，不再污染方案B-A 流水线拥有的 staging 快照，
+    #    避免两条流水线对 fund_scores_staging 的并发写竞争。生产 alloc 列由
+    #    promote_staging.py 的 COALESCE 备份回填保护，无需依赖 staging。
+    if args.to_prod:
+        print('\n[5] --to-prod 模式：跳过 fund_scores_staging 写入（方案B-A 的 staging 快照由 COALESCE 备份保护）', flush=True)
+    else:
+        print('\n[5] 合并到 fund_scores_staging（一级，COALESCE 保护）...', flush=True)
+        set_clause = ', '.join([f'{c} = COALESCE(t.{c}, fs.{c})' for c in ALLOC_COLS])
+        pg(f'UPDATE fund_scores_staging fs SET {set_clause} FROM {tmp_table} t WHERE fs.c = t.c', timeout=300)
+        print('  ✓ staging 已更新', flush=True)
 
     # 6. 镜像到 fund_scores_test（二级：验证用）
     print('\n[6] 镜像到 fund_scores_test（二级，验证）...', flush=True)
