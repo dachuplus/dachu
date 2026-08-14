@@ -1,0 +1,14 @@
+name: _sleep_test
+
+on:
+  workflow_dispatch:
+
+jobs:
+  sleep:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 睡眠 600 秒（测试同分支取消行为）
+        run: |
+          echo "sleep_test start $(date -u)"
+          sleep 600
+          echo "sleep_test done $(date -u)"
