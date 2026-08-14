@@ -7,8 +7,8 @@ jobs:
   sleep:
     runs-on: ubuntu-latest
     steps:
-      - name: 睡眠 600 秒（测试同分支取消行为）
+      - name: 睡眠 8000 秒（测试是否存在 ~2h 运行上限）
         run: |
           echo "sleep_test start $(date -u)"
-          sleep 600
+          sleep 8000
           echo "sleep_test done $(date -u)"
