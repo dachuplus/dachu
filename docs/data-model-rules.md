@@ -1,6 +1,6 @@
 # 数据模型与评分来源规则（DATA MODEL RULES）
 
-> 本文件是 dachu 数据层的**权威规则文档**。每日自动更新（GitHub Actions `update-fund-data.yml`）
+> 本文件是 dachu 数据层的**权威规则文档**。每日自动更新（GitHub Actions `update-scores.yml` 评分 + `update-allocation-quarterly.yml` 配置/季度，两条独立流水线）
 > 与所有数据脚本**必须**遵守以下规则。任何改动不得违反。
 
 ---
@@ -57,7 +57,7 @@
 
 ## 每日自动更新如何遵守本规则
 
-`scripts/update-fund-data.yml`（GitHub Actions，北京时间 21:30）的评分相关步骤：
+`update-scores.yml`（GitHub Actions，北京时间 21:30 评分；`update-allocation-quarterly.yml` 22:30 配置/季度，两条流水线互不阻塞）的评分相关步骤：
 
 1. `fetch_and_import_funds.py --output-only`
    → 拉取基础数据（收益 / 规模 / 分类），输出 NDJSON。

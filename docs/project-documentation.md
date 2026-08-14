@@ -8,7 +8,7 @@
 
 > 📌 **数据模型与评分来源规则（权威）**：见 [`docs/data-model-rules.md`](./data-model-rules.md)。
 > 核心三点：`fund_scores` 是靠谱指数页面唯一数据源且其评分**独立**（不依赖 `fund_quarterly_scores`）；
-> `fund_combined` 的评分**基于 `fund_quarterly_scores`** 计算；每日自动更新（`update-fund-data.yml`）必须遵守该依赖方向。
+> `fund_combined` 的评分**基于 `fund_quarterly_scores`** 计算；每日自动更新（`update-scores.yml` 评分 + `update-allocation-quarterly.yml` 配置/季度，两条独立流水线）必须遵守该依赖方向。
 
 ---
 
