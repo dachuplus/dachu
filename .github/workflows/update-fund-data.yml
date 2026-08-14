@@ -26,12 +26,6 @@ permissions:
   actions: write
   id-token: write
 
-# 串行化：避免手动重跑与每日 cron 同时跑，两个 prep 并发写 fund_scores_staging 互相覆盖。
-# cancel-in-progress: false → 新触发排队等待，而非取消正在跑的（取消会导致数据 promote 半途而废）。
-concurrency:
-  group: fund-data-update
-  cancel-in-progress: false
-
 # =====================================================================
 # 方案B：把两个超时重灾区（步骤3a 资产配置 / 步骤3b 季度评分）拆成
 # 并行分片 job，根治 8/9、8/11 的 120 分钟超时。
