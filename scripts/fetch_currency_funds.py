@@ -50,7 +50,10 @@ def _f(parts, i):
     if i >= len(parts):
         return None
     v = parts[i].strip()
-    if v == '' or v is None:
+    # 货币型基金在 hb 排名页常用 '0' / '0.0' / '-' / '--' 作为「该期限无数据」占位
+    # （并非真实 0% 收益）。必须当缺失（None）处理，否则会被当 0% 排名打分，
+    # 造成「无业绩却有评分」。负收益（如 '-1.23'）是真实值，保留。
+    if v == '' or v is None or v in ('0', '0.0', '-', '--', '---', '—'):
         return None
     try:
         return float(v)

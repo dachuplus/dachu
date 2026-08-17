@@ -81,7 +81,13 @@ def esc_null(v):
         return None   # REST API 直接传 null
     try:
         f = float(v)
-        return None if f == 0 else round(f, 4)
+        if f != f:    # NaN
+            return None
+        # 注意：0 是合法数值（真实 0% 收益 / 0 分），绝不能转成 NULL，否则会
+        # 造成「写库时收益=NULL 但打分时仍按 0 排名算出 k 分」的悖论（r 列 NULL
+        # 却有 k 分）。存储必须与打分一致：0 就存 0。缺失已在源头（_return_float /
+        # fetch_currency_funds._f 把空/'0'/'-' 当 None）处理，这里只做数值归一。
+        return round(f, 4)
     except Exception:
         return None
 
