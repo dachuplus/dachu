@@ -117,6 +117,22 @@ def _float(v):
         return 0
 
 
+def _return_float(v):
+    """阶段收益字段专用转换：空/None → None（表示「无该期限业绩」，不参与评分排名）；
+    有效数值 → float（含真实 0.0 收益，不会被误判为缺失）。
+    与 _float 的关键区别：_float 把空串转成 0，导致缺失收益被当 0% 收益纳入排名，
+    进而产生「无业绩却有评分」的展示 bug（如成立不足 3 年却显示 3 年评分）。"""
+    if v is None:
+        return None
+    s = str(v).strip()
+    if s == '':
+        return None
+    try:
+        return float(s)
+    except Exception:
+        return None
+
+
 def _null_float(v):
     """Convert to float, return None if invalid"""
     try:
@@ -188,16 +204,16 @@ def fetch_funds(ft):
                     'hp': 0,
                     'sg': sg_val,
                     'daily_change': daily_val,
-                    'ytd': _float(f[4]),
-                    'r0w': _float(f[5]),
-                    'r1m': _float(f[6]),
-                    'r3m': _float(f[7]),
-                    'r6m': _float(f[8]),
-                    'r1y': _float(f[9]),
-                    'r2y': _float(f[10]),
-                    'r3y': _float(f[11]),
-                    'r5y': _float(f[12]),
-                    'nav': _float(f[16]) if len(f) > 16 else 0,
+                    'ytd': _return_float(f[4]),
+                    'r0w': _return_float(f[5]),
+                    'r1m': _return_float(f[6]),
+                    'r3m': _return_float(f[7]),
+                    'r6m': _return_float(f[8]),
+                    'r1y': _return_float(f[9]),
+                    'r2y': _return_float(f[10]),
+                    'r3y': _return_float(f[11]),
+                    'r5y': _return_float(f[12]),
+                    'nav': _return_float(f[16]) if len(f) > 16 else None,
                     'date': f[15].strip() if len(f) > 15 else '',
                 })
             print(f' +{len(items)}条 (总计{total_count}, 累计{len(all_funds)})')
