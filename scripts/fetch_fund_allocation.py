@@ -82,8 +82,39 @@ def pg(sql, timeout=300):
     return _db_run_sql(sql, timeout=timeout)
 
 
+def _flush_prod(batch_results):
+    """增量把本批结果合并进生产 fund_scores（COALESCE 保护，幂等可重跑）。
+
+    关键修复（2026-08-18）：原脚本只在「抓取全部完成后」才在最后一步一次性
+    UPDATE 生产。一旦 job 触到 90 分钟超时，整批工作全部丢失，而增量跳过集
+    （stock_pct IS NOT NULL）始终为空 → 次日又从头抓取全部 ~2.2 万只 → 又超时，
+    形成死亡螺旋，配置列永远写不进去。改为每批处理完立即合并，超时也只丢当批，
+    且已写入的基金下个分片/次日会被增量跳过，进度单调推进直至全部覆盖。
+    8 个分片的待抓列表互不相交，COALESCE 幂等，可安全并行直写生产。
+    """
+    if not batch_results:
+        return
+    cols_sql = ', '.join(ALLOC_COLS)
+    set_clause = ', '.join([f'{c} = COALESCE(t.{c}, f.{c})' for c in ALLOC_COLS])
+    vals = []
+    for code, data in batch_results:
+        safe = code.replace("'", "''")
+        parts = [f"'{safe}'"]
+        for col in ALLOC_COLS:
+            v = data.get(col)
+            parts.append('NULL' if v is None else str(v))
+        vals.append(f'({", ".join(parts)})')
+    sql = (f'UPDATE fund_scores f SET {set_clause} '
+           f'FROM (VALUES {", ".join(vals)}) AS t(c, {cols_sql}) '
+           f'WHERE f.c = t.c')
+    try:
+        pg(sql, timeout=300)
+    except Exception as e:
+        print(f'  [WARN] 本批生产合并失败（下批/下次重试）: {e}', flush=True)
+
+
 # ── 数据抓取函数 ────────────────────────────────────────────────────
-def _http_get(url, headers=None, timeout=15):
+def _http_get(url, headers=None, timeout=10):
     """通用 HTTP GET"""
     h = {'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36'}
     if headers:
@@ -253,7 +284,7 @@ def main():
     parser.add_argument('--to-prod', action='store_true', help='抓取后把 fund_scores_test 合并进 fund_scores 生产表')
     parser.add_argument('--limit', type=int, default=0, help='限制抓取数量（0=全部）')
     parser.add_argument('--batch-size', type=int, default=50, help='每批请求数量')
-    parser.add_argument('--delay', type=float, default=0.3, help='每批间隔秒数')
+    parser.add_argument('--delay', type=float, default=0.2, help='每批间隔秒数')
     # ── 方案B：分片并行（各片写专属临时表，避免并行 DROP/CREATE _alloc_tmp 冲突）──
     parser.add_argument('--shard', type=int, default=None,
                         help='分片索引（0-based），配合 --shards 把待抓取列表拆成 N 片并行')
@@ -333,6 +364,7 @@ def main():
         batch = todo[start_idx:start_idx + batch_size]
         batch_num = start_idx // batch_size + 1
         total_batches = (len(todo) + batch_size - 1) // batch_size
+        batch_results = {}
 
         for code in batch:
             row_data = {}
@@ -369,6 +401,7 @@ def main():
 
             if row_data:
                 results[code] = row_data
+                batch_results[code] = row_data
                 stats['ok'] += 1
             else:
                 stats['empty'] += 1
@@ -376,6 +409,9 @@ def main():
         done = min(start_idx + batch_size, len(todo))
         print(f'  [{batch_num}/{total_batches}] 已处理 {done}/{len(todo)} '
               f'(成功:{stats["ok"]} 空值:{stats["empty"]} zcpz:{stats["zcpz_ok"]} gmbd:{stats["gmbd_ok"]} cyrjg:{stats["cyrjg_ok"]})', flush=True)
+        # 增量直写生产（--to-prod）：每批完成立即合并，打破「超时丢批→次日重抓」死亡螺旋
+        if args.to_prod and batch_results:
+            _flush_prod(list(batch_results.items()))
         if start_idx + batch_size < len(todo):
             time.sleep(args.delay)
 

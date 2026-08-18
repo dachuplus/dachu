@@ -42,7 +42,7 @@ jobs:
   # ───────────────────────────────────────────────────────────────
   allocation-shard:
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    timeout-minutes: 180
     continue-on-error: true
     strategy:
       matrix:
