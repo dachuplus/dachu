@@ -98,7 +98,7 @@
                   </div>
                 </td>
                 <td class="col-etl-status">
-                  <span class="status-badge" :class="log.status === 'success' ? 'status-ok' : (log.status === 'error' ? 'status-error' : (log.status === 'running' ? 'status-running' : 'status-pending'))">{{ statusLabel(log.status) }}</span>
+                  <span class="status-badge" :class="badgeClass(log.status)">{{ statusLabel(log.status) }}</span>
                 </td>
                 <td class="col-etl-rows">{{ formatNum(log.rows_affected ?? log.rows ?? log.count) }}</td>
                 <td class="col-etl-time">{{ fmtTime(log.start_time ?? log.created_at) }}</td>
@@ -1546,8 +1546,37 @@ function formatSizeMB(mb) {
 
 // 简报状态标签文案
 function statusLabel(s) {
-  const m = { success: '成功', ok: '完成', done: '已完成', error: '失败', fail: '失败', running: '运行中', pending: '等待', skipped: '跳过' }
+  const m = {
+    success: '成功', ok: '完成', done: '已完成',
+    error: '失败', fail: '失败', failed: '失败',
+    running: '运行中', pending: '等待',
+    cancelled: '已取消', canceled: '已取消',
+    skipped: '跳过',
+  }
   return m[String(s || '').toLowerCase()] || (s || '—')
+}
+
+// 状态归一化（后端可能写 failed/ok/canceled 等别名，统一为展示用的规范值）
+function normStatus(s) {
+  const m = {
+    success: 'success', ok: 'success', done: 'success',
+    error: 'error', fail: 'error', failed: 'error',
+    running: 'running', pending: 'pending',
+    cancelled: 'cancelled', canceled: 'cancelled',
+    skipped: 'skipped',
+  }
+  return m[String(s || '').toLowerCase()] || 'pending'
+}
+
+// 状态徽章样式类
+function badgeClass(s) {
+  const st = normStatus(s)
+  if (st === 'success') return 'status-ok'
+  if (st === 'error') return 'status-error'
+  if (st === 'cancelled') return 'status-cancelled'
+  if (st === 'running') return 'status-running'
+  if (st === 'skipped') return 'status-skipped'
+  return 'status-pending'
 }
 // 时间格式化
 function fmtTime(v) {
@@ -1578,9 +1607,22 @@ const ETL_STEP_INFO = {
   promote_stock_scores: { title: '股票评分切换', desc: '校验并原子切换到 stock_scores 生产表，刷新 stock_pk_models / stock_pk_picks' },
   run_stock_pk_monthly: { title: '股票PK月度重选', desc: '每月自动重选股票 PK 组合（真实 LLM 选股或规则兜底）' },
   stock_pk: { title: '股票PK选股', desc: '生成当期股票 PK 推荐组合' },
+  // —— 两条基金自动更新流水线（方案B）写入的简报步骤 ——
+  '评分流水线 · 抓取基金数据': { title: '基金评分 · 抓取与评分', desc: '抓取全市场基金收益/风险指标，重算 V7 靠谱分写入 staging 临时表' },
+  '评分流水线 · 评分切换(promote)': { title: '基金评分 · 原子切换生产', desc: '校验 staging 并原子切换到 fund_scores 生产表（守卫拦截则生产不变）' },
+  '评分流水线 · 收尾(校验/导出)': { title: '基金评分 · 收尾校验导出', desc: '经理回填、数据校验、导出 Excel/全部表、特色指标与标签同步' },
+  '评分流水线 · 前端部署': { title: '基金评分 · 前端部署', desc: '构建站点并部署 EdgeOne Pages（含 functions）' },
+  '配置季度 · 资产配置分片': { title: '配置季度 · 资产配置分片', desc: '分片并行抓取资产配置/规模/持有人并直写生产 12 列（--to-prod）' },
+  '配置季度 · 季度评分分片': { title: '配置季度 · 季度评分分片', desc: '分片并行刷新 fund_quarterly_scores 季度净值数据' },
+  '配置季度 · 季度评分切换': { title: '配置季度 · 季度评分切换', desc: '读库统一重算横截面季度评分（--score-only）' },
+  '配置季度 · 合并表重建': { title: '配置季度 · 合并表重建', desc: '基于最新季度评分重建 fund_combined 合并表' },
 }
 function stepInfo(name) {
-  return ETL_STEP_INFO[name] || { title: name || '未知步骤', desc: 'ETL 数据处理步骤' }
+  if (ETL_STEP_INFO[name]) return ETL_STEP_INFO[name]
+  // 矩阵分片步骤名形如 "配置季度 · 资产配置分片 #3"，去掉 " #N" 后缀再查
+  const base = String(name || '').split(' #')[0]
+  if (ETL_STEP_INFO[base]) return ETL_STEP_INFO[base]
+  return { title: name || '未知步骤', desc: 'ETL 数据处理步骤' }
 }
 const ETL_OVERTIME_MIN = 30
 // 根据真实报错信息推断解决建议
@@ -1609,7 +1651,7 @@ function inferSuggestion(err, stepName) {
 }
 function stepView(log) {
   const info = stepInfo(log.step_name)
-  const status = log.status
+  const status = normStatus(log.status)
   let pct = 0, state = 'pending', reason = '', suggestion = ''
   const start = log.start_time ? new Date(log.start_time).getTime() : null
   const elapsedMin = start != null ? (Date.now() - start) / 60000 : null
@@ -1619,6 +1661,14 @@ function stepView(log) {
     pct = 100; state = 'error'
     reason = log.error_message || '执行失败，详见 ETL 运行日志'
     suggestion = inferSuggestion(log.error_message, log.step_name)
+  } else if (status === 'cancelled') {
+    pct = 100; state = 'error'
+    reason = log.error_message || '任务被取消：可能因 GitHub Actions 超时（job 的 timeout-minutes 触发）或被手动取消。'
+    suggestion = '若是超时：检查该步骤抓取量/并发是否过大、是否需要提高 timeout-minutes；若是被取消：确认是否有人手动取消了本次 run。可到 GitHub Actions 查看对应 run 日志。'
+  } else if (status === 'skipped') {
+    pct = 0; state = 'pending'
+    reason = log.error_message || '该步骤被跳过（上游失败触发 fail-fast，或条件不满足）。'
+    suggestion = '通常因同流水线前序步骤失败而跳过，请优先处理上游失败步骤。'
   } else if (status === 'running') {
     state = 'running'
     if (elapsedMin != null && elapsedMin > ETL_OVERTIME_MIN) {
@@ -1749,25 +1799,27 @@ function dateKeyOf(d) {
 
 function getDaySummary(dayGroup) {
   if (!dayGroup || dayGroup.length === 0) return '未运行'
-  const ok = dayGroup.filter(l => l.status === 'success').length
-  const err = dayGroup.filter(l => l.status === 'error').length
-  const running = dayGroup.filter(l => l.status === 'running').length
+  const ok = dayGroup.filter(l => normStatus(l.status) === 'success').length
+  const err = dayGroup.filter(l => normStatus(l.status) === 'error' || normStatus(l.status) === 'cancelled').length
+  const running = dayGroup.filter(l => normStatus(l.status) === 'running').length
+  const skipped = dayGroup.filter(l => normStatus(l.status) === 'skipped').length
   if (err > 0) return `失败 ${err}/${dayGroup.length}`
   if (running > 0) return `运行中 ${ok}/${dayGroup.length}`
+  if (skipped > 0) return `跳过 ${skipped}/${dayGroup.length}`
   return `完成 ${ok}/${dayGroup.length}`
 }
 
 function getDayStatusClass(dayGroup) {
   if (!dayGroup || dayGroup.length === 0) return 'day-missing'
-  const hasErr = dayGroup.some(l => l.status === 'error')
-  const hasRunning = dayGroup.some(l => l.status === 'running')
+  const hasErr = dayGroup.some(l => normStatus(l.status) === 'error' || normStatus(l.status) === 'cancelled')
+  const hasRunning = dayGroup.some(l => normStatus(l.status) === 'running')
   if (hasErr) return 'day-error'
   if (hasRunning) return 'day-running'
   return 'day-ok'
 }
 
 // 未更新成功原因说明（针对「未运行」——当日无任何 etl_run_log 记录）
-// 依据日期与当前时刻推断最可能的原因，帮助管理员快速定位
+// 注意：仅在当天确实没有任何记录时显示；若流水线已写入记录，则失败原因会直接显示在「说明」列。
 function getMissingReason(dateKey) {
   try {
     const today = dateKeyOf(new Date())
@@ -1775,13 +1827,13 @@ function getMissingReason(dateKey) {
       const now = new Date()
       const passedSchedule = now.getHours() > 21 || (now.getHours() === 21 && now.getMinutes() >= 30)
       if (!passedSchedule) {
-        return '尚未到当日 21:30 定时执行时间，属正常等待（每日北京时间 21:30 由 GitHub Actions 自动运行流水线）。'
+        return '尚未到当日 21:30 定时执行时间，属正常等待（每日北京时间 21:30 由 GitHub Actions 自动运行两条流水线：基金评分、资产配置/季度评分）。'
       }
-      return '已过当日 21:30 执行时间但无任何运行记录：可能是 GitHub Actions 定时任务未触发，或流水线在启动阶段即失败（尚未写入 etl_run_log）。建议到 GitHub Actions 查看 workflow 运行状态。'
+      return '已过当日 21:30 执行时间但无任何运行记录：流水线可能未触发，或在启动阶段即失败（尚未写入 etl_run_log）。可到 GitHub Actions 查看对应 workflow 的运行状态与日志。'
     }
-    return '当日 ETL 未执行或在启动阶段即失败，未产生任何运行记录。常见原因：GitHub Actions 定时任务未触发（cron 被延迟/跳过）、仓库 Actions 被禁用、或运行环境初始化失败。可到 GitHub Actions 历史记录核实。'
+    return '当日 ETL 未执行或启动即失败，未产生任何运行记录。常见原因：GitHub Actions 定时任务未触发（cron 被延迟/跳过）、仓库 Actions 被禁用、或运行环境初始化失败。可到 GitHub Actions 历史记录核实。'
   } catch {
-    return '当日无任何运行记录，ETL 可能未触发或在启动阶段即失败。'
+    return '当日无任何运行记录，ETL 可能未触发或启动即失败。'
   }
 }
 
@@ -1792,9 +1844,9 @@ function getMissingReasonShort(dateKey) {
     if (dateKey === today) {
       const now = new Date()
       const passedSchedule = now.getHours() > 21 || (now.getHours() === 21 && now.getMinutes() >= 30)
-      return passedSchedule ? '定时任务未触发或启动即失败' : '未到 21:30 执行时间'
+      return passedSchedule ? '尚未产生运行记录（可能未触发或启动即失败）' : '未到 21:30 执行时间'
     }
-    return '定时任务未触发或启动即失败'
+    return '当日无运行记录（可能未触发或启动即失败）'
   } catch { return '未产生运行记录' }
 }
 
@@ -2283,6 +2335,8 @@ watch(isOwner, (val) => {
 .status-error { background: #d4351c; color: #fff; }
 .status-running { background: #1d70b8; color: #fff; animation: pulse 1.5s infinite; }
 .status-pending { background: #f3f2f1; color: #6b7280; }
+.status-cancelled { background: #b53c00; color: #fff; }
+.status-skipped { background: #b1b4b6; color: #0b0c0c; }
 .source-badge {
   display: inline-block;
   padding: 2px 10px;

@@ -99,13 +99,21 @@ jobs:
           echo "MGMT_TOKEN 已配置: ${#SUPABASE_MGMT_TOKEN} 字符"
           echo "ANON_KEY 已配置: ${#SUPABASE_ANON_KEY} 字符"
 
-      - name: 步骤1 — 拉取天天基金全量数据（输出 NDJSON）
+      - name: 准备运行环境（记录开始时间/运行日期）
         run: |
+          echo "JOB_START=$(date +%s)" >> $GITHUB_ENV
+          echo "RUN_DATE=$(TZ=Asia/Shanghai date +%Y-%m-%d)" >> $GITHUB_ENV
+          echo "job 开始时间已记录: $(date '+%Y-%m-%d %H:%M:%S')"
+
+      - name: 步骤1 — 拉取天天基金全量数据（输出 NDJSON）
+        id: fetch
+        run: |
+          set -o pipefail
           echo "============================================"
           echo "  步骤1: 拉取天天基金 + 计算收益靠谱分"
           echo "  开始时间: $(date '+%Y-%m-%d %H:%M:%S')"
           echo "============================================"
-          python scripts/fetch_and_import_funds.py --output-only
+          python scripts/fetch_and_import_funds.py --output-only 2>&1 | tee "$GITHUB_WORKSPACE/prep.log"
 
       - name: 步骤2 — 抓取风险指标（回撤+夏普，pingzhongdata HTTPS，4 进程分批并行）
         if: ${{ !inputs.skip_risk }}
@@ -242,6 +250,23 @@ jobs:
           echo "prep job 失败或被取消！请检查 GitHub Actions 日志。"
           echo "时间: $(date '+%Y-%m-%d %H:%M:%S')"
 
+      - name: 记录更新简报
+        if: always()
+        env:
+          STATUS_VAL: ${{ job.status }}
+        run: |
+          ST="$STATUS_VAL"
+          case "$ST" in
+            success) ST=success ;; failure) ST=error ;; cancelled) ST=cancelled ;; skipped) ST=skipped ;; esac
+          JOB_START=${JOB_START:-$(date +%s)}
+          DUR=$(( $(date +%s) - JOB_START ))
+          MSG=""
+          if [ "$ST" != "success" ]; then
+            MSG="$(tail -c 600 "$GITHUB_WORKSPACE/prep.log" 2>/dev/null | tr '\n' ' ')"
+            [ -z "$MSG" ] && MSG="状态: ${STATUS_VAL}。可到 GitHub Actions 查看 run 日志。"
+          fi
+          python3 scripts/log_etl_step.py --step "评分流水线 · 抓取基金数据" --status "$ST" --duration "$DUR" --message "$MSG" --run-date "$RUN_DATE"
+
   # ───────────────────────────────────────────────────────────────
   # finalize：校验 + 原子切换（仅 fund_scores，跳过 combined 重建）
   # ───────────────────────────────────────────────────────────────
@@ -268,8 +293,16 @@ jobs:
       - name: 安装 Python 依赖（psycopg2 直连驱动 + requests）
         run: pip install psycopg2-binary requests
 
-      - name: 步骤3c2 — 校验临时表 + 原子切换 fund_scores（--skip-combined）
+      - name: 准备运行环境（记录开始时间/运行日期）
         run: |
+          echo "JOB_START=$(date +%s)" >> $GITHUB_ENV
+          echo "RUN_DATE=$(TZ=Asia/Shanghai date +%Y-%m-%d)" >> $GITHUB_ENV
+          echo "job 开始时间已记录: $(date '+%Y-%m-%d %H:%M:%S')"
+
+      - name: 步骤3c2 — 校验临时表 + 原子切换 fund_scores（--skip-combined）
+        id: promote
+        run: |
+          set -o pipefail
           echo "============================================"
           echo "  步骤3c2: 校验 staging + 原子切换 fund_scores（跳过 fund_combined 重建）"
           echo "  开始时间: $(date '+%Y-%m-%d %H:%M:%S')"
@@ -277,8 +310,25 @@ jobs:
           echo "        的 rebuild-combined 步骤接管；本步仅切换 fund_scores，"
           echo "        配置列靠 COALESCE 备份回填保护。"
           echo "============================================"
-          python scripts/promote_staging.py --skip-combined
+          python scripts/promote_staging.py --skip-combined 2>&1 | tee "$GITHUB_WORKSPACE/finalize.log"
           echo "切换完成: $(date '+%Y-%m-%d %H:%M:%S')"
+
+      - name: 记录更新简报
+        if: always()
+        env:
+          STATUS_VAL: ${{ job.status }}
+        run: |
+          ST="$STATUS_VAL"
+          case "$ST" in
+            success) ST=success ;; failure) ST=error ;; cancelled) ST=cancelled ;; skipped) ST=skipped ;; esac
+          JOB_START=${JOB_START:-$(date +%s)}
+          DUR=$(( $(date +%s) - JOB_START ))
+          MSG=""
+          if [ "$ST" != "success" ]; then
+            MSG="$(tail -c 800 "$GITHUB_WORKSPACE/finalize.log" 2>/dev/null | tr '\n' ' ')"
+            [ -z "$MSG" ] && MSG="状态: ${STATUS_VAL}。可到 GitHub Actions 查看 run 日志。"
+          fi
+          python3 scripts/log_etl_step.py --step "评分流水线 · 评分切换(promote)" --status "$ST" --duration "$DUR" --message "$MSG" --run-date "$RUN_DATE"
 
   # ───────────────────────────────────────────────────────────────
   # post-finalize：步骤3d~5h 轻量收尾（依赖 finalize）
@@ -306,6 +356,12 @@ jobs:
 
       - name: 安装 Python 依赖（psycopg2 直连驱动 + requests）
         run: pip install psycopg2-binary requests
+
+      - name: 准备运行环境（记录开始时间/运行日期）
+        run: |
+          echo "JOB_START=$(date +%s)" >> $GITHUB_ENV
+          echo "RUN_DATE=$(TZ=Asia/Shanghai date +%Y-%m-%d)" >> $GITHUB_ENV
+          echo "job 开始时间已记录: $(date '+%Y-%m-%d %H:%M:%S')"
 
       - name: 步骤3d — 基金经理空值回填与--标记
         continue-on-error: true
@@ -447,6 +503,22 @@ jobs:
           echo "post-finalize job 失败或被取消！请检查 GitHub Actions 日志。"
           echo "时间: $(date '+%Y-%m-%d %H:%M:%S')"
 
+      - name: 记录更新简报
+        if: always()
+        env:
+          STATUS_VAL: ${{ job.status }}
+        run: |
+          ST="$STATUS_VAL"
+          case "$ST" in
+            success) ST=success ;; failure) ST=error ;; cancelled) ST=cancelled ;; skipped) ST=skipped ;; esac
+          JOB_START=${JOB_START:-$(date +%s)}
+          DUR=$(( $(date +%s) - JOB_START ))
+          MSG=""
+          if [ "$ST" != "success" ]; then
+            MSG="状态: ${STATUS_VAL}（收尾/校验/导出环节）。可到 GitHub Actions 查看 run 日志定位具体失败步骤。"
+          fi
+          python3 scripts/log_etl_step.py --step "评分流水线 · 收尾(校验/导出)" --status "$ST" --duration "$DUR" --message "$MSG" --run-date "$RUN_DATE"
+
   # ───────────────────────────────────────────────────────────────
   # deploy：前端构建 + 部署 EdgeOne（依赖 post-finalize，if always()）
   # ───────────────────────────────────────────────────────────────
@@ -459,11 +531,19 @@ jobs:
       EDGEONE_PAGES_API_TOKEN: ${{ secrets.EDGEONE_PAGES_API_TOKEN }}
       SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
       SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+      SUPABASE_MGMT_TOKEN: ${{ secrets.SUPABASE_MGMT_TOKEN }}
+      SUPABASE_PAT: ${{ secrets.SUPABASE_MGMT_TOKEN }}
       DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
 
     steps:
       - name: 检出代码
         uses: actions/checkout@v4
+
+      - name: 准备运行环境（记录开始时间/运行日期）
+        run: |
+          echo "JOB_START=$(date +%s)" >> $GITHUB_ENV
+          echo "RUN_DATE=$(TZ=Asia/Shanghai date +%Y-%m-%d)" >> $GITHUB_ENV
+          echo "job 开始时间已记录: $(date '+%Y-%m-%d %H:%M:%S')"
 
       - name: 步骤6 — 安装 Node.js
         uses: actions/setup-node@v4
@@ -505,3 +585,19 @@ jobs:
         run: |
           echo "前端部署 job 失败！请检查 GitHub Actions 日志。"
           echo "时间: $(date '+%Y-%m-%d %H:%M:%S')"
+
+      - name: 记录更新简报
+        if: always()
+        env:
+          STATUS_VAL: ${{ job.status }}
+        run: |
+          ST="$STATUS_VAL"
+          case "$ST" in
+            success) ST=success ;; failure) ST=error ;; cancelled) ST=cancelled ;; skipped) ST=skipped ;; esac
+          JOB_START=${JOB_START:-$(date +%s)}
+          DUR=$(( $(date +%s) - JOB_START ))
+          MSG=""
+          if [ "$ST" != "success" ]; then
+            MSG="状态: ${STATUS_VAL}（前端构建/部署环节）。可到 GitHub Actions 查看 run 日志。"
+          fi
+          python3 scripts/log_etl_step.py --step "评分流水线 · 前端部署" --status "$ST" --duration "$DUR" --message "$MSG" --run-date "$RUN_DATE"

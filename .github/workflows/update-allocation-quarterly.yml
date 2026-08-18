@@ -67,7 +67,13 @@ jobs:
       - name: 安装 Python 依赖（psycopg2 直连驱动 + requests）
         run: pip install psycopg2-binary requests
 
+      - name: 准备运行环境（更新简报）
+        run: |
+          echo "JOB_START=$(date +%s)" >> "$GITHUB_ENV"
+          echo "RUN_DATE=$(TZ=Asia/Shanghai date +%Y-%m-%d)" >> "$GITHUB_ENV"
+
       - name: 步骤3a — 抓取基金配置/规模/持有人数据并直写生产（分片 ${{ matrix.shard }}/8，--to-prod）
+        id: fetch
         env:
           SUPABASE_PAT: ${{ secrets.SUPABASE_MGMT_TOKEN }}
         run: |
@@ -78,8 +84,25 @@ jobs:
           echo "        不写 staging、不碰整体切换，与流水线 A 互不冲突；"
           echo "        分片专属临时表 _alloc_tmp_{shard} 并行无冲突。"
           echo "============================================"
-          python scripts/fetch_fund_allocation.py --shard ${{ matrix.shard }} --shards 8 --to-prod
+          python scripts/fetch_fund_allocation.py --shard ${{ matrix.shard }} --shards 8 --to-prod 2>&1 | tee "$GITHUB_WORKSPACE/alloc-${{ matrix.shard }}.log"
           echo "配置类数据抓取完成(分片 ${{ matrix.shard }}): $(date '+%Y-%m-%d %H:%M:%S')"
+
+      - name: 记录更新简报（配置季度 · 资产配置分片）
+        if: always()
+        env:
+          RUN_DATE: ${{ env.RUN_DATE }}
+          STEP_OUTCOME: ${{ steps.fetch.outcome }}
+          STAGE_START: ${{ env.JOB_START }}
+        run: |
+          if [ "$STEP_OUTCOME" = "success" ]; then ST=success; else ST=error; fi
+          END=$(date +%s)
+          DUR=$((END - ${STAGE_START:-0}))
+          if [ "$ST" != "success" ]; then
+            MSG="分片 ${{ matrix.shard }}/8 配置抓取失败：详见 GitHub Actions 日志；最近输出：$(tail -c 400 "$GITHUB_WORKSPACE/alloc-${{ matrix.shard }}.log" 2>/dev/null | tr '\n' ' ')"
+          else
+            MSG="分片 ${{ matrix.shard }}/8 资产配置 12 列已直写生产"
+          fi
+          python3 scripts/log_etl_step.py --step "配置季度 · 资产配置分片 #${{ matrix.shard }}" --status "$ST" --duration "$DUR" --message "$MSG" --run-date "$RUN_DATE"
 
   # ───────────────────────────────────────────────────────────────
   # quarterly-shard：matrix 8 片并行刷 fund_quarterly_scores（仅 quarterly_data）
@@ -110,7 +133,13 @@ jobs:
       - name: 安装 Python 依赖（psycopg2 直连驱动 + requests）
         run: pip install psycopg2-binary requests
 
+      - name: 准备运行环境（更新简报）
+        run: |
+          echo "JOB_START=$(date +%s)" >> "$GITHUB_ENV"
+          echo "RUN_DATE=$(TZ=Asia/Shanghai date +%Y-%m-%d)" >> "$GITHUB_ENV"
+
       - name: 步骤3b — 刷新 fund_quarterly_scores（分片 ${{ matrix.shard }}/8，UPSERT 幂等）
+        id: fetch
         run: |
           echo "============================================"
           echo "  步骤3b[shard=${{ matrix.shard }}/8]: 刷新 fund_quarterly_scores（季度引擎）"
@@ -118,8 +147,25 @@ jobs:
           echo "  说明: 本片仅抓取净值写 quarterly_data（评分列留空），"
           echo "        由后续 quarterly-score 单 job 读库统一重算横截面评分。"
           echo "============================================"
-          python scripts/compute_quarterly_scores.py --shard ${{ matrix.shard }} --shards 8 --workers 5 --delay 0.3
+          python scripts/compute_quarterly_scores.py --shard ${{ matrix.shard }} --shards 8 --workers 5 --delay 0.3 2>&1 | tee "$GITHUB_WORKSPACE/qtr-${{ matrix.shard }}.log"
           echo "fund_quarterly_scores 分片刷新完成(${{ matrix.shard }}): $(date '+%Y-%m-%d %H:%M:%S')"
+
+      - name: 记录更新简报（配置季度 · 季度评分分片）
+        if: always()
+        env:
+          RUN_DATE: ${{ env.RUN_DATE }}
+          STEP_OUTCOME: ${{ steps.fetch.outcome }}
+          STAGE_START: ${{ env.JOB_START }}
+        run: |
+          if [ "$STEP_OUTCOME" = "success" ]; then ST=success; else ST=error; fi
+          END=$(date +%s)
+          DUR=$((END - ${STAGE_START:-0}))
+          if [ "$ST" != "success" ]; then
+            MSG="分片 ${{ matrix.shard }}/8 季度净值抓取失败：详见 GitHub Actions 日志；最近输出：$(tail -c 400 "$GITHUB_WORKSPACE/qtr-${{ matrix.shard }}.log" 2>/dev/null | tr '\n' ' ')"
+          else
+            MSG="分片 ${{ matrix.shard }}/8 fund_quarterly_scores 季度净值已刷新"
+          fi
+          python3 scripts/log_etl_step.py --step "配置季度 · 季度评分分片 #${{ matrix.shard }}" --status "$ST" --duration "$DUR" --message "$MSG" --run-date "$RUN_DATE"
 
   # ───────────────────────────────────────────────────────────────
   # quarterly-score：单 job 读全量重算横截面评分（必须全量一次算）
@@ -147,14 +193,37 @@ jobs:
       - name: 安装 Python 依赖（psycopg2 直连驱动 + requests）
         run: pip install psycopg2-binary requests
 
+      - name: 准备运行环境（更新简报）
+        run: |
+          echo "JOB_START=$(date +%s)" >> "$GITHUB_ENV"
+          echo "RUN_DATE=$(TZ=Asia/Shanghai date +%Y-%m-%d)" >> "$GITHUB_ENV"
+
       - name: 步骤3b-score — 读库重算横截面评分（--score-only）
+        id: score
         run: |
           echo "============================================"
           echo "  步骤3b-score: 读 fund_quarterly_scores 重算横截面评分"
           echo "  开始时间: $(date '+%Y-%m-%d %H:%M:%S')"
           echo "============================================"
-          python scripts/compute_quarterly_scores.py --score-only
+          python scripts/compute_quarterly_scores.py --score-only 2>&1 | tee "$GITHUB_WORKSPACE/qtr-score.log"
           echo "横截面评分重算完成: $(date '+%Y-%m-%d %H:%M:%S')"
+
+      - name: 记录更新简报（配置季度 · 季度评分切换）
+        if: always()
+        env:
+          RUN_DATE: ${{ env.RUN_DATE }}
+          STEP_OUTCOME: ${{ steps.score.outcome }}
+          STAGE_START: ${{ env.JOB_START }}
+        run: |
+          if [ "$STEP_OUTCOME" = "success" ]; then ST=success; else ST=error; fi
+          END=$(date +%s)
+          DUR=$((END - ${STAGE_START:-0}))
+          if [ "$ST" != "success" ]; then
+            MSG="季度横截面评分重算失败：详见 GitHub Actions 日志；最近输出：$(tail -c 600 "$GITHUB_WORKSPACE/qtr-score.log" 2>/dev/null | tr '\n' ' ')"
+          else
+            MSG="fund_quarterly_scores 横截面季度评分已重算"
+          fi
+          python3 scripts/log_etl_step.py --step "配置季度 · 季度评分切换" --status "$ST" --duration "$DUR" --message "$MSG" --run-date "$RUN_DATE"
 
   # ───────────────────────────────────────────────────────────────
   # rebuild-combined：基于最新季度评分重建 fund_combined
@@ -182,7 +251,13 @@ jobs:
       - name: 安装 Python 依赖（psycopg2 直连驱动 + requests）
         run: pip install psycopg2-binary requests
 
+      - name: 准备运行环境（更新简报）
+        run: |
+          echo "JOB_START=$(date +%s)" >> "$GITHUB_ENV"
+          echo "RUN_DATE=$(TZ=Asia/Shanghai date +%Y-%m-%d)" >> "$GITHUB_ENV"
+
       - name: 重建 fund_combined（sync_fund_combined_scores.py）
+        id: rebuild
         run: |
           echo "============================================"
           echo "  重建 fund_combined：基于 fund_quarterly_scores + fund_scores(k0w/k1m)"
@@ -190,8 +265,25 @@ jobs:
           echo "  说明: 流水线 A 的 promote 已用 --skip-combined 跳过此步；"
           echo "        此处接管 combined 重建，保证季度评分刷新后 combined 同步。"
           echo "============================================"
-          python scripts/sync_fund_combined_scores.py
+          python scripts/sync_fund_combined_scores.py 2>&1 | tee "$GITHUB_WORKSPACE/rebuild.log"
           echo "fund_combined 重建完成: $(date '+%Y-%m-%d %H:%M:%S')"
+
+      - name: 记录更新简报（配置季度 · 合并表重建）
+        if: always()
+        env:
+          RUN_DATE: ${{ env.RUN_DATE }}
+          STEP_OUTCOME: ${{ steps.rebuild.outcome }}
+          STAGE_START: ${{ env.JOB_START }}
+        run: |
+          if [ "$STEP_OUTCOME" = "success" ]; then ST=success; else ST=error; fi
+          END=$(date +%s)
+          DUR=$((END - ${STAGE_START:-0}))
+          if [ "$ST" != "success" ]; then
+            MSG="fund_combined 重建失败：详见 GitHub Actions 日志；最近输出：$(tail -c 600 "$GITHUB_WORKSPACE/rebuild.log" 2>/dev/null | tr '\n' ' ')"
+          else
+            MSG="fund_combined 已基于最新季度评分重建"
+          fi
+          python3 scripts/log_etl_step.py --step "配置季度 · 合并表重建" --status "$ST" --duration "$DUR" --message "$MSG" --run-date "$RUN_DATE"
 
   # ───────────────────────────────────────────────────────────────
   # notify：汇总通知（任一分片失败也提醒，但不阻断）
