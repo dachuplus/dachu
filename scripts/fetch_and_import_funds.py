@@ -148,6 +148,43 @@ def _null_float(v):
         return None
 
 
+def _curl_json(url, tries=3, delay=5, timeout=20):
+    """带重试的 curl JSON 拉取。遇到无响应/解析失败/异常自动重试，根除上游瞬时抽风
+    （如 8/19 评分流水线因 ft=gp 接口瞬时返回空、导致 staging 股票型=0、promote 校验拒绝）。
+    """
+    for attempt in range(1, tries + 1):
+        try:
+            result = subprocess.run(
+                ['curl', '-s', '--max-time', str(timeout),
+                 '-H', 'User-Agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)',
+                 '-H', 'Referer: https://fund.eastmoney.com/', url],
+                capture_output=True, text=True, timeout=timeout + 5
+            )
+            text = result.stdout
+            if not text or '{' not in text:
+                print(f'  (第{attempt}/{tries}次) 无响应/非JSON')
+                if attempt < tries:
+                    time.sleep(delay)
+                    continue
+                return None
+            s = text.find('{')
+            e = text.rfind('}') + 1
+            if s < 0 or e <= s:
+                print(f'  (第{attempt}/{tries}次) 括号定位失败')
+                if attempt < tries:
+                    time.sleep(delay)
+                    continue
+                return None
+            return json.loads(text[s:e])
+        except Exception as e:
+            print(f'  (第{attempt}/{tries}次) 异常: {e}')
+            if attempt < tries:
+                time.sleep(delay)
+                continue
+            return None
+    return None
+
+
 def fetch_funds(ft):
     """从天天基金拉取指定分类的全部基金（用 curl 避免被限速）"""
     all_funds = []
@@ -158,21 +195,10 @@ def fetch_funds(ft):
         )
         print(f'  拉取 {FT_MAP[ft]}({ft}) 第{pi}页...', end='', flush=True)
         try:
-            result = subprocess.run(
-                ['curl', '-s', '-H', 'User-Agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)',
-                 '-H', 'Referer: https://fund.eastmoney.com/', url],
-                capture_output=True, text=True, timeout=15
-            )
-            text = result.stdout
-            if not text or '{' not in text:
-                print(' 无响应，跳过')
+            data = _curl_json(url)
+            if data is None:
+                print(f'  {FT_MAP[ft]}({ft}) 重试耗尽仍无数据，跳过该分类')
                 break
-            s = text.find('{')
-            e = text.rfind('}') + 1
-            if s < 0 or e <= s:
-                print(' 解析失败')
-                break
-            data = json.loads(text[s:e])
             items = data.get('datas', [])
             total_count = int(data.get('datacount', 0))
             for item in items:
