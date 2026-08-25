@@ -181,6 +181,7 @@ jobs:
       - name: 步骤2c — 导出基金详情（公司/规模/费率）
         if: ${{ !inputs.skip_risk }}
         timeout-minutes: 5
+        continue-on-error: true
         run: |
           echo "============================================"
           echo "  步骤2c: 导出基金详情 (公司/规模/费率)"
@@ -223,6 +224,7 @@ jobs:
 
       - name: 步骤2c3 — 确保 fund_scores 新列存在（DDL）
         if: ${{ !inputs.skip_risk }}
+        continue-on-error: true
         run: |
           echo "============================================"
           echo "  步骤2c3: 确保 fund_scores 新增列 (share_scale/custody_fee/sale_fee/found_date)"

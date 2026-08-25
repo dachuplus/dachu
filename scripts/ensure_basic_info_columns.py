@@ -14,6 +14,7 @@ ensure_basic_info_columns.py — 为 fund_scores 表新增基本信息字段（�
 import os
 import sys
 import json
+import time
 import requests
 
 # 从环境变量读取（CI 注入），本地回退到 .env.local
@@ -30,9 +31,23 @@ NEW_COLUMNS = [
 ]
 
 
-def pg_query(sql, timeout=60):
+def pg_query(sql, timeout=120):
+    """执行 SQL，带重试 3 次/间隔 5s。
+
+    GitHub Actions runner → Supabase 网关间歇性超时（8/21 实测 DDL 直连
+    OperationalError + Management API 544）。单次失败会让整个评分流水线卡死，
+    故加重试兜底。底层 _db.run_sql 本身已含「直连→Management API」回退。
+    """
     from _db import run_sql as _db_run_sql
-    return _db_run_sql(sql, timeout=timeout)
+    last = None
+    for i in range(3):
+        try:
+            return _db_run_sql(sql, timeout=timeout)
+        except Exception as e:
+            last = e
+            print(f'  pg_query 重试 {i+1}/3: {type(e).__name__}: {e}', flush=True)
+            time.sleep(5)
+    raise RuntimeError(f'pg_query 重试 3 次均失败: {last}')
 
 
 def column_exists(col):
