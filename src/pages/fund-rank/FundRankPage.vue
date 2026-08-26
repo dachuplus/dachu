@@ -774,7 +774,7 @@ const sortAsc = ref(false)        // 靠谱指数排序方向（false=降序，t
 const sortField = ref('')          // 客户端排序列（非评分列）：'c'|'n'|'equityPct'|'bondPct'
 const sortDir = ref('desc')        // 客户端排序方向
 const page = ref(1)
-const pageSize = 100
+const pageSize = 1000   // 首屏默认 1000 只（原 100，按用户 2026-08-26 反馈调整）；PostgREST 单次 range 上限 1000，正好对齐
 const hasMore = ref(false)
 const loading = ref(false)
 const dataLoaded = ref(false)
