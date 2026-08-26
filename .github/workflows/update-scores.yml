@@ -254,9 +254,11 @@ jobs:
 
       - name: 记录更新简报
         if: always()
+        continue-on-error: true
         env:
           STATUS_VAL: ${{ job.status }}
         run: |
+          set -euo pipefail
           ST="$STATUS_VAL"
           case "$ST" in
             success) ST=success ;; failure) ST=error ;; cancelled) ST=cancelled ;; skipped) ST=skipped ;; esac
@@ -264,7 +266,7 @@ jobs:
           DUR=$(( $(date +%s) - JOB_START ))
           MSG=""
           if [ "$ST" != "success" ]; then
-            MSG="$(tail -c 600 "$GITHUB_WORKSPACE/prep.log" 2>/dev/null | tr '\n' ' ')"
+            MSG="$( (tail -c 600 "$GITHUB_WORKSPACE/prep.log" 2>/dev/null || true) | tr '\n' ' ' )"
             [ -z "$MSG" ] && MSG="状态: ${STATUS_VAL}。可到 GitHub Actions 查看 run 日志。"
           fi
           python3 scripts/log_etl_step.py --step "评分流水线 · 抓取基金数据" --status "$ST" --duration "$DUR" --message "$MSG" --run-date "$RUN_DATE"
@@ -317,9 +319,11 @@ jobs:
 
       - name: 记录更新简报
         if: always()
+        continue-on-error: true
         env:
           STATUS_VAL: ${{ job.status }}
         run: |
+          set -euo pipefail
           ST="$STATUS_VAL"
           case "$ST" in
             success) ST=success ;; failure) ST=error ;; cancelled) ST=cancelled ;; skipped) ST=skipped ;; esac
@@ -327,7 +331,7 @@ jobs:
           DUR=$(( $(date +%s) - JOB_START ))
           MSG=""
           if [ "$ST" != "success" ]; then
-            MSG="$(tail -c 800 "$GITHUB_WORKSPACE/finalize.log" 2>/dev/null | tr '\n' ' ')"
+            MSG="$( (tail -c 800 "$GITHUB_WORKSPACE/finalize.log" 2>/dev/null || true) | tr '\n' ' ' )"
             [ -z "$MSG" ] && MSG="状态: ${STATUS_VAL}。可到 GitHub Actions 查看 run 日志。"
           fi
           python3 scripts/log_etl_step.py --step "评分流水线 · 评分切换(promote)" --status "$ST" --duration "$DUR" --message "$MSG" --run-date "$RUN_DATE"
@@ -507,9 +511,11 @@ jobs:
 
       - name: 记录更新简报
         if: always()
+        continue-on-error: true
         env:
           STATUS_VAL: ${{ job.status }}
         run: |
+          set -euo pipefail
           ST="$STATUS_VAL"
           case "$ST" in
             success) ST=success ;; failure) ST=error ;; cancelled) ST=cancelled ;; skipped) ST=skipped ;; esac
@@ -590,9 +596,11 @@ jobs:
 
       - name: 记录更新简报
         if: always()
+        continue-on-error: true
         env:
           STATUS_VAL: ${{ job.status }}
         run: |
+          set -euo pipefail
           ST="$STATUS_VAL"
           case "$ST" in
             success) ST=success ;; failure) ST=error ;; cancelled) ST=cancelled ;; skipped) ST=skipped ;; esac

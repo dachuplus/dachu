@@ -74,33 +74,50 @@ def _jsonable(o):
 
 
 def _mgmt_query(sql, params=None, timeout=60):
-    """回退路径：通过 Management API 执行 SQL（只认 PAT）。返回 list[dict] 或 []。"""
+    """回退路径：通过 Management API 执行 SQL（只认 PAT）。返回 list[dict] 或 []。
+
+    自愈重试：GitHub Actions runner → Supabase 网关间歇性超时（实测 MGMT API
+    544 Connection terminated due to connection timeout / 各类 5xx）。单次失败会让
+    核心评分步骤（如 TRUNCATE 临时表、写入 staging）卡死导致整条流水线失败，故这里
+    重试 3 次、间隔 5s，彻底摆脱瞬时抽风。
+    """
     import json
+    import time
     import requests
 
     token = os.environ.get("SUPABASE_PAT") or os.environ.get("SUPABASE_MGMT_TOKEN")
     if not token:
         raise RuntimeError("缺少 SUPABASE_PAT / SUPABASE_MGMT_TOKEN（且未配置 SUPABASE_DB_URL）")
-    r = requests.post(
-        MGMT_API,
-        headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
-        json={"query": sql},
-        timeout=timeout,
-    )
-    try:
-        r.raise_for_status()
-    except Exception:
-        raise RuntimeError(f"MGMT API HTTP {r.status_code}: {r.text[:300]}")
-    data = r.json()
-    # Management API 对 SELECT 返回行数组；对 DDL 通常返回 [] 或 {"status":"OK"}；
-    # 对错误返回 {"message": "..."}。统一为 list[dict] / []，错误抛异常。
-    if isinstance(data, dict):
-        if data.get("message"):
-            raise RuntimeError(data["message"][:300])
-        return []
-    if isinstance(data, list):
-        return data
-    return []
+    last = None
+    for attempt in range(3):
+        try:
+            r = requests.post(
+                MGMT_API,
+                headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+                json={"query": sql},
+                timeout=timeout,
+            )
+            if r.status_code >= 500:
+                last = f"HTTP {r.status_code}: {r.text[:200]}"
+                print(f"  [_db] MGMT API 5xx（第{attempt+1}/3 次，5s 后重试）: {last}", flush=True)
+                time.sleep(5)
+                continue
+            r.raise_for_status()
+            data = r.json()
+            # Management API 对 SELECT 返回行数组；对 DDL 通常返回 [] 或 {"status":"OK"}；
+            # 对错误返回 {"message": "..."}。统一为 list[dict] / []，错误抛异常。
+            if isinstance(data, dict):
+                if data.get("message"):
+                    raise RuntimeError(data["message"][:300])
+                return []
+            if isinstance(data, list):
+                return data
+            return []
+        except requests.exceptions.RequestException as e:
+            last = str(e)
+            print(f"  [_db] MGMT API 请求异常({type(e).__name__})（第{attempt+1}/3 次，5s 后重试）: {e}", flush=True)
+            time.sleep(5)
+    raise RuntimeError(f"MGMT API 重试 3 次仍失败: {last}")
 
 
 def _ipv4_host(dsn):
@@ -132,33 +149,47 @@ def _db_query(sql, params=None, timeout=300):
     注：Supabase 的数据库主机只提供 IPv6，而 GitHub Actions runner 无 IPv6 出口，
     直连在 CI 里会 'Network is unreachable'。本层会先尝试直连（有 IPv6 的环境用数据库密码），
     调用方 run_sql 在连接失败时自动回退到 Management API（IPv4 + PAT）。
+
+    自愈重试：runner → Supabase 网关瞬时抽风（实测 ECHECKOUTTIMEOUT: unable to
+    check out connection from the pool after 15000ms）会让核心评分步骤卡死，故对
+    连接/网络类 OperationalError 重试 3 次、间隔 5s。重试耗尽才上抛，由 run_sql
+    回退到 Management API（同样自带重试）。
     """
     import json
+    import time
 
     dsn = os.environ["SUPABASE_DB_URL"]
     statements = _split_statements(sql)
     if not statements:
         return []
     out_rows = []
-    conn_kwargs = {"dsn": dsn, "sslmode": "require"}
-    # 强制 IPv4：runner 解析到 IPv6 但无 IPv6 出口会导致 Network is unreachable。
-    ipv4 = _ipv4_host(dsn)
-    if ipv4:
-        conn_kwargs["host"] = ipv4
-    if timeout:
+    last = None
+    for attempt in range(3):
         try:
-            conn_kwargs["connect_timeout"] = int(timeout)
-        except Exception:
-            pass
-    with psycopg2.connect(**conn_kwargs) as conn:
-        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
-            for stmt in statements:
-                cur.execute(stmt, params)
-                if cur.description:
-                    out_rows = [dict(r) for r in cur.fetchall()]
-        conn.commit()
-    # 数值/时间类型规整，避免下游算术因 Decimal/date 出错，且与 API 的 JSON 类型对齐
-    return json.loads(json.dumps(out_rows, default=_jsonable))
+            conn_kwargs = {"dsn": dsn, "sslmode": "require"}
+            # 强制 IPv4：runner 解析到 IPv6 但无 IPv6 出口会导致 Network is unreachable。
+            ipv4 = _ipv4_host(dsn)
+            if ipv4:
+                conn_kwargs["host"] = ipv4
+            if timeout:
+                try:
+                    conn_kwargs["connect_timeout"] = int(timeout)
+                except Exception:
+                    pass
+            with psycopg2.connect(**conn_kwargs) as conn:
+                with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+                    for stmt in statements:
+                        cur.execute(stmt, params)
+                        if cur.description:
+                            out_rows = [dict(r) for r in cur.fetchall()]
+                conn.commit()
+            # 数值/时间类型规整，避免下游算术因 Decimal/date 出错，且与 API 的 JSON 类型对齐
+            return json.loads(json.dumps(out_rows, default=_jsonable))
+        except psycopg2.OperationalError as e:
+            last = e
+            print(f"  [_db] 直连 OperationalError（第{attempt+1}/3 次，5s 后重试）: {e}", flush=True)
+            time.sleep(5)
+    raise RuntimeError(f"psycopg2 直连重试 3 次仍失败: {last}")
 
 
 def run_sql(sql, params=None, timeout=None):

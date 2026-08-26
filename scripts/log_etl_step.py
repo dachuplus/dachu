@@ -18,6 +18,7 @@
 import os
 import sys
 import json
+import time
 import subprocess
 from datetime import datetime, date
 
@@ -63,31 +64,50 @@ CREATE TABLE IF NOT EXISTS public.etl_run_log (
 """
 
 
-def pg(sql):
+def pg(sql, tries=3, delay=5):
+    """经 Management API（curl 直连，避开 urllib 被 Cloudflare 403）执行 SQL。
+
+    自愈重试：GitHub Actions runner → Supabase 网关间歇性超时（curl connect
+    timeout / 5xx）。此前 pg() 对 curl 超时既未捕获异常也未重试，导致简报写入
+    静默失败（bash step 无 set -e 误判 success）——这正是「更新简报看不到失败
+    原因」的根因。现改为重试 3 次、间隔 5s，瞬时抽风也能写进去。
+    """
     if not MGMT_TOKEN:
         sys.stderr.write('WARN: 未设置 SUPABASE_PAT/SUPABASE_MGMT_TOKEN，跳过日志写入\n')
         return None
     payload = json.dumps({'query': sql})
-    r = subprocess.run(
-        ['curl', '-s', '--max-time', '120', '-X', 'POST', MGMT_API,
-         '-H', f'Authorization: Bearer {MGMT_TOKEN}',
-         '-H', 'Content-Type: application/json', '-d', payload],
-        capture_output=True, text=True, timeout=130)
-    if r.returncode != 0:
-        sys.stderr.write(f'curl fail: {r.stderr[:200]}\n')
-        return None
-    t = r.stdout.strip()
-    if not t:
-        return None
-    try:
-        resp = json.loads(t)
-    except json.JSONDecodeError:
-        sys.stderr.write(f'非JSON响应: {t[:200]}\n')
-        return None
-    if isinstance(resp, dict) and resp.get('message'):
-        sys.stderr.write(f'SQL错误: {resp["message"][:300]}\n')
-        return None
-    return resp
+    last_err = None
+    for attempt in range(tries):
+        try:
+            r = subprocess.run(
+                ['curl', '-s', '--max-time', '120', '-X', 'POST', MGMT_API,
+                 '-H', f'Authorization: Bearer {MGMT_TOKEN}',
+                 '-H', 'Content-Type: application/json', '-d', payload],
+                capture_output=True, text=True, timeout=130)
+        except subprocess.TimeoutExpired as e:
+            last_err = f'curl 超时: {e}'
+            sys.stderr.write(f'  [log] curl 超时（第{attempt+1}/{tries}次，{delay}s 后重试）\n')
+            time.sleep(delay)
+            continue
+        if r.returncode != 0:
+            last_err = f'curl returncode={r.returncode}: {r.stderr[:200]}'
+            sys.stderr.write(f'  [log] curl 失败（第{attempt+1}/{tries}次，{delay}s 后重试）: {last_err}\n')
+            time.sleep(delay)
+            continue
+        t = r.stdout.strip()
+        if not t:
+            return None
+        try:
+            resp = json.loads(t)
+        except json.JSONDecodeError:
+            sys.stderr.write(f'非JSON响应: {t[:200]}\n')
+            return None
+        if isinstance(resp, dict) and resp.get('message'):
+            sys.stderr.write(f'SQL错误: {resp["message"][:300]}\n')
+            return None
+        return resp
+    sys.stderr.write(f'  [log] pg 重试 {tries} 次仍失败: {last_err}\n')
+    return None
 
 
 def ensure_table():
