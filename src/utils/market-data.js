@@ -383,3 +383,40 @@ export function parseValue500Data(v500) {
     get: extract
   }
 }
+
+/**
+ * 从 macro-data Edge Function 返回的扁平 JSON 解析出与 parseValue500Data 完全一致的结构
+ * @param {Object|null} flat - fetchMacroData() 的返回值
+ * @returns {Object} { bond, shibor, m2, cpi, ep, pe300, pmi, rf, get }
+ *   结构与 parseValue500Data 对齐，前端 loadAll 可零改动消费：
+ *   - bond.yield10y（小数）、bond.spread（10Y-2Y 百分点）
+ *   - shibor.on（小数）、m2.m2yoy（百分数）、cpi.cpi（小数）
+ *   - pe300.pe / pe300.pePercentile（百分数）
+ *   - pmi.pmi
+ *   - rf = bond.yield10y > 0 ? bond.yield10y : null
+ *   - get(key): 取 flat[key] || {}（兼容 v500Get('pmi') 等写法）
+ */
+export function parseMacroData(flat) {
+  const f = flat || {}
+  const bondData = f.bond || {}
+  const shiborData = f.shibor || {}
+  const m2Data = f.m2 || {}
+  const cpiData = f.cpi || {}
+  const epData = f.ep || {}
+  const pe300Data = f.pe300 || {}
+  const pmiData = f.pmi || {}
+
+  const rf = (bondData.yield10y && bondData.yield10y > 0) ? bondData.yield10y : null
+
+  return {
+    bond: bondData,
+    shibor: shiborData,
+    m2: m2Data,
+    cpi: cpiData,
+    ep: epData,
+    pe300: pe300Data,
+    pmi: pmiData,
+    rf,
+    get: (k) => f[k] || {}
+  }
+}

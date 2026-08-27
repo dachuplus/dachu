@@ -98,6 +98,33 @@ export async function fetchValue500All(pages) {
   }
 }
 
+// ========== 宏观参考数据（替代 value500，独立 Edge Function） ==========
+
+/**
+ * 获取宏观参考数据（国债/SHIBOR/M2/CPI/PMI/沪深300估值）
+ * 数据源：专属 Supabase Edge Function macro-data（服务端聚合东财+蛋卷，脱离已失效的 value500.com）
+ * 该端点免鉴权、CORS 已开放，前端直接 GET 即可；失败返回 null（前端按空值优雅降级）。
+ * 返回扁平 JSON：
+ *   { bond:{date,yield10y,spread}, shibor:{date,on}, m2:{date,m2yoy}, cpi:{date,cpi}, pmi:{date,pmi}, pe300:{date,pe,pePercentile,pb} }
+ * 单位：yield10y/spread(on)/cpi/shibor.on 为小数；m2.m2yoy/pmi/pe300.pePercentile 为百分数；spread 为 10Y-2Y 百分点。
+ */
+export async function fetchMacroData() {
+  try {
+    const res = await fetch(`${SUPABASE_URL}/functions/v1/macro-data`, {
+      method: 'GET',
+      headers: { 'Content-Type': 'application/json' },
+      signal: AbortSignal.timeout(12000)
+    })
+    if (!res.ok) throw new Error('HTTP ' + res.status)
+    const data = await res.json()
+    if (data?.error) throw new Error(data.error)
+    return data
+  } catch (err) {
+    console.error('[api] macro-data 获取失败:', err)
+    return null
+  }
+}
+
 // ========== 蛋卷基金估值 ==========
 
 const DANJUAN_DEV_URL = '/api/danjuan/djapi/index_eva/dj'
@@ -118,27 +145,26 @@ export async function fetchDanjuanEva() {
       if (!res.ok) throw new Error('HTTP ' + res.status)
       raw = await res.json()
     } else {
-      // 生产环境：优先 Edge Function
+      // 生产环境：优先专属 Edge Function（直连蛋卷，脱离已失效的 value500）
       try {
-        const res = await fetch(`${SUPABASE_URL}/functions/v1/value500`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ pages: ['danjuan'] }),
+        const res = await fetch(`${SUPABASE_URL}/functions/v1/danjuan-eva`, {
+          method: 'GET',
           signal: AbortSignal.timeout(12000)
         })
-        const efData = await res.json()
-        if (efData?.danjuan?.code === 0) {
-          return efData.danjuan
+        if (res.ok) {
+          raw = await res.json()
         }
       } catch (efErr) {
-        console.error('[api] danjuan Edge Function 失败，降级 CORS 代理:', efErr)
+        console.error('[api] danjuan-eva Edge Function 失败，降级 CORS 代理:', efErr)
       }
       // 降级：CORS 代理直连蛋卷 API
-      const res = await fetch(CORS_PROXY + encodeURIComponent(DANJUAN_API), {
-        signal: AbortSignal.timeout(10000)
-      })
-      if (!res.ok) throw new Error('HTTP ' + res.status)
-      raw = await res.json()
+      if (!raw?.data?.items) {
+        const res = await fetch(CORS_PROXY + encodeURIComponent(DANJUAN_API), {
+          signal: AbortSignal.timeout(10000)
+        })
+        if (!res.ok) throw new Error('HTTP ' + res.status)
+        raw = await res.json()
+      }
     }
 
     // 解析蛋卷返回格式
@@ -240,17 +266,46 @@ export async function fetchConfig(type) {
 }
 
 /**
- * 查询指数估值生产表（index_eva，来源：蛋卷估值中心）
- * 返回行：index_code, name, ttype, cat, pe, pe_percentile, pb, pb_percentile, dividend_yield, roe, eva_type, date
+ * 查询指数估值（实时，不落库）
+ * 数据源：蛋卷估值中心 (danjuanfunds.com/djapi/index_eva/dj)，
+ *   经专属 Supabase Edge Function danjuan-eva 服务端代理抓取（直连蛋卷，脱离已失效的 value500），
+ *   当场解析返回；失败降级 CORS 代理。不依赖 value500.com。
+ * 返回行（字段量级与旧 index_eva 生产表完全一致：百分位/股息率/roe 均为 0-100 百分比）：
+ *   index_code, name, ttype, cat, pe, pe_percentile, pb, pb_percentile, dividend_yield, roe, eva_type, date
+ * 前端 loadIndustry 无需改动即可消费。
  */
+const INDEX_EVA_CAT_MAP = { '1': 'broad', '2': 'strategy', '3': 'sector' }
+
 export async function fetchIndexEva() {
-  const { data, error } = await supabase
-    .from('index_eva')
-    .select('index_code,name,ttype,cat,pe,pe_percentile,pb,pb_percentile,dividend_yield,roe,eva_type,date')
-    .order('cat')
-    .order('pe_percentile', { ascending: false })
-  if (error) throw error
-  return data || []
+  const dj = await fetchDanjuanEva()
+  if (!dj || dj.code !== 0 || !Array.isArray(dj.data)) {
+    console.warn('[api] 蛋卷估值实时拉取失败:', dj && dj.msg)
+    return []
+  }
+  const rows = dj.data.map(it => {
+    const ttype = String(it.ttype || '1')
+    return {
+      index_code:    it.code,
+      name:          it.name,
+      ttype:         ttype,
+      cat:           INDEX_EVA_CAT_MAP[ttype] || 'other',
+      pe:            it.pe != null ? it.pe : null,
+      pe_percentile: it.pePercentile != null ? it.pePercentile : null,
+      pb:            it.pb != null ? it.pb : null,
+      pb_percentile: it.pbPercentile != null ? it.pbPercentile : null,
+      dividend_yield: it.dividendYield != null ? it.dividendYield : null,
+      roe:           it.roe != null ? it.roe : null,
+      eva_type:      it.evaType || '',
+      date:          it.date || '',
+    }
+  })
+  // 还原旧生产表默认排序：cat 升序（broad < sector < strategy），同组内 pe_percentile 降序
+  rows.sort((a, b) => {
+    if (a.cat < b.cat) return -1
+    if (a.cat > b.cat) return 1
+    return (b.pe_percentile ?? -1) - (a.pe_percentile ?? -1)
+  })
+  return rows
 }
 
 /**

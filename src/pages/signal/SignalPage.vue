@@ -368,9 +368,9 @@
 import { ref, reactive, computed, onMounted, onUnmounted, nextTick, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import echarts from '../../utils/echarts-setup'
-import { getIndexQuotes, buildMarketData, parseValue500Data } from '../../utils/market-data'
+import { getIndexQuotes, buildMarketData, parseMacroData } from '../../utils/market-data'
 import { calcAllExpectedReturns, calcEnhancedRiskParityWeights, calcMarketSharpe, calcRiskPremium } from '../../utils/calc'
-import { fetchValue500All, fetchConfig, fetchIndexEva, fetchFactorScores, fetchStyleFactors } from '../../utils/api'
+import { fetchMacroData, fetchConfig, fetchIndexEva, fetchFactorScores, fetchStyleFactors } from '../../utils/api'
 import { COLORS } from '../../utils/echarts-theme'
 import { supabase } from '../../api/supabase'
 import HelpTip from '../../components/HelpTip.vue'
@@ -381,8 +381,8 @@ import JqrIndicator from '../../components/JqrIndicator.vue'
 const tabs = [
   { key: 'overview', label: '信号总览' },
   { key: 'macro',    label: '宏观策略' },
-  { key: 'fed',      label: '股债对比' },
   { key: 'asset',    label: '资产配置' },
+  { key: 'fed',      label: '股债对比' },
   { key: 'factor',   label: '风格因子' },
   { key: 'industry', label: '行业估值' },
   { key: 'jqr',      label: '特色指标' },
@@ -597,13 +597,13 @@ async function loadAll() {
   dataError.value = ''
 
   try {
-    const [quotes, v500] = await Promise.all([
+    const [quotes, macro] = await Promise.all([
       getIndexQuotes(),
-      fetchValue500All()
+      fetchMacroData()
     ])
 
-    const { bond: bondData, shibor: shiborData, m2: m2Data, cpi: cpiData, ep: epData, pe300: pe300Data, rf, get: v500Get } = parseValue500Data(v500)
-    const pmiData = v500Get('pmi')
+    const { bond: bondData, shibor: shiborData, m2: m2Data, cpi: cpiData, ep: epData, pe300: pe300Data, rf, get: macroGet } = parseMacroData(macro)
+    const pmiData = macroGet('pmi')
 
     // 宏观数据
     bondY10y.value = bondData.yield10y ?? null
@@ -616,8 +616,8 @@ async function loadAll() {
       : new Date().toLocaleString('zh-CN')
 
     // ===== 从 Supabase macro_history 表获取历史数据 =====
-    // 先用 v500 数据构建 macroList，再异步填充 series（不阻塞主流程）
-    const v500Values = {
+    // 先用 macro 数据构建 macroList，再异步填充 series（不阻塞主流程）
+    const macroValues = {
       cn10y:  { value: bondData.yield10y != null ? (bondData.yield10y * 100).toFixed(2) + '%' : '--', date: bondData.date || '' },
       shibor: { value: shiborData.on != null ? (shiborData.on * 100).toFixed(3) + '%' : '--', date: shiborData.date || '' },
       cpi:    { value: cpiData.cpi != null ? (cpiData.cpi * 100).toFixed(1) + '%' : '--', date: cpiData.date || '' },
@@ -628,7 +628,7 @@ async function loadAll() {
     }
     macroList.value = ['cn10y', 'us10y', 'shibor', 'cpi', 'm2', 'ppi', 'omo'].map(k => {
       const labels = { cn10y: '中国10Y国债', us10y: '美国10Y国债', shibor: 'Shibor隔夜', cpi: 'CPI同比', m2: 'M2同比', ppi: 'PPI同比', omo: 'OMO净投放' }
-      return { key: k, label: labels[k], value: v500Values[k]?.value || '--', date: v500Values[k]?.date || '', series: [] }
+      return { key: k, label: labels[k], value: macroValues[k]?.value || '--', date: macroValues[k]?.date || '', series: [] }
     })
 
     // 异步加载历史数据（不阻塞主流程）
@@ -702,9 +702,9 @@ async function loadAll() {
       color: ASSET_META[key].color
     }))
 
-    // 债券利差
+    // 债券利差（新源 bond.spread = 10Y-2Y 期限利差，单位百分点，×100 转为 bp）
     bondSpreads.value = bondData.spread != null
-      ? [{ label: '10Y-1Y期限利差', bp: bondData.spread }]
+      ? [{ label: '10Y-2Y期限利差', bp: Math.round(bondData.spread * 100) }]
       : []
 
     // 商品信号数据（改由 style_factors 表提供，见 loadCommodityFactors，不再用 v500 5 项）
@@ -1430,12 +1430,12 @@ function buildSignalOverview() {
   signalOverview.value = cards
 }
 
-// ===== 加载行业估值（读 index_eva 生产表，来源：蛋卷估值中心，由后台脚本定时抓取） =====
+// ===== 加载行业估值（实时，经 value500 函数 danjuan 路径抓蛋卷估值中心，不落库） =====
 async function loadIndustry() {
   try {
     const rows = await fetchIndexEva()
     if (!rows || rows.length === 0) {
-      console.warn('index_eva 无数据，等待后台抓取')
+      console.warn('行业估值实时拉取为空，可能是网络/蛋卷接口暂不可用')
       return
     }
     industryRaw.value = rows.map(r => ({

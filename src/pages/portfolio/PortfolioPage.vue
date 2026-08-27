@@ -377,9 +377,9 @@
 <script setup>
 import { ref, computed, onMounted, watch, nextTick } from 'vue'
 import { supabase } from '../../api/supabase'
-import { fetchValue500All } from '../../utils/api'
+import { fetchMacroData } from '../../utils/api'
 import { getCategoryRankInfo, getCategoryRankInfoByScore, fetchFundMeta } from '../../api/data.js'
-import { getIndexQuotes, buildMarketData, parseValue500Data } from '../../utils/market-data'
+import { getIndexQuotes, buildMarketData, parseMacroData } from '../../utils/market-data'
 import { calcAllExpectedReturns, calcEnhancedRiskParityWeights } from '../../utils/calc'
 import { useAuth } from '../../composables/useAuth'
 import { toast, confirm } from '../../composables/useToast.js'
@@ -998,8 +998,8 @@ async function generateRiskParityPortfolio() {
   rpGenerating.value = true
   rpStatusText.value = '正在计算 Kan & Zhou 增强型风险平价权重...'
   try {
-    const [quotes, v500] = await Promise.all([getIndexQuotes(), fetchValue500All()])
-    const { bond: bondData, shibor: shiborData, cpi: cpiData, pe300: pe300Data, rf } = parseValue500Data(v500)
+    const [quotes, macro] = await Promise.all([getIndexQuotes(), fetchMacroData()])
+    const { bond: bondData, shibor: shiborData, cpi: cpiData, pe300: pe300Data, rf } = parseMacroData(macro)
     const date = bondData.date || pe300Data.date || ''
     const marketData = buildMarketData(quotes, { pePercentile: pe300Data.pePercentile != null ? Math.round(pe300Data.pePercentile) : null }, { yield10y: rf || 0, shibor: { on: shiborData.on || 0, date: '' } })
     const er = calcAllExpectedReturns({ stock: { pe: marketData.stock?.pe || null, pePercentile: marketData.stock?.pePercentile || null }, bond: { yield10y: rf }, cash: { shiborOn: marketData.cash?.shiborOn || 0 }, gold: { yield10y: rf, cpi: cpiData.cpi } })

@@ -45,3 +45,6 @@ public/fund_combined.xlsx
 
 # 自动导出的数据文件（CI 生成，不入git）
 public/downloads/*.xlsx
+
+# Supabase CLI 运行时临时产物（自动生成，不入git）
+supabase/.temp/
