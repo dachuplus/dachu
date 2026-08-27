@@ -78,21 +78,14 @@
         <p class="gauge-desc" :style="{ color: gaugeZoneColor }">全市场风险平价加权隐含夏普，正值 = 整体有超额收益吸引力</p>
       </div>
 
-      <!-- 宏观指标 6 个 + 10年历史 -->
+      <!-- 宏观指标实时列表 -->
       <div class="card">
-        <div class="card-title">宏观指标（近10年）</div>
-        <div class="macro-indicators">
-          <div class="macro-item" v-for="m in macroList" :key="m.key">
-            <div class="macro-label">{{ m.label }}<HelpTip v-if="m.help" :text="m.help" align="right" /></div>
-            <div class="macro-value">{{ m.value }}</div>
-            <div class="macro-date">{{ m.date }}</div>
-            <div class="macro-chart-wrap" :class="{ 'macro-chart-expanded': macroExpand[m.key] }" v-if="m.series && m.series.dates && m.series.dates.length">
-              <div class="macro-chart" :ref="el => setChartRef(m.key, el)"></div>
-            </div>
-            <div class="macro-empty" v-else>暂无数据（指标建设中）</div>
-            <div class="macro-more" v-if="macroHistory[m.key] && macroHistory[m.key].length > MACRO_DEFAULT_WINDOW && !macroExpand[m.key]">
-              <span class="more-btn" @click="expandMacroChart(m.key)">更多</span>
-            </div>
+        <div class="card-title">宏观指标（实时）</div>
+        <div class="macro-list">
+          <div class="macro-list-item" v-for="m in macroList" :key="m.key">
+            <span class="macro-list-label">{{ m.label }}<HelpTip v-if="m.help" :text="m.help" align="right" /></span>
+            <span class="macro-list-value">{{ m.value }}</span>
+            <span class="macro-list-date">{{ m.date || '—' }}</span>
           </div>
         </div>
       </div>
@@ -458,13 +451,13 @@ const weightList = ref([])
 
 // ===== Macro indicators =====
 const macroList = ref([
-  { key: 'cn10y',  label: '中国10Y国债', value: '--', date: '', series: [], help: '中国10年期国债收益率\n含义：以中国10年期国债到期收益率为代表的无风险利率，是股债性价比与风险平价计算的核心输入。收益率越低，市场流动性越宽松、股票相对越便宜。\n数据来源：公开网络。\n更新时间：每个交易日收盘后更新（与页面顶部"数据截止"一致，每日 21:30 同步）。' },
-  { key: 'us10y',  label: '美国10Y国债', value: '--', date: '', series: [], help: '美国10年期国债收益率\n含义：全球资产定价的锚，影响跨境流动性与风险偏好。越高越偏紧，对新兴市场与权益估值压制越大。\n数据来源：公开网络。\n更新时间：美债收盘较晚，每日 22:00 后同步更新。' },
-  { key: 'shibor', label: 'Shibor隔夜', value: '--', date: '', series: [], help: 'Shibor 隔夜利率\n含义：上海银行间同业拆放利率（隔夜），反映短端资金面松紧，是无风险利率 Rf 的近似。\n数据来源：公开网络。\n更新时间：每个交易日 11:00 左右公布，每日同步。' },
-  { key: 'cpi',    label: 'CPI同比', value: '--', date: '', series: [], help: 'CPI 同比\n含义：居民消费价格同比涨幅，衡量通胀水平。通胀上行通常伴随货币政策收紧预期。\n数据来源：公开网络。\n更新时间：每月 9-10 日左右公布上月数据。' },
-  { key: 'm2',     label: 'M2同比', value: '--', date: '', series: [], help: 'M2 同比\n含义：广义货币供应量同比增速，反映货币投放与流动性总量。增速上行通常预示流动性宽松。\n数据来源：公开网络。\n更新时间：每月 10-15 日公布上月数据。' },
-  { key: 'ppi',    label: 'PPI同比', value: '--', date: '', series: [], help: 'PPI 同比\n含义：工业生产者出厂价格同比涨幅，衡量工业品通缩/通胀，领先于企业盈利。\n数据来源：公开网络。\n更新时间：每月 9-10 日左右公布上月数据。' },
-  { key: 'omo',    label: 'OMO净投放', value: '--', date: '', series: [], help: '公开市场操作(OMO)净投放\n含义：央行通过逆回购 / MLF 等工具向市场投放或回笼流动性，净投放为正=呵护资金面，为负=回收流动性。\n数据来源：公开网络。\n更新时间：每个交易日 17:00 左右公布。' },
+  { key: 'cn10y',  label: '中国10Y国债', value: '--', date: '', help: '中国10年期国债收益率\n含义：以中国10年期国债到期收益率为代表的无风险利率，是股债性价比与风险平价计算的核心输入。收益率越低，市场流动性越宽松、股票相对越便宜。\n数据来源：公开网络。\n更新时间：每个交易日收盘后更新（与页面顶部"数据截止"一致，每日 21:30 同步）。' },
+  { key: 'us10y',  label: '美国10Y国债', value: '--', date: '', help: '美国10年期国债收益率\n含义：全球资产定价的锚，影响跨境流动性与风险偏好。越高越偏紧，对新兴市场与权益估值压制越大。\n数据来源：公开网络。\n更新时间：美债收盘较晚，每日 22:00 后同步更新。' },
+  { key: 'shibor', label: 'Shibor隔夜', value: '--', date: '', help: 'Shibor 隔夜利率\n含义：上海银行间同业拆放利率（隔夜），反映短端资金面松紧，是无风险利率 Rf 的近似。\n数据来源：公开网络。\n更新时间：每个交易日 11:00 左右公布，每日同步。' },
+  { key: 'cpi',    label: 'CPI同比', value: '--', date: '', help: 'CPI 同比\n含义：居民消费价格同比涨幅，衡量通胀水平。通胀上行通常伴随货币政策收紧预期。\n数据来源：公开网络。\n更新时间：每月 9-10 日左右公布上月数据。' },
+  { key: 'm2',     label: 'M2同比', value: '--', date: '', help: 'M2 同比\n含义：广义货币供应量同比增速，反映货币投放与流动性总量。增速上行通常预示流动性宽松。\n数据来源：公开网络。\n更新时间：每月 10-15 日公布上月数据。' },
+  { key: 'ppi',    label: 'PPI同比', value: '--', date: '', help: 'PPI 同比\n含义：工业生产者出厂价格同比涨幅，衡量工业品通缩/通胀，领先于企业盈利。\n数据来源：公开网络。\n更新时间：每月 9-10 日左右公布上月数据。' },
+  { key: 'omo',    label: 'OMO净投放', value: '--', date: '', help: '公开市场操作(OMO)净投放\n含义：央行通过逆回购 / MLF 等工具向市场投放或回笼流动性，净投放为正=呵护资金面，为负=回收流动性。\n数据来源：公开网络。\n更新时间：每个交易日 17:00 左右公布。' },
 ])
 
 // 「宏观信号」仪表盘详细说明（含义 / 取值范围 / 计算公式 / 数据来源 / 更新时间）
@@ -476,18 +469,11 @@ const MACRO_SIGNAL_HELP = [
   '数据来源：公开网络（沪深300 / 中证500 / 中证1000 的 PE 与历史分位、中国10Y国债收益率、Shibor、CPI、黄金价格、PMI 等公开宏观与市场数据）。',
   '更新时间：每日 21:30 自动更新（与页面顶部"数据截止"一致）。'
 ].join('\n\n')
-// "更多"展开状态
-const macroExpand = reactive({})
-const macroHistory = reactive({}) // 完整历史数据缓存
-let MACRO_DEFAULT_WINDOW = 1250 // dataZoom 默认窗口（随周期筛选动态变化，见 updateMacroWindow）
+// dataZoom 默认窗口（随周期筛选动态变化，见 updateMacroWindow；资产对比图复用）
+let MACRO_DEFAULT_WINDOW = 1250
 function updateMacroWindow() {
   const p = periodOptions.find(x => x.key === selPeriod.value)
   MACRO_DEFAULT_WINDOW = p ? p.window : 1250
-}
-
-const chartRefs = {}
-function setChartRef(key, el) {
-  if (el) chartRefs[key] = el
 }
 
 // ===== FED 模型 =====
@@ -628,11 +614,8 @@ async function loadAll() {
     }
     macroList.value = ['cn10y', 'us10y', 'shibor', 'cpi', 'm2', 'ppi', 'omo'].map(k => {
       const labels = { cn10y: '中国10Y国债', us10y: '美国10Y国债', shibor: 'Shibor隔夜', cpi: 'CPI同比', m2: 'M2同比', ppi: 'PPI同比', omo: 'OMO净投放' }
-      return { key: k, label: labels[k], value: macroValues[k]?.value || '--', date: macroValues[k]?.date || '', series: [] }
+      return { key: k, label: labels[k], value: macroValues[k]?.value || '--', date: macroValues[k]?.date || '' }
     })
-
-    // 异步加载历史数据（不阻塞主流程）
-    loadMacroHistoryAsync()
 
     // 市场数据
 
@@ -721,7 +704,6 @@ async function loadAll() {
     // Charts
     await nextTick()
     drawGauge()
-    drawMacroCharts()
 
     // 风格因子(股票/债券/大宗) + 行业估值 + 特色指标（读生产表，异步不阻塞主流程）
     loadFactorScores()
@@ -791,29 +773,39 @@ function drawBondCurve() {
     series: [{ type: 'line', data: [1.5, 1.6, 1.7, 1.9, 2.1, bondY10y.value ? (bondY10y.value * 100).toFixed(1) : 2.3, 2.7], lineStyle: { width: 2, color: COLORS[0] }, symbol: 'circle', symbolSize: 6, itemStyle: { color: COLORS[0] } }]
   })
 
-  // 10Y 国债历史走势（复用 macroHistory 中的 cn10y 数据）
+  // 10Y 国债历史走势（独立从 macro_history 拉取 cn10y，避免依赖宏观列表缓存）
   const histEl = bondHistEl.value
-  if (histEl && macroHistory['cn10y']) {
-    const hdom = histEl.querySelector ? (histEl.querySelector('.macro-chart') || histEl) : histEl
-    const hchart = echarts.getInstanceByDom(hdom) || echarts.init(hdom)
-    fedHistChart = hchart
-    const hist = [...macroHistory['cn10y']].reverse() // ASC
-    const dates = hist.map(d => d.date)
-    const values = hist.map(d => d.value)
-    const total = dates.length
-    const defWin = MACRO_DEFAULT_WINDOW
-    const useDataZoom = total > defWin
-    const startPct = useDataZoom ? Math.max(0, Math.round((1 - defWin / total) * 100)) : 0
-    const labelStep = Math.max(1, Math.floor(total / 8))
-    hchart.setOption({
-      grid: { left: 45, right: 10, top: 10, bottom: useDataZoom ? 30 : 15 },
-      xAxis: { type: 'category', data: dates, axisLine: { lineStyle: { color: '#b1b4b6' } }, axisTick: { show: false }, axisLabel: { fontSize: 9, color: '#b1b4b6', interval: labelStep - 1 } },
-      yAxis: { type: 'value', splitLine: { lineStyle: { color: '#f3f2f1' } }, axisLine: { show: false }, axisLabel: { fontSize: 9, color: '#b1b4b6', formatter: v => v + '%' } },
-      dataZoom: useDataZoom ? [{ type: 'slider', show: true, xAxisIndex: 0, start: startPct, end: 100, height: 18, bottom: 0, borderColor: '#b1b4b6', fillerColor: 'rgba(29,112,184,0.12)', handleStyle: { color: '#1d70b8' }, textStyle: { fontSize: 9, color: '#b1b4b6' } }] : [],
-      series: [{ type: 'line', data: values, lineStyle: { width: 1.5, color: COLORS[0] }, symbol: 'none', areaStyle: { color: 'rgba(29,112,184,0.08)' }, smooth: false }],
-      tooltip: { trigger: 'axis', formatter: p => `${p[0].axisValue}<br/>${p[0].value}%` }
-    }, true)
-    hchart.resize()
+  if (histEl && supabase) {
+    supabase
+      .from('macro_history')
+      .select('date, value')
+      .eq('metric', 'cn10y')
+      .order('date', { ascending: true })
+      .limit(10000)
+      .then(({ data, error }) => {
+        if (error || !data || data.length === 0) return
+        const hdom = histEl.querySelector ? (histEl.querySelector('.macro-chart') || histEl) : histEl
+        const hchart = echarts.getInstanceByDom(hdom) || echarts.init(hdom)
+        fedHistChart = hchart
+        const hist = [...data].reverse() // ASC
+        const dates = hist.map(d => d.date)
+        const values = hist.map(d => d.value)
+        const total = dates.length
+        const defWin = MACRO_DEFAULT_WINDOW
+        const useDataZoom = total > defWin
+        const startPct = useDataZoom ? Math.max(0, Math.round((1 - defWin / total) * 100)) : 0
+        const labelStep = Math.max(1, Math.floor(total / 8))
+        hchart.setOption({
+          grid: { left: 45, right: 10, top: 10, bottom: useDataZoom ? 30 : 15 },
+          xAxis: { type: 'category', data: dates, axisLine: { lineStyle: { color: '#b1b4b6' } }, axisTick: { show: false }, axisLabel: { fontSize: 9, color: '#b1b4b6', interval: labelStep - 1 } },
+          yAxis: { type: 'value', splitLine: { lineStyle: { color: '#f3f2f1' } }, axisLine: { show: false }, axisLabel: { fontSize: 9, color: '#b1b4b6', formatter: v => v + '%' } },
+          dataZoom: useDataZoom ? [{ type: 'slider', show: true, xAxisIndex: 0, start: startPct, end: 100, height: 18, bottom: 0, borderColor: '#b1b4b6', fillerColor: 'rgba(29,112,184,0.12)', handleStyle: { color: '#1d70b8' }, textStyle: { fontSize: 9, color: '#b1b4b6' } }] : [],
+          series: [{ type: 'line', data: values, lineStyle: { width: 1.5, color: COLORS[0] }, symbol: 'none', areaStyle: { color: 'rgba(29,112,184,0.08)' }, smooth: false }],
+          tooltip: { trigger: 'axis', formatter: p => `${p[0].axisValue}<br/>${p[0].value}%` }
+        }, true)
+        hchart.resize()
+      })
+      .catch(e => console.warn('drawBondHist cn10y error:', e))
   }
 }
 
@@ -1022,7 +1014,7 @@ function _renderFedChart(el, data) {
 function drawCompareIdxChart() {
   const el = compareIdxEl.value
   if (!el) return
-  // 从 macroHistory 中查 上证指数
+  // 从 macro_history 表查 上证指数
   supabase.from('macro_history')
     .select('date, value')
     .eq('metric', 'sh000001')
@@ -1126,203 +1118,6 @@ const bondCurveEl = ref(null)
 const fedChartEl = ref(null)
 const compareIdxEl = ref(null)
 const bondHistEl = ref(null)
-
-// ===== 宏观历史数据加载 =====
-const macroMetricMap = {
-  cn10y: 'cn10y', us10y: 'us10y', shibor: 'shibor_on',
-  cpi: 'cpi', m2: 'm2_growth', ppi: 'ppi', omo: 'omo_net'
-}
-
-async function loadMacroHistoryAsync() {
-  if (!supabase) return
-  try {
-    // 1. 拉取上证指数历史（用于所有图表叠加）
-    const indexPromise = supabase
-      .from('macro_history')
-      .select('date, value')
-      .eq('metric', 'sh000001')
-      .order('date', { ascending: false })
-      .limit(10000)
-
-    // 2. 拉取六个宏观指标历史
-    const macroPromises = macroList.value.map(async (m) => {
-      const metric = macroMetricMap[m.key]
-      if (!metric) return { key: m.key, data: null }
-      const { data, error } = await supabase
-        .from('macro_history')
-        .select('date, value')
-        .eq('metric', metric)
-        .order('date', { ascending: false })
-        .limit(10000)
-      if (error) { console.warn('macro_history query error:', m.key, error); return { key: m.key, data: null } }
-      return { key: m.key, data }
-    })
-
-    // 3. 同时等待所有请求
-    const [indexResult, ...macroResults] = await Promise.all([
-      indexPromise,
-      ...macroPromises
-    ])
-
-    // 4. 构建上证指数日期索引（date → value）
-    const indexMap = {}
-    if (!indexResult.error && indexResult.data) {
-      indexResult.data.forEach(d => { indexMap[d.date] = d.value })
-    }
-
-    // 5. 处理每个宏观指标
-    macroResults.forEach(r => {
-      const { key, data } = r
-      if (!data || data.length === 0) return
-      // 更新最新值（us10y / ppi / omo 没有 v500 数据源）
-      if ((key === 'us10y' || key === 'ppi' || key === 'omo') && data[0]) {
-        const item = macroList.value.find(x => x.key === key)
-        if (item && item.value === '--') {
-          item.value = key === 'omo'
-            ? (data[0].value != null ? data[0].value + '亿' : '--')
-            : data[0].value.toFixed(2) + '%'
-          item.date = data[0].date
-        }
-        if (key === 'us10y') {
-          us10yVal.value = parseFloat(data[0].value)
-          buildSignalOverview()
-        }
-      }
-      // 存储完整历史（保持 DESC 顺序）
-      macroHistory[key] = data.map(d => ({
-        date: d.date, value: d.value,
-        index: indexMap[d.date] ?? null  // 对齐上证指数
-      }))
-      // 初始显示：所有数据 ASC 排序，默认窗口展示最近 MACRO_DEFAULT_WINDOW 条
-      const asc = [...data].reverse()
-      const item = macroList.value.find(x => x.key === key)
-      if (item) {
-        item.series = {
-          dates: asc.map(d => d.date),
-          values: asc.map(d => d.value),
-          indices: asc.map(d => indexMap[d.date] ?? null),
-          total: data.length,
-          expanded: false,
-          defaultWindow: MACRO_DEFAULT_WINDOW
-        }
-      }
-    })
-
-    await nextTick()
-    drawMacroCharts()
-  } catch (e) {
-    console.warn('loadMacroHistoryAsync error:', e)
-  }
-}
-
-function expandMacroChart(key) {
-  macroExpand[key] = true
-  const history = macroHistory[key]
-  const item = macroList.value.find(m => m.key === key)
-  if (!item || !history) return
-  // 展开全部历史数据：history 是 DESC，图表需 ASC（旧→新）
-  const asc = [...history].reverse()
-  item.series = {
-    dates: asc.map(d => d.date),
-    values: asc.map(d => d.value),
-    indices: asc.map(d => d.index),
-    total: asc.length,
-    expanded: true,
-    defaultWindow: MACRO_DEFAULT_WINDOW
-  }
-  nextTick(() => drawMacroCharts())
-}
-
-// ===== 宏观图表 =====
-function drawMacroCharts() {
-  macroList.value.forEach(m => {
-    const el = chartRefs[m.key]
-    if (!el) return
-    const dom = el.querySelector ? el.querySelector('.macro-chart') || el : el
-    if (!dom) return
-    const chart = echarts.getInstanceByDom(dom) || echarts.init(dom)
-    const sd = m.series || {}
-    const dates = sd.dates || []
-    const values = sd.values || []
-    const indices = sd.indices || []
-    const total = sd.total || dates.length
-    const defWin = MACRO_DEFAULT_WINDOW
-
-    // dataZoom：始终显示，默认窗口展示最近 defWin 个数据点
-    const useDataZoom = total > defWin
-    const startPct = useDataZoom ? Math.max(0, Math.round((1 - defWin / total) * 100)) : 0
-    const dataZoomConfig = useDataZoom ? [{
-      type: 'slider',
-      show: true,
-      xAxisIndex: 0,
-      start: startPct,
-      end: 100,
-      height: 18,
-      bottom: 0,
-      handleSize: '80%',
-      borderColor: '#b1b4b6',
-      fillerColor: 'rgba(29,112,184,0.12)',
-      handleStyle: { color: '#1d70b8' },
-      textStyle: { fontSize: 9, color: '#b1b4b6' }
-    }] : []
-
-    // 上证指数叠加：仅当有有效 index 数据时
-    const hasIndex = indices && indices.some(v => v != null)
-    const indexValid = hasIndex ? indices.map(v => (v != null) ? v : '-') : []
-
-    const bottomPad = useDataZoom ? 30 : 15
-    const labelStep = Math.max(1, Math.floor(dates.length / 8))
-
-    const tooltipFormatter = hasIndex
-      ? (params) => `${params[0].axisValue}<br/>${m.label}: ${params[0].value}%<br/>上证指数: ${params[1]?.value ?? '--'}`
-      : (params) => `${params[0].axisValue}<br/>${params[0].value}%`
-
-    chart.setOption({
-      grid: { left: 45, right: hasIndex ? 50 : 10, top: 10, bottom: bottomPad },
-      xAxis: {
-        type: 'category', data: dates, show: true,
-        axisLine: { lineStyle: { color: '#b1b4b6' } },
-        axisTick: { show: false },
-        axisLabel: { show: true, fontSize: 9, color: '#b1b4b6', interval: labelStep - 1 }
-      },
-      yAxis: [
-        {
-          type: 'value', splitLine: { lineStyle: { color: '#f3f2f1' } },
-          axisLine: { show: false },
-          axisLabel: { fontSize: 9, color: '#b1b4b6', formatter: v => v + '%' }
-        },
-        ...(hasIndex ? [{
-          type: 'value',
-          axisLine: { show: false },
-          axisLabel: { fontSize: 9, color: '#d4351c' },
-          splitLine: { show: false }
-        }] : [])
-      ],
-      dataZoom: dataZoomConfig,
-      series: [
-        {
-          name: m.label,
-          type: 'line', data: values,
-          lineStyle: { width: 1.5, color: COLORS[0] },
-          symbol: 'none',
-          areaStyle: { color: 'rgba(29,112,184,0.08)' },
-          smooth: false
-        },
-        ...(hasIndex ? [{
-          name: '上证指数',
-          type: 'line', data: indexValid,
-          yAxisIndex: 1,
-          lineStyle: { width: 1, color: '#d4351c', type: 'dashed' },
-          symbol: 'none',
-          smooth: false
-        }] : [])
-      ],
-      tooltip: { trigger: 'axis', formatter: tooltipFormatter },
-      legend: hasIndex ? { show: true, bottom: 0, data: [m.label, '上证指数'], textStyle: { fontSize: 10 } } : undefined
-    }, true)
-    chart.resize()
-  })
-}
 
 // ===== FED 计算 =====
 function calcFED(quotes, rf) {
@@ -1692,7 +1487,7 @@ function drawPie() {
 function redrawCurrentCharts() {
   nextTick(() => {
     const tab = activeTab.value
-    if (tab === 'macro') { drawGauge(); drawMacroCharts() }
+    if (tab === 'macro') { drawGauge() }
     else if (tab === 'fed') drawFedChart()
     else if (tab === 'asset') { drawCompareIdxChart(); drawPie() }
     else if (tab === 'factor') {
@@ -1731,10 +1526,6 @@ onUnmounted(() => {
 function handleResize() {
   const charts = [gaugeChart, pieChart, radarChart, bondCurveChart, fedHistChart, compareIdxChart]
   charts.forEach(c => c?.resize())
-  Object.values(chartRefs).forEach(el => {
-    const instance = echarts.getInstanceByDom(el)
-    if (instance) instance.resize()
-  })
 }
 </script>
 
@@ -1784,23 +1575,17 @@ function handleResize() {
 .gauge-wrap { width: 100%; height: 280px; }
 .gauge-desc { text-align: center; font-size: 14px; font-weight: 600; margin-top: 8px; line-height: 1.5; }
 
-/* 宏观指标 */
-.macro-indicators { display: flex; flex-direction: column; gap: var(--space-lg); }
-.macro-item { border: 1px solid var(--border); padding: var(--space-md); }
-.macro-label { font-size: 14px; color: var(--text-secondary); }
-.macro-value { font-size: 24px; font-weight: 700; color: var(--text-primary); margin: var(--space-xs) 0; }
-.macro-date { font-size: 12px; color: var(--text-secondary); margin-bottom: var(--space-sm); }
-.macro-chart-wrap { width: 100%; height: 200px; overflow: hidden; }
-.macro-chart-wrap.macro-chart-expanded { height: 200px; overflow: visible; }
-.macro-chart { width: 100%; height: 200px; }
-.macro-empty { font-size: 13px; color: var(--text-secondary); padding: var(--space-md) 0; text-align: center; }
-.macro-more { text-align: center; margin-top: var(--space-sm); }
-.more-btn {
-  display: inline-block; padding: var(--space-xs) var(--space-lg); font-size: 13px;
-  color: var(--brand); border: 1px solid var(--brand); background: var(--bg-card);
-  cursor: pointer; text-decoration: none; user-select: none;
+/* 宏观指标（实时列表） */
+.macro-list { display: flex; flex-direction: column; gap: 0; }
+.macro-list-item {
+  display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-md);
+  padding: var(--space-md) 0; border-bottom: 1px solid var(--border);
 }
-.more-btn:hover { background: var(--brand); color: #fff; }
+.macro-list-item:last-child { border-bottom: none; }
+.macro-list-label { font-size: 14px; color: var(--text-secondary); flex: 1 1 auto; }
+.macro-list-value { font-size: 22px; font-weight: 700; color: var(--text-primary); font-variant-numeric: tabular-nums; }
+.macro-list-date { font-size: 12px; color: var(--text-secondary); margin-left: var(--space-md); white-space: nowrap; }
+.macro-chart { width: 100%; height: 200px; }
 
 /* FED */
 .fed-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--space-md); margin-bottom: var(--space-md); }
@@ -1961,9 +1746,6 @@ function handleResize() {
   .fed-grid { grid-template-columns: repeat(1, 1fr); }
   .comm-grid { grid-template-columns: repeat(1, 1fr); }
   .bond-signal-grid { grid-template-columns: repeat(1, 1fr); }
-  .macro-indicators { grid-template-columns: repeat(1, 1fr); }
-  .macro-chart-wrap { height: 160px; }
-  .macro-chart { height: 160px; }
   .gauge-wrap { height: 240px; }
   .pie-chart { height: 240px; }
   .radar-wrap { height: 280px; }
