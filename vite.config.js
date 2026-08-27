@@ -5,13 +5,8 @@ export default defineConfig({
   plugins: [vue()],
   server: {
     port: 5173,
-    // 解决 value500 和腾讯行情的 CORS 问题
+    // 解决腾讯行情 / 蛋卷的 CORS 问题（开发环境代理）
     proxy: {
-      '/api/v500': {
-        target: 'https://www.value500.com',
-        changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/api\/v500/, ''),
-      },
       '/api/qt': {
         target: 'https://qt.gtimg.cn',
         changeOrigin: true,

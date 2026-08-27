@@ -1099,25 +1099,26 @@
         </table>
       </div>
 
-      <!-- value500 -->
-      <h2 class="api-group-title">五、value500.com 宏观数据</h2>
+      <!-- macro-data -->
+      <h2 class="api-group-title">五、macro-data 宏观数据（替代已失效的 value500.com）</h2>
       <div class="api-item">
-        <h3 class="api-name">10. value500.com — 宏观指标页面</h3>
+        <h3 class="api-name">10. macro-data — 宏观指标聚合 Edge Function</h3>
         <table class="api-meta-table">
-          <tr><td class="meta-label">方法</td><td>GET（HTML 页面解析）</td></tr>
-          <tr><td class="meta-label">用途</td><td>获取中国宏观指标数据，通过解析页面 ECharts title 文本提取数值</td></tr>
-          <tr><td class="meta-label">代理方式</td><td>开发环境 Vite proxy；生产环境 Supabase Edge Function</td></tr>
+          <tr><td class="meta-label">方法</td><td>GET（服务端聚合多源，30 分钟缓存）</td></tr>
+          <tr><td class="meta-label">用途</td><td>获取信号页 / 组合页所需的宏观基准（国债收益率、SHIBOR、M2、CPI、PMI、沪深300 估值）</td></tr>
+          <tr><td class="meta-label">端点</td><td><code>https://{PROJECT_REF}.supabase.co/functions/v1/macro-data</code></td></tr>
+          <tr><td class="meta-label">数据来源</td><td>东方财富（国债/SHIBOR/货币供应/PMI/沪深300 PE）+ 蛋卷基金估值中心，免鉴权、CORS 已开放</td></tr>
         </table>
-        <p class="api-subtitle">子页面及数据字段</p>
+        <p class="api-subtitle">聚合字段</p>
         <table class="field-table">
-          <thead><tr><th>页面</th><th>URL</th><th>提取数据</th></tr></thead>
+          <thead><tr><th>指标</th><th>来源</th><th>字段</th></tr></thead>
           <tbody>
-            <tr><td>10年国债</td><td><code>/10Bond.html</code></td><td>1Y/5Y/10Y国债到期收益率 + 利差</td></tr>
-            <tr><td>Shibor</td><td><code>/Shibor.asp</code></td><td>隔夜/1周/1月/1年 Shibor 利率</td></tr>
-            <tr><td>M1/M2</td><td><code>/M1.asp</code></td><td>M1/M2 同比增速 + 剪刀差</td></tr>
-            <tr><td>CPI</td><td><code>/CPI.asp</code></td><td>CPI 同比涨幅</td></tr>
-            <tr><td>股债收益率比</td><td><code>/ep.asp</code></td><td>上交所/深交所 EP（1/PE）vs 10年国债收益率</td></tr>
-            <tr><td>沪深300 PE/PB</td><td><code>/000300SHPEPB.asp</code></td><td>沪深300 PE/PB + 近5年历史百分位</td></tr>
+            <tr><td>10Y 国债收益率</td><td>东方财富</td><td>bond.yield10y（小数）+ bond.spread（10Y-2Y 百分点）</td></tr>
+            <tr><td>SHIBOR 隔夜</td><td>东方财富</td><td>shibor.on（小数）</td></tr>
+            <tr><td>M2 同比</td><td>东方财富</td><td>m2.m2yoy（百分数）</td></tr>
+            <tr><td>CPI 同比</td><td>东方财富</td><td>cpi.cpi（小数）</td></tr>
+            <tr><td>PMI</td><td>东方财富</td><td>pmi.pmi</td></tr>
+            <tr><td>沪深300 估值</td><td>蛋卷基金估值中心</td><td>pe300.pe / pe300.pePercentile（百分数）+ pe300.pb</td></tr>
           </tbody>
         </table>
       </div>
@@ -1143,7 +1144,7 @@
           <tbody>
             <tr><td>REST API</td><td><code>https://{PROJECT_REF}.supabase.co/rest/v1/{table}</code></td><td>前端/脚本读写数据库表</td></tr>
             <tr><td>Management API</td><td><code>https://api.supabase.com/v1/projects/{PROJECT_REF}/database/query</code></td><td>Python 脚本执行 SQL（批量导入/更新/DDL）</td></tr>
-            <tr><td>Edge Function</td><td><code>https://{PROJECT_REF}.supabase.co/functions/v1/value500</code></td><td>服务端代理 value500 + 蛋卷数据抓取，6小时 TTL 缓存</td></tr>
+            <tr><td>Edge Function</td><td><code>https://{PROJECT_REF}.supabase.co/functions/v1/macro-data</code></td><td>服务端聚合东财+蛋卷宏观数据，30 分钟 TTL 缓存（替代已失效的 value500）</td></tr>
             <tr><td>Edge Function</td><td><code>https://{PROJECT_REF}.supabase.co/functions/v1/wechat-login</code></td><td>微信登录代理：小程序(wx.login code)/网页(扫码 code) 经服务端用 AppSecret 换 openid，并签发 Supabase 会话；<code>POST { "type": "mp"|"web", "code": "..." }</code> 返回 <code>{ access_token, refresh_token, email }</code></td></tr>
           </tbody>
         </table>
@@ -1254,7 +1255,7 @@
           <tr><td>7</td><td>push2 API</td><td>申万行业板块实时行情</td><td>GET</td></tr>
           <tr><td>8</td><td>qt.gtimg.cn</td><td>指数实时行情</td><td>GET</td></tr>
           <tr><td>9</td><td>danjuanfunds</td><td>指数估值评级</td><td>GET</td></tr>
-          <tr><td>10</td><td>value500.com</td><td>宏观指标（6个子页面）</td><td>GET</td></tr>
+          <tr><td>10</td><td>macro-data Edge Function</td><td>宏观指标（国债/Shibor/M2/CPI/PMI/沪深300估值，多源聚合）</td><td>GET</td></tr>
           <tr><td>11</td><td>akshare</td><td>上证指数历史日线</td><td>库调用</td></tr>
           <tr><td>12</td><td>Supabase</td><td>数据库 + SQL + 代理函数</td><td>REST/SQL</td></tr>
           <tr><td>13</td><td>fundf10 (zcpz)</td><td>资产配置（股票/债券/现金占比）</td><td>GET</td></tr>

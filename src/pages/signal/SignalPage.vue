@@ -1430,7 +1430,7 @@ function buildSignalOverview() {
   signalOverview.value = cards
 }
 
-// ===== 加载行业估值（实时，经 value500 函数 danjuan 路径抓蛋卷估值中心，不落库） =====
+// ===== 加载行业估值（实时，经 danjuan-eva Edge Function 抓蛋卷估值中心，不落库） =====
 async function loadIndustry() {
   try {
     const rows = await fetchIndexEva()

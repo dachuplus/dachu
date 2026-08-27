@@ -208,7 +208,7 @@ TABLES = {
     'jqr_indicators': {
         'name': '特色指标表（生产）',
         'desc': '市场情绪特色指标（恐惧贪婪/估值温度计/新发基金/股债差/破净率/证券化率等）',
-        'source': '东财 push2 + value500 + 蛋卷等公开数据计算',
+        'source': '东财 push2 + 蛋卷等公开数据计算',
         'update': '每日通过 GitHub Actions CI 自动更新（北京时间 21:30）',
         'scoring': False,
     },

@@ -288,7 +288,7 @@ export function getSwIndustries() {
 /**
  * 构建用于 calcAllExpectedReturns 的原始数据
  * @param {Object} quotes - getIndexQuotes 返回
- * @param {Object} peData - { pePercentile: number }（value500 来源）或 { peHistory, latestDate }
+ * @param {Object} peData - { pePercentile: number }（蛋卷估值来源）或 { peHistory, latestDate }
  * @param {Object} options - { shibor: {on, date}, yield10y: number }
  */
 export function buildMarketData(quotes, peData, options) {
@@ -350,51 +350,17 @@ export function buildMarketData(quotes, peData, options) {
   }
 }
 
-// ===== 4. value500 数据解析（共享工具） =====
-
 /**
- * 从 value500 API 返回结果中安全提取数据字段
- * @param {Object} v500 - fetchValue500All() 的返回值 { bond: {code, data}, shibor: {...}, ... }
- * @returns {Object} { bond, shibor, m2, cpi, ep, pe300, rf, get }
- *   - bond/shibor/m2/cpi/ep/pe300: 各页面解析后的 data 对象
- *   - rf: 无风险利率（10Y国债收益率）
- *   - get(key): 泛型提取器，用于额外页面（如 gold/usdx/bdi/ppi/pmi）
- */
-export function parseValue500Data(v500) {
-  const extract = (key) => v500[key]?.code === 0 ? v500[key].data : {}
-
-  const bondData = extract('bond')
-  const shiborData = extract('shibor')
-  const m2Data = extract('m2')
-  const cpiData = extract('cpi')
-  const epData = extract('ep')
-  const pe300Data = extract('pe300')
-
-  const rf = (bondData.yield10y && bondData.yield10y > 0) ? bondData.yield10y : null
-
-  return {
-    bond: bondData,
-    shibor: shiborData,
-    m2: m2Data,
-    cpi: cpiData,
-    ep: epData,
-    pe300: pe300Data,
-    rf,
-    get: extract
-  }
-}
-
-/**
- * 从 macro-data Edge Function 返回的扁平 JSON 解析出与 parseValue500Data 完全一致的结构
+ * 从 macro-data Edge Function 返回的扁平 JSON 解析出宏观基准结构
  * @param {Object|null} flat - fetchMacroData() 的返回值
  * @returns {Object} { bond, shibor, m2, cpi, ep, pe300, pmi, rf, get }
- *   结构与 parseValue500Data 对齐，前端 loadAll 可零改动消费：
+ *   结构与历史 parseValue500Data 一致，前端 loadAll 可零改动消费：
  *   - bond.yield10y（小数）、bond.spread（10Y-2Y 百分点）
  *   - shibor.on（小数）、m2.m2yoy（百分数）、cpi.cpi（小数）
  *   - pe300.pe / pe300.pePercentile（百分数）
  *   - pmi.pmi
  *   - rf = bond.yield10y > 0 ? bond.yield10y : null
- *   - get(key): 取 flat[key] || {}（兼容 v500Get('pmi') 等写法）
+ *   - get(key): 取 flat[key] || {}（兼容 get('pmi') 写法）
  */
 export function parseMacroData(flat) {
   const f = flat || {}
