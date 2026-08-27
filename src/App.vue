@@ -53,7 +53,7 @@
     <header class="govuk-header" v-if="!isMobile">
       <div class="govuk-header__container">
         <div class="govuk-header__logo">
-          <router-link to="/" class="govuk-header__logotype-text" style="text-decoration:none;color:#fff">大厨先生 · 个人博客</router-link>
+          <router-link to="/" class="govuk-header__logotype-text" style="text-decoration:none;color:#fff">靠谱指数-评分工具</router-link>
         </div>
         <div class="govuk-header__content">
           <div class="govuk-header__auth">
