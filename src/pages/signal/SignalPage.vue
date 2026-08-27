@@ -452,12 +452,14 @@ const weightList = ref([])
 // ===== Macro indicators =====
 const macroList = ref([
   { key: 'cn10y',  label: '中国10Y国债', value: '--', date: '', help: '中国10年期国债收益率\n含义：以中国10年期国债到期收益率为代表的无风险利率，是股债性价比与风险平价计算的核心输入。收益率越低，市场流动性越宽松、股票相对越便宜。\n数据来源：公开网络。\n更新时间：每个交易日收盘后更新（与页面顶部"数据截止"一致，每日 21:30 同步）。' },
-  { key: 'us10y',  label: '美国10Y国债', value: '--', date: '', help: '美国10年期国债收益率\n含义：全球资产定价的锚，影响跨境流动性与风险偏好。越高越偏紧，对新兴市场与权益估值压制越大。\n数据来源：公开网络。\n更新时间：美债收盘较晚，每日 22:00 后同步更新。' },
+  { key: 'us10y',  label: '美国10Y国债', value: '--', date: '', help: '美国10年期国债收益率\n含义：全球资产定价的锚，影响跨境流动性与风险偏好。越高越偏紧，对新兴市场与权益估值压制越大。\n数据来源：FRED（美国联邦储备经济数据库，DGS10）。\n更新时间：美债交易日，T+1 同步。' },
   { key: 'shibor', label: 'Shibor隔夜', value: '--', date: '', help: 'Shibor 隔夜利率\n含义：上海银行间同业拆放利率（隔夜），反映短端资金面松紧，是无风险利率 Rf 的近似。\n数据来源：公开网络。\n更新时间：每个交易日 11:00 左右公布，每日同步。' },
   { key: 'cpi',    label: 'CPI同比', value: '--', date: '', help: 'CPI 同比\n含义：居民消费价格同比涨幅，衡量通胀水平。通胀上行通常伴随货币政策收紧预期。\n数据来源：公开网络。\n更新时间：每月 9-10 日左右公布上月数据。' },
   { key: 'm2',     label: 'M2同比', value: '--', date: '', help: 'M2 同比\n含义：广义货币供应量同比增速，反映货币投放与流动性总量。增速上行通常预示流动性宽松。\n数据来源：公开网络。\n更新时间：每月 10-15 日公布上月数据。' },
-  { key: 'ppi',    label: 'PPI同比', value: '--', date: '', help: 'PPI 同比\n含义：工业生产者出厂价格同比涨幅，衡量工业品通缩/通胀，领先于企业盈利。\n数据来源：公开网络。\n更新时间：每月 9-10 日左右公布上月数据。' },
-  { key: 'omo',    label: 'OMO净投放', value: '--', date: '', help: '公开市场操作(OMO)净投放\n含义：央行通过逆回购 / MLF 等工具向市场投放或回笼流动性，净投放为正=呵护资金面，为负=回收流动性。\n数据来源：公开网络。\n更新时间：每个交易日 17:00 左右公布。' },
+  { key: 'ppi',    label: 'PPI同比', value: '--', date: '', help: 'PPI 同比\n含义：工业生产者出厂价格同比涨幅，衡量工业品通缩/通胀，领先于企业盈利。\n数据来源：公开网络（东方财富宏观经济数据）。\n更新时间：每月 9-10 日左右公布上月数据。' },
+  { key: 'pmi',    label: 'PMI(制造业)', value: '--', date: '', help: '制造业采购经理指数(PMI)\n含义：荣枯线 50，>50 扩张、<50 收缩，是衡量制造业景气度的先行指标。\n数据来源：公开网络。\n更新时间：每月末/月初公布当月数据。' },
+  { key: 'spread', label: '10Y-2Y利差', value: '--', date: '', help: '中国10Y-2Y 国债期限利差\n含义：长端减短端利率。利差走阔=经济预期改善；倒挂(为负)通常预示衰退预期。\n数据来源：公开网络。\n更新时间：每个交易日收盘后更新。' },
+  { key: 'omo',    label: 'OMO净投放', value: '建设中', date: '', help: '公开市场操作(OMO)净投放\n含义：央行通过逆回购 / MLF 等工具向市场净投放或回笼流动性，净投放为正=呵护资金面。\n数据来源：暂未接入稳定实时源（东财公开市场操作接口当前不可用），建设中。\n更新时间：每个交易日 17:00 左右公布。' },
 ])
 
 // 「宏观信号」仪表盘详细说明（含义 / 取值范围 / 计算公式 / 数据来源 / 更新时间）
@@ -588,8 +590,7 @@ async function loadAll() {
       fetchMacroData()
     ])
 
-    const { bond: bondData, shibor: shiborData, m2: m2Data, cpi: cpiData, ep: epData, pe300: pe300Data, rf, get: macroGet } = parseMacroData(macro)
-    const pmiData = macroGet('pmi')
+    const { bond: bondData, shibor: shiborData, m2: m2Data, cpi: cpiData, ep: epData, pe300: pe300Data, pmi: pmiData, us10y: us10yData, ppi: ppiData, rf } = parseMacroData(macro)
 
     // 宏观数据
     bondY10y.value = bondData.yield10y ?? null
@@ -605,15 +606,17 @@ async function loadAll() {
     // 先用 macro 数据构建 macroList，再异步填充 series（不阻塞主流程）
     const macroValues = {
       cn10y:  { value: bondData.yield10y != null ? (bondData.yield10y * 100).toFixed(2) + '%' : '--', date: bondData.date || '' },
+      us10y:  { value: us10yData.yield10y != null ? (us10yData.yield10y * 100).toFixed(2) + '%' : '--', date: us10yData.date || '' },
       shibor: { value: shiborData.on != null ? (shiborData.on * 100).toFixed(3) + '%' : '--', date: shiborData.date || '' },
       cpi:    { value: cpiData.cpi != null ? (cpiData.cpi * 100).toFixed(1) + '%' : '--', date: cpiData.date || '' },
       m2:     { value: m2Data.m2yoy != null ? m2Data.m2yoy + '%' : '--', date: m2Data.date || '' },
-      us10y:  { value: '--', date: '' },
-      ppi:    { value: '--', date: '' },
-      omo:    { value: '--', date: '' }
+      ppi:    { value: ppiData.ppi != null ? ppiData.ppi + '%' : '--', date: ppiData.date || '' },
+      pmi:    { value: pmiData.pmi != null ? pmiData.pmi : '--', date: pmiData.date || '' },
+      spread: { value: bondData.spread != null ? bondData.spread.toFixed(2) + 'pp' : '--', date: bondData.date || '' },
+      omo:    { value: '建设中', date: '' }
     }
-    macroList.value = ['cn10y', 'us10y', 'shibor', 'cpi', 'm2', 'ppi', 'omo'].map(k => {
-      const labels = { cn10y: '中国10Y国债', us10y: '美国10Y国债', shibor: 'Shibor隔夜', cpi: 'CPI同比', m2: 'M2同比', ppi: 'PPI同比', omo: 'OMO净投放' }
+    macroList.value = ['cn10y', 'us10y', 'shibor', 'cpi', 'm2', 'ppi', 'pmi', 'spread', 'omo'].map(k => {
+      const labels = { cn10y: '中国10Y国债', us10y: '美国10Y国债', shibor: 'Shibor隔夜', cpi: 'CPI同比', m2: 'M2同比', ppi: 'PPI同比', pmi: 'PMI(制造业)', spread: '10Y-2Y利差', omo: 'OMO净投放' }
       return { key: k, label: labels[k], value: macroValues[k]?.value || '--', date: macroValues[k]?.date || '' }
     })
 

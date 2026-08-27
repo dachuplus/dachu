@@ -371,6 +371,8 @@ export function parseMacroData(flat) {
   const epData = f.ep || {}
   const pe300Data = f.pe300 || {}
   const pmiData = f.pmi || {}
+  const us10yData = f.us10y || {}
+  const ppiData = f.ppi || {}
 
   const rf = (bondData.yield10y && bondData.yield10y > 0) ? bondData.yield10y : null
 
@@ -382,6 +384,8 @@ export function parseMacroData(flat) {
     ep: epData,
     pe300: pe300Data,
     pmi: pmiData,
+    us10y: us10yData,
+    ppi: ppiData,
     rf,
     get: (k) => f[k] || {}
   }

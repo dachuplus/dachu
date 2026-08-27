@@ -130,15 +130,48 @@ async function getPe300() {
   }
 }
 
+// 7. 美国10Y国债（FRED DGS10，单位：百分数 → 小数）
+async function getUs10y() {
+  const res = await fetch('https://fred.stlouisfed.org/graph/fredgraph.csv?id=DGS10', {
+    headers: { 'User-Agent': UA },
+    signal: AbortSignal.timeout(8000),
+  })
+  if (!res.ok) throw new Error('FRED HTTP ' + res.status)
+  const text = await res.text()
+  const lines = text.trim().split('\n').filter(Boolean)
+  // 从后往前找首个有效值（跳过表头与缺失行 '.'）
+  for (let i = lines.length - 1; i >= 1; i--) {
+    const parts = lines[i].split(',')
+    const d = (parts[0] || '').trim()
+    const v = parseFloat(parts[1])
+    if (!isNaN(v) && d) return { date: d, yield10y: v / 100 }
+  }
+  throw new Error('FRED 无有效数据')
+}
+
+// 8. PPI 同比（东财，百分数 → 原值保留）
+async function getPpi() {
+  const url =
+    'https://datacenter-web.eastmoney.com/api/data/v1/get?reportName=RPT_ECONOMY_PPI&columns=REPORT_DATE,BASE_SAME&pageSize=1&sortColumns=REPORT_DATE&sortTypes=-1'
+  const rows = await fetchEastmoney(url)
+  const row = rows[0] || {}
+  return {
+    date: row.REPORT_DATE || '',
+    ppi: typeof row.BASE_SAME === 'number' ? row.BASE_SAME : null,
+  }
+}
+
 // ===== 聚合（各源独立，单源失败降级为空） =====
 async function collect() {
-  const [bond, shibor, m2, cpi, pmi, pe300] = await Promise.allSettled([
+  const [bond, shibor, m2, cpi, pmi, pe300, us10y, ppi] = await Promise.allSettled([
     getBond(),
     getShibor(),
     getM2(),
     getCpi(),
     getPmi(),
     getPe300(),
+    getUs10y(),
+    getPpi(),
   ])
   const pick = (r: PromiseSettledResult<any>, fb: any) =>
     r.status === 'fulfilled' ? r.value : fb
@@ -150,6 +183,8 @@ async function collect() {
     cpi: pick(cpi, { date: '', cpi: null }),
     pmi: pick(pmi, { date: '', pmi: null }),
     pe300: pick(pe300, { date: '', pe: null, pePercentile: null, pb: null }),
+    us10y: pick(us10y, { date: '', yield10y: null }),
+    ppi: pick(ppi, { date: '', ppi: null }),
   }
 }
 
