@@ -12,7 +12,7 @@
  * 注册/登录由 LoginDialog.vue（wall 模式）统一处理，本模块提供状态读取与退出。
  */
 import { ref, computed } from 'vue'
-import { supabase } from '../api/supabase'
+import { supabase, rewriteSupabaseUrl } from '../api/supabase'
 import { toast } from './useToast.js'
 import { upsertUserProfile, getMyPortfolios } from '../api/user-data'
 
@@ -326,7 +326,7 @@ export function useAuth() {
   /** 微信登录：调用 wechat-login Edge Function（type=mp|web）换取会话并写入本地 session */
   async function wechatLogin(type, code) {
     if (!supabase) throw new Error('未连接数据库')
-    const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/wechat-login`
+    const url = rewriteSupabaseUrl(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/wechat-login`)
     const res = await fetch(url, {
       method: 'POST',
       headers: {

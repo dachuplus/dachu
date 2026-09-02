@@ -2038,10 +2038,10 @@ async function kickUser(v) {
   const ok = await confirm('踢出用户', `确定要踢出用户「${displayUsername(v.email)}」吗？此操作将永久删除该账号及其全部数据，不可恢复。`)
   if (!ok) return
   try {
-    const { supabase } = await import('../../api/supabase.js')
+    const { supabase, rewriteSupabaseUrl } = await import('../../api/supabase.js')
     const { data: { session } } = await supabase.auth.getSession()
     if (!session?.access_token) throw new Error('未登录或会话已过期')
-    const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/admin-delete-user`
+    const url = rewriteSupabaseUrl(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/admin-delete-user`)
     const res = await fetch(url, {
       method: 'POST',
       headers: {
@@ -2142,10 +2142,10 @@ async function resetPassword(row) {
   row._saving = true
   permMsg.value = ''
   try {
-    const { supabase } = await import('../../api/supabase.js')
+    const { supabase, rewriteSupabaseUrl } = await import('../../api/supabase.js')
     const { data: { session } } = await supabase.auth.getSession()
     if (!session?.access_token) throw new Error('未登录或会话已过期')
-    const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/admin-reset-password`
+    const url = rewriteSupabaseUrl(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/admin-reset-password`)
     const res = await fetch(url, {
       method: 'POST',
       headers: {

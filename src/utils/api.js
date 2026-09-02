@@ -9,7 +9,7 @@
  * - Supabase 数据库：通过 @supabase/supabase-js
  */
 
-import { supabase } from '../api/supabase'
+import { supabase, rewriteSupabaseUrl } from '../api/supabase'
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL
 const IS_DEV = import.meta.env.DEV
@@ -26,7 +26,7 @@ const IS_DEV = import.meta.env.DEV
  */
 export async function fetchMacroData() {
   try {
-    const res = await fetch(`${SUPABASE_URL}/functions/v1/macro-data`, {
+    const res = await fetch(rewriteSupabaseUrl(`${SUPABASE_URL}/functions/v1/macro-data`), {
       method: 'GET',
       headers: { 'Content-Type': 'application/json' },
       signal: AbortSignal.timeout(12000)
@@ -63,7 +63,7 @@ export async function fetchDanjuanEva() {
     } else {
       // 生产环境：优先专属 Edge Function（直连蛋卷，脱离已失效的 value500）
       try {
-        const res = await fetch(`${SUPABASE_URL}/functions/v1/danjuan-eva`, {
+        const res = await fetch(rewriteSupabaseUrl(`${SUPABASE_URL}/functions/v1/danjuan-eva`), {
           method: 'GET',
           signal: AbortSignal.timeout(12000)
         })

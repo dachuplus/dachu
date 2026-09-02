@@ -18,6 +18,39 @@ const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || ''
  */
 const FETCH_TIMEOUT_MS = 45000
 const baseFetch = (typeof fetch !== 'undefined' ? fetch : (...a) => Promise.reject(new Error('no fetch')))
+
+/**
+ * 同域代理改写：把对本项目 Supabase 域名（*.supabase.co）的 fetch 重写为同源
+ * /api/sb-proxy?path=<原路径+查询>，由 EdgeOne 海外节点函数转发到 Supabase 新加坡，
+ * 绕开浏览器跨境直连的不稳定。其余域名（如实时宏观数据 macro-data 函数、第三方源）不改写。
+ *
+ * 用 query 携带目标路径，避免多级路由匹配问题；path 值整体 encodeURIComponent。
+ */
+const SUPABASE_HOST = 'tqhtegazxykkqfcpejky.supabase.co'
+const PROXY_BASE = 'https://dachu.me/api/sb-proxy'
+
+function rewriteToProxy(input) {
+  let str
+  if (typeof input === 'string') str = input
+  else if (input && typeof input.url === 'string') str = input.url
+  else return input
+  if (str.indexOf(SUPABASE_HOST) === -1) return input
+  let u
+  try {
+    u = new URL(str)
+  } catch (_) {
+    return input
+  }
+  const targetPath = u.pathname + u.search
+  return `${PROXY_BASE}?path=${encodeURIComponent(targetPath)}`
+}
+
+/**
+ * 供直接 fetch Supabase 端点（如各 Edge Function）的前端代码复用，
+ * 把 *.supabase.co URL 改写成同源 /api/sb-proxy?path=...，统一走优化链路。
+ */
+export const rewriteSupabaseUrl = rewriteToProxy
+
 function timeoutFetch(input, init = {}) {
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS)
@@ -26,7 +59,8 @@ function timeoutFetch(input, init = {}) {
     init.signal.addEventListener('abort', () => controller.abort())
   }
   // 始终用我们自己的 signal 调底层 fetch（绝不用 supabase 的 signal 直接透传）
-  return baseFetch(input, { ...init, signal: controller.signal }).finally(() => clearTimeout(timer))
+  const rewritten = rewriteToProxy(input)
+  return baseFetch(rewritten, { ...init, signal: controller.signal }).finally(() => clearTimeout(timer))
 }
 
 export const supabase = SUPABASE_URL && SUPABASE_ANON_KEY

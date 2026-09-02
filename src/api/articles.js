@@ -8,7 +8,7 @@
  *  - 公开只读已发布文章；作者可读/写/删自己的全部（含草稿）。
  *  - article_authors 白名单中的邮箱，或被授予「内容」权限的用户（has_content_permission()）可写。
  */
-import { supabase } from './supabase.js'
+import { supabase, rewriteSupabaseUrl } from './supabase.js'
 import { useAuth } from '../composables/useAuth.js'
 
 /** 当前登录邮箱（发文 author_email 必须与此一致） */
@@ -396,7 +396,7 @@ async function callPublishFn(payload) {
     } else {
       headers['Content-Type'] = 'application/json'
     }
-    const res = await fetch(PUBLISH_FN_URL, {
+    const res = await fetch(rewriteSupabaseUrl(PUBLISH_FN_URL), {
       method: 'POST',
       headers,
       body,
