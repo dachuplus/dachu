@@ -31,12 +31,14 @@ const REQ_TIMEOUT = 60000
 /**
  * 给任意 Promise 加超时。
  * 超时后原 Promise 不会被取消（浏览器限制），但调用方会立刻拿到错误继续走重试/报错逻辑。
+ * @param {number} [timeoutMs] 覆盖默认超时（默认 REQ_TIMEOUT=60s）
  */
-function withTimeout(promise, label) {
+function withTimeout(promise, label, timeoutMs) {
+  const ms = timeoutMs || REQ_TIMEOUT
   return Promise.race([
     promise,
     new Promise((_, reject) =>
-      setTimeout(() => reject(new Error(label + ' 请求超时（>' + (REQ_TIMEOUT / 1000) + 's），请检查网络')), REQ_TIMEOUT)
+      setTimeout(() => reject(new Error(label + ' 请求超时（>' + (ms / 1000) + 's），请检查网络')), ms)
     )
   ])
 }
@@ -97,8 +99,8 @@ export function isNetworkError(e) {
 
 /* ========== 文章列表浏览器缓存 ========== */
 
-/** 缓存 TTL：30 分钟。Supabase（新加坡）偶发延迟高时，缓存命中 = 零等待 */
-const CACHE_TTL_MS = 30 * 60 * 1000
+/** 缓存 TTL：5 分钟。Supabase（新加坡）偶发延迟高时，缓存命中 = 零等待 */
+const CACHE_TTL_MS = 5 * 60 * 1000
 const CACHE_KEY_PREFIX = 'dachu_articles_'
 
 /**
@@ -132,10 +134,18 @@ function cacheKey(opts) {
 /**
  * 列表文章（带缓存）。
  * 命中缓存 → 瞬间返回旧数据，同时后台静默刷新（下次打开就是新的）。
+ *
+ * 提速链路（按优先级）：
+ *  1) localStorage 缓存（5 分钟内）
+ *  2) /articles-list.json（部署时预生成的静态 JSON，EdgeOne CDN 毫秒级返回）
+ *     → 拿到后立刻显示 + 触发后台静默刷新（保证下次或换设备后也是新的）
+ *  3) /api/articles（同域边缘函数，15s 超时）→ 边缘偶尔抽风时回退
+ *  4) 直连 Supabase（15s 超时兜底，迫使慢路径快速失败而非白屏60s+）
  */
 export async function listArticles({ status = 'published', authorEmail = null, limit = 50, offset = 0, tag = null } = {}) {
   const ck = cacheKey({ status, authorEmail, tag })
-  // 1. 缓存命中 → 立刻返回（零等待）
+
+  // ===== 1. localStorage 缓存命中（最快） =====
   const cached = readCache(ck)
   if (cached && offset === 0) {
     // 后台静默刷新（不阻塞 UI）
@@ -143,13 +153,33 @@ export async function listArticles({ status = 'published', authorEmail = null, l
     return cached.slice(0, limit)
   }
 
-  // 2. 已发布全量列表首屏优先走同域边缘函数（EdgeOne 境外节点就近返回，免跨境直连新加坡提速）。
-  //    仅对「status=published 且无作者/标签过滤」的首屏启用；边缘偶发超时/502 → 5s 内超时即回退直连，绝不白屏。
+  // ===== 2. 已发布全量列表：部署时预生成的静态 JSON（毫秒级 CDN 返回） =====
+  //    仅对公开首屏（status=published + 无作者/标签过滤）启用。EdgeOne→Supabase 链路偶发 10-16s
+  //    慢速时，这个静态文件是用户的救命稻草 —— 部署一次（CI 每日 21:30 或手动）即生效。
   if (status === 'published' && !authorEmail && !tag && offset === 0) {
+    try {
+      const staticRes = await fetch('/articles-list.json?t=' + Date.now(), {
+        headers: { Accept: 'application/json' },
+      })
+      if (staticRes.ok) {
+        const payload = await staticRes.json()
+        if (payload && Array.isArray(payload.articles) && payload.articles.length) {
+          writeCache(ck, payload.articles)
+          // 后台静默刷新（让本地缓存与服务端/边缘函数/Supabase 一致，对未发布新文章也能尽快同步）
+          refreshListInBackground({ status, authorEmail, limit, tag }, ck)
+          return payload.articles.slice(0, limit)
+        }
+      }
+      // 静态文件不存在/格式异常 → 走边缘函数
+    } catch (e) {
+      // 静态文件失败（极少，CDN 不可达）→ 走边缘函数
+    }
+
+    // ===== 3. 同域边缘函数（EdgeOne 境外节点就近回源，15s 内超时即走兜底） =====
     try {
       const res = await Promise.race([
         fetch('/api/articles', { headers: { Accept: 'application/json' } }),
-        new Promise((_, rej) => setTimeout(() => rej(new Error('edge-timeout')), 5000)),
+        new Promise((_, rej) => setTimeout(() => rej(new Error('edge-timeout')), 12000)),
       ])
       if (res.ok) {
         const data = await res.json()
@@ -164,7 +194,8 @@ export async function listArticles({ status = 'published', authorEmail = null, l
     }
   }
 
-  // 3. 兜底：直连 Supabase（列表只查必要字段，不取大字段 content）
+  // ===== 4. 兜底：直连 Supabase（列表只查必要字段，不取大字段 content）。
+  //    单独 15s 超时：边缘已挂 12s 后，兜底再等 60s 用户体感极差，15s 总 ≤ 27s 即报错。 =====
   if (!supabase) throw new Error('未连接数据库')
 
   const FIELDS = 'id,title,summary,status,published_at,updated_at,views,tags,cover_image,author_email,is_pinned,scheduled_at'
@@ -177,7 +208,7 @@ export async function listArticles({ status = 'published', authorEmail = null, l
   q = q.order('published_at', { ascending: false, nullsFirst: false })
   q = q.range(offset, Math.max(offset, offset + limit - 1))
   try {
-    const { data, error } = await withTimeout(q, '文章列表')
+    const { data, error } = await withTimeout(q, '文章列表', 15000)
     if (error) throw error
     const result = data || []
     if (offset === 0) writeCache(ck, result)

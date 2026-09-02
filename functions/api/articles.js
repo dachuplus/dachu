@@ -14,7 +14,8 @@ const ANON_KEY = 'sb_publishable_iFtMcvav774gqF28gGYQVw_QMmuS-z3'
 // 与前端 listArticles 的 FIELDS 保持一致（不含大字段 content，降低体积）
 const FIELDS =
   'id,title,summary,status,published_at,updated_at,views,tags,cover_image,author_email,is_pinned'
-const CACHE_TTL = 60 // 秒（列表变化较快，缓存短一些）
+// 5 分钟缓存：文章列表变更频率低（手动发布），延长 TTL 让更多用户命中缓存 → 避免每次都要慢回源
+const CACHE_TTL = 300 // 秒
 
 export async function onRequestGet(context) {
   const cache = caches.default
@@ -45,7 +46,10 @@ export async function onRequestGet(context) {
     '&status=eq.published&order=is_pinned.desc,published_at.desc.nullslast&limit=200'
   let upstream
   const ac = new AbortController()
-  const acTimer = setTimeout(() => ac.abort(), 8000) // 上游 8s 超时：避免函数长时间挂起，快速返 502 让前端回退
+  // 上游 15s 超时：EdgeOne 海外 → Supabase 新加坡链路偶发 10-16s 延迟，
+  // 8s 太激进会被误杀返 502 → 客户端兜底直连更慢（60s+）。
+  // 15s 既给慢链足够的完成窗口，又在 EdgeOne 网关级 16s 504 之前主动放弃。
+  const acTimer = setTimeout(() => ac.abort(), 15000)
   try {
     upstream = await fetch(url, {
       headers: {

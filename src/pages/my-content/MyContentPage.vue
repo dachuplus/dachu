@@ -12,7 +12,10 @@
       <button :class="{ active: view === 'mine' }" @click="setView('mine')">我的全部（含草稿）</button>
     </div>
 
-    <div v-if="loading && !articles.length" class="cp-loading">加载中…</div>
+    <div v-if="loading && !articles.length" class="cp-loading">
+      <div>加载中…</div>
+      <div v-if="slowHint" class="cp-loading-hint">网络较慢，正在重试中…</div>
+    </div>
     <div v-else-if="loadError" class="cp-error">
       <p class="cp-error-msg">{{ loadError }}</p>
       <button class="cp-retry-btn" @click="load">重新加载</button>
@@ -53,7 +56,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, watch, computed } from 'vue'
+import { ref, onMounted, onBeforeUnmount, watch, computed } from 'vue'
 import { useRoute } from 'vue-router'
 import { useAuth } from '../../composables/useAuth'
 import { listArticles, deleteArticle, setArticlePinned, NETWORK_SLOW_MSG, isNetworkError } from '../../api/articles'
@@ -64,6 +67,8 @@ const route = useRoute()
 const articles = ref([])
 const loading = ref(false)
 const loadError = ref('')
+const slowHint = ref(false)  // 加载超过 5s 时给出"网络较慢"提示
+let slowTimer = null
 const view = ref('published')
 
 // 可管理内容：仅管理员可写/编辑/删除
@@ -72,6 +77,12 @@ const canManageContent = computed(() => isOwner.value)
 async function load() {
   loading.value = true
   loadError.value = ''
+  slowHint.value = false
+  // 5s 后仍未结束 → 提示"网络较慢"，避免用户以为页面卡死
+  clearTimeout(slowTimer)
+  slowTimer = setTimeout(() => {
+    if (loading.value) slowHint.value = true
+  }, 5000)
   try {
     if (canManageContent.value && view.value === 'mine') {
       const email = user.value?.email
@@ -92,8 +103,12 @@ async function load() {
     }
   } finally {
     loading.value = false
+    slowHint.value = false
+    clearTimeout(slowTimer)
   }
 }
+
+onBeforeUnmount(() => clearTimeout(slowTimer))
 
 function setView(v) {
   view.value = v
@@ -217,6 +232,12 @@ watch(() => route.fullPath, () => {
   text-align: center;
   color: var(--text-secondary);
   font-size: 15px;
+}
+.cp-loading-hint {
+  margin-top: 12px;
+  font-size: 13px;
+  color: var(--text-secondary);
+  opacity: 0.7;
 }
 .cp-error {
   padding: 40px 20px;

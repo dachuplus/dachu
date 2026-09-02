@@ -422,6 +422,16 @@ jobs:
           python scripts/export_all_tables.py --output-dir public/downloads
           echo "导出完成: $(date '+%Y-%m-%d %H:%M:%S')"
 
+      - name: 步骤5b2 — 导出已发布文章静态列表
+        continue-on-error: true  # 失败不阻断流水线（运行时仍有边缘函数）
+        run: |
+          echo "============================================"
+          echo "  步骤5b2: 导出已发布文章 → public/articles-list.json"
+          echo "  开始时间: $(date '+%Y-%m-%d %H:%M:%S')"
+          echo "============================================"
+          python scripts/export_articles_list.py
+          echo "完成: $(date '+%Y-%m-%d %H:%M:%S')"
+
       - name: 步骤5c — 计算特色指标（恐惧贪婪/市场温度/基金发行热度）
         timeout-minutes: 15
         continue-on-error: true
@@ -590,6 +600,13 @@ jobs:
             echo "已同步 $(ls public/downloads | wc -l) 个下载文件"
           else
             echo "public/downloads/ 不存在，跳过"
+          fi
+          # 同步文章静态列表：步骤5b2 已生成，CDN 毫秒级返回，绕开慢链
+          if [ -f public/articles-list.json ]; then
+            cp public/articles-list.json dist/articles-list.json
+            echo "已同步 articles-list.json"
+          else
+            echo "public/articles-list.json 不存在，跳过（运行时��边缘函数兜底）"
           fi
           rm -f dist.zip
           cd dist && zip -r ../dist.zip . && cd ..

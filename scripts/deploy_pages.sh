@@ -39,6 +39,15 @@ fi
 echo "==> 1/4 构建前端 (vite build)"
 npm run build
 
+echo "==> 1.5/4 导出已发布文章静态列表 (public/articles-list.json)"
+# 部署时把已发布文章烘焙成静态 JSON，CDN 毫秒级返回，绕开 EdgeOne→Supabase 偶发慢链。
+# 失败不阻断部署（运行时仍有边缘函数兜底），但打印原因以便发现连接问题。
+if /Users/maoshanbo/.workbuddy/binaries/python/envs/default/bin/python scripts/export_articles_list.py 2>&1; then
+  echo "已更新 public/articles-list.json"
+else
+  echo "⚠️ 静态文章列表导出失败，继续部署（运行时仍有边缘函数兜底）"
+fi
+
 echo "==> 2/4 拷贝边缘函数 functions/ 到 dist/"
 rm -rf dist/functions
 cp -r functions dist/functions
@@ -61,6 +70,15 @@ if [ -d public/downloads ]; then
   echo "已同步 $(ls public/downloads | wc -l | tr -d ' ') 个下载文件到 dist/downloads/"
 else
   echo "public/downloads/ 不存在，跳过（下载中心沿用既有文件）"
+fi
+
+echo "==> 3.6/4 同步文章静态列表 public/articles-list.json → dist/articles-list.json"
+# Vite 不会自动 copy 根 public/ 中未被源码 import 的文件，必须手动复制
+if [ -f public/articles-list.json ]; then
+  cp public/articles-list.json dist/articles-list.json
+  echo "已��步 articles-list.json"
+else
+  echo "public/articles-list.json 不存在，跳过（运行时走边缘函数兜底）"
 fi
 
 echo "==> 4/4 部署文件夹 ./dist 到 EdgeOne Pages (overseas)"
