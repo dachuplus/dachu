@@ -583,6 +583,14 @@ jobs:
           rm -rf dist/functions
           cp -r functions dist/functions
           echo '{"name":"dachu-pages-functions","version":"1.0.0","private":true}' > dist/package.json
+          # 同步数据下载中心：评分流水线步骤5b 已导出 public/downloads/，必须复制进 dist 才会上线
+          if [ -d public/downloads ]; then
+            rm -rf dist/downloads
+            cp -r public/downloads dist/downloads
+            echo "已同步 $(ls public/downloads | wc -l) 个下载文件"
+          else
+            echo "public/downloads/ 不存在，跳过"
+          fi
           rm -f dist.zip
           cd dist && zip -r ../dist.zip . && cd ..
           npx edgeone pages deploy dist.zip -n dachu -a overseas -t "$EDGEONE_PAGES_API_TOKEN"

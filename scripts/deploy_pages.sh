@@ -52,6 +52,17 @@ cat > dist/package.json <<'JSON'
 }
 JSON
 
+echo "==> 3.5/4 同步数据下载中心 public/downloads/ → dist/downloads/"
+# CI 评分流水线的 export_all_tables.py 会把最新 xlsx 写到 public/downloads/，
+# 但 EdgeOne 实际部署的是 dist/，必须在此复制，否则下载中心永远停在旧版本（详见 2026-09-02 故障）。
+if [ -d public/downloads ]; then
+  rm -rf dist/downloads
+  cp -r public/downloads dist/downloads
+  echo "已同步 $(ls public/downloads | wc -l | tr -d ' ') 个下载文件到 dist/downloads/"
+else
+  echo "public/downloads/ 不存在，跳过（下载中心沿用既有文件）"
+fi
+
 echo "==> 4/4 部署文件夹 ./dist 到 EdgeOne Pages (overseas)"
 # 部署文件夹（而非 zip）更可靠地触发 Functions 构建；functions/ + package.json 同在 dist 根目录
 "$NODE_BIN" "$EDGEONE_BIN" pages deploy ./dist -n dachu -a overseas $USE_TOKEN_FLAG
