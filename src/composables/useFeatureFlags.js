@@ -18,7 +18,10 @@ const DEFAULT_FLAGS = {
   signal: true,
   portfolio: true,
   content: true,
-  'login-wall': true,   // 首页权限墙（默认开启=未登录需登录才能看）
+  'login-wall': false,  // 首页权限墙：默认关闭（公开可读）。
+                        // 注意：此前默认 true，但 feature_flags 查询失败（Supabase 抖动/表异常）
+                        // 会回退到此默认→误弹墙+锁门外。改为 false 避免「一抖就锁门」。
+                        // 平时仍按 DB 里的开关值生效（设为 on 则照常开墙）。
 }
 
 // 可在面板中切换的功能清单（核心管理类 admin / data-center 不放入开关，避免把自己锁门外）

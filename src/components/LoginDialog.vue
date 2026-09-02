@@ -175,7 +175,7 @@ async function submit() {
         // 历史账号可能落在 @allfund.user，先逐一尝试验证是否已注册
         let existing = false
         for (const email of phoneCandidates(identifier)) {
-          const { error: e2 } = await supabase.auth.signInWithPassword({ email, password: password.value })
+          const { error: e2 } = await withAuthTimeout(supabase.auth.signInWithPassword({ email, password: password.value }))
           if (!e2) { existing = true; break }
         }
         if (existing) {
@@ -219,12 +219,12 @@ async function submit() {
         // 新账号 @dachu.user，历史账号 @allfund.user，按候选顺序逐一登录
         let ok = false
         for (const email of phoneCandidates(identifier)) {
-          const { error: err } = await supabase.auth.signInWithPassword({ email, password: password.value })
+          const { error: err } = await withAuthTimeout(supabase.auth.signInWithPassword({ email, password: password.value }))
           if (!err) { ok = true; break }
         }
         if (!ok) { error.value = '账号或密码错误'; return }
       } else {
-        const { error: err } = await supabase.auth.signInWithPassword({ email: identifier, password: password.value })
+        const { error: err } = await withAuthTimeout(supabase.auth.signInWithPassword({ email: identifier, password: password.value }))
         if (err) {
           // 防御：supabase 偶发返回空 error {} 或 message 为空
           const errMsg = (err && typeof err.message === 'string' && err.message.trim()) ? err.message.trim() : ''
@@ -269,6 +269,16 @@ function startWechatLogin() {
   try { localStorage.setItem('wx_login_state', state) } catch (e) {}
   const url = `https://open.weixin.qq.com/connect/qrconnect?appid=${appid}&redirect_uri=${redirect}&response_type=code&scope=snsapi_login&state=${state}#wechat_redirect`
   location.href = url
+}
+
+// 给 Supabase Auth 请求加超时兜底：平台抖动/网络抽风时请求可能永久 pending，
+// 表现为按钮一直「验证中…」。加 20s 超时后自动 reject，进入 catch 给出友好提示，
+// 用户可重试（Supabase 偶发慢请求通常重试即可成功）。
+function withAuthTimeout(promise, ms = 20000) {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => setTimeout(() => reject(new Error('登录服务响应超时 (timeout)')), ms)),
+  ])
 }
 
 function translateError(msg) {
