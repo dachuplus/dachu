@@ -217,7 +217,10 @@ export async function getCategoryRankInfoByScore(codes, scoreCol = 'k1') {
 async function fetchFundScoresImpl(params = {}) {
   const { t0, t1, search, kKey = 'k1', page = 1, pageSize = 100, sortAsc, etf, lof, dk, sg, dailyLimit, scaleMin, scaleMax, sortField, sortDir } = params
   if (supabase) {
-    let query = supabase.from('fund_scores').select(FUND_SCORES_COLS, { count: 'exact', head: false })
+    // 注意：不带 count='exact'（之前会因为 22000+ 行 × 30 列触发数据库 statement_timeout 57014，
+    //       表现为页面「基金数据加载失败」）。改用 funds.length 作为显示总数（见 FundRankPage.vue）。
+    //       如需精确总数，可后续用 count=planned（pg_class.reltuples 估计，较快）。
+    let query = supabase.from('fund_scores').select(FUND_SCORES_COLS)
     // 分类筛选：直接采用 fund_scores 的「一级分类 t0」与「二级分类 t1_tt」
     // （从总表服务端过滤，而非客户端对前 100 条再筛）
     if (t1) {
@@ -264,11 +267,12 @@ async function fetchFundScoresImpl(params = {}) {
     const orderField = sortField || kKey
     const orderAsc = sortField ? (sortDir === 'asc') : !!sortAsc
     const from = (page - 1) * pageSize
-    const { data, count, error } = await query
+    const { data, error } = await query
       .order(orderField, { ascending: orderAsc, nullsFirst: false })
       .range(from, from + pageSize - 1)
     if (error) throw error
-    return { data: data || [], count }
+    // 不带 count（见上方说明），前端会用 funds.length 作为总数 fallback
+    return { data: data || [], count: null }
   }
   // 未配置 Supabase：按最高风控规则返回空，绝不展示伪造的示例数据
   return { data: [], count: 0 }
