@@ -605,14 +605,14 @@ async function loadAll() {
     // ===== 从 Supabase macro_history 表获取历史数据 =====
     // 先用 macro 数据构建 macroList，再异步填充 series（不阻塞主流程）
     const macroValues = {
-      cn10y:  { value: bondData.yield10y != null ? (bondData.yield10y * 100).toFixed(2) + '%' : '--', date: bondData.date || '' },
-      us10y:  { value: us10yData.yield10y != null ? (us10yData.yield10y * 100).toFixed(2) + '%' : '--', date: us10yData.date || '' },
-      shibor: { value: shiborData.on != null ? (shiborData.on * 100).toFixed(3) + '%' : '--', date: shiborData.date || '' },
-      cpi:    { value: cpiData.cpi != null ? (cpiData.cpi * 100).toFixed(1) + '%' : '--', date: cpiData.date || '' },
-      m2:     { value: m2Data.m2yoy != null ? m2Data.m2yoy + '%' : '--', date: m2Data.date || '' },
-      ppi:    { value: ppiData.ppi != null ? ppiData.ppi + '%' : '--', date: ppiData.date || '' },
-      pmi:    { value: pmiData.pmi != null ? pmiData.pmi : '--', date: pmiData.date || '' },
-      spread: { value: bondData.spread != null ? bondData.spread.toFixed(2) + 'pp' : '--', date: bondData.date || '' },
+      cn10y:  { value: bondData.yield10y != null ? (bondData.yield10y * 100).toFixed(4) + '%' : '--', date: bondData.date || '' },
+      us10y:  { value: us10yData.yield10y != null ? (us10yData.yield10y * 100).toFixed(4) + '%' : '--', date: us10yData.date || '' },
+      shibor: { value: shiborData.on != null ? (shiborData.on * 100).toFixed(4) + '%' : '--', date: shiborData.date || '' },
+      cpi:    { value: cpiData.cpi != null ? (cpiData.cpi * 100).toFixed(4) + '%' : '--', date: cpiData.date || '' },
+      m2:     { value: m2Data.m2yoy != null ? m2Data.m2yoy.toFixed(4) + '%' : '--', date: m2Data.date || '' },
+      ppi:    { value: ppiData.ppi != null ? ppiData.ppi.toFixed(4) + '%' : '--', date: ppiData.date || '' },
+      pmi:    { value: pmiData.pmi != null ? pmiData.pmi.toFixed(4) : '--', date: pmiData.date || '' },
+      spread: { value: bondData.spread != null ? bondData.spread.toFixed(4) + 'pp' : '--', date: bondData.date || '' },
       omo:    { value: '建设中', date: '' }
     }
     macroList.value = ['cn10y', 'us10y', 'shibor', 'cpi', 'm2', 'ppi', 'pmi', 'spread', 'omo'].map(k => {
@@ -1581,13 +1581,14 @@ function handleResize() {
 /* 宏观指标（实时列表） */
 .macro-list { display: flex; flex-direction: column; gap: 0; }
 .macro-list-item {
-  display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-md);
+  display: grid; grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: baseline; column-gap: var(--space-md);
   padding: var(--space-md) 0; border-bottom: 1px solid var(--border);
 }
 .macro-list-item:last-child { border-bottom: none; }
-.macro-list-label { font-size: 14px; color: var(--text-secondary); flex: 1 1 auto; }
-.macro-list-value { font-size: 22px; font-weight: 700; color: var(--text-primary); font-variant-numeric: tabular-nums; }
-.macro-list-date { font-size: 12px; color: var(--text-secondary); margin-left: var(--space-md); white-space: nowrap; }
+.macro-list-label { font-size: 14px; color: var(--text-secondary); }
+.macro-list-value { font-size: 22px; font-weight: 700; color: var(--text-primary); font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
+.macro-list-date { font-size: 12px; color: var(--text-secondary); white-space: nowrap; text-align: right; }
 .macro-chart { width: 100%; height: 200px; }
 
 /* FED */
