@@ -271,10 +271,9 @@ function startWechatLogin() {
   location.href = url
 }
 
-// 给 Supabase Auth 请求加超时兜底：平台抖动/网络抽风时请求可能永久 pending，
-// 表现为按钮一直「验证中…」。加 20s 超时后自动 reject，进入 catch 给出友好提示，
-// 用户可重试（Supabase 偶发慢请求通常重试即可成功）。
-function withAuthTimeout(promise, ms = 20000) {
+// 给 Supabase Auth 请求加超时兜底：supabase.js 已对 /auth/v1/* 做了「直接 + sb-proxy」双路 race，
+// 正常情况下 2-5s 拿到响应；超过 12s 视为链路双挂，强制 reject、给出友好提示让用户重试。
+function withAuthTimeout(promise, ms = 12000) {
   return Promise.race([
     promise,
     new Promise((_, reject) => setTimeout(() => reject(new Error('登录服务响应超时 (timeout)')), ms)),
