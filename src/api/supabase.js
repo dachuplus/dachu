@@ -25,9 +25,17 @@ const baseFetch = (typeof fetch !== 'undefined' ? fetch : (...a) => Promise.reje
  * 绕开浏览器跨境直连的不稳定。其余域名（如实时宏观数据 macro-data 函数、第三方源）不改写。
  *
  * 用 query 携带目标路径，避免多级路由匹配问题；path 值整体 encodeURIComponent。
+ *
+ * **例外 (2026-09-03)**：/auth/v1/* 认证端点不走 sb-proxy，改走浏览器直连 Supabase。
+ * 原因: EdgeOne overseas 节点出口 (美西洛杉矶) → Supabase 新加坡 的横跨太平洋
+ * 骨干网当前频繁超时 (HTTP 504 @ ≥15s)，认证请求 100% 失败。认证体积最小、延迟最敏感，
+ * 让浏览器从国内直连 Supabase（跳过 EdgeOne 中转），反而更稳更快。
+ * 其他端点 (PostgREST / storage / edge function) 仍走 sb-proxy，沿用优化链路。
  */
 const SUPABASE_HOST = 'tqhtegazxykkqfcpejky.supabase.co'
 const PROXY_BASE = 'https://dachu.me/api/sb-proxy'
+// 开关：true=auth 端点不绕道 sb-proxy，让浏览器从国内直接 POST 到 Supabase
+const AUTH_DIRECT_BYPASS = true
 
 function rewriteToProxy(input) {
   let str
@@ -41,6 +49,8 @@ function rewriteToProxy(input) {
   } catch (_) {
     return input
   }
+  // Auth 端点直连（绕开当前已断的 EdgeOne overseas → Supabase 链路）
+  if (AUTH_DIRECT_BYPASS && u.pathname.startsWith('/auth/v1/')) return input
   const targetPath = u.pathname + u.search
   return `${PROXY_BASE}?path=${encodeURIComponent(targetPath)}`
 }
@@ -48,6 +58,8 @@ function rewriteToProxy(input) {
 /**
  * 供直接 fetch Supabase 端点（如各 Edge Function）的前端代码复用，
  * 把 *.supabase.co URL 改写成同源 /api/sb-proxy?path=...，统一走优化链路。
+ *
+ * 注意：/auth/v1/* 由 rewriteToProxy 内部直接放行（同源直连 Supabase），调用方无需特殊处理。
  */
 export const rewriteSupabaseUrl = rewriteToProxy
 
