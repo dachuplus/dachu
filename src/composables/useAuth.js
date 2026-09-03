@@ -53,6 +53,7 @@ const rejected = ref(false)
 
 // 是否已初始化（App.vue 调用 init 后为 true）
 let _initDone = false
+let _initFailed = false
 
 export function useAuth() {
   const isLoggedIn = computed(() => !!user.value)
@@ -90,6 +91,19 @@ export function useAuth() {
     if (_initDone) return
     _initDone = true
     loading.value = true
+    // 兜底：init 硬超时（默认 8s）。supabase.auth.getSession / loadPermissions 走的是
+    // sb-proxy 链路，偶发跨境外层超时会让 await 永远挂起，loading 锁在 true → 登录墙
+    // 和非墙模式的 LoginDialog 都因 v-if="!authLoading" 拒绝渲染，用户点登录「无反应」。
+    // 这里用超时强制把 loading=false，并标 _initFailed，避免后续静默卡死。
+    const HARD_INIT_TIMEOUT_MS = 8000
+    const _initTimer = setTimeout(() => {
+      if (loading.value) {
+        console.warn('[auth] init 超时（' + HARD_INIT_TIMEOUT_MS + 'ms），强制进入未登录态')
+        _initFailed = true
+        loading.value = false
+        permissionsReady.value = true
+      }
+    }, HARD_INIT_TIMEOUT_MS)
     try {
       const { data } = await supabase.auth.getSession()
       const u = data?.session?.user || null
@@ -113,6 +127,7 @@ export function useAuth() {
       console.error('[auth] init session error:', e)
       permissionsReady.value = true
     } finally {
+      clearTimeout(_initTimer)
       loading.value = false
     }
     // 监听全局状态变更

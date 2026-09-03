@@ -133,8 +133,9 @@
     <Toast />
     <ConfirmDialog />
 
-    <!-- 登录弹窗（非墙模式：公开路由中点击「登录/注册」触发） -->
-    <LoginDialog v-if="!isLoggedIn && showLoginDialogValue && !authLoading" @logged-in="onLoggedIn" @close="hideLogin" />
+    <!-- 登录弹窗（非墙模式：公开路由中点击「登录/注册」触发）。
+         不再被 !authLoading 守卫：用户已主动表达登录意愿，不应被 init 卡死阻塞。 -->
+    <LoginDialog v-if="!isLoggedIn && showLoginDialogValue" @logged-in="onLoggedIn" @close="hideLogin" />
     </div>
 
     <!-- 申请权限弹窗：独立于各分支，任何登录状态下均可弹出 -->
