@@ -182,11 +182,36 @@ function onResize() {
 }
 onMounted(async () => {
   window.addEventListener('resize', onResize)
+  // 检测新版（SPA 内部路由切换不会重新拉 chunk，靠这个让浏览器自动 reload 一次）：
+  // fetch /version.json → 与 localStorage 比对 → hash 变了 → location.reload() 重拉新 chunk
+  checkForNewVersion()
   await init()        // 初始化全局 auth（恢复 session 后再上报，确保能拿到登录邮箱）
   loadFeatureFlags()  // 加载功能开放开关（失败回退默认，不阻塞页面）
   logVisitor()        // 上报本次访问（IP / 邮箱 / 地区 / 页面）
   loadVisitorCount()  // 拉取累计访客数（写入 visitor_logs 的总条数）
 })
+
+/* ---- 新版检测：解决「SPA 内部路由不重新拉 chunk、用户永远跑旧代码」的坑 ----
+ * 部署时会把主 chunk 的 hash 写入 dist/version.json；本次启动 fetch 它，
+ * 与 localStorage 中记录的「上次见到的 hash」比对，不同就 reload 一次。 */
+function checkForNewVersion() {
+  // 不 await，立即发起；reload 会丢弃整个 SPA 状态，await 没意义
+  fetch(`/version.json?_=${Date.now()}`, { cache: 'no-store' })
+    .then((r) => (r.ok ? r.json() : null))
+    .then((v) => {
+      if (!v || !v.h) return
+      const KEY = 'dachu_app_version'
+      const stored = localStorage.getItem(KEY)
+      if (stored && stored !== v.h) {
+        // 新版本：更新本地记录 + 强制 reload 拉新 chunk
+        localStorage.setItem(KEY, v.h)
+        window.location.reload()
+      } else if (!stored) {
+        localStorage.setItem(KEY, v.h)
+      }
+    })
+    .catch(() => { /* 版本探测静默失败，不阻断任何 init */ })
+}
 
 /* ---- 累计访客数（用于底部「你是第 N 位访客」）---- */
 const visitorCount = ref(null)

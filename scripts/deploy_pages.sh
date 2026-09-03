@@ -81,6 +81,20 @@ else
   echo "public/articles-list.json 不存在，跳过（运行时走边缘函数兜底）"
 fi
 
+echo "==> 3.7/4 写入 dist/version.json（SPA 自动检测新版 → reload 拉新 chunk）"
+# 提取本次构建主 chunk 的 hash，作为版本标识。从 dist/index.html 读取它真正引用的 chunk
+# （而非 ls 第一个，因为 vite 可能生成多个 index-*.js，如 legacy / 动态 import 分片）。
+# App.vue 启动时 fetch /version.json 与 localStorage 比对，hash 变了就 window.location.reload()
+# —— 解决「SPA 内部路由跳转不会重新拉 chunk、用户永远跑旧代码」的经典坑。
+MAIN_CHUNK=$(grep -oE '/assets/index-[a-zA-Z0-9_.-]+\.js' dist/index.html 2>/dev/null | head -1 | sed -E 's|.*/index-([^.]+)\.js$|\1|')
+if [ -n "$MAIN_CHUNK" ]; then
+  BUILD_TS=$(date +%s)
+  printf '{"h":"%s","t":%s}\n' "$MAIN_CHUNK" "$BUILD_TS" > dist/version.json
+  echo "已写入 version.json (hash=$MAIN_CHUNK, t=$BUILD_TS)"
+else
+  echo "⚠️ dist/index.html 中未找到 index-*.js，跳过 version.json"
+fi
+
 echo "==> 4/4 部署文件夹 ./dist 到 EdgeOne Pages (overseas)"
 # 部署文件夹（而非 zip）更可靠地触发 Functions 构建；functions/ + package.json 同在 dist 根目录
 "$NODE_BIN" "$EDGEONE_BIN" pages deploy ./dist -n dachu -a overseas $USE_TOKEN_FLAG
