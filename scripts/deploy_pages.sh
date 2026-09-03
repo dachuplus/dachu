@@ -81,11 +81,38 @@ else
   echo "public/articles-list.json 不存在，跳过（运行时走边缘函数兜底）"
 fi
 
-echo "==> 3.7/4 写入 dist/version.json（SPA 自动检测新版 → reload 拉新 chunk）"
+echo "==> 3.7/4 往 dist/index.html 注入版本探测 inline script（独立于 chunk，确保 reload 拉新 chunk）"
+# 关键：把版本探测从 chunk（App.vue 的 onMounted）搬到 index.html 的 inline <script>，
+# 这样即使浏览器在跑旧 chunk，**index.html 重新加载时也会先于任何 chunk 执行**，
+# 检测到 hash 变化就 window.location.reload() → 浏览器强制拉新 chunk。
+# 解决「旧 chunk 没有新版检测逻辑 → 永远不 reload → 永远不换 chunk」的死循环。
+# 用同步 XMLHttpRequest（XHR synchronous）让 reload 命令在 chunk 加载前就发出。
+/Users/maoshanbo/.workbuddy/binaries/python/versions/3.14.3/bin/python3 - <<'PY'
+import re, sys
+path = 'dist/index.html'
+with open(path, 'r', encoding='utf-8') as f:
+    content = f.read()
+script = '<script>(function(){try{var K="dachu_app_version",x=new XMLHttpRequest();x.open("GET","/version.json?_="+Date.now(),false);x.send();if(x.status!==200)return;var d=JSON.parse(x.responseText);if(!d||!d.h)return;var s=localStorage.getItem(K);if(s&&s!==d.h){localStorage.setItem(K,d.h);window.location.reload();}else if(!s){localStorage.setItem(K,d.h);}}catch(e){}})();</script>'
+# 在 <script type="module" crossorigin src="/assets/index- 之前插入
+new_content, n = re.subn(
+    r'(<script type="module"[^>]*src="/assets/index-[^"]+\.js")',
+    script + r'\1',
+    content,
+    count=1,
+)
+if n == 0:
+    print('⚠️ 未找到 <script type="module" 插入点，跳过 inline script 注入')
+    sys.exit(1)
+with open(path, 'w', encoding='utf-8') as f:
+    f.write(new_content)
+print(f'已注入版本探测 inline script (替换次数={n})')
+PY
+
+echo "==> 3.8/4 写入 dist/version.json（SPA 自动检测新版 → reload 拉新 chunk）"
 # 提取本次构建主 chunk 的 hash，作为版本标识。从 dist/index.html 读取它真正引用的 chunk
 # （而非 ls 第一个，因为 vite 可能生成多个 index-*.js，如 legacy / 动态 import 分片）。
-# App.vue 启动时 fetch /version.json 与 localStorage 比对，hash 变了就 window.location.reload()
-# —— 解决「SPA 内部路由跳转不会重新拉 chunk、用户永远跑旧代码」的经典坑。
+# 浏览器加载 index.html 时（无论 chunk 是否已缓存），inline script 会 fetch 此 json 与
+# localStorage 比对，hash 变了就 window.location.reload() 拉新 chunk。
 MAIN_CHUNK=$(grep -oE '/assets/index-[a-zA-Z0-9_.-]+\.js' dist/index.html 2>/dev/null | head -1 | sed -E 's|.*/index-([^.]+)\.js$|\1|')
 if [ -n "$MAIN_CHUNK" ]; then
   BUILD_TS=$(date +%s)
