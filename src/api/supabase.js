@@ -9,7 +9,7 @@ const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || ''
 
 /**
  * 带超时的 fetch：Supabase 新加坡节点偶发延迟高（实测 auth 冷启动 7~20s、REST 偶发超时），
- * 给每个请求套 45s 上限，超时即 Abort，避免前端无限"处理中…"。
+ * 给每个请求套 60s 上限，超时即 Abort，避免前端无限"处理中…"。
  *
  * 关键兼容点：supabase-js v2 内部会给 fetch 传入自己的 AbortSignal（用于其自身的取消/重试逻辑）。
  * 绝不能把它的 signal 直接透传给 fetch —— 会导致 supabase 内部响应解析异常（返回空 error {}、耗时翻倍）。
@@ -20,7 +20,7 @@ const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || ''
  * 「sb-proxy (EdgeOne overseas)」，谁先返回响应用谁的——因为 EdgeOne 出口到 Supabase Singapore
  * 的骨干网当前持续挂掉，但浏览器直连也可能偶发慢，并行 race 反而最稳。其余端点不变。
  */
-const FETCH_TIMEOUT_MS = 45000
+const FETCH_TIMEOUT_MS = 60000
 const baseFetch = (typeof fetch !== 'undefined' ? fetch : (...a) => Promise.reject(new Error('no fetch')))
 
 /**

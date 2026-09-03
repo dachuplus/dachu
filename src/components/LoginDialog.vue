@@ -268,7 +268,7 @@ async function submit() {
     const msg = (e && e.message) ? String(e.message) : String(e || '')
     console.error('[LoginDialog] 登录异常:', { name: e?.name, message: e?.message, code: e?.code, string: String(e) })
     if (msg.indexOf('aborted') !== -1 || msg.indexOf('timeout') !== -1) {
-      error.value = '登录服务响应慢（服务器限速中），请等待 30 秒后重试'
+      error.value = '登录服务响应慢（服务器限速中），请等待 1 分钟后再试'
     } else if (msg.indexOf('Failed to fetch') !== -1 || msg.indexOf('NetworkError') !== -1 || msg.indexOf('网络') !== -1) {
       error.value = '网络连接失败，请检查网络后重试'
     } else if (!msg || msg.length < 2) {
@@ -300,8 +300,8 @@ function startWechatLogin() {
 }
 
 // 给 Supabase Auth 请求加超时兜底：supabase.js 已对 /auth/v1/* 做了「直接 + sb-proxy」双路 race，
-// 正常情况下 2-5s 拿到响应；超过 12s 视为链路双挂，强制 reject、给出友好提示让用户重试。
-function withAuthTimeout(promise, ms = 12000) {
+// 正常情况下 2-5s 拿到响应；超过 60s 视为链路双挂，强制 reject、给出友好提示让用户重试。
+function withAuthTimeout(promise, ms = 60000) {
   return Promise.race([
     promise,
     new Promise((_, reject) => setTimeout(() => reject(new Error('登录服务响应超时 (timeout)')), ms)),
@@ -310,7 +310,7 @@ function withAuthTimeout(promise, ms = 12000) {
 
 /**
  * 错误分类：判定是否为「网络/超时」（可重试） vs 「账号密码问题」（不可重试）。
- * 网络类重试对错误密码无效，只会浪费 12s+，所以只对网络类做自动重试。
+ * 网络类重试对错误密码无效，只会浪费 60s+，所以只对网络类做自动重试。
  */
 function isRetryableError(err) {
   if (!err) return false
@@ -335,7 +335,7 @@ function isRetryableError(err) {
 async function signInWithRetry(creds) {
   const MAX_RETRIES = 2
   const RETRY_DELAYS_MS = [5000, 8000] // 两次重试前分别等 5s、8s
-  const TIMEOUT_MS = 12000
+  const TIMEOUT_MS = 60000
   let lastResult = null
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
     try {
