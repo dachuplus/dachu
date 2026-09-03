@@ -87,7 +87,13 @@
         >忘记密码？</button>
 
         <button class="login-submit" :disabled="loading" @click="submit">
-          {{ loading ? loadingText : (mode === 'signup' ? '注册' : '登录') }}
+          <template v-if="loading">{{ loadingText }}</template>
+          <template v-else>{{ mode === 'signup' ? '注册' : '登录' }}</template>
+        </button>
+
+        <!-- 自动重试期间显示取消按钮：用户不必等满 13s -->
+        <button v-if="loading && retryCount > 0" class="login-link-btn" type="button" @click="stopAutoRetry">
+          中断重试
         </button>
 
         <div class="login-divider"><span>或</span></div>
@@ -169,6 +175,9 @@ async function submit() {
 
   loading.value = true
   loadingText.value = '验证中...'
+  retryCount.value = 0
+  cancelAutoRetry.value = false
+  stopAutoRetry() // 确保之前的 timer 已清
   try {
     if (mode.value === 'signup') {
       if (isPhone) {
@@ -217,23 +226,39 @@ async function submit() {
     } else {
       if (isPhone) {
         // 新账号 @dachu.user，历史账号 @allfund.user，按候选顺序逐一登录
+        let lastErr = null
         let ok = false
         for (const email of phoneCandidates(identifier)) {
-          const { error: err } = await withAuthTimeout(supabase.auth.signInWithPassword({ email, password: password.value }))
+          retryCount.value = 0
+          const { error: err } = await signInWithRetry({ email, password: password.value })
           if (!err) { ok = true; break }
+          lastErr = err
+          // 业务错误（密码错等）不再尝试下一个候选
+          if (!isRetryableError(err)) break
         }
-        if (!ok) { error.value = '账号或密码错误'; return }
+        if (!ok) {
+          error.value = lastErr && !isRetryableError(lastErr)
+            ? translateError(typeof lastErr.message === 'string' ? lastErr.message : '')
+            : '登录服务响应慢，请检查网络或稍后重试'
+          return
+        }
       } else {
-        const { error: err } = await withAuthTimeout(supabase.auth.signInWithPassword({ email: identifier, password: password.value }))
+        retryCount.value = 0
+        const { error: err } = await signInWithRetry({ email: identifier, password: password.value })
         if (err) {
-          // 防御：supabase 偶发返回空 error {} 或 message 为空
-          const errMsg = (err && typeof err.message === 'string' && err.message.trim()) ? err.message.trim() : ''
-          console.error('[LoginDialog] Supabase auth error:', JSON.stringify(err), '| extracted msg:', errMsg)
-          error.value = translateError(errMsg)
+          if (isRetryableError(err)) {
+            error.value = '登录服务响应慢，请检查网络或稍后重试（已自动重试 2 次）'
+          } else {
+            // 业务错误：账号密码错等
+            const errMsg = (err && typeof err.message === 'string' && err.message.trim()) ? err.message.trim() : ''
+            console.error('[LoginDialog] Supabase auth error:', JSON.stringify(err), '| extracted msg:', errMsg)
+            error.value = translateError(errMsg)
+          }
           return
         }
       }
       markLogin()
+      retryCount.value = 0
       loadingText.value = '加载权限中...'
       toast('登录成功', 'success')
       emit('logged-in')
@@ -252,7 +277,10 @@ async function submit() {
       error.value = '登录出错：' + msg
     }
   } finally {
+    stopAutoRetry()
     loading.value = false
+    loadingText.value = '处理中...'
+    retryCount.value = 0
   }
 }
 
@@ -278,6 +306,85 @@ function withAuthTimeout(promise, ms = 12000) {
     promise,
     new Promise((_, reject) => setTimeout(() => reject(new Error('登录服务响应超时 (timeout)')), ms)),
   ])
+}
+
+/**
+ * 错误分类：判定是否为「网络/超时」（可重试） vs 「账号密码问题」（不可重试）。
+ * 网络类重试对错误密码无效，只会浪费 12s+，所以只对网络类做自动重试。
+ */
+function isRetryableError(err) {
+  if (!err) return false
+  const name = err.name || ''
+  const msg = (typeof err.message === 'string' ? err.message : '').toLowerCase()
+  if (name === 'AbortError') return true
+  if (msg.indexOf('timeout') !== -1) return true
+  if (msg.indexOf('aborted') !== -1) return true
+  if (msg.indexOf('failed to fetch') !== -1) return true
+  if (msg.indexOf('networkerror') !== -1) return true
+  if (msg.indexOf('fetch failed') !== -1) return true
+  if (msg.indexOf('504') !== -1 || msg.indexOf('503') !== -1) return true
+  return false
+}
+
+/**
+ * 带自动重试的登录：首次失败若是网络/超时，间隔数秒自动重试，最多 2 次。
+ * 错误密码/账号不存在等业务错误立即返回，不重试。
+ *
+ * @returns {Promise<{data, error, retried}>}
+ */
+async function signInWithRetry(creds) {
+  const MAX_RETRIES = 2
+  const RETRY_DELAYS_MS = [5000, 8000] // 两次重试前分别等 5s、8s
+  const TIMEOUT_MS = 12000
+  let lastResult = null
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    try {
+      const { data, error } = await withAuthTimeout(supabase.auth.signInWithPassword(creds), TIMEOUT_MS)
+      if (!error) {
+        return { data, error: null, retried: attempt }
+      }
+      lastResult = { data: null, error, retried: attempt }
+      // 业务错误（密码错等）不重试
+      if (!isRetryableError(error)) {
+        return lastResult
+      }
+    } catch (e) {
+      // withAuthTimeout 抛出的 AbortError 或网络异常
+      lastResult = { data: null, error: e, retried: attempt }
+      if (!isRetryableError(e)) {
+        return lastResult
+      }
+    }
+    // 还要重试？
+    if (attempt < MAX_RETRIES) {
+      const wait = RETRY_DELAYS_MS[attempt] || 6000
+      retryCount.value = attempt + 1
+      loadingText.value = `网络慢，${Math.round(wait / 1000)}s 后自动重试 (${attempt + 1}/${MAX_RETRIES})...`
+      // 在等待时让按钮可被点击以中断
+      await new Promise((resolve) => {
+        autoRetryTimer = setTimeout(resolve, wait)
+      })
+      autoRetryTimer = null
+      if (cancelAutoRetry.value) {
+        cancelAutoRetry.value = false
+        return lastResult
+      }
+      loadingText.value = `重试中 (${attempt + 2}/${MAX_RETRIES + 1})...`
+    }
+  }
+  return lastResult
+}
+
+/** 用户点击「中断自动重试」按钮 — 标记状态，等候中的 wait() 会立即返回 */
+const retryCount = ref(0)
+const cancelAutoRetry = ref(false)
+let autoRetryTimer = null
+function stopAutoRetry() {
+  cancelAutoRetry.value = true
+  if (autoRetryTimer) {
+    clearTimeout(autoRetryTimer)
+    autoRetryTimer = null
+  }
 }
 
 function translateError(msg) {
