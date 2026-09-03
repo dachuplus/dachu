@@ -323,6 +323,8 @@ function isRetryableError(err) {
   if (msg.indexOf('networkerror') !== -1) return true
   if (msg.indexOf('fetch failed') !== -1) return true
   if (msg.indexOf('504') !== -1 || msg.indexOf('503') !== -1) return true
+  // Supabase 链路异常时偶发 message 为 "0" 或纯数字（无响应/连接挂掉），按网络错误处理→触发自动重试
+  if (msg === '0' || /^\d+$/.test(msg)) return true
   return false
 }
 
@@ -390,7 +392,7 @@ function stopAutoRetry() {
 function translateError(msg) {
   // 防御：msg 为空/非字符串/纯空白时统一兜底
   const s = (typeof msg === 'string' ? msg : '').trim()
-  if (!s) return '登录失败，请检查账号密码或稍后重试'
+  if (!s || s === '0' || /^\d+$/.test(s)) return '登录失败，请检查账号密码或稍后重试'
   const map = {
     'Invalid login credentials': '账号或密码错误',
     'Email not confirmed': '邮箱尚未确认，请直接尝试登录',
