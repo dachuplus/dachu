@@ -91,10 +91,6 @@
           <template v-else>{{ mode === 'signup' ? '注册' : '登录' }}</template>
         </button>
 
-        <div class="login-divider"><span>或</span></div>
-        <button class="login-wechat" type="button" @click="startWechatLogin" :disabled="wxLoading">
-          <span class="login-wechat__icon">微</span>{{ wxLoading ? '跳转中...' : '微信扫码登录' }}
-        </button>
         </template>
       </div>
     </div>
@@ -123,7 +119,6 @@ const loading = ref(false)
 const loadingText = ref('处理中...')
 const error = ref('')
 const success = ref('')
-const wxLoading = ref(false)
 
 // 手机号规范化：11 位大陆号补 +86；已带 + 的保留
 function normalizePhone(v) {
@@ -271,21 +266,6 @@ async function submit() {
   }
 }
 
-// 微信网页扫码登录：跳转微信开放平台扫码页，回调 /wechat-callback 完成会话签发
-function startWechatLogin() {
-  const appid = import.meta.env.VITE_WECHAT_WEB_APPID
-  if (!appid) {
-    toast('微信登录暂未开放', 'info')
-    return
-  }
-  wxLoading.value = true
-  const redirect = encodeURIComponent(location.origin + '/wechat-callback')
-  const state = Math.random().toString(36).slice(2)
-  try { localStorage.setItem('wx_login_state', state) } catch (e) {}
-  const url = `https://open.weixin.qq.com/connect/qrconnect?appid=${appid}&redirect_uri=${redirect}&response_type=code&scope=snsapi_login&state=${state}#wechat_redirect`
-  location.href = url
-}
-
 // 给 Supabase Auth 请求加 60s 超时兜底：避免异常时前端无限"处理中…"。
 function withAuthTimeout(promise, ms = 60000) {
   return Promise.race([
@@ -351,7 +331,7 @@ async function sendReset() {
   try {
     const email = isPhone ? emailForPhone(identifier) : identifier
     const { error: err } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: window.location.origin + '/wechat-callback', // 复用已有回调页处理 token
+      redirectTo: window.location.origin + '/',
     })
     if (err) {
       // 用户不存在时也返回友好提示（不泄露用户是否存在）
@@ -473,29 +453,6 @@ async function sendReset() {
   margin-top: var(--space-sm);
 }
 .login-link-btn:hover { color: #1d70b8; border-color: #1d70b8; }
-
-/* 微信扫码登录分隔与按钮 */
-.login-divider {
-  display: flex; align-items: center; text-align: center;
-  color: var(--text-secondary); font-size: 13px; margin: 2px 0;
-}
-.login-divider::before, .login-divider::after {
-  content: ''; flex: 1; border-top: 1px solid var(--border);
-}
-.login-divider span { padding: 0 var(--space-sm); }
-.login-wechat {
-  display: flex; align-items: center; justify-content: center; gap: var(--space-sm);
-  width: 100%; padding: var(--space-sm) var(--space-md);
-  font-size: 16px; font-weight: 700; color: #ffffff;
-  background: #07c160; border: none; cursor: pointer;
-}
-.login-wechat:hover { background: #06ad56; }
-.login-wechat:disabled { opacity: 0.6; cursor: not-allowed; }
-.login-wechat__icon {
-  display: inline-flex; align-items: center; justify-content: center;
-  width: 22px; height: 22px; border-radius: 50%;
-  background: #ffffff; color: #07c160; font-size: 13px; font-weight: 700;
-}
 
 .login-hint {
   font-size: 14px; color: var(--text-secondary); margin: 0 0 var(--space-md);

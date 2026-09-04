@@ -1145,7 +1145,6 @@
             <tr><td>REST API</td><td><code>https://{PROJECT_REF}.supabase.co/rest/v1/{table}</code></td><td>前端/脚本读写数据库表</td></tr>
             <tr><td>Management API</td><td><code>https://api.supabase.com/v1/projects/{PROJECT_REF}/database/query</code></td><td>Python 脚本执行 SQL（批量导入/更新/DDL）</td></tr>
             <tr><td>Edge Function</td><td><code>https://{PROJECT_REF}.supabase.co/functions/v1/macro-data</code></td><td>服务端聚合东财+蛋卷宏观数据，30 分钟 TTL 缓存（替代已失效的 value500）</td></tr>
-            <tr><td>Edge Function</td><td><code>https://{PROJECT_REF}.supabase.co/functions/v1/wechat-login</code></td><td>微信登录代理：小程序(wx.login code)/网页(扫码 code) 经服务端用 AppSecret 换 openid，并签发 Supabase 会话；<code>POST { "type": "mp"|"web", "code": "..." }</code> 返回 <code>{ access_token, refresh_token, email }</code></td></tr>
           </tbody>
         </table>
       </div>
@@ -1169,9 +1168,6 @@
             <tr><td>EdgeOne Pages token</td><td>H5 部署</td><td><code>.env.local</code> → EDGEONE_PAGES_API_TOKEN</td></tr>
             <tr><td>GitHub PAT</td><td>源码推送</td><td><code>.env.local</code> → GITHUB_TOKEN</td></tr>
             <tr><td>DeepSeek API key</td><td>AI 选基 / 大 PK</td><td><code>.env</code> → VITE_DEEPSEEK_API_KEY</td></tr>
-            <tr><td>微信小程序 AppSecret</td><td>小程序微信登录（jscode2session）</td><td>微信公众平台 → 开发 → 开发管理 → AppSecret（<code>supabase secrets set WECHAT_MP_APPSECRET</code>）</td></tr>
-            <tr><td>微信开放平台 Web AppID / AppSecret</td><td>网页版微信扫码登录</td><td>微信开放平台 → 网站应用（<code>supabase secrets set WECHAT_WEB_APPID / WECHAT_WEB_APPSECRET</code>）</td></tr>
-            <tr><td>微信登录 PEPPER</td><td>微信账号派生密码盐（不可泄露）</td><td><code>supabase secrets set WECHAT_PEPPER</code>（由主管理员生成保管）</td></tr>
           </tbody>
         </table>
         <p class="api-note">⚠️ 以上密钥仅存于本地 / CI 环境变量，禁止写入源码或公开仓库。完整密钥值由运维（主管理员）保管，AI 助手记忆中已留存，无需重复提供。</p>

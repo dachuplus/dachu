@@ -1,6 +1,6 @@
 <template>
   <div class="app-root">
-    <!-- 公开路由（如微信扫码回调）：无需登录，仅渲染路由内容 -->
+    <!-- 公开路由：无需登录，仅渲染路由内容 -->
     <div v-if="route.meta?.public" class="public-route">
       <router-view />
     </div>
@@ -168,7 +168,7 @@ const isPublicContentRoute = computed(() => {
   // 兜底：路由尚未解析完成（首屏第一帧）时，先视为公开路由，
   // 避免 route.meta 为空导致 isPublicContentRoute 误判为 false、登录墙闪现一帧。
   if (!route.matched || route.matched.length === 0) return true
-  // 回调类路由（微信扫码、OAuth 等）始终放行，否则无法完成登录流程
+  // 回调类路由（OAuth 等）始终放行，否则无法完成登录流程
   if (route.meta?.public) return true
   // 权限墙关闭时：博客作为公开内容放行；权限墙开启时：博客也需登录
   if (route.meta?.feature === 'content' && featureEnabled('content') && !featureEnabled('login-wall')) return true
@@ -561,7 +561,7 @@ const showBack  = computed(() => {
 /* ========== 登录墙 / 陌生人 / 无功能权限 ========== */
 .app-root { min-height: 100vh; }
 
-/* 公开路由（微信回调等）：极简容器，仅承载回调页 */
+/* 公开路由：极简容器，仅承载公开路由内容 */
 .public-route { min-height: 100vh; }
 
 .stranger-screen {
