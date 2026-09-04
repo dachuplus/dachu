@@ -298,6 +298,8 @@ function translateError(msg) {
   // 防御：msg 为空/非字符串/纯空白/纯数字或 "{}" 等无意义串时统一兜底为人话
   const s = (typeof msg === 'string' ? msg : '').trim()
   if (!s || /^[\d\s{}]+$/.test(s)) return '登录失败，请检查账号密码或稍后重试'
+  // 服务级错误（Supabase 网关 504/503/timeout 等），不是账号密码问题
+  if (/timeout|gateway|unavailable|service unavailable/i.test(s)) return '登录服务暂时不可用，请稍后重试'
   const map = {
     'Invalid login credentials': '账号或密码错误',
     'Email not confirmed': '邮箱尚未确认，请直接尝试登录',

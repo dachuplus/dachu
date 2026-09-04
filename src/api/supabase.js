@@ -15,12 +15,13 @@ const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || ''
  * 正确做法：始终用我们自己的 controller.signal 调 fetch，并把 supabase 的 signal 关联过来
  * （它一 abort 我们也 abort），这样既保留超时保护，又不破坏 supabase 内部流程。
  *
- * 所有 Supabase 请求统一走同域 sb-proxy（/api/sb-proxy），由 EdgeOne 海外节点转发到 Supabase 新加坡。
+ * 所有 Supabase 请求（含认证 / REST / Edge Function）统一走同域 sb-proxy（/api/sb-proxy），
+ * 由 EdgeOne 海外节点转发到 Supabase 新加坡。原因：浏览器在国内跨境直连 supabase.co 不稳定
+ * （实测直连返回 "Failed to fetch"），而 sb-proxy 让浏览器只跟 dachu.me（同源）通信，
+ * 跨境由 EdgeOne overseas 代劳。认证端点不走浏览器直连。
  *
- * 唯独认证端点 (/auth/v1/*) 走【浏览器直连 supabase.co】，不走 sb-proxy：
- * EdgeOne 函数出口是数据中心 IP，Supabase 对 token 端点限流，走代理会返回 HTML 504，
- * supabase-js 解析失败 → 登录只显示泛化「登录失败」、掩盖真实的「账号或密码错误」。
- * 浏览器是住宅 IP，直连 supabase.co 不被限流，能拿到真实 JSON 错误。其余端点继续走 sb-proxy。
+ * 注：EdgeOne 函数出口是数据中心 IP，Supabase 对 token 端点可能限流/慢；sb-proxy 内已用
+ * Promise.race 在超时瞬间返回干净 502 JSON，避免被平台强杀成 HTML 504 掩盖真实错误。
  */
 const FETCH_TIMEOUT_MS = 60000
 const baseFetch = (typeof fetch !== 'undefined' ? fetch : (...a) => Promise.reject(new Error('no fetch')))
@@ -58,14 +59,8 @@ function rewriteToProxy(input) {
 export const rewriteSupabaseUrl = rewriteToProxy
 
 /**
- * 解析 fetch 入参为最终 URL 字符串（统一处理 string / Request）。
+ * 统一把所有 Supabase 请求改写到同域 /api/sb-proxy（认证端点也走，由 EdgeOne overseas 转发）。
  */
-function urlString(input) {
-  if (typeof input === 'string') return input
-  if (input && typeof input.url === 'string') return input.url
-  return ''
-}
-
 function timeoutFetch(input, init = {}) {
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS)
@@ -73,16 +68,10 @@ function timeoutFetch(input, init = {}) {
   if (init.signal && typeof init.signal.addEventListener === 'function') {
     init.signal.addEventListener('abort', () => controller.abort())
   }
-  const opts = { ...init, signal: controller.signal }
-  // 认证端点 (/auth/v1/*) 走浏览器直连 supabase.co，绕过 sb-proxy：
-  // 避免 EdgeOne 数据中心出口 IP 被 Supabase 限流导致 HTML 504、掩盖真实登录错误。
-  const raw = urlString(input)
-  if (raw && raw.indexOf('/auth/v1/') !== -1 && raw.indexOf(SUPABASE_HOST) !== -1) {
-    return baseFetch(raw, opts).finally(() => clearTimeout(timer))
-  }
-  // 其余端点统一走同域 sb-proxy 单路。
+  // 始终用我们自己的 signal 调底层 fetch（绝不用 supabase 的 signal 直接透传）。
   const rewritten = rewriteToProxy(input)
-  return baseFetch(rewritten, opts).finally(() => clearTimeout(timer))
+  return baseFetch(rewritten, { ...init, signal: controller.signal })
+    .finally(() => clearTimeout(timer))
 }
 
 export const supabase = SUPABASE_URL && SUPABASE_ANON_KEY

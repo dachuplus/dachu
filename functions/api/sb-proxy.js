@@ -50,19 +50,29 @@ function buildUpstreamHeaders(incoming) {
 }
 
 async function proxyOnce(targetUrl, method, headers, body) {
+  // 用 Promise.race 而非 fetch abort：EdgeOne 运行时下 fetch 的 AbortSignal
+  // 似乎不会真正取消底层连接（实测 8s abort 后仍跑到 15s+ 被平台强杀 HTML 504）。
+  // 改用 race：超时瞬间 resolve 一个哨兵��我们立刻返回干净 jsonError(502) 并 best-effort abort。
+  // 这样函数在 UPSTREAM_TIMEOUT_MS 内就能返回，不被平台强杀。
   const controller = new AbortController()
-  const timer = setTimeout(() => controller.abort(), UPSTREAM_TIMEOUT_MS)
-  try {
-    return await fetch(targetUrl, {
-      method,
-      headers,
-      body: method === 'GET' || method === 'HEAD' ? undefined : body,
-      signal: controller.signal,
-      redirect: 'follow',
-    })
-  } finally {
-    clearTimeout(timer)
+  let timer
+  const timeoutPromise = new Promise((resolve) => {
+    timer = setTimeout(() => resolve('__timeout__'), UPSTREAM_TIMEOUT_MS)
+  })
+  const fetchPromise = fetch(targetUrl, {
+    method,
+    headers,
+    body: method === 'GET' || method === 'HEAD' ? undefined : body,
+    signal: controller.signal,
+    redirect: 'follow',
+  })
+  const winner = await Promise.race([fetchPromise, timeoutPromise])
+  clearTimeout(timer)
+  if (winner === '__timeout__') {
+    controller.abort() // best-effort；race 已胜，handler 立即返回
+    return jsonError(`upstream timeout after ${UPSTREAM_TIMEOUT_MS}ms`, 502)
   }
+  return winner
 }
 
 function buildResponse(upstream) {
