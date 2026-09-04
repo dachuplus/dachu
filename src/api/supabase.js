@@ -15,8 +15,12 @@ const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || ''
  * 正确做法：始终用我们自己的 controller.signal 调 fetch，并把 supabase 的 signal 关联过来
  * （它一 abort 我们也 abort），这样既保留超时保护，又不破坏 supabase 内部流程。
  *
- * 所有 Supabase 请求统一走同域 sb-proxy（/api/sb-proxy），由 EdgeOne 海外节点转发到 Supabase 新加坡；
- * 认证端点与其他端点一致，单路直发，不再做双路 race（双路 race 失败时会产生误导性的 message:"0" 错误）。
+ * 所有 Supabase 请求统一走同域 sb-proxy（/api/sb-proxy），由 EdgeOne 海外节点转发到 Supabase 新加坡。
+ *
+ * 唯独认证端点 (/auth/v1/*) 走【浏览器直连 supabase.co】，不走 sb-proxy：
+ * EdgeOne 函数出口是数据中心 IP，Supabase 对 token 端点限流，走代理会返回 HTML 504，
+ * supabase-js 解析失败 → 登录只显示泛化「登录失败」、掩盖真实的「账号或密码错误」。
+ * 浏览器是住宅 IP，直连 supabase.co 不被限流，能拿到真实 JSON 错误。其余端点继续走 sb-proxy。
  */
 const FETCH_TIMEOUT_MS = 60000
 const baseFetch = (typeof fetch !== 'undefined' ? fetch : (...a) => Promise.reject(new Error('no fetch')))
@@ -53,6 +57,15 @@ function rewriteToProxy(input) {
  */
 export const rewriteSupabaseUrl = rewriteToProxy
 
+/**
+ * 解析 fetch 入参为最终 URL 字符串（统一处理 string / Request）。
+ */
+function urlString(input) {
+  if (typeof input === 'string') return input
+  if (input && typeof input.url === 'string') return input.url
+  return ''
+}
+
 function timeoutFetch(input, init = {}) {
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS)
@@ -60,11 +73,16 @@ function timeoutFetch(input, init = {}) {
   if (init.signal && typeof init.signal.addEventListener === 'function') {
     init.signal.addEventListener('abort', () => controller.abort())
   }
-  // 始终用我们自己的 signal 调底层 fetch（绝不用 supabase 的 signal 直接透传）；
-  // 所有 Supabase 请求统一走同域 sb-proxy 单路（含认证端点）。
+  const opts = { ...init, signal: controller.signal }
+  // 认证端点 (/auth/v1/*) 走浏览器直连 supabase.co，绕过 sb-proxy：
+  // 避免 EdgeOne 数据中心出口 IP 被 Supabase 限流导致 HTML 504、掩盖真实登录错误。
+  const raw = urlString(input)
+  if (raw && raw.indexOf('/auth/v1/') !== -1 && raw.indexOf(SUPABASE_HOST) !== -1) {
+    return baseFetch(raw, opts).finally(() => clearTimeout(timer))
+  }
+  // 其余端点统一走同域 sb-proxy 单路。
   const rewritten = rewriteToProxy(input)
-  return baseFetch(rewritten, { ...init, signal: controller.signal })
-    .finally(() => clearTimeout(timer))
+  return baseFetch(rewritten, opts).finally(() => clearTimeout(timer))
 }
 
 export const supabase = SUPABASE_URL && SUPABASE_ANON_KEY

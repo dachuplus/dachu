@@ -14,8 +14,12 @@
  */
 
 const SUPABASE_BASE = 'https://tqhtegazxykkqfcpejky.supabase.co'
-const UPSTREAM_TIMEOUT_MS = 20000
-const RETRY_ON_NETWORK_ERROR = 1
+// EdgeOne Pages 函数平台上限约 15-17s（实测）。我们必须在被平台强杀前返回自己的 502 JSON，
+// 否则 supabase-js 拿到 HTML 无法解析 → error.message 空 → UI 看不到真实错误。
+// 因此用 Promise.race 形式：超时立即拒绝、不等底层 fetch 收尾；并随即 abort 底层 fetch 以释放资源。
+// 同时不允许任何重试 —— 一次慢就是真慢，重试只会把总耗时推到 30s+，必触发平台强杀。
+const UPSTREAM_TIMEOUT_MS = 8000
+const RETRY_ON_NETWORK_ERROR = 0
 
 // 不应转发给上游的逐跳（hop-by-hop）及代理相关头
 const HOP_BY_HOP = new Set([
