@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-# Bulk rename dachu -> dachu (safe strings only; email-domain lines handled manually elsewhere)
+# Bulk rename ALLFUND -> ALLFUND (safe strings only; email-domain lines handled manually elsewhere)
 import os, io
 
 ROOT = "/Users/maoshanbo/WorkBuddy/20260405093252/dachu"
 
-# Files containing 'dachu' (non-dist), excluding the 4 email-domain files we edit manually
+# Files containing 'ALLFUND' (non-dist), excluding the 4 email-domain files we edit manually
 # and excluding already-deleted files (build-miniprogram.yml, mp-permissions, migration-to-miniprogram.md).
 MANUAL = {
     "src/components/LoginDialog.vue",
@@ -15,9 +15,9 @@ MANUAL = {
 
 MAPPINGS = [
     ("ALLFUND", "ALLFUND"),
-    ("dachu", "dachu"),
-    ("dachu", "dachu"),
-    ("dachu", "dachu"),
+    ("ALLFUND", "ALLFUND"),
+    ("ALLFUND", "ALLFUND"),
+    ("ALLFUND", "ALLFUND"),
 ]
 
 def walk_files():
@@ -40,7 +40,7 @@ def walk_files():
                     continue
             except Exception:
                 continue
-            if b"dachu" in data.lower():
+            if b"ALLFUND" in data.lower():
                 out.append(p)
     return out
 

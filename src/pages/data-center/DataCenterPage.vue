@@ -117,7 +117,7 @@
     <!-- 项目简介 -->
     <div class="card" v-show="activeTab==='download'">
       <div class="card-title">项目简介 · ALLFUND</div>
-      <p class="section-desc">本页面与整个 dachu 项目均托管于 GitHub，可依据本文档从零重新搭建网站。以下为项目全貌，供二次开发与部署参考。</p>
+      <p class="section-desc">本页面与整个 ALLFUND 项目均托管于 GitHub，可依据本文档从零重新搭建网站。以下为项目全貌，供二次开发与部署参考。</p>
       <div class="intro-grid">
         <div class="intro-row">
           <div class="intro-key">项目功能</div>

@@ -963,7 +963,7 @@ function saveShareImage() {
   if (!shareImage.value) return
   const a = document.createElement('a')
   a.href = shareImage.value
-  const safeName = ('stockpk-' + (shareSection.value || 'share')) + '-dachu.png'
+  const safeName = ('stockpk-' + (shareSection.value || 'share')) + '-ALLFUND.png'
   a.download = safeName
   document.body.appendChild(a)
   a.click()

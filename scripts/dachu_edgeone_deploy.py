@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-dachu EdgeOne Pages 部署脚本
+ALLFUND EdgeOne Pages 部署脚本
 - 读 .env.local 拿 EDGEONE_PAGES_API_TOKEN
 - 用 token 调 `npx edgeone pages deploy dist -n dachu -a overseas`
 - 与 dachu_push_via_api.py（推 GitHub）同级：走项目内白名单路径，broker 不拦

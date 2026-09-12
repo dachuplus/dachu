@@ -1,6 +1,6 @@
-# 项目最高风控规则（ALLFUND / dachu）
+# 项目最高风控规则（ALLFUND / ALLFUND）
 
-本文件定义 dachu 项目的最高优先级风控规则。任何开发、部署、推送操作都必须先满足以下规则，优先级高于一切功能需求。
+本文件定义 ALLFUND 项目的最高优先级风控规则。任何开发、部署、推送操作都必须先满足以下规则，优先级高于一切功能需求。
 
 ## 规则 1（最高优先级）：本地文件必须与 GitHub 云端逐字节一致
 
@@ -38,7 +38,7 @@
 
 ## 规则 6：所有「提取基金」查询一律查 fund_scores（fund_combined 仅用于下载验证）
 
-- dachu 前端/运行期凡是需要「提取/检索基金产品」的场景（组合生成、基金详情、榜单、筛选、AI 选基等），**只能查询 `fund_scores` 表**，不得查询 `fund_combined`。
+- ALLFUND 前端/运行期凡是需要「提取/检索基金产品」的场景（组合生成、基金详情、榜单、筛选、AI 选基等），**只能查询 `fund_scores` 表**，不得查询 `fund_combined`。
 - `fund_scores` 含完整字段（`c` 带 `.OF` 后缀、`n` 名称、`t0`/`t1`/`t1_tt` 分类、`company` 公司、`fund_scale` 规模、各周期收益/回撤/夏普、`k_all`/`score_grade` 评分等），足以支撑所有取数需求。
 - `fund_combined` 是**下游派生/校验表**（由 `fund_scores` 同步分类、补充详情、重算评分后生成），定位为「下载验证用」——只在数据下载中心展示、导出 Excel 供人工核对，不参与任何运行期取数。
 - 历史坑：曾误用 `supabase.from('fund_combined')` 取 AI 组合候选池，但 `fund_combined` 无 `t1_tt` 列（该列只在 `fund_scores`），导致 `.eq('t1_tt', cat)` 返回空集、组合无法生成。凡取数一律走 `fund_scores` 即可避免此类列名错配。

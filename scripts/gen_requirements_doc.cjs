@@ -65,7 +65,7 @@ const cw = 9026;
 const children = [
   // ===== TITLE PAGE =====
   new P({ alignment: AT.CENTER, spacing: { before: 3000 }, children: [
-    new T({ text: "dachu \u6295\u8D44\u5DE5\u4F5C\u52A9\u624B", bold: true, size: 44, font: "Arial" })
+    new T({ text: "ALLFUND \u6295\u8D44\u5DE5\u4F5C\u52A9\u624B", bold: true, size: 44, font: "Arial" })
   ] }),
   new P({ alignment: AT.CENTER, spacing: { before: 200 }, children: [
     new T({ text: "\u9700\u6C42\u6587\u6863\u4E0E\u8FED\u4EE3\u8BB0\u5F55", bold: true, size: 36, font: "Arial" })
@@ -74,7 +74,7 @@ const children = [
     new T({ text: "\u7248\u672C\uFF1AV1.0  |  \u65E5\u671F\uFF1A2026-06-10", size: 24, font: "Arial", color: "666666" })
   ] }),
   new P({ alignment: AT.CENTER, spacing: { before: 100 }, children: [
-    new T({ text: "\u9879\u76EE\u5730\u5740\uFF1Ahttps://dachu", size: 24, font: "Arial", color: "666666" })
+    new T({ text: "\u9879\u76EE\u5730\u5740\uFF1Ahttps://ALLFUND", size: 24, font: "Arial", color: "666666" })
   ] }),
 
   new P({ children: [new PB()] }),
@@ -94,7 +94,7 @@ const children = [
   // ===== 一、文档概述 =====
   h1("\u4E00\u3001\u6587\u6863\u6982\u8FF0"),
   sp(),
-  boldP("\u9879\u76EE\u540D\u79F0\uFF1A", "dachu \u6295\u8D44\u5DE5\u4F5C\u52A9\u624B H5"),
+  boldP("\u9879\u76EE\u540D\u79F0\uFF1A", "ALLFUND \u6295\u8D44\u5DE5\u4F5C\u52A9\u624B H5"),
   boldP("\u6280\u672F\u6808\uFF1A", "Vue 3 + Vite + Vue Router 4 + Supabase + ECharts"),
   boldP("\u90E8\u7F72\u5E73\u53F0\uFF1A", "\u817E\u8BAF\u4E91 EdgeOne Pages"),
   boldP("\u6570\u636E\u5E93\uFF1A", "Supabase\uFF08\u65B0\u52A0\u5761\u8282\u70B9\uFF09"),
@@ -288,7 +288,7 @@ const children = [
   h2("3.9 R-009\uFF1A\u6307\u6570\u4F30\u503C\u6A21\u5757\u8FC1\u79FB"),
   sp(),
   h3("\u80CC\u666F"),
-  p("\u539F\u8D44\u4EA7\u914D\u7F6E\u5C0F\u7A0B\u5E8F\u7684\u6307\u6570\u4F30\u503C\u6A21\u5757\u9700\u8FC1\u79FB\u5230 dachu H5 \u9879\u76EE\uFF0C\u5C55\u793A\u5BBD\u57FA\u6307\u6570 PE/PB \u4F30\u503C\u548C\u767E\u5206\u4F4D\u3002"),
+  p("\u539F\u8D44\u4EA7\u914D\u7F6E\u5C0F\u7A0B\u5E8F\u7684\u6307\u6570\u4F30\u503C\u6A21\u5757\u9700\u8FC1\u79FB\u5230 ALLFUND H5 \u9879\u76EE\uFF0C\u5C55\u793A\u5BBD\u57FA\u6307\u6570 PE/PB \u4F30\u503C\u548C\u767E\u5206\u4F4D\u3002"),
   h3("\u89E3\u51B3\u65B9\u6848"),
   p("1. \u6570\u636E\u5C42\u5DF2\u8FC1\u79FB\uFF1Adanjuan-api.js\uFF08fetchDanjuanEva / fetchPEHistory\uFF09"),
   p("   - \u6570\u636E\u6765\u6E90\uFF1A\u86CB\u5377\u57FA\u91D1 API"),
@@ -479,7 +479,7 @@ const doc = new docx.Document({
     headers: {
       default: new Hdr({ children: [
         new P({ alignment: AT.RIGHT, children: [
-          new T({ text: "dachu \u9700\u6C42\u6587\u6863 | V1.0", size: 18, font: "Arial", color: "999999" })
+          new T({ text: "ALLFUND \u9700\u6C42\u6587\u6863 | V1.0", size: 18, font: "Arial", color: "999999" })
         ] })
       ] })
     },

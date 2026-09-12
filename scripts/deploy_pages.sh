@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# 部署 dachu 到 EdgeOne Pages（overseas 区，免 ICP 备案）。
+# 部署 ALLFUND 到 EdgeOne Pages（overseas 区，免 ICP 备案）。
 #
 # 关键修复：EdgeOne Pages Functions 必须同时满足两点才会被平台激活：
 #   1) functions/ 目录被打入构建产物（dist/functions/...）

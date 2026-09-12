@@ -516,7 +516,7 @@ def discover_tables():
 
 
 def main():
-    print(f'📊 导出 dachu 数据库全部表到 {OUTPUT_DIR}/')
+    print(f'📊 导出 ALLFUND 数据库全部表到 {OUTPUT_DIR}/')
     print(f'⏰ {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}\n')
     
     # 优先自动发现全部 public 表（含后续新建表）；失败则回退内置清单
