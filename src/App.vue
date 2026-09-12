@@ -22,7 +22,7 @@
     <LoginDialog v-else-if="!authLoading && !isLoggedIn && !isPublicContentRoute && featureEnabled('login-wall')" :wall="true" @logged-in="onLoggedIn" />
 
     <!-- 已登录但权限申请被驳回：驳回提示（优先于陌生人提示） -->
-    <div v-else-if="!authLoading && isLoggedIn && rejected" class="stranger-screen">
+    <div v-else-if="!authLoading && isLoggedIn && permissionsReady && rejected" class="stranger-screen">
       <div class="stranger-card">
         <div class="stranger-brand">ALLFUND</div>
         <div class="stranger-title">申请已被驳回</div>
@@ -35,11 +35,12 @@
     </div>
 
     <!-- 已登录但无权限：陌生人提示 -->
-    <div v-else-if="!authLoading && isLoggedIn && isStranger" class="stranger-screen">
+    <div v-else-if="!authLoading && isLoggedIn && permissionsReady && isStranger" class="stranger-screen">
       <div class="stranger-card">
         <div class="stranger-brand">ALLFUND</div>
         <div class="stranger-title">暂无访问权限</div>
         <p class="stranger-desc">抱歉，您的账户尚未开通 ALLFUND 的访问权限。如需使用，请点击「申请权限」填写信息，管理员审核通过后将为您开通对应功能。</p>
+        <p class="stranger-account">当前登录账号：<strong>{{ user?.email || '未知' }}</strong></p>
         <div class="stranger-actions">
           <button class="stranger-request" @click="showRequestDialog = true">申请权限</button>
           <button class="stranger-logout" @click="handleLogout">退出登录</button>
@@ -107,6 +108,7 @@
       <div v-if="!routeAllowed" class="no-feature-access">
         <p class="no-feature-access__title">无访问权限</p>
         <p class="no-feature-access__desc">您暂无「{{ currentFeatureLabel }}」功能的访问权限。</p>
+        <p class="no-feature-access__account">当前登录账号：{{ user?.email || '未知' }}</p>
         <button class="no-feature-access__btn" @click="handleRequestAccess">申请访问权限</button>
       </div>
       <router-view v-else v-slot="{ Component }">
@@ -157,7 +159,7 @@ import { supabase } from './api/supabase'
 
 const route   = useRoute()
 const router  = useRouter()
-const { user, isLoggedIn, isAdmin, isOwner, isStranger, blocked, rejected, loading: authLoading, hasFeature, displayName, init, signOut, showLoginDialog, showLogin, hideLogin, checkRejected } = useAuth()
+const { user, isLoggedIn, isAdmin, isOwner, isStranger, blocked, rejected, permissionsReady, loading: authLoading, hasFeature, displayName, init, signOut, showLoginDialog, showLogin, hideLogin, checkRejected } = useAuth()
 const showLoginDialogValue = showLoginDialog  // 模板中用于 v-if 控制弹窗显隐
 const { featureEnabled, loadFeatureFlags } = useFeatureFlags()
 
@@ -573,6 +575,12 @@ const showBack  = computed(() => {
 .stranger-actions {
   display: flex; gap: var(--space-sm); justify-content: center; flex-wrap: wrap;
 }
+.stranger-account {
+  font-size: 14px; color: var(--text-secondary); margin: 0 0 var(--space-md);
+  background: #f3f2f1; border-left: 4px solid #1d70b8; padding: 8px 12px;
+  word-break: break-all; text-align: left;
+}
+.stranger-account strong { color: #1d70b8; }
 .stranger-request {
   background: #ffffff; color: #1d70b8; border: 1px solid #1d70b8;
   padding: 10px 28px; font-size: 16px; font-weight: 700; cursor: pointer;
@@ -589,6 +597,11 @@ const showBack  = computed(() => {
 }
 .no-feature-access__desc {
   font-size: 16px; color: var(--text-secondary); margin: 0;
+}
+.no-feature-access__account {
+  font-size: 14px; color: var(--text-secondary); margin: var(--space-sm) 0 0;
+  background: #f3f2f1; border-left: 4px solid #1d70b8; padding: 8px 12px;
+  word-break: break-all; text-align: left;
 }
 .no-feature-access__btn {
   display: inline-block; margin-top: var(--space-md);
