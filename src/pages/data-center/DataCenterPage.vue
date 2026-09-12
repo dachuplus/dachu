@@ -10,7 +10,7 @@
     </div>
 
     <template v-else>
-    <p class="page-desc">大厨先生 数据库全部表一览。选择需要下载的数据表，点击下载 Excel 文件。数据每日 21:30（北京时间）自动更新。</p>
+    <p class="page-desc">ALLFUND 数据库全部表一览。选择需要下载的数据表，点击下载 Excel 文件。数据每日 21:30（北京时间）自动更新。</p>
 
     <!-- 管理中心 header + tab 导航 -->
     <div class="mgmt-header">
@@ -116,7 +116,7 @@
 
     <!-- 项目简介 -->
     <div class="card" v-show="activeTab==='download'">
-      <div class="card-title">项目简介 · 大厨先生</div>
+      <div class="card-title">项目简介 · ALLFUND</div>
       <p class="section-desc">本页面与整个 dachu 项目均托管于 GitHub，可依据本文档从零重新搭建网站。以下为项目全貌，供二次开发与部署参考。</p>
       <div class="intro-grid">
         <div class="intro-row">
@@ -539,7 +539,7 @@
     <div class="login-banner" v-if="!isLoggedIn">
       <div class="login-banner-text">
         <strong>注册并登录后可下载全部数据</strong>
-        <span>大厨先生 数据库每日自动更新，登录后即可导出每张表的 Excel 文件。</span>
+        <span>ALLFUND 数据库每日自动更新，登录后即可导出每张表的 Excel 文件。</span>
       </div>
       <button class="btn-login" @click="showLogin()">登录 / 注册</button>
     </div>
@@ -620,7 +620,7 @@
     <!-- 评分方法论 -->
     <div class="card" v-show="activeTab==='download'">
       <div class="card-title">评分方法论 — V7 靠谱指数算法</div>
-      <p class="section-desc">大厨先生 的"靠谱指数"（k_all）是对全市场基金进行量化评分的核心指标。以下详细说明从原始数据到最终评分的完整计算过程。</p>
+      <p class="section-desc">ALLFUND 的"靠谱指数"（k_all）是对全市场基金进行量化评分的核心指标。以下详细说明从原始数据到最终评分的完整计算过程。</p>
 
       <!-- 第一步 -->
       <h2 class="method-step-title">第一步：原始数据采集</h2>

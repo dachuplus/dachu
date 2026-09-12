@@ -11,7 +11,7 @@
       </div>
       <p class="card-desc">
         让多个大模型各自挑选 5 只基金、每只 20% 等权，每月 1 日调仓，比一比谁的收益更好。
-        由 <b>7 个真实大模型</b>基于 大厨先生 靠谱指数（fund_scores）真实数据，先选二级分类(t1)品类、再在该品类内选单品（含豆包·火山方舟真实模型），
+        由 <b>7 个真实大模型</b>基于 ALLFUND 靠谱指数（fund_scores）真实数据，先选二级分类(t1)品类、再在该品类内选单品（含豆包·火山方舟真实模型），
         并给出两层逻辑（第一层品类选择 · 第二层单品选择）；各模型按自身推理逻辑自主决策，目标只有一个——跑赢对手。
         通过「千问百炼」聚合平台调用的模型已在卡片上标注<span class="aipk-ds-badge">百炼</span>徽标。
         所有选品与推理均基于 fund_scores 真实指标（收益/回撤/夏普/规模），模型不引用任何表外或网络信息，无编造、无模拟。
@@ -733,7 +733,7 @@ function drawShareHeader(ctx, W, pad, headerH, title) {
   ctx.fillStyle = '#ffffff'
   ctx.textAlign = 'left'
   ctx.font = 'bold 38px sans-serif'
-  ctx.fillText('大厨先生', pad, 34)
+  ctx.fillText('ALLFUND', pad, 34)
   ctx.font = '24px sans-serif'
   ctx.fillStyle = 'rgba(255,255,255,0.92)'
   ctx.fillText('AI 大 PK · ' + title, pad, 86)

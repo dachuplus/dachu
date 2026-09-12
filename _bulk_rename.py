@@ -14,7 +14,7 @@ MANUAL = {
 }
 
 MAPPINGS = [
-    ("大厨先生", "大厨先生"),
+    ("ALLFUND", "ALLFUND"),
     ("dachu", "dachu"),
     ("dachu", "dachu"),
     ("dachu", "dachu"),

@@ -10,7 +10,7 @@
         </span>
       </div>
       <p class="card-desc">
-        让 7 个真实大模型基于大厨先生股票靠谱指数（stock_scores）真实行情数据，先选二级行业、再在该行业内选个股，
+        让 7 个真实大模型基于ALLFUND股票靠谱指数（stock_scores）真实行情数据，先选二级行业、再在该行业内选个股，
         各 5 只 × 20% 等权，每月 1 日调仓，比一比谁的收益更好。
         由 <b>7 个真实大模型</b>基于股票靠谱指数（stock_scores）真实行情，先选二级行业、再在该行业内选个股（含豆包·火山方舟真实模型），
         并给出两层逻辑（第一层行业选择 · 第二层个股选择）；各模型按自身推理逻辑自主决策，目标只有一个——跑赢对手。
@@ -733,7 +733,7 @@ function drawShareHeader(ctx, W, pad, headerH, title) {
   ctx.fillStyle = '#ffffff'
   ctx.textAlign = 'left'
   ctx.font = 'bold 38px sans-serif'
-  ctx.fillText('大厨先生', pad, 34)
+  ctx.fillText('ALLFUND', pad, 34)
   ctx.font = '24px sans-serif'
   ctx.fillStyle = 'rgba(255,255,255,0.92)'
   ctx.fillText('股票组合 · ' + title, pad, 86)

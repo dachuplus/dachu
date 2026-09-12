@@ -9,8 +9,8 @@ const routes = [
       tab: 'home',
       feature: 'content',
       title: '博客',
-      description: '大厨先生-个人博客：分享个人投资研究观点与方法论，仅代表个人观点，不构成投资建议或金融产品营销。',
-      keywords: '大厨先生,个人博客,投资观点,研究方法,独立思考'
+      description: 'ALLFUND-个人博客：分享个人投资研究观点与方法论，仅代表个人观点，不构成投资建议或金融产品营销。',
+      keywords: 'ALLFUND,个人博客,投资观点,研究方法,独立思考'
     }
   },
   {
@@ -30,7 +30,7 @@ const routes = [
     meta: {
       tab: 'tools',
       title: '选基',
-      description: '大厨先生 投资选基集：靠谱基金指数评分、投顾产品精选、智能组合与数据中心的入口。',
+      description: 'ALLFUND 投资选基集：靠谱基金指数评分、投顾产品精选、智能组合与数据中心的入口。',
       keywords: '基金选基,基金评分,投顾产品,智能组合'
     }
   },
@@ -140,8 +140,8 @@ const routes = [
       tab: 'content',
       feature: 'content',
       title: '博客 · 个人观点',
-      description: '大厨先生-个人博客：分享个人投资研究观点与方法论，仅代表个人观点，不构成投资建议。',
-      keywords: '大厨先生,个人博客,投资观点,研究方法'
+      description: 'ALLFUND-个人博客：分享个人投资研究观点与方法论，仅代表个人观点，不构成投资建议。',
+      keywords: 'ALLFUND,个人博客,投资观点,研究方法'
     }
   },
   {
@@ -151,8 +151,8 @@ const routes = [
       tab: 'content',
       feature: 'content',
       title: '文章详情',
-      description: '大厨先生-个人博客文章详情。',
-      keywords: '大厨先生,个人博客,投资观点'
+      description: 'ALLFUND-个人博客文章详情。',
+      keywords: 'ALLFUND,个人博客,投资观点'
     }
   },
   {
@@ -248,16 +248,16 @@ async function _trackVisit(path) {
 }
 
 router.afterEach((to) => {
-  const baseTitle = '大厨先生-个人博客'
+  const baseTitle = 'ALLFUND-个人博客'
   document.title = (to.meta?.title || '个人博客') + ' | ' + baseTitle
 
   // 动态注入 SEO meta（description / keywords）
   const meta = to.meta || {}
-  setMeta('description', meta.description || '大厨先生-个人博客 — 分享个人投资研究观点与方法论，仅代表个人观点，不构成投资建议。')
-  setMeta('keywords', meta.keywords || '大厨先生,个人博客,投资观点')
+  setMeta('description', meta.description || 'ALLFUND-个人博客 — 分享个人投资研究观点与方法论，仅代表个人观点，不构成投资建议。')
+  setMeta('keywords', meta.keywords || 'ALLFUND,个人博客,投资观点')
   // Open Graph（社交分享卡片）
   setMeta('og:title', document.title, 'property')
-  setMeta('og:description', meta.description || '大厨先生-个人博客，分享独立投资研究观点与方法论，仅代表个人观点，不构成投资建议。', 'property')
+  setMeta('og:description', meta.description || 'ALLFUND-个人博客，分享独立投资研究观点与方法论，仅代表个人观点，不构成投资建议。', 'property')
   setMeta('og:type', 'website', 'property')
   setMeta('og:url', location.origin + to.fullPath, 'property')
   // 记录访问（异步，不阻塞导航）

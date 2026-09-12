@@ -506,7 +506,7 @@ async function pushToWechat() {
         content: form.value.content,
         summary: form.value.summary.trim(),
         cover_image: form.value.cover_image.trim() || '',
-        author: '大厨先生',
+        author: 'ALLFUND',
       }),
     })
     const data = await res.json()

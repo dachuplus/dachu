@@ -1198,7 +1198,7 @@ async function generateShareImage() {
     ctx.fillStyle = '#ffffff'
     ctx.textAlign = 'left'
     ctx.font = 'bold 38px sans-serif'
-    ctx.fillText('大厨先生', pad, 34)
+    ctx.fillText('ALLFUND', pad, 34)
     ctx.font = '24px sans-serif'
     ctx.fillStyle = 'rgba(255,255,255,0.92)'
     ctx.fillText('靠谱指数 · 热门基金', pad, 86)

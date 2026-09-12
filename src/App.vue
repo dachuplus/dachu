@@ -8,7 +8,7 @@
     <!-- 账号被封禁 -->
     <div v-if="blocked" class="stranger-screen">
       <div class="stranger-card">
-        <div class="stranger-brand">大厨先生</div>
+        <div class="stranger-brand">ALLFUND</div>
         <div class="stranger-title">账号已被封禁</div>
         <p class="stranger-desc">您的账号已被管理员封禁，无法访问本站。如需恢复访问，请联系管理员。</p>
         <div class="stranger-actions">
@@ -24,7 +24,7 @@
     <!-- 已登录但权限申请被驳回：驳回提示（优先于陌生人提示） -->
     <div v-else-if="!authLoading && isLoggedIn && rejected" class="stranger-screen">
       <div class="stranger-card">
-        <div class="stranger-brand">大厨先生</div>
+        <div class="stranger-brand">ALLFUND</div>
         <div class="stranger-title">申请已被驳回</div>
         <p class="stranger-desc">抱歉，您提交的访问权限申请未通过审核。如有疑问可联系管理员，或点击「重新申请」补充信息再次提交。</p>
         <div class="stranger-actions">
@@ -37,9 +37,9 @@
     <!-- 已登录但无权限：陌生人提示 -->
     <div v-else-if="!authLoading && isLoggedIn && isStranger" class="stranger-screen">
       <div class="stranger-card">
-        <div class="stranger-brand">大厨先生</div>
+        <div class="stranger-brand">ALLFUND</div>
         <div class="stranger-title">暂无访问权限</div>
-        <p class="stranger-desc">抱歉，您的账户尚未开通 大厨先生 的访问权限。如需使用，请点击「申请权限」填写信息，管理员审核通过后将为您开通对应功能。</p>
+        <p class="stranger-desc">抱歉，您的账户尚未开通 ALLFUND 的访问权限。如需使用，请点击「申请权限」填写信息，管理员审核通过后将为您开通对应功能。</p>
         <div class="stranger-actions">
           <button class="stranger-request" @click="showRequestDialog = true">申请权限</button>
           <button class="stranger-logout" @click="handleLogout">退出登录</button>

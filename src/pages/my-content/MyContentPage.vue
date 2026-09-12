@@ -2,7 +2,7 @@
   <div class="content-page">
     <header class="cp-header">
       <div class="cp-head-main">
-        <h1 class="cp-title">大厨先生 · 博客</h1>
+        <h1 class="cp-title">ALLFUND · 博客</h1>
       </div>
       <router-link v-if="canManageContent" to="/content/editor" class="cp-new-btn">+ 写文章</router-link>
     </header>
