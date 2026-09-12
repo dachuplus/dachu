@@ -257,13 +257,6 @@
 
         <div class="card-title" style="margin-top:24px">国债收益率曲线</div>
         <div class="chart-wrap" ref="bondCurveEl"></div>
-        <div class="card-title" style="margin-top:20px">10Y国债历史走势</div>
-        <div class="macro-chart" ref="bondHistEl" style="height:200px"></div>
-        <div class="card-title" style="margin-top:20px">期限利差</div>
-        <div class="spread-item" v-for="s in bondSpreads" :key="s.label">
-          <span>{{ s.label }}</span>
-          <span :class="s.bp > 0 ? 'text-up' : 'text-down'">{{ s.bp }}bp</span>
-        </div>
       </div>
       <div v-if="factorSub === 'commodity'" class="card">
         <div class="card-title">大宗商品信号（十几种主流期货）</div>
@@ -494,7 +487,6 @@ const factorSubTabs = [
 const factorSub = ref('stock')
 const factorFactors = ref([])
 const bondSignals = ref([])
-const bondSpreads = ref([])
 const commodityItems = ref([])
 const commodityBest = computed(() => commodityItems.value.find(c => c.isBest) || null)
 
@@ -688,11 +680,6 @@ async function loadAll() {
       color: ASSET_META[key].color
     }))
 
-    // 债券利差（新源 bond.spread = 10Y-2Y 期限利差，单位百分点，×100 转为 bp）
-    bondSpreads.value = bondData.spread != null
-      ? [{ label: '10Y-2Y期限利差', bp: Math.round(bondData.spread * 100) }]
-      : []
-
     // 商品信号数据（改由 style_factors 表提供，见 loadCommodityFactors，不再用 v500 5 项）
     commodityItems.value = []
 
@@ -775,41 +762,6 @@ function drawBondCurve() {
     yAxis: { type: 'value', name: '%', splitLine: { lineStyle: { color: '#f3f2f1' } }, axisLine: { show: false } },
     series: [{ type: 'line', data: [1.5, 1.6, 1.7, 1.9, 2.1, bondY10y.value ? (bondY10y.value * 100).toFixed(1) : 2.3, 2.7], lineStyle: { width: 2, color: COLORS[0] }, symbol: 'circle', symbolSize: 6, itemStyle: { color: COLORS[0] } }]
   })
-
-  // 10Y 国债历史走势（独立从 macro_history 拉取 cn10y，避免依赖宏观列表缓存）
-  const histEl = bondHistEl.value
-  if (histEl && supabase) {
-    supabase
-      .from('macro_history')
-      .select('date, value')
-      .eq('metric', 'cn10y')
-      .order('date', { ascending: true })
-      .limit(10000)
-      .then(({ data, error }) => {
-        if (error || !data || data.length === 0) return
-        const hdom = histEl.querySelector ? (histEl.querySelector('.macro-chart') || histEl) : histEl
-        const hchart = echarts.getInstanceByDom(hdom) || echarts.init(hdom)
-        fedHistChart = hchart
-        const hist = [...data].reverse() // ASC
-        const dates = hist.map(d => d.date)
-        const values = hist.map(d => d.value)
-        const total = dates.length
-        const defWin = MACRO_DEFAULT_WINDOW
-        const useDataZoom = total > defWin
-        const startPct = useDataZoom ? Math.max(0, Math.round((1 - defWin / total) * 100)) : 0
-        const labelStep = Math.max(1, Math.floor(total / 8))
-        hchart.setOption({
-          grid: { left: 45, right: 10, top: 10, bottom: useDataZoom ? 30 : 15 },
-          xAxis: { type: 'category', data: dates, axisLine: { lineStyle: { color: '#b1b4b6' } }, axisTick: { show: false }, axisLabel: { fontSize: 9, color: '#b1b4b6', interval: labelStep - 1 } },
-          yAxis: { type: 'value', splitLine: { lineStyle: { color: '#f3f2f1' } }, axisLine: { show: false }, axisLabel: { fontSize: 9, color: '#b1b4b6', formatter: v => v + '%' } },
-          dataZoom: useDataZoom ? [{ type: 'slider', show: true, xAxisIndex: 0, start: startPct, end: 100, height: 18, bottom: 0, borderColor: '#b1b4b6', fillerColor: 'rgba(29,112,184,0.12)', handleStyle: { color: '#1d70b8' }, textStyle: { fontSize: 9, color: '#b1b4b6' } }] : [],
-          series: [{ type: 'line', data: values, lineStyle: { width: 1.5, color: COLORS[0] }, symbol: 'none', areaStyle: { color: 'rgba(29,112,184,0.08)' }, smooth: false }],
-          tooltip: { trigger: 'axis', formatter: p => `${p[0].axisValue}<br/>${p[0].value}%` }
-        }, true)
-        hchart.resize()
-      })
-      .catch(e => console.warn('drawBondHist cn10y error:', e))
-  }
 }
 
 // ===== FED 历史图（股债性价比 + 上证指数叠加） =====
@@ -1120,7 +1072,6 @@ const radarEl = ref(null)
 const bondCurveEl = ref(null)
 const fedChartEl = ref(null)
 const compareIdxEl = ref(null)
-const bondHistEl = ref(null)
 
 // ===== FED 计算 =====
 function calcFED(quotes, rf) {

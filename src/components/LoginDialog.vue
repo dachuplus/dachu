@@ -341,21 +341,27 @@ async function authLoginViaEdgeFunction(email, password) {
   let body = null
   try { body = await resp.json() } catch (_) { /* 非 JSON */ }
   if (resp.ok && body && body.access_token) {
-    // 成功：把 token 写入 supabase-js 的 storage 让 supabase.auth.getSession() 拿到
+    // 成功：以 supabase-js v2 期望的 session 结构（session 对象本身，顶层直接带
+    // access_token / refresh_token / expires_at / user）写入 storage，让 supabase.auth.getSession()
+    // 能读到。注意：v2 的 _isValidSession 要求顶层直接有这三个字段，旧的 v1 嵌套
+    // { currentSession, currentUser } 结构会被判为无效并丢弃 → 刚登录状态立即失效、登录墙反复弹出。
+    // 不能用 supabase.auth.setSession()：它内部会再向 supabase.co 发 _getUser 请求（被 GFW 拦），
+    // 而本 edge function 已返回完整 user，故直接本地写入并手动触发 SIGNED_IN 同步全局状态。
     try {
+      const session = {
+        access_token: body.access_token,
+        refresh_token: body.refresh_token,
+        token_type: body.token_type || 'bearer',
+        expires_in: body.expires_in || 3600,
+        expires_at: body.expires_at || Math.floor(Date.now() / 1000) + (body.expires_in || 3600),
+        user: body.user,
+      }
       const storageKey = supabase && supabase.auth && supabase.auth.storageKey
       if (storageKey && supabase.auth.storage) {
-        const cur = JSON.parse(supabase.auth.storage.getItem(storageKey) || '{}')
-        cur.currentSession = {
-          access_token: body.access_token,
-          refresh_token: body.refresh_token,
-          token_type: body.token_type || 'bearer',
-          expires_in: body.expires_in || 3600,
-          expires_at: body.expires_at || Math.floor(Date.now() / 1000) + (body.expires_in || 3600),
-          user: body.user,
-        }
-        cur.currentUser = body.user
-        supabase.auth.storage.setItem(storageKey, JSON.stringify(cur))
+        supabase.auth.storage.setItem(storageKey, JSON.stringify(session))
+      }
+      if (supabase && supabase.auth && typeof supabase.auth._notifyAllSubscribers === 'function') {
+        supabase.auth._notifyAllSubscribers('SIGNED_IN', session)
       }
     } catch (e) {
       console.warn('[LoginDialog] 写入 supabase session 失败，但 token 已获取:', e)
