@@ -56,6 +56,26 @@
         <div class="govuk-header__logo">
           <router-link to="/" class="govuk-header__logotype-text" style="text-decoration:none;color:#fff">靠谱指数-评分工具</router-link>
         </div>
+        <nav class="govuk-header__nav">
+          <router-link
+            v-for="item in visibleQuickLinks"
+            :key="item.path"
+            :to="item.path"
+            class="govuk-header__nav-item"
+            :class="{ 'govuk-header__nav-item--active': route.path === item.path || route.path.startsWith(item.path + '/') }"
+          >
+            {{ item.label }}
+          </router-link>
+          <router-link
+            v-if="isOwner"
+            to="/data-center"
+            class="govuk-header__nav-item govuk-header__nav-item--download"
+            :class="{ 'govuk-header__nav-item--active': route.path === '/data-center' }"
+            title="数据中心：查看并下载全部数据表"
+          >
+            管理
+          </router-link>
+        </nav>
         <div class="govuk-header__content">
           <div class="govuk-header__auth">
             <!-- 已登录 -->
@@ -78,30 +98,6 @@
       <span class="mobile-header__title">{{ pageTitle }}</span>
       <span class="mobile-header__spacer"></span>
     </header>
-
-    <!-- 全局金刚区导航（所有页面可见） -->
-    <nav class="quick-nav">
-      <div class="quick-nav__inner">
-        <router-link
-          v-for="item in visibleQuickLinks"
-          :key="item.path"
-          :to="item.path"
-          class="quick-nav__item"
-          :class="{ 'quick-nav__item--active': route.path === item.path || route.path.startsWith(item.path + '/') }"
-        >
-          {{ item.label }}
-        </router-link>
-        <router-link
-          v-if="isOwner"
-          to="/data-center"
-          class="quick-nav__item quick-nav__item--download"
-          :class="{ 'quick-nav__item--active': route.path === '/data-center' }"
-          title="数据中心：查看并下载全部数据表"
-        >
-          管理
-        </router-link>
-      </div>
-    </nav>
 
     <!-- 主内容区 -->
     <main class="app-main" :class="{ 'pc-main': !isMobile }">
@@ -431,27 +427,39 @@ const showBack  = computed(() => {
   line-height: 1.25;
 }
 
-/* ========== 全局金刚区导航 ========== */
-.quick-nav {
-  max-width: 1400px; margin: 0 auto; padding: 0 30px;
-  background: #fff; border-bottom: 1px solid var(--border);
+/* ========== 顶部导航（集成到 gov.uk header 同一行，白色文字） ========== */
+.govuk-header__nav {
+  display: flex;
+  align-items: center;
+  gap: 0;
 }
-.quick-nav__inner { display: flex; gap: 0; justify-content: center; }
-.quick-nav__item {
-  display: block; padding: 12px 24px; font-size: 16px; font-weight: 700;
-  color: var(--text-secondary); text-decoration: none;
-  border-bottom: 4px solid transparent; transition: all 0.15s;
+.govuk-header__nav-item {
+  display: block;
+  padding: 12px 24px;
+  font-size: 16px;
+  font-weight: 700;
+  color: #ffffff;
+  text-decoration: none;
+  border-bottom: 4px solid transparent;
+  transition: all 0.15s;
 }
-.quick-nav__item:hover { color: var(--brand); border-bottom-color: var(--brand); }
-.quick-nav__item--active { color: var(--brand); border-bottom-color: var(--brand); }
-.quick-nav__item--download {
-  color: var(--text-secondary);
+.govuk-header__nav-item:hover {
+  color: #ffffff;
+  border-bottom-color: #ffffff;
+  background: rgba(255,255,255,0.1);
+}
+.govuk-header__nav-item--active {
+  color: #ffffff;
+  border-bottom-color: #ffffff;
+}
+.govuk-header__nav-item--download {
+  color: #ffffff;
   border-bottom-color: transparent;
   cursor: pointer;
 }
-.quick-nav__item--download:hover {
-  color: #0b5c8a;
-  border-bottom-color: #0b5c8a;
+.govuk-header__nav-item--download:hover {
+  color: #ffffff;
+  border-bottom-color: #ffffff;
 }
 
 /* ========== 移动端标题栏 ========== */

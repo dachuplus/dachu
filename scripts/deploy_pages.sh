@@ -22,7 +22,7 @@ if [ -f .env.local ]; then
 fi
 
 # 定位 edgeone CLI（沙箱未加入 PATH，使用受管 node 工作区中的副本）
-NODE_BIN="$(command -v node || echo '/Users/maoshanbo/.workbuddy/binaries/node/versions/22.22.2/bin/node')"
+NODE_BIN="$(command -v node || echo '/Users/maoshanbo/.workbuddy/binaries/node/versions/22.22.2-2/bin/node')"
 EDGEONE_BIN="${EDGEONE_BIN:-$(find /Users/maoshanbo/.workbuddy/binaries/node/workspace/node_modules/edgeone -name edgeone.js -path '*edgeone-bin*' 2>/dev/null | head -1)}"
 if [ -z "$EDGEONE_BIN" ]; then
   echo "未找到 edgeone CLI（bin），请确认已安装" >&2
