@@ -246,7 +246,7 @@ export async function fetchFactorScores() {
 export async function fetchStyleFactors(category) {
   const { data, error } = await supabase
     .from('style_factors')
-    .select('category,factor_key,name,sub_style,percentile,value_score,value_label,cost_score,cost_label,signal,signal_label,reason,color')
+    .select('category,factor_key,name,sub_style,percentile,value_score,value_label,cost_score,cost_label,signal,signal_label,reason,color,updated_at')
     .eq('category', category)
     .order('factor_key')
   if (error) throw error

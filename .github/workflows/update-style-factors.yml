@@ -1,0 +1,48 @@
+name: 每日更新风格因子（股票/债券/大宗商品）
+
+# 修复：大宗商品信号长期不更新
+# 根因：build_style_factors.py 此前没有任何 cron / CI 调度，只能手动运行，
+# 导致 style_factors(category='commodity') 一直停在最后一次手动跑的结果（看似“很久没更新”）。
+# 本流水线每日定时重算全部三类风格因子（股票/债券/大宗商品），写入 style_factors 表，
+# 前端「大宗商品信号」即可读到最新 updated_at 与最新分位。
+# 注意：本流水线只更新数据库，前端从 Supabase 实时读取，无需重新部署。
+
+on:
+  # 定时触发：北京时间每天 00:10（UTC 16:10）
+  schedule:
+    - cron: '10 16 * * *'
+  # 手动触发
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      SUPABASE_PAT: ${{ secrets.SUPABASE_MGMT_TOKEN }}
+      SUPABASE_MGMT_TOKEN: ${{ secrets.SUPABASE_MGMT_TOKEN }}
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 安装 Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: 安装依赖
+        run: pip install akshare requests
+
+      - name: 校验环境变量
+        run: |
+          if [ -z "$SUPABASE_PAT" ]; then
+            echo "ERROR: 未配置 secrets.SUPABASE_MGMT_TOKEN"
+            exit 1
+          fi
+          echo "SUPABASE_PAT 已配置: ${#SUPABASE_PAT} 字符"
+
+      - name: 重算并写入 style_factors（股票/债券/大宗商品）
+        run: python scripts/build_style_factors.py

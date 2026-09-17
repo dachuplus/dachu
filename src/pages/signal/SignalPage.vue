@@ -113,18 +113,6 @@
           </div>
         </div>
         <p class="data-source">数据参考：公开网络 | 中国10年期国债收益率 {{ bondY10y }}%</p>
-        <!-- FED 历史走势图 -->
-        <div class="card-title" style="margin-top:20px">
-          股债性价比历史走势（2002—今）
-          <span class="card-subtitle">上证指数叠加 10Y 国债收益率 ± 标准差带</span>
-        </div>
-        <div ref="fedChartEl" v-if="fedHasData" style="height:420px"></div>
-        <p v-else class="chart-hint" style="margin-top:8px;height:420px;display:flex;align-items:center;justify-content:center;color:#b95900">
-          暂无股债性价比历史数据（macro_history 缺失 cn10y / sh000001 真实数据）。
-        </p>
-        <p class="chart-hint" style="margin-top:8px;font-size:12px;color:var(--text-muted)">
-          蓝线 = 10Y国债收益率 | 浅蓝带 = ±1σ / ±2σ 标准差 | 灰底 = 上证指数 | 红线 = 当前股债利差参考线
-        </p>
       </div>
     </div>
 
@@ -165,44 +153,6 @@
         </div>
       </div>
 
-      <!-- 资产对比 -->
-      <div class="card" style="margin-top:20px">
-        <div class="card-title">资产对比 — 隐含夏普 / 预期收益 / 风险溢价</div>
-        <p class="card-desc">现金用Shibor，债券用YTM，股票用Gordon模型，黄金用实际利率模型</p>
-        <div class="table-wrap">
-          <table class="data-table">
-            <thead>
-              <tr>
-                <th>资产</th>
-                <th>指标</th>
-                <th>隐含夏普</th>
-                <th>预期收益</th>
-                <th>风险溢价</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-for="item in assets" :key="item.key" :class="{ 'row-disabled': !item.hasData }">
-                <td class="td-name">{{ item.name }}</td>
-                <td>
-                  <template v-if="item.isStock">
-                    <span>{{ item.metricLabel }}</span>
-                    <span class="metric-sub">百分位{{ item.metricSub }}</span>
-                  </template>
-                  <template v-else>
-                    <span :class="metricClass(item.metricLabel)">{{ item.metricLabel }}</span>
-                  </template>
-                </td>
-                <td :style="{ color: item.sharpeColor }">{{ item.sharpeStr }}</td>
-                <td :class="item.hasData ? 'text-up' : ''">{{ item.expectedReturn }}</td>
-                <td :class="rpClass(item.riskPremium)">{{ item.riskPremium }}</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-        <!-- 上证指数历史走势 -->
-        <div class="card-title" style="margin-top:20px">上证指数历史走势</div>
-        <div ref="compareIdxEl" style="height:200px"></div>
-      </div>
     </div>
 
     <!-- ==================== 5. 风格因子 ==================== -->
@@ -259,8 +209,9 @@
         <div class="chart-wrap" ref="bondCurveEl"></div>
       </div>
       <div v-if="factorSub === 'commodity'" class="card">
-        <div class="card-title">大宗商品信号（十几种主流期货）</div>
+        <div class="card-title">大宗商品信号（主力合约）</div>
         <p class="card-desc">估值分 = 当前价格近5年历史分位（高=贵·性价比低）；性价比分 = 100 − 估值分（高=便宜·性价比高）。下表按性价比分从高到低排列。</p>
+        <p class="data-source" v-if="commodityUpdatedAt">数据更新：{{ commodityUpdatedAt }}</p>
 
         <div class="comm-best" v-if="commodityBest">
           <span class="comm-best-tag">★ 当前性价比最高</span>
@@ -299,23 +250,23 @@
             <thead>
               <tr>
                 <th class="sortable" @click="sortIndustry('name')">名称 {{ sortIcon('name') }}</th>
-                <th class="sortable" @click="sortIndustry('pe')">PE {{ sortIcon('pe') }}</th>
-                <th class="sortable" @click="sortIndustry('pe_pct')">PE百分位 {{ sortIcon('pe_pct') }}</th>
-                <th class="sortable" @click="sortIndustry('pb')">PB {{ sortIcon('pb') }}</th>
-                <th class="sortable" @click="sortIndustry('pb_pct')">PB百分位 {{ sortIcon('pb_pct') }}</th>
-                <th class="sortable" @click="sortIndustry('div_yield')">股息率 {{ sortIcon('div_yield') }}</th>
-                <th class="sortable" @click="sortIndustry('roe')">ROE {{ sortIcon('roe') }}</th>
+                <th class="sortable num" @click="sortIndustry('pe')">PE {{ sortIcon('pe') }}</th>
+                <th class="sortable num" @click="sortIndustry('pe_pct')">PE百分位 {{ sortIcon('pe_pct') }}</th>
+                <th class="sortable num" @click="sortIndustry('pb')">PB {{ sortIcon('pb') }}</th>
+                <th class="sortable num" @click="sortIndustry('pb_pct')">PB百分位 {{ sortIcon('pb_pct') }}</th>
+                <th class="sortable num" @click="sortIndustry('div_yield')">股息率 {{ sortIcon('div_yield') }}</th>
+                <th class="sortable num" @click="sortIndustry('roe')">ROE {{ sortIcon('roe') }}</th>
               </tr>
             </thead>
             <tbody>
               <tr v-for="row in industryList" :key="row.code" @click="toggleIndustryExpand(row)">
                 <td>{{ row.name }}</td>
-                <td>{{ row.pe }}</td>
-                <td :class="row.pe_pct_color">{{ row.pe_pct }}%</td>
-                <td>{{ row.pb }}</td>
-                <td :class="row.pb_pct_color">{{ row.pb_pct }}%</td>
-                <td>{{ row.div_yield }}%</td>
-                <td>{{ row.roe }}%</td>
+                <td class="num">{{ fmtNum(row.pe, 4) }}</td>
+                <td class="num" :class="row.pe_pct_color">{{ fmtNum(row.pe_pct, 2) }}%</td>
+                <td class="num">{{ fmtNum(row.pb, 4) }}</td>
+                <td class="num" :class="row.pb_pct_color">{{ fmtNum(row.pb_pct, 2) }}%</td>
+                <td class="num">{{ fmtNum(row.div_yield, 2) }}%</td>
+                <td class="num">{{ fmtNum(row.roe, 2) }}%</td>
               </tr>
             </tbody>
           </table>
@@ -439,7 +390,6 @@ const ASSET_META = {
   gold:      { name: '黄金', color: '#5694ca' },
   reit:      { name: 'REITs', color: '#4c2c92' }
 }
-const assets = ref([])
 const weightList = ref([])
 
 // ===== Macro indicators =====
@@ -488,6 +438,11 @@ const factorSub = ref('stock')
 const factorFactors = ref([])
 const bondSignals = ref([])
 const commodityItems = ref([])
+const commodityUpdatedAt = ref('')
+function fmtNum(v, d = 2) {
+  if (v == null || v === '' || isNaN(Number(v))) return '--'
+  return Number(v).toFixed(d)
+}
 const commodityBest = computed(() => commodityItems.value.find(c => c.isBest) || null)
 
 // ===== ECharts instances =====
@@ -638,37 +593,8 @@ async function loadAll() {
       label: ms != null ? (ms > 0 ? '市场性价比偏正面' : '市场性价比偏负面') : '无数据'
     }
 
-    // 资产卡片
+    // 资产权重（仅用于资产配比饼图；资产对比表已下线）
     const assetKeys = ['cash', 'bond', 'stock', 'commodity', 'gold', 'reit']
-    const stockPE = pe300Data.pe || marketData.stock.pe || 0
-    const tmpAssets = []
-    for (const key of assetKeys) {
-      const meta = ASSET_META[key]
-      const er = expectedReturns[key]
-      const sharpe = rpResult.sharpeMap[key]
-      const hasData = er.expectedReturn != null
-      let metricLabel = '--', metricSub = ''
-      if (key === 'stock') {
-        metricLabel = stockPE > 0 ? stockPE.toFixed(2) : '--'
-        metricSub = marketData.stock.pePercentile != null ? marketData.stock.pePercentile + '%' : '--'
-      } else if (marketData[key]?.changePct) {
-        const cp = marketData[key].changePct
-        metricLabel = (cp > 0 ? '+' : '') + cp.toFixed(2) + '%'
-      }
-      tmpAssets.push({
-        key, name: meta.name, isStock: key === 'stock',
-        metricLabel, metricSub,
-        impliedSharpe: sharpe,
-        sharpeStr: sharpe != null ? (sharpe > 0 ? '+' : '') + sharpe.toFixed(3) : '--',
-        sharpeColor: sharpe != null ? (sharpe > 0 ? 'var(--color-up)' : 'var(--color-down)') : 'var(--text-secondary)',
-        expectedReturn: hasData ? (er.expectedReturn * 100).toFixed(2) + '%' : '--',
-        riskPremium: hasData && rf != null
-          ? (() => { const rp = calcRiskPremium(er.expectedReturn, rf); return rp != null ? (rp > 0 ? '+' : '') + (rp * 100).toFixed(2) + '%' : '--' })()
-          : '--',
-        hasData
-      })
-    }
-    assets.value = tmpAssets
 
     // 权重
     const baseWeights = rpResult.baseWeights
@@ -1275,6 +1201,9 @@ async function loadCommodityFactors() {
     // 按性价比分从高到低排列
     mapped.sort((a, b) => (b.cost_score ?? 0) - (a.cost_score ?? 0))
     commodityItems.value = mapped
+    // 显示数据更新时间（style_factors 表含 updated_at）
+    const updatedAts = (rows || []).map(r => r.updated_at).filter(Boolean).sort()
+    commodityUpdatedAt.value = updatedAts.length ? String(updatedAts[updatedAts.length - 1]).slice(0, 10) : ''
   } catch (e) {
     console.error('大宗商品信号加载失败', e)
     commodityItems.value = []
@@ -1294,8 +1223,6 @@ const JQR_META = {
     zones: [[0.45, '#00703c'], [0.55, '#b1b4b6'], [1, '#d4351c']] },
   equity_bond_gap: { name: '股债风险溢价', desc: '股票盈利收益率与10年国债收益率之差（越高股越优）', color: '#f47738', range: '0 - 100',
     zones: [[0.45, '#00703c'], [0.55, '#b1b4b6'], [1, '#d4351c']] },
-  below_nav:      { name: '破净股占比',   desc: 'PB<1 个股占全市场比例（越高越恐慌）', color: '#d4351c', range: '0 - 100',
-    zones: [[0.25, '#d4351c'], [0.55, '#b1b4b6'], [1, '#00703c']] },
   mcap_gdp:       { name: '市值GDP比',    desc: '全市场总市值与GDP之比（巴菲特指标）', color: '#1d70b8', range: '0 - 100',
     zones: [[0.30, '#00703c'], [0.85, '#b1b4b6'], [1, '#d4351c']] },
 }
@@ -1329,12 +1256,6 @@ function buildJqrCard(metric, row) {
     else if (v < 55) { signalLabel = '中性'; signalClass = 'neutral' }
     else if (v < 75) { signalLabel = '股票较优'; signalClass = 'hot' }
     else { signalLabel = '股票超配'; signalClass = 'hot' }
-  } else if (metric === 'below_nav') {
-    if (v < 25) { signalLabel = '破净稀少'; signalClass = 'hot' }
-    else if (v < 45) { signalLabel = '破净偏少'; signalClass = 'neutral' }
-    else if (v < 55) { signalLabel = '中性'; signalClass = 'neutral' }
-    else if (v < 75) { signalLabel = '破净偏多'; signalClass = 'cold' }
-    else { signalLabel = '破净高企'; signalClass = 'cold' }
   } else if (metric === 'mcap_gdp') {
     if (v < 30) { signalLabel = '显著低估'; signalClass = 'cold' }
     else if (v < 70) { signalLabel = '适中'; signalClass = 'neutral' }
@@ -1363,10 +1284,6 @@ function buildJqrCard(metric, row) {
     if (detail.e_yield != null) subLines.push({ k: '股票盈利收益率', v: detail.e_yield + '%' })
     if (detail.bond_yield != null) subLines.push({ k: '10年国债收益率', v: detail.bond_yield + '%' })
     if (detail.gap != null) subLines.push({ k: '收益差', v: detail.gap + '%' })
-  } else if (metric === 'below_nav') {
-    if (detail.below_nav_count != null) subLines.push({ k: '破净家数', v: detail.below_nav_count })
-    if (detail.total_count != null) subLines.push({ k: '上市公司总数', v: detail.total_count })
-    if (detail.pe_median != null) subLines.push({ k: '中位PE', v: detail.pe_median })
   } else if (metric === 'mcap_gdp') {
     if (detail.total_mcap != null) subLines.push({ k: '总市值(万亿)', v: detail.total_mcap })
     if (detail.gdp != null) subLines.push({ k: 'GDP(万亿)', v: detail.gdp })
@@ -1382,7 +1299,7 @@ function buildJqrCard(metric, row) {
   }
   return {
     key: metric, name: meta.name, desc: meta.desc,
-    value: v, valueLabel: v != null ? v : '--', color: meta.color, range: meta.range,
+    value: v, valueLabel: v != null ? (metric === 'mcap_gdp' ? v.toFixed(0) + '%' : v) : '--', color: meta.color, range: meta.range,
     signalLabel, signalClass, date: row.date || '--', subLines,
     tempLevel, tempColor,
   }
@@ -1391,7 +1308,7 @@ function buildJqrCard(metric, row) {
 async function loadJqr() {
   if (!supabase) return
   try {
-    const metrics = ['fear_greed', 'market_temp', 'fund_issuance', 'equity_bond_gap', 'below_nav', 'mcap_gdp']
+    const metrics = ['fear_greed', 'market_temp', 'fund_issuance', 'equity_bond_gap', 'mcap_gdp']
     const res = await Promise.all(metrics.map(m =>
       supabase.from('jqr_indicators').select('date,value,detail').eq('metric', m).order('date', { ascending: true }).limit(3000)
     ))
@@ -1442,8 +1359,7 @@ function redrawCurrentCharts() {
   nextTick(() => {
     const tab = activeTab.value
     if (tab === 'macro') { drawGauge() }
-    else if (tab === 'fed') drawFedChart()
-    else if (tab === 'asset') { drawCompareIdxChart(); drawPie() }
+    else if (tab === 'asset') { drawPie() }
     else if (tab === 'factor') {
       if (factorFactors.value.length === 0) loadFactorScores()
       if (bondSignals.value.length === 0) loadBondFactors()
@@ -1557,6 +1473,7 @@ function handleResize() {
 .data-table { width: 100%; border-collapse: collapse; font-size: 14px; }
 .data-table th { text-align: left; padding: var(--space-sm); color: var(--text-secondary); border-bottom: 2px solid var(--border); font-weight: 700; white-space: nowrap; }
 .data-table td { padding: var(--space-sm); color: var(--text-primary); border-bottom: 1px solid var(--border); white-space: nowrap; }
+.data-table th.num, .data-table td.num { text-align: right; }
 .td-name { font-weight: 700; }
 .metric-sub { display: block; font-size: 12px; color: var(--text-secondary); }
 .row-disabled { opacity: 0.4; }

@@ -315,10 +315,10 @@ def build_commodity():
         try:
             prices, dates = fetch_futures_close(code)
         except Exception as e:
-            print(f'    {code} 失败: {e}')
+            print(f'  ⚠ {name}({code}) 期货数据拉取失败: {e}')
             prices, dates = None, None
         if not prices:
-            print(f'  ⚠ 跳过 {name}({code})')
+            print(f'  ⚠ 跳过 {name}({code})：无可用数据（宁空不假）')
             time.sleep(0.1)
             continue
         V, n = percentile_of_current(prices)

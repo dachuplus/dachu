@@ -239,6 +239,59 @@ def calc_equity_bond_gap():
     return pct, detail, dates[-1]
 
 
+# ============ 5. 市值占GDP比例（巴菲特指标） ============
+# 全市场总市值（东财 stock_zh_a_spot_em，单位亿元）→ 万亿；
+# GDP（akshare macro_china_gdp，最新一期绝对值，亿元）→ 万亿；
+# ratio = 总市值 / GDP（×100 入库，便于仪表盘 0-100 区间与 zones 对齐）。
+def calc_mcap_gdp():
+    import akshare as ak
+    # 全市场总市值
+    try:
+        df = ak.stock_zh_a_spot_em()
+    except Exception as e:
+        print("  [warn] 总市值接口(stock_zh_a_spot_em)失败:", e)
+        return None, {}, None
+    if df is None or len(df) == 0:
+        print("  [warn] 总市值接口返回空")
+        return None, {}, None
+    mcap_col = next((c for c in df.columns if '总市值' in str(c)), None)
+    if mcap_col is None:
+        print("  [warn] 未找到总市值列")
+        return None, {}, None
+    try:
+        total_yi = float(df[mcap_col].astype(float).sum())
+    except Exception as e:
+        print("  [warn] 总市值求和失败:", e)
+        return None, {}, None
+    total_trillion = round(total_yi / 10000.0, 2)
+
+    # GDP（最新一期，单位亿元 → 万亿）
+    gdp_yi = None
+    gdp_date = None
+    try:
+        gdp = ak.macro_china_gdp()
+        abs_col = next((c for c in gdp.columns if '绝对值' in str(c) or '国内生产总值' in str(c)), None)
+        if abs_col is not None and len(gdp) > 0:
+            last = gdp.iloc[-1]
+            gdp_yi = float(last[abs_col])
+            gdp_date = str(last[gdp.columns[0]])[:10]
+    except Exception as e:
+        print("  [warn] GDP接口(macro_china_gdp)失败:", e)
+    if gdp_yi is None:
+        print("  [warn] 未获取到 GDP 数据")
+        return None, {}, None
+    gdp_trillion = round(gdp_yi / 10000.0, 2)
+    if not gdp_trillion:
+        return None, {}, None
+    ratio = round(total_trillion / gdp_trillion * 100, 1)
+    detail = {
+        'total_mcap': total_trillion,
+        'gdp': gdp_trillion,
+        'ratio': f'{ratio}%',
+    }
+    return ratio, detail, (gdp_date or datetime.now().strftime('%Y-%m-%d'))
+
+
 def main():
     print("=== 计算韭圈特色指标 ===")
     fg, fg_d, fg_date = calc_fear_greed()
@@ -260,6 +313,11 @@ def main():
     print(f"股债风险溢价: {ebg} ({ebg_date})")
     if ebg is not None:
         write_metric('equity_bond_gap', ebg_date, ebg, ebg_d)
+
+    mg, mg_d, mg_date = calc_mcap_gdp()
+    print(f"市值占GDP比例(巴菲特指标): {mg} ({mg_date})")
+    if mg is not None:
+        write_metric('mcap_gdp', mg_date, mg, mg_d)
     print("=== 完成 ===")
 
 
