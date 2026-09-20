@@ -47,6 +47,16 @@
         framework-name="9+1 美食评分框架"
         framework-note="九个基础维度各 1-10 分、合计 90 分；「好创新」为加分项，最高 +10 分，总分上限 100 分。"
       />
+
+      <!-- 大众点评必吃榜 · 上海历年（2017-2025） -->
+      <div class="cp-subblock">
+        <MustEatBoard
+          title="大众点评必吃榜 · 上海历年"
+          intro="收录大众点评「必吃榜」自 2017 年首发以来上海历年上榜餐厅，可按年份浏览，也可按餐厅聚合查看累计上榜次数与年份轨迹。数据为公开信息整理，逐年来源与覆盖度见页面底部说明。"
+          :items="MUST_EAT_SHANGHAI"
+          :sources="MUST_EAT_SOURCES"
+        />
+      </div>
     </div>
 
     <!-- 博客：文章列表 -->
@@ -108,8 +118,10 @@ import { useAuth } from '../../composables/useAuth'
 import GamesPanel from '../../components/games/GamesPanel.vue'
 import MediaTools from '../../components/MediaTools.vue'
 import RankBoard from '../../components/rank/RankBoard.vue'
+import MustEatBoard from '../../components/rank/MustEatBoard.vue'
 import { FILM_RANK, FILM_DIMS } from '../../data/filmRank.js'
 import { SH_RESTAURANTS, CHEF_DIMS } from '../../data/shRestaurants.js'
+import { MUST_EAT_SHANGHAI, MUST_EAT_SOURCES } from '../../data/mustEatShanghai.js'
 import { listArticles, deleteArticle, setArticlePinned, NETWORK_SLOW_MSG, isNetworkError } from '../../api/articles'
 import { confirm, toast } from '../../composables/useToast'
 

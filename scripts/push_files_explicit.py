@@ -54,13 +54,14 @@ print(f"token: len={len(TOKEN)} prefix={TOKEN[:4]}")
 API = "https://api.github.com"
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # 脚本在 scripts/ 下，项目根是上一级
 
-# 本次需推送的文件（相对仓库根）——修复发布文章 503（Edge Function 改用 Deno.serve + 规范部署脚本）、顶栏去掉「退出」
+# 本次需推送的文件（相对仓库根）——新增「大众点评必吃榜 · 上海历年（2017-2025）」到「想法-美食」
 FILES = [
-    "src/App.vue",
-    "supabase/functions/publish-article/index.ts",
-    "scripts/deploy_edge_function.py",
-    "public/articles-list.json",
+    "src/pages/my-content/MyContentPage.vue",
+    "src/components/rank/MustEatBoard.vue",
+    "src/data/mustEatShanghai.js",
+    "scripts/build_must_eat_shanghai.py",
     "scripts/push_files_explicit.py",
+    "public/articles-list.json",
 ]
 
 
