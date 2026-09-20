@@ -2,10 +2,21 @@
   <div class="content-page">
     <header class="cp-header">
       <div class="cp-head-main">
-        <h1 class="cp-title">ALLFUND · 博客</h1>
+        <h1 class="cp-title">ALLFUND · 想法</h1>
       </div>
       <router-link v-if="canManageContent" to="/content/editor" class="cp-new-btn">+ 写文章</router-link>
     </header>
+
+    <!-- 二级分类导航：博客 / 影视 / 美食 / 游戏 -->
+    <div class="cp-tabs">
+      <div
+        v-for="c in categories"
+        :key="c.key"
+        class="cp-tab"
+        :class="{ active: category === c.key }"
+        @click="setCategory(c.key)"
+      >{{ c.label }}</div>
+    </div>
 
     <div v-if="canManageContent" class="cp-viewswitch">
       <button :class="{ active: view === 'published' }" @click="setView('published')">已发布</button>
@@ -30,6 +41,7 @@
           <div v-if="a.cover_image" class="cp-cover" :style="{ backgroundImage: 'url(' + a.cover_image + ')' }"></div>
           <div class="cp-card-body">
             <div class="cp-card-top">
+              <span class="cp-cat-badge">{{ catLabel(a.category) }}</span>
               <span v-if="a.scheduled_at && new Date(a.scheduled_at).getTime() > Date.now()" class="cp-badge cp-badge--sched">定时 · {{ formatDateTime(a.scheduled_at) }}</span>
               <span v-else-if="a.status === 'draft'" class="cp-badge cp-badge--draft">草稿</span>
               <span v-else class="cp-badge cp-badge--pub">已发布</span>
@@ -71,6 +83,26 @@ const slowHint = ref(false)  // 加载超过 5s 时给出"网络较慢"提示
 let slowTimer = null
 const view = ref('published')
 
+// 二级分类导航：博客 / 影视 / 美食 / 游戏（默认「博客」）
+const category = ref('blog')
+const categories = [
+  { key: 'blog', label: '博客' },
+  { key: 'film', label: '影视' },
+  { key: 'food', label: '美食' },
+  { key: 'game', label: '游戏' },
+]
+/** 分类 key → 中文标签（缺省回退「博客」） */
+function catLabel(c) {
+  const m = categories.find((x) => x.key === c)
+  return m ? m.label : '博客'
+}
+/** 切换分类并重新加载列表 */
+function setCategory(c) {
+  if (category.value === c) return
+  category.value = c
+  load()
+}
+
 // 可管理内容：仅管理员可写/编辑/删除
 const canManageContent = computed(() => isOwner.value)
 
@@ -83,13 +115,15 @@ async function load() {
   slowTimer = setTimeout(() => {
     if (loading.value) slowHint.value = true
   }, 5000)
+  // 分类过滤：当前选中分类（博客/影视/美食/游戏）
+  const cat = category.value
   try {
     if (canManageContent.value && view.value === 'mine') {
       const email = user.value?.email
       // 「我的全部」仅显示草稿/定时文章，已发布的不在此显示
-      articles.value = await listArticles({ status: 'draft', authorEmail: email, limit: 200 })
+      articles.value = await listArticles({ status: 'draft', authorEmail: email, limit: 200, category: cat })
     } else {
-      articles.value = await listArticles({ status: 'published', limit: 200 })
+      articles.value = await listArticles({ status: 'published', limit: 200, category: cat })
     }
   } catch (e) {
     const msg = (e && e.message) || String(e)
@@ -206,6 +240,34 @@ watch(() => route.fullPath, () => {
   white-space: nowrap;
 }
 .cp-new-btn:hover { background: #003078; }
+.cp-tabs {
+  display: flex;
+  border-bottom: 2px solid var(--border);
+  margin-bottom: var(--space-md);
+}
+.cp-tab {
+  padding: 8px 18px;
+  font-size: 19px;
+  font-weight: 700;
+  color: var(--text-secondary);
+  cursor: pointer;
+  border-bottom: 4px solid transparent;
+  margin-bottom: -2px;
+  transition: all 0.15s;
+}
+.cp-tab:hover { color: var(--text-primary); }
+.cp-tab.active {
+  color: #1d70b8;
+  border-bottom-color: #1d70b8;
+}
+.cp-cat-badge {
+  background: #1d70b8;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 1px 8px;
+  white-space: nowrap;
+}
 .cp-viewswitch {
   display: flex;
   gap: 0;

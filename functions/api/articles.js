@@ -13,7 +13,7 @@ const SUPABASE_URL = 'https://tqhtegazxykkqfcpejky.supabase.co'
 const ANON_KEY = 'sb_publishable_iFtMcvav774gqF28gGYQVw_QMmuS-z3'
 // 与前端 listArticles 的 FIELDS 保持一致（不含大字段 content，降低体积）
 const FIELDS =
-  'id,title,summary,status,published_at,updated_at,views,tags,cover_image,author_email,is_pinned'
+  'id,title,summary,status,published_at,updated_at,views,tags,cover_image,author_email,is_pinned,category'
 // 5 分钟缓存：文章列表变更频率低（手动发布），延长 TTL 让更多用户命中缓存 → 避免每次都要慢回源
 const CACHE_TTL = 300 // 秒
 

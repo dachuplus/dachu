@@ -90,7 +90,7 @@ serve(async (req) => {
     } else {
       body = await req.json()
     }
-    const { title, summary, content, cover_image, tags, status, article_id, scheduled_at } = body
+    const { title, summary, content, cover_image, tags, status, article_id, scheduled_at, category } = body
 
     // 规范化 scheduled_at：合法时间字符串转 ISO，否则置 null（清空定时）
     let schedISO: string | null = null
@@ -98,6 +98,10 @@ serve(async (req) => {
       const t = new Date(scheduled_at)
       if (!isNaN(t.getTime())) schedISO = t.toISOString()
     }
+
+    // 规范化 category：仅允许 blog/film/food/game，否则回退 blog
+    const ALLOWED_CATS = ['blog', 'film', 'food', 'game']
+    const cat: string = ALLOWED_CATS.includes(category) ? category : 'blog'
 
     // 基本校验
     if (!title?.trim()) return json({ error: '标题不能为空' }, 400)
@@ -129,6 +133,7 @@ serve(async (req) => {
             summary: summary?.trim() || '',
             cover_image: cover_image?.trim() || null,
             tags: tags || [],
+            category: cat,
             updated_at: new Date().toISOString(),
             scheduled_at: schedISO,
             content: '', // 清空，后续由 chunk 拼装写入
@@ -152,6 +157,7 @@ serve(async (req) => {
           content: '', // 先空，chunk 拼装后填入
           cover_image: cover_image?.trim() || null,
           tags: tags || [],
+          category: cat,
           author_email: authorEmail,
           status: 'draft',
           scheduled_at: schedISO,

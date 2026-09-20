@@ -278,7 +278,7 @@ function handleRequestAccess() {
 
 /* ---- 全局金刚区 ---- */
 const quickLinks = [
-  { path: '/content',          label: '博客', feature: 'content' },
+  { path: '/content',          label: '想法', feature: 'content' },
   { path: '/signal',           label: '信号', feature: 'signal' },
   { path: '/tools/fund-rank',  label: '选基', feature: 'fund-rank' },
   { path: '/portfolio',        label: '组合', feature: 'portfolio' },
@@ -313,7 +313,7 @@ const currentFeatureLabel = computed(() => {
 /* ---- Tab 数据（仅移动端 TabBar 使用）---- */
 const tabs = [
   { key: 'home',      path: '/',                 label: '首页',  feature: null },
-  { key: 'content',   path: '/content',          label: '博客',  feature: 'content' },
+  { key: 'content',   path: '/content',          label: '想法',  feature: 'content' },
   { key: 'signal',    path: '/signal',           label: '信号',  feature: 'signal' },
   { key: 'fundrank',  path: '/tools/fund-rank',  label: '选基',  feature: 'fund-rank' },
   { key: 'portfolio', path: '/portfolio',        label: '组合',  feature: 'portfolio' },

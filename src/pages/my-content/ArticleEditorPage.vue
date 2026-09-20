@@ -29,6 +29,13 @@
         </label>
 
         <label class="ed-field">
+          <span class="ed-label">分类</span>
+          <select v-model="form.category" class="ed-input">
+            <option v-for="opt in categoryOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
+          </select>
+        </label>
+
+        <label class="ed-field">
           <span class="ed-label">封面图 URL</span>
           <div class="ed-cover-row">
             <input v-model="form.cover_image" class="ed-input" placeholder="https://..." />
@@ -163,7 +170,15 @@ const errorMsg = ref('')
 const saving = ref(false)
 const savingAction = ref(null) // 'draft' | 'published' | null
 const uploadProgress = ref(null) // { done, total } 或 null
-const form = ref({ title: '', summary: '', tagsRaw: '', cover_image: '', content: '' })
+const form = ref({ title: '', summary: '', tagsRaw: '', cover_image: '', content: '', category: 'blog' })
+
+/** 分类选项（与 DB CHECK 约束一致） */
+const categoryOptions = [
+  { value: 'blog', label: '博客' },
+  { value: 'film', label: '影视' },
+  { value: 'food', label: '美食' },
+  { value: 'game', label: '游戏' },
+]
 const scheduleMode = ref('now') // 'now' | 'scheduled'
 const scheduledAt = ref('')    // datetime-local 字符串（本地时间）
 
@@ -240,6 +255,7 @@ async function load() {
         tagsRaw: (a.tags || []).join(', '),
         cover_image: a.cover_image || '',
         content: a.content || '',
+        category: a.category || 'blog',
       }
       // 回填定时发布状态（仅当为定时草稿时）
       if (a.scheduled_at && a.status === 'draft') {
@@ -388,6 +404,7 @@ async function onSave(targetStatus) {
       content: form.value.content,
       cover_image: form.value.cover_image.trim() || null,
       tags: parseTags(form.value.tagsRaw),
+      category: form.value.category || 'blog',
       status: targetStatus,
       // 定时发布：仅在「定时模式 + 点击发布」时透传未来时间；其他情况清空定时
       scheduled_at: (scheduleMode.value === 'scheduled' && targetStatus === 'published')

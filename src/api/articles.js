@@ -128,7 +128,7 @@ function writeCache(key, data) {
 
 /** 根据查询参数生成缓存 key */
 function cacheKey(opts) {
-  return 'list_' + (opts.status || 'all') + '_' + (opts.authorEmail || '') + '_' + (opts.tag || '')
+  return 'list_' + (opts.status || 'all') + '_' + (opts.authorEmail || '') + '_' + (opts.tag || '') + '_' + (opts.category || 'all')
 }
 
 /**
@@ -142,21 +142,23 @@ function cacheKey(opts) {
  *  3) /api/articles（同域边缘函数，15s 超时）→ 边缘偶尔抽风时回退
  *  4) 直连 Supabase（15s 超时兜底，迫使慢路径快速失败而非白屏60s+）
  */
-export async function listArticles({ status = 'published', authorEmail = null, limit = 50, offset = 0, tag = null } = {}) {
-  const ck = cacheKey({ status, authorEmail, tag })
+export async function listArticles({ status = 'published', authorEmail = null, limit = 50, offset = 0, tag = null, category = null } = {}) {
+  const ck = cacheKey({ status, authorEmail, tag, category })
+  const hasCat = !!category && category !== 'all'
 
   // ===== 1. localStorage 缓存命中（最快） =====
   const cached = readCache(ck)
   if (cached && offset === 0) {
     // 后台静默刷新（不阻塞 UI）
-    refreshListInBackground({ status, authorEmail, limit, tag }, ck)
+    refreshListInBackground({ status, authorEmail, limit, tag, category }, ck)
     return cached.slice(0, limit)
   }
 
   // ===== 2. 已发布全量列表：部署时预生成的静态 JSON（毫秒级 CDN 返回） =====
-  //    仅对公开首屏（status=published + 无作者/标签过滤）启用。EdgeOne→Supabase 链路偶发 10-16s
+  //    仅对公开首屏（status=published + 无作者/标签/分类过滤）启用。EdgeOne→Supabase 链路偶发 10-16s
   //    慢速时，这个静态文件是用户的救命稻草 —— 部署一次（CI 每日 21:30 或手动）即生效。
-  if (status === 'published' && !authorEmail && !tag && offset === 0) {
+  //    注意：指定了分类过滤时跳过此快路径，直接走下方 Supabase 精确过滤。
+  if (status === 'published' && !authorEmail && !tag && !hasCat && offset === 0) {
     try {
       const staticRes = await fetch('/articles-list.json?t=' + Date.now(), {
         headers: { Accept: 'application/json' },
@@ -198,10 +200,11 @@ export async function listArticles({ status = 'published', authorEmail = null, l
   //    单独 15s 超时：边缘已挂 12s 后，兜底再等 60s 用户体感极差，15s 总 ≤ 27s 即报错。 =====
   if (!supabase) throw new Error('未连接数据库')
 
-  const FIELDS = 'id,title,summary,status,published_at,updated_at,views,tags,cover_image,author_email,is_pinned,scheduled_at'
+  const FIELDS = 'id,title,summary,status,published_at,updated_at,views,tags,cover_image,author_email,is_pinned,scheduled_at,category'
   let q = supabase.from('articles').select(FIELDS)
   if (status) q = q.eq('status', status)
   if (authorEmail) q = q.eq('author_email', authorEmail)
+  if (hasCat) q = q.eq('category', category)
   if (tag) q = q.contains('tags', [tag])
   // 置顶文章排最前，其次按发布时间倒序
   q = q.order('is_pinned', { ascending: false })
@@ -223,10 +226,11 @@ export async function listArticles({ status = 'published', authorEmail = null, l
 /** 后台静默刷新：失败时静默忽略，不弹错误 */
 async function refreshListInBackground(opts, ck) {
   try {
-    const FIELDS = 'id,title,summary,status,published_at,updated_at,views,tags,cover_image,author_email,is_pinned,scheduled_at'
+    const FIELDS = 'id,title,summary,status,published_at,updated_at,views,tags,cover_image,author_email,is_pinned,scheduled_at,category'
     let q = supabase.from('articles').select(FIELDS)
     if (opts.status) q = q.eq('status', opts.status)
     if (opts.authorEmail) q = q.eq('author_email', opts.authorEmail)
+    if (opts.category && opts.category !== 'all') q = q.eq('category', opts.category)
     if (opts.tag) q = q.contains('tags', [opts.tag])
     // 置顶文章排最前，其次按发布时间倒序
     q = q.order('is_pinned', { ascending: false })
@@ -463,6 +467,7 @@ export async function createArticle(payload) {
     tags: payload.tags || [],
     status: payload.status || 'draft',
     scheduled_at: payload.scheduled_at || null,
+    category: payload.category || 'blog',
   })
 }
 
@@ -481,6 +486,7 @@ export async function updateArticle(id, payload) {
     tags: payload.tags || [],
     status: payload.status || 'draft',
     scheduled_at: payload.scheduled_at || null,
+    category: payload.category || 'blog',
   })
 }
 

@@ -1224,7 +1224,7 @@
             <tr><td>Supabase PAT</td><td>Python 脚本执行 SQL / DDL</td><td><code>.env.local</code> → SUPABASE_PAT（个人访问令牌）</td></tr>
             <tr><td>EdgeOne Pages token</td><td>H5 部署</td><td><code>.env.local</code> → EDGEONE_PAGES_API_TOKEN</td></tr>
             <tr><td>GitHub PAT</td><td>源码推送</td><td><code>.env.local</code> → GITHUB_TOKEN</td></tr>
-            <tr><td>DeepSeek API key</td><td>AI 选基 / 大 PK</td><td><code>.env</code> → VITE_DEEPSEEK_API_KEY</td></tr>
+            <tr><td>DeepSeek API key</td><td>AI 选基 / 风险平价 / 标签金句</td><td>EdgeOne Pages 环境变量 <code>DEEPSEEK_API_KEY</code>（服务端代理 <code>/api/deepseek-proxy</code>，不进前端）</td></tr>
             <tr><td>微信小程序 AppSecret</td><td>小程序微信登录（jscode2session）</td><td>微信公众平台 → 开发 → 开发管理 → AppSecret（<code>supabase secrets set WECHAT_MP_APPSECRET</code>）</td></tr>
             <tr><td>微信开放平台 Web AppID / AppSecret</td><td>网页版微信扫码登录</td><td>微信开放平台 → 网站应用（<code>supabase secrets set WECHAT_WEB_APPID / WECHAT_WEB_APPSECRET</code>）</td></tr>
             <tr><td>微信登录 PEPPER</td><td>微信账号派生密码盐（不可泄露）</td><td><code>supabase secrets set WECHAT_PEPPER</code>（由主管理员生成保管）</td></tr>

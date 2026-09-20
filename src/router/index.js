@@ -139,9 +139,9 @@ const routes = [
     meta: {
       tab: 'content',
       feature: 'content',
-      title: '博客 · 个人观点',
-      description: 'ALLFUND-个人博客：分享个人投资研究观点与方法论，仅代表个人观点，不构成投资建议。',
-      keywords: 'ALLFUND,个人博客,投资观点,研究方法'
+      title: '想法 · 个人观点',
+      description: 'ALLFUND-想法：分享个人投资研究观点与方法论，仅代表个人观点，不构成投资建议。',
+      keywords: 'ALLFUND,想法,投资观点,研究方法'
     }
   },
   {
@@ -248,16 +248,16 @@ async function _trackVisit(path) {
 }
 
 router.afterEach((to) => {
-  const baseTitle = 'ALLFUND-个人博客'
-  document.title = (to.meta?.title || '个人博客') + ' | ' + baseTitle
+  const baseTitle = 'ALLFUND-想法'
+  document.title = (to.meta?.title || '想法') + ' | ' + baseTitle
 
   // 动态注入 SEO meta（description / keywords）
   const meta = to.meta || {}
-  setMeta('description', meta.description || 'ALLFUND-个人博客 — 分享个人投资研究观点与方法论，仅代表个人观点，不构成投资建议。')
-  setMeta('keywords', meta.keywords || 'ALLFUND,个人博客,投资观点')
+  setMeta('description', meta.description || 'ALLFUND-想法 — 分享个人投资研究观点与方法论，仅代表个人观点，不构成投资建议。')
+  setMeta('keywords', meta.keywords || 'ALLFUND,想法,投资观点')
   // Open Graph（社交分享卡片）
   setMeta('og:title', document.title, 'property')
-  setMeta('og:description', meta.description || 'ALLFUND-个人博客，分享独立投资研究观点与方法论，仅代表个人观点，不构成投资建议。', 'property')
+  setMeta('og:description', meta.description || 'ALLFUND-想法，分享独立投资研究观点与方法论，仅代表个人观点，不构成投资建议。', 'property')
   setMeta('og:type', 'website', 'property')
   setMeta('og:url', location.origin + to.fullPath, 'property')
   // 记录访问（异步，不阻塞导航）

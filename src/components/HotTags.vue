@@ -1070,11 +1070,8 @@ function wrapText(ctx, text, maxWidth) {
   return lines
 }
 
-/** 调用 DeepSeek 生成标签相关金句 */
+/** 调用 DeepSeek 生成标签相关金句（经服务端代理 /api/deepseek-proxy，密钥不进前端） */
 async function generateTagline(tagName, tagReturnPct, isPositive, funds) {
-  const apiKey = import.meta.env.VITE_DEEPSEEK_API_KEY || ''
-  if (!apiKey) return ''
-
   // 构建基金表现摘要
   const fundSummary = funds.slice(0, 3).map(f => {
     const ret = f.r1y != null ? (f.r1y >= 0 ? '+' : '') + f.r1y.toFixed(2) + '%' : '—'
@@ -1102,9 +1099,9 @@ async function generateTagline(tagName, tagReturnPct, isPositive, funds) {
 板块近1年收益（唯一权威数字）：${retStr || '—'}
 代表性基金：${fundSummary || '无'}`
 
-  const response = await fetch('https://api.deepseek.com/v1/chat/completions', {
+  const response = await fetch('/api/deepseek-proxy', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       model: 'deepseek-chat',
       messages: [

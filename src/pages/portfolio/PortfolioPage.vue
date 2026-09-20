@@ -822,9 +822,9 @@ ${reqHint}${catHint}
 必须从上述基金池中选择真实存在的产品，挑${targetN}只，每只权重${Math.round(100 / targetN)}%，权重和=100%。不得编造代码，只能从上述清单中选。`
 
     aiStatusText.value = 'AI 正在生成组合...'
-    const response = await fetch('https://api.deepseek.com/v1/chat/completions', {
+    const response = await fetch('/api/deepseek-proxy', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${import.meta.env.VITE_DEEPSEEK_API_KEY || ''}` },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ model: 'deepseek-chat', messages: [{ role: 'system', content: '你是专业基金投顾，只从给定基金池选择真实产品，只返回JSON，不得编造代码。' }, { role: 'user', content: prompt }], temperature: 0.3, max_tokens: 3000 })
     })
     if (!response.ok) throw new Error(`API调用失败: ${response.status}`)
@@ -1050,9 +1050,9 @@ async function generateRiskParityPortfolio() {
 要求：权重和为100%，每个大类基金权重之和尽量接近其目标权重。`
 
     rpStatusText.value = 'AI 正在生成风险平价组合...'
-    const response = await fetch('https://api.deepseek.com/v1/chat/completions', {
+    const response = await fetch('/api/deepseek-proxy', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${import.meta.env.VITE_DEEPSEEK_API_KEY || ''}` },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ model: 'deepseek-chat', messages: [{ role: 'system', content: '你是专业基金投顾，只从给定基金池选择真实产品，只返回JSON，不得编造代码。' }, { role: 'user', content: prompt }], temperature: 0.3, max_tokens: 2000 })
     })
     if (!response.ok) throw new Error(`API调用失败: ${response.status}`)

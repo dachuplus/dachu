@@ -21,6 +21,7 @@
         <h1 class="dp-title">{{ article.title }}</h1>
         <div class="dp-meta">
           <span>个人观点</span>
+          <span class="dp-cat">{{ catLabel(article.category) }}</span>
           <span v-if="article.published_at">· {{ formatDateTime(article.published_at) }}</span>
           <span>· {{ article.views || 0 }} 浏览</span>
         </div>
@@ -56,6 +57,12 @@ const articleList = ref([])
 const currentId = computed(() => article.value?.id)
 
 const renderedContent = computed(() => renderMarkdown(article.value?.content || ''))
+
+/** 分类 key → 中文标签（缺省回退「博客」） */
+function catLabel(c) {
+  const map = { blog: '博客', film: '影视', food: '美食', game: '游戏' }
+  return map[c] || '博客'
+}
 
 /** 加载单篇文章（含作者 + 阅读量） */
 async function loadArticle(id) {
@@ -224,6 +231,12 @@ watch(() => route.params.id, (newId) => {
   gap: 6px;
   flex-wrap: wrap;
   margin-bottom: var(--space-md);
+}
+.dp-cat {
+  background: #1d70b8;
+  color: #fff;
+  padding: 0 8px;
+  font-weight: 700;
 }
 .dp-cover {
   margin-bottom: var(--space-md);

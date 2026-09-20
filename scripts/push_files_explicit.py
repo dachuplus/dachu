@@ -16,24 +16,48 @@ from urllib.error import HTTPError
 
 REPO_OWNER = "dachuplus"
 REPO_NAME = "dachu"
-TOKEN = os.environ.get("GITHUB_TOKEN", "")
+
+
+def _load_token():
+    """按优先级取 GITHUB_TOKEN：env → stdin（一次性）→ .env.local（即「数据中心」）。
+    全程只在进程内存中使用，绝不打印明文。"""
+    t = os.environ.get("GITHUB_TOKEN", "").strip()
+    if t:
+        return t
+    if not sys.stdin.isatty():
+        try:
+            t = (sys.stdin.readline() or "").strip()
+        except Exception:
+            t = ""
+        if t:
+            return t
+    env_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".env.local")
+    try:
+        with open(env_path, "r", encoding="utf-8") as fh:
+            for line in fh:
+                line = line.strip()
+                if line.startswith("GITHUB_TOKEN="):
+                    return line.split("=", 1)[1].strip().strip('"').strip("'")
+    except Exception:
+        pass
+    return ""
+
+
+TOKEN = _load_token()
 if not TOKEN:
-    sys.exit("缺少 GITHUB_TOKEN")
+    sys.exit("缺少 GITHUB_TOKEN（env / stdin / .env.local 均未找到）")
+print(f"token: len={len(TOKEN)} prefix={TOKEN[:4]}")
 
 API = "https://api.github.com"
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # 脚本在 scripts/ 下，项目根是上一级
 
-# 需要强制推送的「权限墙」文件（相对仓库根）
+# 本次需推送的文件（相对仓库根）——SignalPage 5 项优化
 FILES = [
-    "src/composables/useFeatureFlags.js",
-    "src/composables/usePermissionRequests.js",
-    "src/components/PermissionRequestDialog.vue",
-    "src/App.vue",
-    "src/composables/useAuth.js",
-    "src/router/index.js",
-    "src/pages/data-center/DataCenterPage.vue",
-    "src/components/MobileTabBar.vue",
-    "src/pages/profile/ProfilePage.vue",
+    "src/pages/signal/SignalPage.vue",
+    "src/utils/api.js",
+    "scripts/fetch_jqr_indicators.py",
+    "scripts/build_style_factors.py",
+    ".github/workflows/update-style-factors.yml",
 ]
 
 
@@ -56,7 +80,7 @@ def api(method, path, body=None):
 
 
 def main():
-    msg = sys.argv[1] if len(sys.argv) > 1 else "chore: 同步权限墙代码到远端"
+    msg = sys.argv[1] if len(sys.argv) > 1 else "signal: 5项优化(资产配置/股债/大宗商品主力合约/行业估值右对齐/巴菲特指标)"
     print(f"显式推送 {len(FILES)} 个文件到 {REPO_OWNER}/{REPO_NAME}")
 
     parent = api("GET", f"/repos/{REPO_OWNER}/{REPO_NAME}/git/ref/heads/main")
