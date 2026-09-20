@@ -36,33 +36,45 @@
       </div>
     </div>
 
-    <!-- 美食二级 Tab：中国大厨榜 · 上海（9+1美食评分框架） -->
+    <!-- 美食二级 Tab：下辖两个三级 Tab —— 大厨榜-上海 / 必吃榜-上海（2017-2025） -->
     <div v-else-if="category === 'food'">
-      <RankBoard
-        title="中国大厨榜 · 上海"
-        :intro="`${CHEF_BOARD.length} 家上海餐厅，按「9+1 美食评分框架」评分：好老板 · 好理念 · 好团队 · 好厨师 · 好食材 · 好环境 · 好地段 · 好营收 · 好口碑，外加「好创新」。点击任意条目可展开十项明细。`"
-        :items="CHEF_BOARD"
-        :dims="CHEF_DIMS"
-        cat-label="菜系"
-        framework-name="9+1 美食评分框架"
-        framework-note="九个基础维度各 1-10 分、合计 90 分；「好创新」为加分项，最高 +10 分，总分上限 100 分。"
-      />
-      <p class="cp-caveat">
-        评分口径：本榜为「编辑综合评分」，由统一评分标准生成，非官方数据、也非实测结果。
-        店名与所在区取自公开榜单（大众点评必吃榜 2017-2025 等，仅收录公开可溯源的门店）；
-        人均消费无法逐年核实，统一留空显示 <code>--</code>，不做估算；
-        菜系仅取来源明确标注者，其余归入「其他」，未作推断。
-      </p>
-
-      <!-- 大众点评必吃榜 · 上海历年（2017-2025） -->
-      <div class="cp-subblock">
-        <MustEatBoard
-          title="大众点评必吃榜 · 上海历年"
-          intro="收录大众点评「必吃榜」自 2017 年首发以来上海历年上榜餐厅，可按年份浏览，也可按餐厅聚合查看累计上榜次数与年份轨迹。数据为公开信息整理，逐年来源与覆盖度见页面底部说明。"
-          :items="MUST_EAT_SHANGHAI"
-          :sources="MUST_EAT_SOURCES"
-        />
+      <div class="cp-subtabs">
+        <div
+          v-for="t in foodTabs"
+          :key="t.key"
+          class="cp-subtab"
+          :class="{ active: foodTab === t.key }"
+          @click="foodTab = t.key"
+        >{{ t.label }}<span class="cp-subtab-count">（{{ t.count }}）</span></div>
       </div>
+
+      <!-- 三级 Tab ①：中国大厨榜 · 上海（9+1美食评分框架） -->
+      <template v-if="foodTab === 'chef'">
+        <RankBoard
+          title="中国大厨榜 · 上海"
+          :intro="`${CHEF_BOARD.length} 家上海餐厅，按「9+1 美食评分框架」评分：好老板 · 好理念 · 好团队 · 好厨师 · 好食材 · 好环境 · 好地段 · 好营收 · 好口碑，外加「好创新」。点击任意条目可展开十项明细。`"
+          :items="CHEF_BOARD"
+          :dims="CHEF_DIMS"
+          cat-label="菜系"
+          framework-name="9+1 美食评分框架"
+          framework-note="九个基础维度各 1-10 分、合计 90 分；「好创新」为加分项，最高 +10 分，总分上限 100 分。"
+        />
+        <p class="cp-caveat">
+          评分口径：本榜为「编辑综合评分」，由统一评分标准生成，非官方数据、也非实测结果。
+          店名与所在区取自公开榜单（大众点评必吃榜 2017-2025 等，仅收录公开可溯源的门店）；
+          人均消费无法逐年核实，统一留空显示 <code>--</code>，不做估算；
+          菜系仅取来源明确标注者，其余归入「其他」，未作推断。
+        </p>
+      </template>
+
+      <!-- 三级 Tab ②：大众点评必吃榜 · 上海历年（2017-2025） -->
+      <MustEatBoard
+        v-else
+        title="大众点评必吃榜 · 上海历年"
+        intro="收录大众点评「必吃榜」自 2017 年首发以来上海历年上榜餐厅，可按年份浏览，也可按餐厅聚合查看累计上榜次数与年份轨迹。数据为公开信息整理，逐年来源与覆盖度见页面底部说明。"
+        :items="MUST_EAT_SHANGHAI"
+        :sources="MUST_EAT_SOURCES"
+      />
     </div>
 
     <!-- 博客：文章列表 -->
@@ -137,6 +149,16 @@ import { confirm, toast } from '../../composables/useToast'
  * 扩展集与主表已做品牌级去重，不会出现同一品牌两行。
  */
 const CHEF_BOARD = [...SH_RESTAURANTS, ...SH_RESTAURANTS_EXTRA]
+
+/**
+ * 美食二级 Tab 下的三级 Tab：大厨榜-上海 / 必吃榜-上海（2017-2025）。
+ * 家数取实际渲染的条目数，避免写死数字与实际数据脱节。
+ */
+const foodTab = ref('chef')
+const foodTabs = computed(() => [
+  { key: 'chef', label: '大厨榜-上海', count: `${CHEF_BOARD.length} 家` },
+  { key: 'musteat', label: '必吃榜-上海', count: '2017-2025' },
+])
 
 const { isOwner, user } = useAuth()
 const route = useRoute()
@@ -303,6 +325,39 @@ watch(() => route.fullPath, () => {
 .cp-games { margin-top: var(--space-sm); }
 .cp-subblock { margin-top: 28px; border-top: 1px solid var(--border); padding-top: 18px; }
 .cp-subblock-title { font-size: 18px; font-weight: 700; color: var(--text-primary); margin: 0 0 12px; }
+/* 三级 Tab：比二级 Tab 更轻（字号小一档、下划线更细），窄屏可横向滑动 */
+.cp-subtabs {
+  display: flex;
+  border-bottom: 2px solid var(--border);
+  margin-bottom: var(--space-md);
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+.cp-subtabs::-webkit-scrollbar { display: none; }
+.cp-subtab {
+  flex: none;
+  white-space: nowrap;
+  padding: 8px 14px;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-secondary);
+  cursor: pointer;
+  border-bottom: 3px solid transparent;
+  margin-bottom: -2px;
+  transition: color 0.15s, border-color 0.15s;
+}
+.cp-subtab:hover { color: var(--text-primary); }
+.cp-subtab.active {
+  color: #1d70b8;
+  border-bottom-color: #1d70b8;
+}
+.cp-subtab-count {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--text-muted);
+}
+.cp-subtab.active .cp-subtab-count { color: #1d70b8; }
 .cp-caveat {
   margin: 14px 0 0;
   padding: 12px 14px;

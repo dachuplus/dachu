@@ -51,7 +51,7 @@
           <span class="me-group-count">{{ g.list.length }} 家</span>
         </h3>
         <ol class="me-list">
-          <li v-for="it in g.list" :key="g.year + '-' + it.name" class="me-row">
+          <li v-for="it in yearRows(g)" :key="g.year + '-' + it.name" class="me-row">
             <div class="me-row-main">
               <span class="me-year">{{ g.year }}</span>
               <div class="me-info">
@@ -64,6 +64,13 @@
             </div>
           </li>
         </ol>
+        <div v-if="g.list.length > YEAR_PREVIEW" class="me-more">
+          <button class="me-more-btn" @click="toggleYear(g.year)">
+            {{ yearAll[g.year]
+              ? '收起本年名单'
+              : `展开本年全部 ${g.list.length} 家（其余 ${g.list.length - YEAR_PREVIEW} 家）` }}
+          </button>
+        </div>
       </div>
       <p v-if="yearGroups.length === 0" class="me-empty">没有匹配的餐厅。</p>
     </template>
@@ -71,7 +78,7 @@
     <!-- 按餐厅聚合 -->
     <template v-else>
       <ol class="me-list">
-        <li v-for="s in shopList" :key="s.name" class="me-row">
+        <li v-for="s in shopShown" :key="s.name" class="me-row">
           <div class="me-row-main">
             <span class="me-year">{{ s.years.length }}次</span>
             <div class="me-info">
@@ -86,6 +93,9 @@
           </div>
         </li>
       </ol>
+      <div v-if="shopShown.length < shopList.length" class="me-more">
+        <button class="me-more-btn" @click="shopLimit += 30">加载更多（还有 {{ shopList.length - shopShown.length }} 家）</button>
+      </div>
       <p v-if="shopList.length === 0" class="me-empty">没有匹配的餐厅。</p>
     </template>
 
@@ -119,7 +129,7 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 
 const props = defineProps({
   title: { type: String, required: true },
@@ -220,6 +230,29 @@ const shopList = computed(() => {
 
 /** 去重后的全部餐厅（模板用 .length 取家数） */
 const shops = computed(() => [...new Set(props.items.map((x) => x.name))])
+
+/**
+ * 渐进展示：必吃榜共 800+ 条记录，一次性铺开会把页面拉得极长。
+ * 按年份视图：每年先渲染 20 条，其余点「展开本年全部」再出；
+ * 按餐厅聚合视图：先渲染 30 家，其余点「加载更多」。
+ */
+const YEAR_PREVIEW = 20
+const yearAll = ref({})
+function yearRows(g) {
+  return yearAll.value[g.year] ? g.list : g.list.slice(0, YEAR_PREVIEW)
+}
+function toggleYear(y) {
+  yearAll.value = { ...yearAll.value, [y]: !yearAll.value[y] }
+}
+
+const shopLimit = ref(30)
+const shopShown = computed(() => shopList.value.slice(0, shopLimit.value))
+
+// 改筛选条件后回到收拢态，避免「展开状态」与筛选结果错位
+watch([activeYear, activeDistrict, q, mode], () => {
+  yearAll.value = {}
+  shopLimit.value = 30
+})
 </script>
 
 <style scoped>
@@ -274,6 +307,13 @@ const shops = computed(() => [...new Set(props.items.map((x) => x.name))])
 .me-meta { font-size: 13px; color: var(--text-secondary); margin-top: 3px; }
 
 .me-empty { text-align: center; color: var(--text-secondary); padding: 30px 0; }
+
+.me-more { text-align: center; margin: 12px 0 4px; }
+.me-more-btn {
+  background: var(--bg-card); border: 1px solid #1d70b8; color: #1d70b8;
+  font-size: 13px; font-weight: 700; padding: 8px 16px; cursor: pointer;
+}
+.me-more-btn:hover { background: #1d70b8; color: #fff; }
 
 .me-fw { margin-top: 22px; border-top: 1px solid var(--border); padding-top: 14px; }
 .me-fw summary { font-size: 14px; font-weight: 700; color: #1d70b8; cursor: pointer; }

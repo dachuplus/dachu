@@ -54,11 +54,10 @@ print(f"token: len={len(TOKEN)} prefix={TOKEN[:4]}")
 API = "https://api.github.com"
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # 脚本在 scripts/ 下，项目根是上一级
 
-# 本次需推送的文件（相对仓库根）——中国大厨榜 · 上海：100 家 → 651 家（新增扩展集，编辑综合评分）
+# 本次需推送的文件（相对仓库根）——「美食」二级 Tab 下新增两个三级 Tab（大厨榜-上海 / 必吃榜-上海），并为必吃榜加渐进展示
 FILES = [
-    "src/data/shRestaurantsExtra.js",
-    "scripts/build_chef_board_extra.py",
     "src/pages/my-content/MyContentPage.vue",
+    "src/components/rank/MustEatBoard.vue",
     "scripts/push_files_explicit.py",
 ]
 
