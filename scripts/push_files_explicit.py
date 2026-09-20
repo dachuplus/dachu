@@ -54,18 +54,11 @@ print(f"token: len={len(TOKEN)} prefix={TOKEN[:4]}")
 API = "https://api.github.com"
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # 脚本在 scripts/ 下，项目根是上一级
 
-# 本次需推送的文件（相对仓库根）——想法页新增「影视观看榜」(1000条) 与「中国大厨榜·上海」(100条)
+# 本次需推送的文件（相对仓库根）——修复发布文章 503（Edge Function 改用 Deno.serve + 规范部署脚本）、顶栏去掉「退出」
 FILES = [
-    "src/components/rank/RankBoard.vue",
-    "src/data/filmRank.js",
-    "src/data/film_part1.js",
-    "src/data/film_part2.js",
-    "src/data/film_part2b.js",
-    "src/data/film_part3.js",
-    "src/data/film_part4.js",
-    "src/data/film_part5.js",
-    "src/data/shRestaurants.js",
-    "src/pages/my-content/MyContentPage.vue",
+    "src/App.vue",
+    "supabase/functions/publish-article/index.ts",
+    "scripts/deploy_edge_function.py",
     "public/articles-list.json",
     "scripts/push_files_explicit.py",
 ]

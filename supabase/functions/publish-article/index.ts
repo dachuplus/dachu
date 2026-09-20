@@ -11,7 +11,9 @@
  * 部署：supabase functions deploy publish-article --project-ref tqhtegazxykkqfcpejky
  */
 
-import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
+// 注意：不要用 `import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'`。
+// 该远程依赖会导致服务端打包器解析失败 → 无产物包（ezbr_sha256=null）→ 函数 BOOT_ERROR
+// （2026-09-20「发布文章 HTTP 503」事故根因）。统一改用运行时内置的 Deno.serve。
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -57,7 +59,7 @@ function splitChunks(content: string): string[] {
   return chunks
 }
 
-serve(async (req) => {
+Deno.serve(async (req) => {
   // CORS preflight
   if (req.method === 'OPTIONS') return new Response(null, { headers: corsHeaders })
 

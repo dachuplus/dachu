@@ -81,7 +81,6 @@
             <!-- 已登录 -->
             <template v-if="isLoggedIn">
               <router-link to="/profile" class="auth-user-email">个人中心</router-link>
-              <button class="auth-btn auth-btn--logout" @click="handleLogout">退出</button>
             </template>
             <!-- 未登录 -->
             <button v-else class="auth-btn auth-btn--login" @click="showLogin">登录 / 注册</button>
@@ -392,11 +391,6 @@ const showBack  = computed(() => {
   border-color: #ffffff;
   background: rgba(255,255,255,0.1);
 }
-.auth-btn--logout {
-  border-color: rgba(255,255,255,0.3);
-  font-weight: 400;
-}
-
 /* ========== Phase banner ========== */
 .govuk-phase-banner {
   max-width: 1400px;
