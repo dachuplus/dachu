@@ -14,19 +14,27 @@
       <button class="me-mode" :class="{ active: mode === 'shop' }" @click="mode = 'shop'">按餐厅聚合</button>
     </div>
 
-    <!-- 筛选 -->
-    <div class="me-filters">
-      <div class="me-chips">
-        <span class="me-chip" :class="{ active: activeYear === 'all' }" @click="activeYear = 'all'">全部年份</span>
-        <span
-          v-for="y in coveredYears"
-          :key="y"
-          class="me-chip"
-          :class="{ active: activeYear === y }"
-          @click="activeYear = y"
-        >{{ y }}</span>
-      </div>
-      <input v-model.trim="q" class="me-search" type="search" placeholder="搜索餐厅 / 区域 / 品类" />
+    <!-- 检索：独占一行 -->
+    <div class="me-search-row">
+      <input
+        v-model.trim="q"
+        class="me-search"
+        type="search"
+        aria-label="搜索餐厅 / 区域 / 品类"
+        placeholder="搜索餐厅 / 区域 / 品类"
+      />
+    </div>
+
+    <!-- 筛选：年份 -->
+    <div class="me-chips me-chips--year">
+      <span class="me-chip" :class="{ active: activeYear === 'all' }" @click="activeYear = 'all'">全部年份</span>
+      <span
+        v-for="y in coveredYears"
+        :key="y"
+        class="me-chip"
+        :class="{ active: activeYear === y }"
+        @click="activeYear = y"
+      >{{ y }}</span>
     </div>
     <div v-if="districts.length" class="me-chips me-chips--dist">
       <span class="me-chip" :class="{ active: activeDistrict === 'all' }" @click="activeDistrict = 'all'">全部区域</span>
@@ -269,8 +277,9 @@ watch([activeYear, activeDistrict, q, mode], () => {
 .me-mode + .me-mode { border-left: none; }
 .me-mode.active { background: #1d70b8; border-color: #1d70b8; color: #fff; font-weight: 700; }
 
-.me-filters { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 8px; }
-.me-chips { display: flex; flex-wrap: wrap; gap: 6px; flex: 1; min-width: 200px; }
+.me-search-row { margin-bottom: 10px; }
+.me-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.me-chips--year { margin-bottom: 8px; }
 .me-chips--dist { margin-bottom: 14px; }
 .me-dist-hint {
   font-size: 12px; line-height: 1.6; color: var(--text-muted);
@@ -283,7 +292,7 @@ watch([activeYear, activeDistrict, q, mode], () => {
 }
 .me-chip.active { background: #1d70b8; border-color: #1d70b8; color: #fff; font-weight: 700; }
 .me-search {
-  flex: none; width: 200px; font-size: 14px; padding: 6px 10px;
+  display: block; width: 100%; font-size: 14px; padding: 8px 10px;
   border: 1px solid var(--border); background: var(--bg-card); color: var(--text-primary);
 }
 
@@ -327,8 +336,4 @@ watch([activeYear, activeDistrict, q, mode], () => {
 .me-fw-note { margin-top: 4px; color: var(--text-secondary); }
 .me-fw-links { margin-top: 4px; }
 .me-src { color: #1d70b8; margin-right: 10px; }
-
-@media (max-width: 640px) {
-  .me-search { width: 100%; }
-}
 </style>

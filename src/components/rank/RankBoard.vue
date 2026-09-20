@@ -6,23 +6,31 @@
       <p class="rb-count">共 {{ items.length }} 个条目 · 按总分排序 · 评分标准见文末</p>
     </div>
 
+    <!-- 检索：独占一行 -->
+    <div class="rb-search-row">
+      <input
+        v-model.trim="q"
+        class="rb-search"
+        type="search"
+        :aria-label="`搜索${catLabel}或名称`"
+        :placeholder="`搜索${catLabel}或名称`"
+      />
+    </div>
+
     <!-- 筛选 -->
-    <div class="rb-filters">
-      <div class="rb-chips">
-        <span
-          class="rb-chip"
-          :class="{ active: activeCat === 'all' }"
-          @click="activeCat = 'all'"
-        >全部</span>
-        <span
-          v-for="c in cats"
-          :key="c"
-          class="rb-chip"
-          :class="{ active: activeCat === c }"
-          @click="activeCat = c"
-        >{{ c }}</span>
-      </div>
-      <input v-model.trim="q" class="rb-search" type="search" :placeholder="`搜索${catLabel}或名称`" />
+    <div class="rb-chips">
+      <span
+        class="rb-chip"
+        :class="{ active: activeCat === 'all' }"
+        @click="activeCat = 'all'"
+      >全部</span>
+      <span
+        v-for="c in cats"
+        :key="c"
+        class="rb-chip"
+        :class="{ active: activeCat === c }"
+        @click="activeCat = c"
+      >{{ c }}</span>
     </div>
 
     <!-- 列表 -->
@@ -145,8 +153,8 @@ function toggle(name) {
 .rb-intro { font-size: 14px; color: var(--text-secondary); line-height: 1.6; margin: 0 0 6px; }
 .rb-count { font-size: 13px; color: var(--text-muted); margin: 0 0 14px; }
 
-.rb-filters { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 14px; }
-.rb-chips { display: flex; flex-wrap: wrap; gap: 6px; flex: 1; min-width: 200px; }
+.rb-search-row { margin-bottom: 10px; }
+.rb-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 14px; }
 .rb-chip {
   font-size: 13px; padding: 4px 12px; cursor: pointer;
   border: 1px solid var(--border); color: var(--text-secondary); background: var(--bg-card);
@@ -154,7 +162,7 @@ function toggle(name) {
 }
 .rb-chip.active { background: #1d70b8; border-color: #1d70b8; color: #fff; font-weight: 700; }
 .rb-search {
-  flex: none; width: 200px; font-size: 14px; padding: 6px 10px;
+  display: block; width: 100%; font-size: 14px; padding: 8px 10px;
   border: 1px solid var(--border); background: var(--bg-card); color: var(--text-primary);
 }
 
@@ -196,7 +204,6 @@ function toggle(name) {
 .rb-fw-dims b { color: var(--text-primary); }
 
 @media (max-width: 640px) {
-  .rb-search { width: 100%; }
   .rb-detail { padding-left: 14px; }
 }
 </style>
