@@ -4,18 +4,20 @@
       <div class="cp-head-main">
         <h1 class="cp-title">ALLFUND · 想法</h1>
       </div>
-      <router-link v-if="canManageContent" to="/content/editor" class="cp-new-btn">+ 写文章</router-link>
     </header>
 
-    <!-- 二级分类导航：博客 / 影视 / 美食 / 游戏 -->
+    <!-- 二级分类导航：博客 / 影视 / 美食 / 游戏，右侧放「写文章」按钮 -->
     <div class="cp-tabs">
-      <div
-        v-for="c in categories"
-        :key="c.key"
-        class="cp-tab"
-        :class="{ active: category === c.key }"
-        @click="setCategory(c.key)"
-      >{{ c.label }}</div>
+      <div class="cp-tab-list">
+        <div
+          v-for="c in categories"
+          :key="c.key"
+          class="cp-tab"
+          :class="{ active: category === c.key }"
+          @click="setCategory(c.key)"
+        >{{ c.label }}</div>
+      </div>
+      <router-link v-if="canManageContent" to="/content/editor" class="cp-new-btn">+ 写文章</router-link>
     </div>
 
     <div v-if="canManageContent" class="cp-viewswitch">
@@ -242,9 +244,12 @@ watch(() => route.fullPath, () => {
 .cp-new-btn:hover { background: #003078; }
 .cp-tabs {
   display: flex;
+  justify-content: space-between;
+  align-items: center;
   border-bottom: 2px solid var(--border);
   margin-bottom: var(--space-md);
 }
+.cp-tab-list { display: flex; }
 .cp-tab {
   padding: 8px 18px;
   font-size: 19px;

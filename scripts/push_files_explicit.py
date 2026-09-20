@@ -51,14 +51,9 @@ print(f"token: len={len(TOKEN)} prefix={TOKEN[:4]}")
 API = "https://api.github.com"
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # 脚本在 scripts/ 下，项目根是上一级
 
-# 本次需推送的文件（相对仓库根）——信号页游戏 Tab + 滚动条修复 + deploy 脚本
+# 本次需推送的文件（相对仓库根）——想法页将「+ 写文章」按钮移入分类 Tab 栏
 FILES = [
-    "src/pages/signal/SignalPage.vue",
-    "src/style.css",
-    "src/components/games/MinesweeperGame.vue",
-    "src/components/games/Game2048.vue",
-    "src/components/games/GamesPanel.vue",
-    "scripts/deploy_pages.sh",
+    "src/pages/my-content/MyContentPage.vue",
     "public/articles-list.json",
     "scripts/push_files_explicit.py",
 ]
