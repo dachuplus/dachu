@@ -298,15 +298,6 @@
     <div v-if="activeTab === 'tools'">
       <MediaTools />
     </div>
-
-    <!-- ==================== 9. 游戏 ==================== -->
-    <div v-if="activeTab === 'games'">
-      <div class="card">
-        <div class="card-title">小游戏</div>
-        <p class="card-desc">工作间隙放松一下：扫雷练逻辑，2048 练合并策略。</p>
-        <GamesPanel />
-      </div>
-    </div>
   </div>
 </template>
 
@@ -322,7 +313,6 @@ import { supabase } from '../../api/supabase'
 import HelpTip from '../../components/HelpTip.vue'
 import MediaTools from '../../components/MediaTools.vue'
 import JqrIndicator from '../../components/JqrIndicator.vue'
-import GamesPanel from '../../components/games/GamesPanel.vue'
 
 // ===== Tab 结构 =====
 const tabs = [
@@ -334,16 +324,15 @@ const tabs = [
   { key: 'industry', label: '行业估值' },
   { key: 'jqr',      label: '特色指标' },
   { key: 'tools',    label: '个人工具' },
-  { key: 'games',    label: '游戏' },
 ]
 // ===== 标签页持久化（Req6）：刷新后保留浏览位置 =====
 const ACTIVE_TAB_KEY = 'af_signal_active_tab'
 const activeTab = ref(localStorage.getItem(ACTIVE_TAB_KEY) || 'overview')
 watch(activeTab, (t) => {
   try { localStorage.setItem(ACTIVE_TAB_KEY, t) } catch (e) {}
-  // 个人工具 / 游戏 内容较短，桌面端隐藏右侧滚动条；其他 Tab 仍允许滚动
+  // 个人工具内容较短，桌面端隐藏右侧滚动条；其他 Tab 仍允许滚动
   try {
-    if (t === 'tools' || t === 'games') document.body.classList.add('signal-no-scroll')
+    if (t === 'tools') document.body.classList.add('signal-no-scroll')
     else document.body.classList.remove('signal-no-scroll')
   } catch (e) {}
 })
@@ -351,7 +340,7 @@ watch(activeTab, (t) => {
 // 初始化时同步一次滚动条状态
 onMounted(() => {
   try {
-    if (activeTab.value === 'tools' || activeTab.value === 'games') document.body.classList.add('signal-no-scroll')
+    if (activeTab.value === 'tools') document.body.classList.add('signal-no-scroll')
     else document.body.classList.remove('signal-no-scroll')
   } catch (e) {}
 })

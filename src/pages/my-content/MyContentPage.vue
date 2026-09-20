@@ -17,9 +17,19 @@
           @click="setCategory(c.key)"
         >{{ c.label }}</div>
       </div>
-      <router-link v-if="canManageContent" to="/content/editor" class="cp-new-btn">+ 写文章</router-link>
+      <router-link v-if="canManageContent && category === 'blog'" to="/content/editor" class="cp-new-btn">+ 写文章</router-link>
     </div>
 
+    <!-- 游戏二级 Tab：扫雷 / 2048（由信号页迁入） -->
+    <div v-if="category === 'game'" class="cp-games">
+      <GamesPanel />
+    </div>
+
+    <!-- 影视 / 美食：暂不放内容 -->
+    <div v-else-if="category === 'film' || category === 'food'" class="cp-placeholder">暂无内容</div>
+
+    <!-- 博客：文章列表 -->
+    <template v-else>
     <div v-if="canManageContent" class="cp-viewswitch">
       <button :class="{ active: view === 'published' }" @click="setView('published')">已发布</button>
       <button :class="{ active: view === 'mine' }" @click="setView('mine')">我的全部（含草稿）</button>
@@ -66,6 +76,7 @@
         </div>
       </li>
     </ul>
+    </template>
   </div>
 </template>
 
@@ -73,6 +84,7 @@
 import { ref, onMounted, onBeforeUnmount, watch, computed } from 'vue'
 import { useRoute } from 'vue-router'
 import { useAuth } from '../../composables/useAuth'
+import GamesPanel from '../../components/games/GamesPanel.vue'
 import { listArticles, deleteArticle, setArticlePinned, NETWORK_SLOW_MSG, isNetworkError } from '../../api/articles'
 import { confirm, toast } from '../../composables/useToast'
 
@@ -109,6 +121,13 @@ function setCategory(c) {
 const canManageContent = computed(() => isOwner.value)
 
 async function load() {
+  // 游戏 Tab 展示小游戏，不需要拉取文章列表
+  if (category.value === 'game') {
+    articles.value = []
+    loadError.value = ''
+    loading.value = false
+    return
+  }
   loading.value = true
   loadError.value = ''
   slowHint.value = false
@@ -250,6 +269,13 @@ watch(() => route.fullPath, () => {
   margin-bottom: var(--space-md);
 }
 .cp-tab-list { display: flex; }
+.cp-games { margin-top: var(--space-sm); }
+.cp-placeholder {
+  padding: 40px 0;
+  text-align: center;
+  color: var(--text-secondary);
+  font-size: 15px;
+}
 .cp-tab {
   padding: 8px 18px;
   font-size: 19px;
