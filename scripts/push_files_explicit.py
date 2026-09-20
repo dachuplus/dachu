@@ -19,18 +19,21 @@ REPO_NAME = "dachu"
 
 
 def _load_token():
-    """按优先级取 GITHUB_TOKEN：env → stdin（一次性）→ .env.local（即「数据中心」）。
+    """按优先级取 GITHUB_TOKEN：env → stdin（仅当管道确有数据）→ .env.local（即「数据中心」）。
     全程只在进程内存中使用，绝不打印明文。"""
     t = os.environ.get("GITHUB_TOKEN", "").strip()
     if t:
         return t
-    if not sys.stdin.isatty():
-        try:
+    # 仅在 stdin 是管道/重定向「且确有可读数据」时才读，避免在空管道上阻塞整个进程
+    # （曾经的 bug：无输入时 readline() 挂住，被上层 SIGTERM 杀掉 → exit 137）。
+    try:
+        import select
+        if not sys.stdin.isatty() and select.select([sys.stdin], [], [], 0)[0]:
             t = (sys.stdin.readline() or "").strip()
-        except Exception:
-            t = ""
-        if t:
-            return t
+            if t:
+                return t
+    except Exception:
+        pass
     env_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".env.local")
     try:
         with open(env_path, "r", encoding="utf-8") as fh:
