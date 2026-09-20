@@ -51,13 +51,16 @@ print(f"token: len={len(TOKEN)} prefix={TOKEN[:4]}")
 API = "https://api.github.com"
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # 脚本在 scripts/ 下，项目根是上一级
 
-# 本次需推送的文件（相对仓库根）——SignalPage 5 项优化
+# 本次需推送的文件（相对仓库根）——信号页游戏 Tab + 滚动条修复 + deploy 脚本
 FILES = [
     "src/pages/signal/SignalPage.vue",
-    "src/utils/api.js",
-    "scripts/fetch_jqr_indicators.py",
-    "scripts/build_style_factors.py",
-    ".github/workflows/update-style-factors.yml",
+    "src/style.css",
+    "src/components/games/MinesweeperGame.vue",
+    "src/components/games/Game2048.vue",
+    "src/components/games/GamesPanel.vue",
+    "scripts/deploy_pages.sh",
+    "public/articles-list.json",
+    "scripts/push_files_explicit.py",
 ]
 
 
