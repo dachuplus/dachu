@@ -19,13 +19,35 @@
       <GamesPanel />
     </div>
 
-    <!-- 影视二级 Tab：个人工具（媒体转换，由信号页迁入） -->
-    <div v-else-if="category === 'film'" class="cp-games">
-      <MediaTools />
+    <!-- 影视二级 Tab：影视观看榜（9+1电视剧评分框架）+ 个人工具 -->
+    <div v-else-if="category === 'film'">
+      <RankBoard
+        title="影视观看榜"
+        intro="精选影视作品，按「9+1 电视剧评分框架」评分：好老板 · 好故事 · 好团队 · 好演员 · 好制作 · 好宣发 · 好风口 · 好票房 · 好口碑，外加「好创新」。点击任意条目可展开十项明细。"
+        :items="FILM_RANK"
+        :dims="FILM_DIMS"
+        cat-label="体裁"
+        framework-name="9+1 电视剧评分框架"
+        framework-note="九个基础维度各 1-10 分、合计 90 分；「好创新」为加分项，最高 +10 分，总分上限 100 分。"
+      />
+      <div class="cp-subblock">
+        <h3 class="cp-subblock-title">个人工具</h3>
+        <MediaTools />
+      </div>
     </div>
 
-    <!-- 美食：暂不放内容 -->
-    <div v-else-if="category === 'food'" class="cp-placeholder">暂无内容</div>
+    <!-- 美食二级 Tab：中国大厨榜 · 上海（9+1美食评分框架） -->
+    <div v-else-if="category === 'food'">
+      <RankBoard
+        title="中国大厨榜 · 上海"
+        intro="100 家上海餐厅，按「9+1 美食评分框架」评分：好老板 · 好理念 · 好团队 · 好厨师 · 好食材 · 好环境 · 好地段 · 好营收 · 好口碑，外加「好创新」。点击任意条目可展开十项明细。"
+        :items="SH_RESTAURANTS"
+        :dims="CHEF_DIMS"
+        cat-label="菜系"
+        framework-name="9+1 美食评分框架"
+        framework-note="九个基础维度各 1-10 分、合计 90 分；「好创新」为加分项，最高 +10 分，总分上限 100 分。"
+      />
+    </div>
 
     <!-- 博客：文章列表 -->
     <template v-else>
@@ -85,6 +107,9 @@ import { useRoute } from 'vue-router'
 import { useAuth } from '../../composables/useAuth'
 import GamesPanel from '../../components/games/GamesPanel.vue'
 import MediaTools from '../../components/MediaTools.vue'
+import RankBoard from '../../components/rank/RankBoard.vue'
+import { FILM_RANK, FILM_DIMS } from '../../data/filmRank.js'
+import { SH_RESTAURANTS, CHEF_DIMS } from '../../data/shRestaurants.js'
 import { listArticles, deleteArticle, setArticlePinned, NETWORK_SLOW_MSG, isNetworkError } from '../../api/articles'
 import { confirm, toast } from '../../composables/useToast'
 
@@ -251,6 +276,8 @@ watch(() => route.fullPath, () => {
 }
 .cp-tab-list { display: flex; }
 .cp-games { margin-top: var(--space-sm); }
+.cp-subblock { margin-top: 28px; border-top: 1px solid var(--border); padding-top: 18px; }
+.cp-subblock-title { font-size: 18px; font-weight: 700; color: var(--text-primary); margin: 0 0 12px; }
 .cp-placeholder {
   padding: 40px 0;
   text-align: center;
