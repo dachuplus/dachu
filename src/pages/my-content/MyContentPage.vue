@@ -40,13 +40,19 @@
     <div v-else-if="category === 'food'">
       <RankBoard
         title="中国大厨榜 · 上海"
-        intro="100 家上海餐厅，按「9+1 美食评分框架」评分：好老板 · 好理念 · 好团队 · 好厨师 · 好食材 · 好环境 · 好地段 · 好营收 · 好口碑，外加「好创新」。点击任意条目可展开十项明细。"
-        :items="SH_RESTAURANTS"
+        :intro="`${CHEF_BOARD.length} 家上海餐厅，按「9+1 美食评分框架」评分：好老板 · 好理念 · 好团队 · 好厨师 · 好食材 · 好环境 · 好地段 · 好营收 · 好口碑，外加「好创新」。点击任意条目可展开十项明细。`"
+        :items="CHEF_BOARD"
         :dims="CHEF_DIMS"
         cat-label="菜系"
         framework-name="9+1 美食评分框架"
         framework-note="九个基础维度各 1-10 分、合计 90 分；「好创新」为加分项，最高 +10 分，总分上限 100 分。"
       />
+      <p class="cp-caveat">
+        评分口径：本榜为「编辑综合评分」，由统一评分标准生成，非官方数据、也非实测结果。
+        店名与所在区取自公开榜单（大众点评必吃榜 2017-2025 等，仅收录公开可溯源的门店）；
+        人均消费无法逐年核实，统一留空显示 <code>--</code>，不做估算；
+        菜系仅取来源明确标注者，其余归入「其他」，未作推断。
+      </p>
 
       <!-- 大众点评必吃榜 · 上海历年（2017-2025） -->
       <div class="cp-subblock">
@@ -121,9 +127,16 @@ import RankBoard from '../../components/rank/RankBoard.vue'
 import MustEatBoard from '../../components/rank/MustEatBoard.vue'
 import { FILM_RANK, FILM_DIMS } from '../../data/filmRank.js'
 import { SH_RESTAURANTS, CHEF_DIMS } from '../../data/shRestaurants.js'
+import { SH_RESTAURANTS_EXTRA } from '../../data/shRestaurantsExtra.js'
 import { MUST_EAT_SHANGHAI, MUST_EAT_SOURCES } from '../../data/mustEatShanghai.js'
 import { listArticles, deleteArticle, setArticlePinned, NETWORK_SLOW_MSG, isNetworkError } from '../../api/articles'
 import { confirm, toast } from '../../composables/useToast'
+
+/**
+ * 中国大厨榜：原始 100 家（品牌级精选）+ 扩展集（公开榜单可溯源门店，编辑综合评分）。
+ * 扩展集与主表已做品牌级去重，不会出现同一品牌两行。
+ */
+const CHEF_BOARD = [...SH_RESTAURANTS, ...SH_RESTAURANTS_EXTRA]
 
 const { isOwner, user } = useAuth()
 const route = useRoute()
@@ -290,6 +303,16 @@ watch(() => route.fullPath, () => {
 .cp-games { margin-top: var(--space-sm); }
 .cp-subblock { margin-top: 28px; border-top: 1px solid var(--border); padding-top: 18px; }
 .cp-subblock-title { font-size: 18px; font-weight: 700; color: var(--text-primary); margin: 0 0 12px; }
+.cp-caveat {
+  margin: 14px 0 0;
+  padding: 12px 14px;
+  border-left: 4px solid var(--brand);
+  background: var(--bg-body);
+  color: var(--text-secondary);
+  font-size: 13px;
+  line-height: 1.6;
+}
+.cp-caveat code { background: none; padding: 0 2px; font-size: 13px; }
 .cp-placeholder {
   padding: 40px 0;
   text-align: center;
