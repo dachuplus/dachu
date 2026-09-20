@@ -50,7 +50,10 @@ fi
 
 echo "==> 2/4 拷贝边缘函数 functions/ 到 dist/"
 rm -rf dist/functions
-cp -r functions dist/functions
+# _deepseek_key.js 含服务端密钥回退，沙箱 broker 会拦截直接 cp，
+# 改用 rsync 排除后写入空占位符；生产环境优先读取 EdgeOne 环境变量 DEEPSEEK_API_KEY。
+rsync -a --exclude='_deepseek_key.js' functions/ dist/functions/
+echo 'export const DEEPSEEK_API_KEY = ""' > dist/functions/api/_deepseek_key.js
 
 echo "==> 3/4 写入 dist/package.json（激活 Pages Functions 必需）"
 cat > dist/package.json <<'JSON'
