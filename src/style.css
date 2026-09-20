@@ -94,10 +94,6 @@ html, body {
   -webkit-tap-highlight-color: transparent;
   -webkit-font-smoothing: antialiased;
 }
-/* 信号页在桌面端不需要纵向滚动（由页面自身控制高度） */
-@media (min-width: 769px) {
-  body.signal-no-scroll { overflow-y: hidden; }
-}
 @media (min-width: 641px) {
   html, body { font-size: 19px; }
 }

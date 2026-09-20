@@ -293,11 +293,6 @@
       <p class="data-source">数据来源：公开网络（沪深300日线 / 全市场市盈率 / 新发基金），自建复合算法，仅供参考研究，不构成投资建议。</p>
       <p v-if="jqrCards.length === 0" class="data-source" style="color:#b95900">暂无特色指标数据。</p>
     </div>
-
-    <!-- ==================== 8. 个人工具 ==================== -->
-    <div v-if="activeTab === 'tools'">
-      <MediaTools />
-    </div>
   </div>
 </template>
 
@@ -311,7 +306,6 @@ import { fetchMacroData, fetchConfig, fetchIndexEva, fetchFactorScores, fetchSty
 import { COLORS } from '../../utils/echarts-theme'
 import { supabase } from '../../api/supabase'
 import HelpTip from '../../components/HelpTip.vue'
-import MediaTools from '../../components/MediaTools.vue'
 import JqrIndicator from '../../components/JqrIndicator.vue'
 
 // ===== Tab 结构 =====
@@ -323,28 +317,13 @@ const tabs = [
   { key: 'factor',   label: '风格因子' },
   { key: 'industry', label: '行业估值' },
   { key: 'jqr',      label: '特色指标' },
-  { key: 'tools',    label: '个人工具' },
 ]
 // ===== 标签页持久化（Req6）：刷新后保留浏览位置 =====
 const ACTIVE_TAB_KEY = 'af_signal_active_tab'
 const activeTab = ref(localStorage.getItem(ACTIVE_TAB_KEY) || 'overview')
 watch(activeTab, (t) => {
   try { localStorage.setItem(ACTIVE_TAB_KEY, t) } catch (e) {}
-  // 个人工具内容较短，桌面端隐藏右侧滚动条；其他 Tab 仍允许滚动
-  try {
-    if (t === 'tools') document.body.classList.add('signal-no-scroll')
-    else document.body.classList.remove('signal-no-scroll')
-  } catch (e) {}
 })
-
-// 初始化时同步一次滚动条状态
-onMounted(() => {
-  try {
-    if (activeTab.value === 'tools') document.body.classList.add('signal-no-scroll')
-    else document.body.classList.remove('signal-no-scroll')
-  } catch (e) {}
-})
-onUnmounted(() => { try { document.body.classList.remove('signal-no-scroll') } catch (e) {} })
 
 // ===== 周期 / 市场 筛选（Req1） =====
 const periodOptions = [

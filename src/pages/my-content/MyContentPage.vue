@@ -1,11 +1,5 @@
 <template>
   <div class="content-page">
-    <header class="cp-header">
-      <div class="cp-head-main">
-        <h1 class="cp-title">ALLFUND · 想法</h1>
-      </div>
-    </header>
-
     <!-- 二级分类导航：博客 / 影视 / 美食 / 游戏，右侧放「写文章」按钮 -->
     <div class="cp-tabs">
       <div class="cp-tab-list">
@@ -25,8 +19,13 @@
       <GamesPanel />
     </div>
 
-    <!-- 影视 / 美食：暂不放内容 -->
-    <div v-else-if="category === 'film' || category === 'food'" class="cp-placeholder">暂无内容</div>
+    <!-- 影视二级 Tab：个人工具（媒体转换，由信号页迁入） -->
+    <div v-else-if="category === 'film'" class="cp-games">
+      <MediaTools />
+    </div>
+
+    <!-- 美食：暂不放内容 -->
+    <div v-else-if="category === 'food'" class="cp-placeholder">暂无内容</div>
 
     <!-- 博客：文章列表 -->
     <template v-else>
@@ -85,6 +84,7 @@ import { ref, onMounted, onBeforeUnmount, watch, computed } from 'vue'
 import { useRoute } from 'vue-router'
 import { useAuth } from '../../composables/useAuth'
 import GamesPanel from '../../components/games/GamesPanel.vue'
+import MediaTools from '../../components/MediaTools.vue'
 import { listArticles, deleteArticle, setArticlePinned, NETWORK_SLOW_MSG, isNetworkError } from '../../api/articles'
 import { confirm, toast } from '../../composables/useToast'
 
@@ -230,25 +230,6 @@ watch(() => route.fullPath, () => {
   max-width: 680px;
   margin: 0 auto;
   padding: var(--space-md);
-}
-.cp-header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: var(--space-md);
-  margin-bottom: var(--space-lg);
-}
-.cp-title {
-  font-size: 28px;
-  font-weight: 700;
-  color: var(--text-primary);
-  margin: 0 0 4px;
-}
-.cp-subtitle {
-  font-size: 13px;
-  color: var(--text-secondary);
-  margin: 0;
-  line-height: 1.5;
 }
 .cp-new-btn {
   flex: none;

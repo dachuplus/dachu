@@ -54,10 +54,11 @@ print(f"token: len={len(TOKEN)} prefix={TOKEN[:4]}")
 API = "https://api.github.com"
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # 脚本在 scripts/ 下，项目根是上一级
 
-# 本次需推送的文件（相对仓库根）——想法页二级 Tab 重构：游戏从信号页迁入想法-游戏
+# 本次需推送的文件（相对仓库根）——个人工具由信号页迁入想法-影视；去掉想法页标题区
 FILES = [
     "src/pages/my-content/MyContentPage.vue",
     "src/pages/signal/SignalPage.vue",
+    "src/style.css",
     "public/articles-list.json",
     "scripts/push_files_explicit.py",
 ]
