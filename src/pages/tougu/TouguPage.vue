@@ -4,7 +4,7 @@
     <div class="tougu-header">
       <div class="header-left">
         <div class="header-title-row">
-          <span class="header-title">投顾产品精选</span>
+          <span class="header-title">投顾产品公开信息</span>
           <span class="help-icon-btn" @click="showHelp = true">?</span>
         </div>
         <span class="header-desc" v-if="updateTime">

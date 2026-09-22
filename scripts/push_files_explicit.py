@@ -55,14 +55,24 @@ API = "https://api.github.com"
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # 脚本在 scripts/ 下，项目根是上一级
 
 # 本次需推送的文件（相对仓库根）
-# 主题：私有下载通道加两道防御 —— ①地址必须改写到同源代理；②响应不得是网页（防 SPA 回退静默存成假 xlsx）
+# 主题：6 项合规整改 —— ②导出列去「评级」字样 ③删短周期（<3个月）评分列
+# ④导出频率改季度 ⑤方法页去「评级/优秀/良好」 ⑥评分页措辞合规化 ⑦投顾页去「精选」
 FILES = [
-    "src/api/downloads.js",
+    ".github/workflows/update-scores.yml",
+    "scripts/export_all_tables.py",
+    "scripts/export_fund_combined.py",
+    "src/api/data.js",
+    "src/pages/data-center/DataCenterPage.vue",
+    "src/pages/fund-detail/FundDetailPage.vue",
+    "src/pages/fund-rank/FundRankPage.vue",
+    "src/pages/tools/ToolsPage.vue",
+    "src/pages/tougu/TouguPage.vue",
+    "src/router/index.js",
     "scripts/push_files_explicit.py",
 ]
 
 # 需要从远端树中删除的路径（GitHub trees API 约定：sha=None 即删除）
-# 上一批已删除 public/downloads/index.json，本批无新增删除项。
+# 本批无删除项。
 DELETE_FILES = []
 
 

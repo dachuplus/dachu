@@ -107,7 +107,7 @@ async function fetchFund(code) {
 }
 
 function gradeText(g) {
-  return { green: '优秀', blue: '良好', orange: '中等', gray: '待观察' }[g] || '—'
+  return { green: '前20%', blue: '20%~50%', orange: '后50%', gray: '无数据' }[g] || '—'
 }
 
 function valueClass(v) {

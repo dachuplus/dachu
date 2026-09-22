@@ -50,14 +50,14 @@ HEADERS = {
 TABLES = {
     'fund_combined': {
         'name': '基金综合数据表',
-        'desc': '基金分类(t0/t1)、公司/规模/费率、收益(ytd/r1y/r3y/r5y)、风险指标(dd1y/sr1y)、持有人数、评分(k_all/score_grade/k0w~k10) — 所有数据核心合并表，19+ 周期评分全覆盖',
-        'source': '天天基金 FundGuideapi（收益率/分类）+ pingzhongdata（回撤/夏普/风险评级）+ rankhandler（货币基金收益）+ fundf10（公司/规模/费率）',
+        'desc': '基金分类(t0/t1)、公司/规模/费率、收益(ytd/r1y/r3y/r5y)、风险指标(dd1y/sr1y)、持有人数、评分(k_all/score_grade/k3m~k10) — 所有数据核心合并表，多周期评分覆盖',
+        'source': '天天基金 FundGuideapi（收益率/分类）+ pingzhongdata（回撤/夏普/风险指标）+ rankhandler（货币基金收益）+ fundf10（公司/规模/费率）',
         'update': '每日通过 GitHub Actions CI 自动更新（北京时间 21:30）',
         'scoring': True,
     },
     'fund_scores': {
         'name': '基金评分表（完整版）',
-        'desc': '每日更新的核心数据表：基金代码/名称/基金经理/管理人/分类/规模/费率 → 阶段收益(ytd/r0w~r10y/return_all) → 阶段回撤(dd1y~dd5y) → 阶段夏普(sr1y~sr5y) → 基金评分(k0w~k_all/score_grade)。按以上顺序排列。',
+        'desc': '每日更新的核心数据表：基金代码/名称/基金经理/管理人/分类/规模/费率 → 阶段收益(ytd/r0w~r10y/return_all) → 阶段回撤(dd1y~dd5y) → 阶段夏普(sr1y~sr5y) → 基金评分(k3m~k_all/score_grade)。按以上顺序排列。',
         'source': 'FundGuideapi（收益率/分类）+ pingzhongdata（回撤/夏普/基金经理）+ fund_combined（公司/规模/费率）+ rankhandler（货币基金/成立以来收益）',
         'update': '每日通过 GitHub Actions CI 自动更新（北京时间 21:30）',
         'scoring': True,
@@ -78,7 +78,7 @@ TABLES = {
     },
     'index_eva': {
         'name': '行业估值表（生产）',
-        'desc': '蛋卷指数估值数据：指数代码/名称/类型(宽基/策略/行业主题)/PE/PB/股息率/ROE/PE历史分位/PB历史分位/估值评级。网页指标信号页行业估值与生产表一致。',
+        'desc': '蛋卷指数估值数据：指数代码/名称/类型(宽基/策略/行业主题)/PE/PB/股息率/ROE/PE历史分位/PB历史分位/估值分档。网页指标信号页行业估值与生产表一致。',
         'source': '蛋卷基金 danjuanfunds.com（index_eva/dj 接口）',
         'update': '每日通过 GitHub Actions CI 自动更新（北京时间 21:30），先增量写入 index_eva_test 验证再同步生产',
         'scoring': False,
@@ -308,12 +308,17 @@ FUND_SCORES_COL_ORDER = [
     'ytd','r0w','r1m','r3m','r1y','r3y','r5y','r7y','r10y','return_all',
     'dd1y','dd2y','dd3y','dd5y',
     'sr1y','sr2y','sr3y','sr5y',
-    'k0w','k1m','k3m','k6m','k1','k2','k3','k5','k_all','score_grade',
+    'k3m','k6m','k1','k2','k3','k5','k_all','score_grade',
 ]
 COLUMN_ORDER = {
     'fund_scores': FUND_SCORES_COL_ORDER,
     'fund_scores_test': FUND_SCORES_COL_ORDER,
 }
+
+# 合规排除列：短周期（<3个月）评分列一律不出现在导出文件中。
+# 依据《证券投资基金评价业务管理暂行办法》（证监会令第64号）第十四条第(七)项：
+# 不得发布单一指标排名期间少于3个月的结果（含具有点击排序功能的网站数据列示）。
+EXCLUDE_COLS = {'k0w', 'k1m'}
 
 # 列名中英文映射（Excel 表头用中文）
 COLUMN_NAMES = {
@@ -347,8 +352,6 @@ COLUMN_NAMES = {
     'sr2y': '夏普比率2y',
     'sr3y': '夏普比率3y',
     'sr5y': '夏普比率5y',
-    'k0w': '评分_近1周',
-    'k1m': '评分_近1月',
     'k3m': '评分_近3月',
     'k6m': '评分_近6月',
     'k1': '评分_近1年',
@@ -358,7 +361,7 @@ COLUMN_NAMES = {
     'k7': '评分_近7年',
     'k10': '评分_近10年',
     'k_all': '综合评分',
-    'score_grade': '评级',
+    'score_grade': '分值档位',
     'daily_change': '日涨跌',
     'sg': '申购状态',
     'holders_count': '持有人数',
@@ -387,6 +390,9 @@ def export_to_excel(table_name, rows, output_path):
             columns.extend(extra)
         else:
             columns = list(rows[0].keys())
+        # 合规：剔除短周期评分列
+        if EXCLUDE_COLS:
+            columns = [c for c in columns if c not in EXCLUDE_COLS]
         # 使用中文表头（如有映射），否则用原始列名
         headers = [COLUMN_NAMES.get(c, c) for c in columns]
         ws.append(headers)
@@ -459,13 +465,13 @@ def export_to_excel(table_name, rows, output_path):
             ('算法版本', 'V7 — 收益 50% + 回撤 25% + 夏普 25%'),
             ('数据来源', 'FundGuideapi（阶段收益率 r0w~r5y）+ pingzhongdata（回撤 dd1y~dd5y、夏普 sr1y~sr5y）+ rankhandler（货币基金）'),
             ('百分位排名', '全市场基金按各指标降序排名，percentile = (1 - rank/(N-1)) × 100，范围 0~100'),
-            ('短周期 k0w/k1m/k3m/k6m', '仅用收益率百分位排名：k_short = ret_percentile'),
+            ('中短周期 k3m/k6m', '仅用收益率百分位排名：k_short = ret_percentile'),
             ('长周期 k1/k2/k3/k5', '三维度加权：k_long = 50% × ret_percentile + 25% × dd_percentile + 25% × sr_percentile'),
-            ('综合评分 k_all', 'k_all = (k0w×5 + k1m×5 + k3m×10 + k6m×15 + k1×20 + k2×20 + k3×15 + k5×10) / total_weight（仅有效周期参与）'),
-            ('评级 score_grade', '按 k_all 百分位分级：green(前20%) > blue(20%-50%) > orange(后50%) > gray(无数据)'),
+            ('综合评分 k_all', 'k_all = 各周期评分按权重加权平均（k3m:10%、k6m:15%、k1:20%、k2:20%、k3:15%、k5:10%，按有效周期权重归一化）'),
+            ('分值档位 score_grade', '按 k_all 百分位分档：green(前20%) > blue(20%-50%) > orange(后50%) > gray(无数据)'),
             ('回撤计算', 'dd_max = -max((peak - nav[i]) / peak) × 100，负数百分比（如 -15.23 表示最大回撤 15.23%）'),
             ('夏普计算', 'Sharpe = (E[Rdaily] - Rf) / σdaily × √250，无风险利率 Rf = 2%/年 = 0.02/250 = 0.00008'),
-            ('周期权重', 'k0w:5%, k1m:5%, k3m:10%, k6m:15%, k1:20%, k2:20%, k3:15%, k5:10%（总和=100，天然归一化）'),
+            ('周期权重', 'k3m:10%、k6m:15%、k1:20%、k2:20%、k3:15%、k5:10%（按有效周期权重归一化）'),
         ]
         
         for label, value in scoring_notes:

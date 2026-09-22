@@ -3,7 +3,7 @@
     <div class="card">
       <div class="card-title">选品集合</div>
       <div class="tool-grid">
-        <router-link to="/tools/tougu"       class="tool-item">投顾产品精选</router-link>
+        <router-link to="/tools/tougu"       class="tool-item">投顾产品公开信息</router-link>
         <router-link to="/tools/fund-rank"   class="tool-item">靠谱基金指数</router-link>
         <router-link to="/compare"           class="tool-item">基金对比</router-link>
         <router-link to="/calc"              class="tool-item">定投计算器</router-link>

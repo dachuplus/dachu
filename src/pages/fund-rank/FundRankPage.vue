@@ -378,8 +378,8 @@
         <span>更新时间：{{ meta.updateTime ? fmtUpdateTime(meta.updateTime) : (metaLoading ? '加载中...' : '暂无') }}</span>
       </p>
       <p class="bottom-line">数据来源：公开网络</p>
-      <p class="bottom-line">评分说明：靠谱指数评分为综合收益率、最大回撤、夏普比率、卡玛比率，信息比率，跟踪误差等指标，在全市场排名后加权计算。满分100分，分值越高表现越优秀。</p>
-      <p class="bottom-warning">风险提示：评分仅供娱乐，不可作为投资依据，不对任何因此而产生的风险负责。市场有风险，投资需谨慎。</p>
+      <p class="bottom-line">评分说明：靠谱指数评分基于公开净值数据，综合收益率、最大回撤、夏普比率、卡玛比率、信息比率、跟踪误差等指标，按百分位加权计算，取值 0~100 分。评分仅反映历史数据的相对位置，不代表未来表现。</p>
+      <p class="bottom-warning">风险提示：评分基于历史公开数据自动计算，不构成任何投资建议，不作为投资依据，亦不预测未来收益。市场有风险，投资需谨慎。</p>
     </div>
 
     <!-- 详情弹窗 -->
@@ -539,14 +539,14 @@
           <div class="help-body">
             <div class="help-section">
               <span class="help-desc">
-                靠谱指数综合考虑基金的收益率、最大回撤和夏普比率，在全市场中进行百分位排名后加权计算。满分100分，分值越高代表该周期内综合表现越优秀。
+                靠谱指数评分基于公开净值数据，综合基金的收益率、最大回撤、夏普比率等指标，按百分位加权计算，取值 0~100 分。评分仅反映该周期内历史数据的相对位置，不代表未来表现。
               </span>
               <span class="help-desc" style="margin-top:12px;font-weight:600;">
-                评分权重：收益排位 50% + 回撤排位 25% + 夏普排位 25%
+                评分权重：收益率 50% + 最大回撤 25% + 夏普比率 25%
               </span>
             </div>
             <div class="help-section">
-              <span class="help-section-label">颜色等级（全市场百分位渐变）</span>
+              <span class="help-section-label">颜色分区（百分位渐变）</span>
               <div class="gradient-legend">
                 <div class="gradient-bar"></div>
                 <div class="gradient-labels">
@@ -560,7 +560,7 @@
             <div class="help-section">
               <span class="help-section-label">参与条件</span>
               <span class="help-desc">
-                所有基金均参与评分排名（不再限制收益率>0）。评分基于全市场统一百分位排名，满分100分。
+                所有基金均参与评分（不再限制收益率>0）。评分按全样本统一百分位折算，取值 0~100 分。
               </span>
             </div>
             <div class="help-section">
@@ -623,9 +623,9 @@ const { isLoggedIn, portfolios } = useAuth()
 const { isFav, toggleFav } = useFavorites()
 
 // ========== 常量 ==========
+// 展示周期：仅保留 3 个月及以上的周期（合规：《证券投资基金评价业务管理暂行办法》第十四条第(七)项，
+// 不得发布单一指标排名期间少于 3 个月的结果，含具有点击排序功能的网站数据列示）。
 const periods = [
-  { key: 'k0w', label: '1周' },
-  { key: 'k1m', label: '1月' },
   { key: 'k3m', label: '3月' },
   { key: 'k6m', label: '6月' },
   { key: 'k1',  label: '1年' },

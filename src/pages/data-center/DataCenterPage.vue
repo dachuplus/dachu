@@ -692,7 +692,7 @@
           <strong>k<sub>long</sub> = 50% × ret_percentile + 25% × dd_percentile + 25% × sr_percentile</strong>
         </div>
         <div class="formula-note">
-          各维度独立在全市场排名，分别得到 0~100 的百分位得分，然后加权合成。
+          各维度分别按全样本折算为 0~100 的百分位得分，然后加权合成。
         </div>
       </div>
 
@@ -728,7 +728,7 @@
 
       <!-- 第三步 -->
       <h2 class="method-step-title">第三步：综合评分 k_all — 多周期加权汇总</h2>
-      <p>将 8 个周期的评分按时间加权合成一个综合评分，近期的权重更大、远期的权重更小：</p>
+      <p>将 8 个周期的评分按权重合成一个综合评分，以中长周期（1~3 年）为主要权重来源：</p>
 
       <div class="formula-box">
         <div class="formula-title">k_all 加权公式</div>
@@ -744,8 +744,8 @@
       <table class="field-table">
         <thead><tr><th>周期评分</th><th>对应收益</th><th>权重</th><th>组合维度</th><th>说明</th></tr></thead>
         <tbody>
-          <tr><td><code>k0w</code></td><td>近1周 (r0w)</td><td style="text-align:center">5%</td><td>收益</td><td>超短线动量信号</td></tr>
-          <tr><td><code>k1m</code></td><td>近1月 (r1m)</td><td style="text-align:center">5%</td><td>收益</td><td>短线动量信号</td></tr>
+          <tr><td><code>k0w</code></td><td>近1周 (r0w)</td><td style="text-align:center">5%</td><td>收益</td><td>仅内部加权，不对外展示</td></tr>
+          <tr><td><code>k1m</code></td><td>近1月 (r1m)</td><td style="text-align:center">5%</td><td>收益</td><td>仅内部加权，不对外展示</td></tr>
           <tr><td><code>k3m</code></td><td>近3月 (r3m)</td><td style="text-align:center">10%</td><td>收益</td><td>中线趋势</td></tr>
           <tr><td><code>k6m</code></td><td>近6月 (r6m)</td><td style="text-align:center">15%</td><td>收益</td><td>中长线趋势</td></tr>
           <tr><td><code>k1</code></td><td>近1年 (r1y)</td><td style="text-align:center"><strong>20%</strong></td><td>收益+回撤+夏普</td><td>核心长周期（权重最高）</td></tr>
@@ -756,8 +756,8 @@
       </table>
 
       <!-- 第四步 -->
-      <h2 class="method-step-title">第四步：评级分类（score_grade）— 全市场百分位分级</h2>
-      <p>将全市场所有有 k_all 的基金按得分从高到低排序，根据百分位分入四个等级：</p>
+      <h2 class="method-step-title">第四步：分值档位（score_grade）— 百分位分档</h2>
+      <p>将全样本中有 k_all 的基金按得分从高到低排序，根据百分位分入四个档位：</p>
 
       <div class="formula-box">
         <div class="formula-title">百分位计算公式</div>
@@ -767,14 +767,15 @@
       </div>
 
       <table class="field-table">
-        <thead><tr><th>百分位范围</th><th>评级</th><th>标签</th><th>含义</th><th>全市场占比</th></tr></thead>
+        <thead><tr><th>百分位范围</th><th>档位</th><th>区间标签</th><th>数量占比</th></tr></thead>
         <tbody>
-          <tr><td>pct ≥ 80</td><td><span class="grade-badge grade-green">green</span></td><td style="color:#00703c;font-weight:700">优秀</td><td>全市场前 20%</td><td>约 3,865 只 (18.7%)</td></tr>
-          <tr><td>50 ≤ pct &lt; 80</td><td><span class="grade-badge grade-blue">blue</span></td><td style="color:#1d70b8;font-weight:700">良好</td><td>全市场 20%~50%</td><td>约 5,798 只 (28.1%)</td></tr>
-          <tr><td>0 &lt; pct &lt; 50</td><td><span class="grade-badge grade-orange">orange</span></td><td style="color:#d4351c;font-weight:700">一般</td><td>全市场后 50%</td><td>约 9,660 只 (46.8%)</td></tr>
-          <tr><td>无 k_all</td><td><span class="grade-badge grade-gray">gray</span></td><td style="color:#6b7280;font-weight:700">无数据</td><td>数据不足无法评分</td><td>约 1,354 只 (6.5%)</td></tr>
+          <tr><td>pct ≥ 80</td><td><span class="grade-badge grade-green">green</span></td><td style="color:#00703c;font-weight:700">前 20%</td><td>约 3,865 只 (18.7%)</td></tr>
+          <tr><td>50 ≤ pct &lt; 80</td><td><span class="grade-badge grade-blue">blue</span></td><td style="color:#1d70b8;font-weight:700">20%~50%</td><td>约 5,798 只 (28.1%)</td></tr>
+          <tr><td>0 &lt; pct &lt; 50</td><td><span class="grade-badge grade-orange">orange</span></td><td style="color:#d4351c;font-weight:700">后 50%</td><td>约 9,660 只 (46.8%)</td></tr>
+          <tr><td>无 k_all</td><td><span class="grade-badge grade-gray">gray</span></td><td style="color:#6b7280;font-weight:700">无数据</td><td>约 1,354 只 (6.5%)</td></tr>
         </tbody>
       </table>
+      <p class="formula-note">合规口径：本页为内部方法说明。不对外展示任何期间少于 3 个月的排序/档位结果——导出的数据文件与页面列表均已剔除低于 3 个月的周期列，相关周期仅参与综合评分内部加权。</p>
 
       <!-- 第五步：完整数据流 -->
       <h2 class="method-step-title">完整数据流</h2>
@@ -788,7 +789,7 @@
           <div class="flow-arrow">→</div>
           <div class="flow-node">加权汇总<br>k_all</div>
           <div class="flow-arrow">→</div>
-          <div class="flow-node">百分位分级<br>score_grade</div>
+          <div class="flow-node">百分位分档<br>score_grade</div>
         </div>
         <div class="flow-row flow-row-aux">
           <div class="flow-node flow-node-aux">pingzhongdata<br><small>回撤(dd) + 夏普(sr)</small></div>
@@ -947,7 +948,7 @@
 
       <!-- pingzhongdata -->
       <div class="api-item">
-        <h3 class="api-name">3. pingzhongdata — 基金净值/风险评级数据接口</h3>
+        <h3 class="api-name">3. pingzhongdata — 基金净值/风险指标数据接口</h3>
         <table class="api-meta-table">
           <tr><td class="meta-label">URL</td><td><code>http://fund.eastmoney.com/pingzhongdata/{基金代码}.js</code></td></tr>
           <tr><td class="meta-label">方法</td><td>GET</td></tr>
@@ -1138,7 +1139,7 @@
         <table class="api-meta-table">
           <tr><td class="meta-label">URL</td><td><code>https://danjuanfunds.com/djapi/index_eva/dj</code></td></tr>
           <tr><td class="meta-label">方法</td><td>GET</td></tr>
-          <tr><td class="meta-label">用途</td><td>获取全市场指数估值数据，含 PE/PB/股息率/ROE/PEG + 低估/适中/高估评级</td></tr>
+          <tr><td class="meta-label">用途</td><td>获取全市场指数估值数据，含 PE/PB/股息率/ROE/PEG + 低估/适中/高估分档</td></tr>
         </table>
         <p class="api-subtitle">返回字段（data.items[]）</p>
         <table class="field-table">
@@ -1154,7 +1155,7 @@
             <tr><td><code>yeild</code></td><td>float</td><td>股息率</td></tr>
             <tr><td><code>roe</code></td><td>float</td><td>ROE</td></tr>
             <tr><td><code>peg</code></td><td>float</td><td>PEG</td></tr>
-            <tr><td><code>eva_type</code></td><td>string</td><td>估值评级：<code>valuation_low</code>（低估）/ <code>valuation_mid</code>（适中）/ <code>valuation_high</code>（高估）</td></tr>
+            <tr><td><code>eva_type</code></td><td>string</td><td>估值分档：<code>valuation_low</code>（低估）/ <code>valuation_mid</code>（适中）/ <code>valuation_high</code>（高估）</td></tr>
             <tr><td><code>date</code></td><td>string</td><td>数据日期</td></tr>
           </tbody>
         </table>
@@ -1309,13 +1310,13 @@
         <tbody>
           <tr><td>1</td><td>rankhandler API</td><td>基金排行（含货币型）</td><td>GET/POST</td></tr>
           <tr><td>2</td><td>FundGuideapi</td><td>基金分类 + 收益数据（5大类）</td><td>GET</td></tr>
-          <tr><td>3</td><td>pingzhongdata</td><td>净值历史/回撤/夏普/风险评级</td><td>GET</td></tr>
+          <tr><td>3</td><td>pingzhongdata</td><td>净值历史/回撤/夏普/风险指标</td><td>GET</td></tr>
           <tr><td>4</td><td>fundf10 (jbgk)</td><td>基金经理/管理人/分类/规模/费率/成立日期</td><td>GET</td></tr>
           <tr><td>5</td><td>fundf10 (tsdata)</td><td>夏普比率+标准差+风险等级（补充数据源）</td><td>GET</td></tr>
           <tr><td>6</td><td>GetBKDetailInfoNew (ZTJJ)</td><td>主题板块(行业/概念)各周期实时涨跌 + 排名</td><td>GET(JSONP)</td></tr>
           <tr><td>7</td><td>push2 API</td><td>申万行业板块实时行情</td><td>GET</td></tr>
           <tr><td>8</td><td>qt.gtimg.cn</td><td>指数实时行情</td><td>GET</td></tr>
-          <tr><td>9</td><td>danjuanfunds</td><td>指数估值评级</td><td>GET</td></tr>
+          <tr><td>9</td><td>danjuanfunds</td><td>指数估值分档</td><td>GET</td></tr>
           <tr><td>10</td><td>macro-data Edge Function</td><td>宏观指标（国债/Shibor/M2/CPI/PMI/沪深300估值，多源聚合）</td><td>GET</td></tr>
           <tr><td>11</td><td>akshare</td><td>上证指数历史日线</td><td>库调用</td></tr>
           <tr><td>12</td><td>Supabase</td><td>数据库 + SQL + 代理函数</td><td>REST/SQL</td></tr>
@@ -1530,8 +1531,8 @@ async function openUserDetail(row) {
 
 // 表定义
 const tables = [
-  { key: 'fund_combined', name: '基金综合数据表', desc: '基金分类(t0/t1)、详情(公司/规模/费率)、收益(ytd~r5y)、风险(dd1y/sr1y)、评分(k_all/score_grade/k0w~k10) — 核心合并表，20,860条', rows: 20860 },
-  { key: 'fund_scores', name: '基金评分表（完整版）', desc: '每日更新：基金代码/名称/基金经理/管理人/分类(一级+二级)/净值规模/份额规模/管理费率/托管费率/销售服务费率/成立日期 → 阶段收益(ytd~r10y/成立以来) → 阶段回撤(dd1y~dd5y) → 阶段夏普(sr1y~sr5y) → 基金评分(k0w~k_all/score_grade) → 资产配置(股票/债券/现金占比) → 规模变动(申购/赎回/净份额/总份额/净资产/变动率) → 持有人结构(机构/个人/内部持有比例)，58列完整数据', rows: 20860 },
+  { key: 'fund_combined', name: '基金综合数据表', desc: '基金分类(t0/t1)、详情(公司/规模/费率)、收益(ytd~r5y)、风险(dd1y/sr1y)、评分(k_all/score_grade/k3m~k10) — 核心合并表，20,860条', rows: 20860 },
+  { key: 'fund_scores', name: '基金评分表（完整版）', desc: '每日更新：基金代码/名称/基金经理/管理人/分类(一级+二级)/净值规模/份额规模/管理费率/托管费率/销售服务费率/成立日期 → 阶段收益(ytd~r10y/成立以来) → 阶段回撤(dd1y~dd5y) → 阶段夏普(sr1y~sr5y) → 基金评分(k3m~k_all/score_grade) → 资产配置(股票/债券/现金占比) → 规模变动(申购/赎回/净份额/总份额/净资产/变动率) → 持有人结构(机构/个人/内部持有比例)，58列完整数据', rows: 20860 },
   { key: 'fund_indices', name: '基金指数表（万得 Wind）', desc: '万得(Wind)基金指数：代码/名称/分类/类型 + 基本信息(发布日期/成分数量/加权方式/收益方式) + 市场表现(近1周~成立以来收益率) + 历年表现(年度收益) + 估值分析(总市值/流通市值/市盈率/净利率/股息率/Beta/波动率/换手率)，14条', rows: 14 },
   { key: 'fund_scores_test', name: '基金评分测试表', desc: 'fund_scores 的测试副本，结构与生产表一致。新抓取数据先写入此表验证无误后再导入生产环境', rows: 0 },
   { key: 'fund_quarterly_scores', name: '季度评分表', desc: '基于季报数据的各时间窗口评分（3m/6m/1y/2y/3y/5y/7y/10y）+ 原始季度数据JSON', rows: 18584 },
@@ -1603,7 +1604,9 @@ const visibleTables = computed(() => {
       return {
         key,
         name: meta.name || local.name || key,
-        desc: meta.desc || local.desc || '',
+        // 合规：表描述以「随代码打包的内置文案」优先，避免云端 index.json 里的旧文案
+        // （如含短周期评分列名）在合规整改后被重新展示出来。
+        desc: local.desc || meta.desc || '',
         rows: meta.rows != null ? meta.rows : (local.rows ?? null),
         sensitive: meta.sensitive != null ? meta.sensitive : (local.sensitive || false),
         size: meta.size_mb != null ? meta.size_mb : null,
@@ -2716,7 +2719,7 @@ watch(isOwner, (val) => {
   background: #e8e8e8; padding: 1px 4px; font-size: 12px;
 }
 
-/* 评级标签 */
+/* 档位标签 */
 .grade-badge {
   display: inline-block; padding: 2px 10px; font-size: 12px;
   font-weight: 700; font-family: monospace;

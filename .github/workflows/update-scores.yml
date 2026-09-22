@@ -43,6 +43,11 @@ on:
         required: false
         type: boolean
         default: false
+      force_export:
+        description: '强制导出数据下载中心文件（默认仅在每季度首月 1 日导出，合规要求）'
+        required: false
+        type: boolean
+        default: false
 
 env:
   PYTHONUNBUFFERED: '1'
@@ -369,6 +374,21 @@ jobs:
           echo "RUN_DATE=$(TZ=Asia/Shanghai date +%Y-%m-%d)" >> $GITHUB_ENV
           echo "job 开始时间已记录: $(date '+%Y-%m-%d %H:%M:%S')"
 
+      - name: 判断导出是否到期（合规：数据下载中心导出不高于每季度一次）
+        # 依据《证券投资基金评价业务管理暂行办法》第十四条：
+        #   (五) 评级更新间隔不得少于 3 个月；(八) 单一指标排名更新间隔不得少于 1 个月。
+        # 导出文件含综合评分与分值档位，故取更严口径：每季度首月 1 日导出一次。
+        # 日常流水线照旧每日更新数据库与站点，仅「对外导出/上传」按季度放行。
+        run: |
+          MONTH=$(TZ=Asia/Shanghai date +%-m)
+          DAY=$(TZ=Asia/Shanghai date +%-d)
+          DUE=false
+          if [ "$DAY" = "1" ] && { [ "$MONTH" = "1" ] || [ "$MONTH" = "4" ] || [ "$MONTH" = "7" ] || [ "$MONTH" = "10" ]; }; then
+            DUE=true
+          fi
+          echo "DUE=$DUE" >> $GITHUB_ENV
+          echo "导出闸门: DUE=$DUE（北京日期 $MONTH/$DAY）"
+
       - name: 步骤3d — 基金经理空值回填与--标记
         continue-on-error: true
         run: |
@@ -402,6 +422,7 @@ jobs:
           echo "校验完成: $(date '+%Y-%m-%d %H:%M:%S')"
 
       - name: 步骤5 — 导出 fund_combined.xlsx
+        if: ${{ env.DUE == 'true' || inputs.force_export }}
         run: |
           echo "============================================"
           echo "  步骤5: 导出 fund_combined.xlsx"
@@ -413,6 +434,7 @@ jobs:
           echo "导出完成: $(date '+%Y-%m-%d %H:%M:%S')"
 
       - name: 步骤5b — 导出全部数据表到数据中心
+        if: ${{ env.DUE == 'true' || inputs.force_export }}
         run: |
           echo "============================================"
           echo "  步骤5b: 自动发现并导出全部数据库表到 exports/downloads/"
@@ -436,6 +458,7 @@ jobs:
         # 数据下载中心自 2026-09-22 起改为「Supabase 私有桶 downloads + RLS 管理员门控」，
         # 不再把 xlsx 放进 public/ 由 EdgeOne 静态托管（那等于匿名可下载，是本次修复的漏洞）。
         # 上传失败不阻断评分流水线：只影响下载中心的新鲜度，不影响评分数据本身。
+        if: ${{ env.DUE == 'true' || inputs.force_export }}
         continue-on-error: true
         timeout-minutes: 20
         env:

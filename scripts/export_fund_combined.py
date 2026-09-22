@@ -38,7 +38,7 @@ COLS = [
     'dd1y', 'sr1y',
     'holders_count', 'total_manage_scale',
     'score_grade',
-    'k_all', 'k0w', 'k1m', 'k3m', 'k6m', 'k1', 'k2', 'k3', 'k5', 'k7', 'k10',
+    'k_all', 'k3m', 'k6m', 'k1', 'k2', 'k3', 'k5', 'k7', 'k10',
 ]
 COL_CN = {
     'c': '基金代码', 'name': '基金名称', 't0': '一级分类', 't1': '二级分类',
@@ -46,8 +46,8 @@ COL_CN = {
     'ytd': 'YTD(%)', 'r1y': '近1年(%)', 'r3y': '近3年(%)', 'r5y': '近5年(%)',
     'dd1y': '1年最大回撤(%)', 'sr1y': '1年夏普比率',
     'holders_count': '持有人数', 'total_manage_scale': '总管理规模(亿)',
-    'score_grade': '评级',
-    'k_all': '综合评分', 'k0w': '本周评分', 'k1m': '1月评分',
+    'score_grade': '分值档位',
+    'k_all': '综合评分',
     'k3m': '3月评分', 'k6m': '6月评分', 'k1': '1年评分', 'k2': '2年评分',
     'k3': '3年评分', 'k5': '5年评分', 'k7': '7年评分', 'k10': '10年评分',
 }
@@ -138,7 +138,7 @@ try:
             cell.border = thin_border
             cell.alignment = Alignment(horizontal='center')
         
-        # 按评级着色
+        # 按分值档位着色
         grade = row.get('score_grade', '')
         if grade == 'green':
             for ci in range(1, len(COLS) + 1):
