@@ -54,9 +54,9 @@ print(f"token: len={len(TOKEN)} prefix={TOKEN[:4]}")
 API = "https://api.github.com"
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # 脚本在 scripts/ 下，项目根是上一级
 
-# 本次需推送的文件（相对仓库根）——SEO 文案收尾：/tools 与 /tools/fund-rank 的 description/keywords 改写为「靠谱指数工具」
+# 本次需推送的文件（相对仓库根）——品牌区文案：App.vue 顶栏「靠谱指数-评分工具」→「靠谱指数 · 量化研究」
 FILES = [
-    "src/router/index.js",
+    "src/App.vue",
     "scripts/push_files_explicit.py",
 ]
 
