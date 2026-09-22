@@ -54,10 +54,13 @@ print(f"token: len={len(TOKEN)} prefix={TOKEN[:4]}")
 API = "https://api.github.com"
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # 脚本在 scripts/ 下，项目根是上一级
 
-# 本次需推送的文件（相对仓库根）——修 CI deploy job：改为「目录部署 + 补 functions/占位符/package.json/version.json/版本探测脚本」，
-# 使其与 scripts/deploy_pages.sh 完全一致，避免每夜 zip 部署把线上打坏。
+# 本次需推送的文件（相对仓库根）——导航与权限控制里的功能名：信号→策略、选基→选品（仅显示标签，key/路由/描述不动）
 FILES = [
-    ".github/workflows/update-scores.yml",
+    "src/App.vue",
+    "src/components/MobileTabBar.vue",
+    "src/composables/useAuth.js",
+    "src/composables/useFeatureFlags.js",
+    "src/router/index.js",
     "scripts/push_files_explicit.py",
 ]
 

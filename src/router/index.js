@@ -19,7 +19,7 @@ const routes = [
     meta: {
       tab: 'signal',
       feature: 'signal',
-      title: '信号',
+      title: '策略',
       description: '宏观指标信号：股债利差、FED模型、大类资产性价比、风格因子与行业估值，叠加上证指数走势，辅助判断市场位置。',
       keywords: '宏观指标,股债利差,FED模型,大类资产,风格因子,行业估值'
     }
@@ -50,7 +50,7 @@ const routes = [
     meta: {
       tab: 'tools',
       feature: 'fund-rank',
-      title: '选基',
+      title: '选品',
       description: '靠谱基金指数评分选基：覆盖全市场近2万只公募基金，按收益率、最大回撤、夏普比率综合排名，支持分类、份额、ETF/LOF 等多维筛选。',
       keywords: '靠谱基金指数,基金评分,基金排名,基金筛选,基金靠谱指数'
     }

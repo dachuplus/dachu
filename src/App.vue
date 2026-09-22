@@ -278,8 +278,8 @@ function handleRequestAccess() {
 /* ---- 全局金刚区 ---- */
 const quickLinks = [
   { path: '/content',          label: '想法', feature: 'content' },
-  { path: '/signal',           label: '信号', feature: 'signal' },
-  { path: '/tools/fund-rank',  label: '选基', feature: 'fund-rank' },
+  { path: '/signal',           label: '策略', feature: 'signal' },
+  { path: '/tools/fund-rank',  label: '选品', feature: 'fund-rank' },
   { path: '/portfolio',        label: '组合', feature: 'portfolio' },
 ]
 // 按全局开关过滤可见的金刚区入口（全部展示，权限由路由级 routeAllowed 拦截）
@@ -313,8 +313,8 @@ const currentFeatureLabel = computed(() => {
 const tabs = [
   { key: 'home',      path: '/',                 label: '首页',  feature: null },
   { key: 'content',   path: '/content',          label: '想法',  feature: 'content' },
-  { key: 'signal',    path: '/signal',           label: '信号',  feature: 'signal' },
-  { key: 'fundrank',  path: '/tools/fund-rank',  label: '选基',  feature: 'fund-rank' },
+  { key: 'signal',    path: '/signal',           label: '策略',  feature: 'signal' },
+  { key: 'fundrank',  path: '/tools/fund-rank',  label: '选品',  feature: 'fund-rank' },
   { key: 'portfolio', path: '/portfolio',        label: '组合',  feature: 'portfolio' },
   { key: 'profile',   path: '/profile',          label: '我的',  feature: null },
 ]
