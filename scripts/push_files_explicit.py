@@ -55,26 +55,15 @@ API = "https://api.github.com"
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # 脚本在 scripts/ 下，项目根是上一级
 
 # 本次需推送的文件（相对仓库根）
-# 主题：数据下载中心改为「Supabase 私有桶 downloads + RLS 管理员门控」，
-#       公网不再托管任何 xlsx（2026-09-22 修复匿名可下载漏洞）。
+# 主题：私有下载通道加两道防御 —— ①地址必须改写到同源代理；②响应不得是网页（防 SPA 回退静默存成假 xlsx）
 FILES = [
-    ".gitignore",
-    ".github/workflows/update-scores.yml",
-    "exports/downloads/index.json",
-    "run_recover.sh",
-    "scripts/deploy_pages.sh",
-    "scripts/export_all_tables.py",
-    "scripts/push_files_explicit.py",
-    "scripts/sql/downloads_bucket_private.sql",
-    "scripts/upload_downloads.py",
     "src/api/downloads.js",
-    "src/pages/data-center/DataCenterPage.vue",
+    "scripts/push_files_explicit.py",
 ]
 
 # 需要从远端树中删除的路径（GitHub trees API 约定：sha=None 即删除）
-DELETE_FILES = [
-    "public/downloads/index.json",
-]
+# 上一批已删除 public/downloads/index.json，本批无新增删除项。
+DELETE_FILES = []
 
 
 def api(method, path, body=None):

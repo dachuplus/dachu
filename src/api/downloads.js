@@ -21,7 +21,11 @@ const XLSX_MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.s
 
 function objectUrl(name) {
   const base = (import.meta.env.VITE_SUPABASE_URL || '').replace(/\/$/, '')
-  return rewriteSupabaseUrl(`${base}/storage/v1/object/downloads/${encodeURIComponent(name)}`)
+  if (!base) throw new Error('缺少 VITE_SUPABASE_URL 配置，无法定位下载地址')
+  const url = rewriteSupabaseUrl(`${base}/storage/v1/object/downloads/${encodeURIComponent(name)}`)
+  // 必须落到同源代理上；若改写失败会打到 dachu.me 自身，SPA 回退会返回网页而不是文件
+  if (url.indexOf('/api/sb-proxy') === -1) throw new Error('下载地址改写失败，请联系管理员')
+  return url
 }
 
 async function sessionToken() {
@@ -64,6 +68,11 @@ export async function fetchPrivateFile(name, onProgress) {
       throw new Error('当前账户没有下载权限（需管理员权限）')
     }
     throw new Error('下载失败（HTTP ' + resp.status + '）' + (detail ? '：' + detail : ''))
+  }
+
+  // 防「静默下到网页」：代理或函数异常时 SPA 回退会以 200 + text/html 返回，直接存盘会得到一个假 xlsx
+  if ((resp.headers.get('Content-Type') || '').toLowerCase().indexOf('text/html') !== -1) {
+    throw new Error('下载通道异常（返回了网页而非文件），请稍后重试')
   }
 
   const parts = []
