@@ -408,18 +408,18 @@ jobs:
           echo "  开始时间: $(date '+%Y-%m-%d %H:%M:%S')"
           echo "============================================"
           pip install openpyxl requests
-          python scripts/export_fund_combined.py --output public/fund_combined.xlsx
-          echo "文件大小: $(ls -lh public/fund_combined.xlsx | awk '{print $5}')"
+          python scripts/export_fund_combined.py --output exports/fund_combined.xlsx
+          echo "文件大小: $(ls -lh exports/fund_combined.xlsx | awk '{print $5}')"
           echo "导出完成: $(date '+%Y-%m-%d %H:%M:%S')"
 
       - name: 步骤5b — 导出全部数据表到数据中心
         run: |
           echo "============================================"
-          echo "  步骤5b: 自动发现并导出全部数据库表到 public/downloads/"
+          echo "  步骤5b: 自动发现并导出全部数据库表到 exports/downloads/"
           echo "  开始时间: $(date '+%Y-%m-%d %H:%M:%S')"
           echo "============================================"
-          mkdir -p public/downloads
-          python scripts/export_all_tables.py --output-dir public/downloads
+          mkdir -p exports/downloads
+          python scripts/export_all_tables.py --output-dir exports/downloads
           echo "导出完成: $(date '+%Y-%m-%d %H:%M:%S')"
 
       - name: 步骤5b2 — 导出已发布文章静态列表
@@ -430,6 +430,24 @@ jobs:
           echo "  开始时间: $(date '+%Y-%m-%d %H:%M:%S')"
           echo "============================================"
           python scripts/export_articles_list.py
+          echo "完成: $(date '+%Y-%m-%d %H:%M:%S')"
+
+      - name: 步骤5b3 — 上传导出文件到 Supabase 私有桶（管理员门控）
+        # 数据下载中心自 2026-09-22 起改为「Supabase 私有桶 downloads + RLS 管理员门控」，
+        # 不再把 xlsx 放进 public/ 由 EdgeOne 静态托管（那等于匿名可下载，是本次修复的漏洞）。
+        # 上传失败不阻断评分流水线：只影响下载中心的新鲜度，不影响评分数据本身。
+        continue-on-error: true
+        timeout-minutes: 20
+        env:
+          SUPABASE_MGMT_TOKEN: ${{ secrets.SUPABASE_MGMT_TOKEN }}
+          SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+        run: |
+          echo "============================================"
+          echo "  步骤5b3: 上传 exports/downloads/ → Supabase 私有桶 downloads"
+          echo "  开始时间: $(date '+%Y-%m-%d %H:%M:%S')"
+          echo "============================================"
+          # 不加 --prune：宁可有陈旧对象，也不要因某张表偶发导出失败而误删云端文件。
+          python scripts/upload_downloads.py --source-dir exports/downloads --bucket downloads
           echo "完成: $(date '+%Y-%m-%d %H:%M:%S')"
 
       - name: 步骤5c — 计算特色指标（恐惧贪婪/市场温度/基金发行热度）
@@ -604,14 +622,14 @@ jobs:
             "private": true
           }
           JSON
-          # 同步数据下载中心：评分流水线步骤5b 已导出 public/downloads/，必须复制进 dist 才会上线
-          if [ -d public/downloads ]; then
-            rm -rf dist/downloads
-            cp -r public/downloads dist/downloads
-            echo "已同步 $(ls public/downloads | wc -l) 个下载文件"
-          else
-            echo "public/downloads/ 不存在，跳过"
+          # 数据下载中心已改为 Supabase 私有桶（RLS 管理员门控），公网产物里不得再出现任何 xlsx。
+          # 这里显式清除并断言，避免仓库内残留旧文件被 npm run build 从 public/ 带进 dist/。
+          rm -rf dist/downloads dist/fund_combined.xlsx
+          if [ -d dist/downloads ] || [ -f dist/fund_combined.xlsx ]; then
+            echo "::error::dist 内仍存在下载文件，拒绝继续部署"
+            exit 1
           fi
+          echo "已确认 dist 内无公开下载文件"
           # 同步文章静态列表：步骤5b2 已生成，CDN 毫秒级返回，绕开慢链
           if [ -f public/articles-list.json ]; then
             cp public/articles-list.json dist/articles-list.json

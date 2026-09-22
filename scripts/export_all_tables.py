@@ -1,7 +1,11 @@
 #!/usr/bin/env python3
 """
-导出 Supabase 所有 public 表为 Excel 文件到 public/downloads/ 目录
-用法: python scripts/export_all_tables.py [--output-dir public/downloads]
+导出 Supabase 所有 public 表为 Excel 文件到 exports/downloads/ 目录
+用法: python scripts/export_all_tables.py [--output-dir exports/downloads]
+
+注意：导出目录**不能**放在 public/ 下。EdgeOne Pages 是静态托管，public/ 里的内容会被
+原样发布到公网，等于任何匿名访客都能下载全部数据（2026-09-22 修复的漏洞）。
+导出后由 scripts/upload_downloads.py 上传到 Supabase 私有桶 downloads（RLS 管理员门控）。
 """
 import os, sys, json, requests
 from datetime import datetime
@@ -29,8 +33,8 @@ else:
 import openpyxl
 from openpyxl.utils import get_column_letter
 
-# 输出目录
-OUTPUT_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'public', 'downloads')
+# 输出目录（默认 exports/downloads；绝不放 public/ —— 见文件头说明）
+OUTPUT_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'exports', 'downloads')
 if '--output-dir' in sys.argv:
     idx = sys.argv.index('--output-dir')
     OUTPUT_DIR = sys.argv[idx + 1]

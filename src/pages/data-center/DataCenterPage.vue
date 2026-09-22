@@ -538,8 +538,8 @@
     <!-- 未登录提示横幅 -->
     <div class="login-banner" v-if="!isLoggedIn">
       <div class="login-banner-text">
-        <strong>注册并登录后可下载全部数据</strong>
-        <span>ALLFUND 数据库每日自动更新，登录后即可导出每张表的 Excel 文件。</span>
+        <strong>数据库导出需管理员权限</strong>
+        <span>导出文件存放于私有存储，不对外公开；须先注册登录并经管理员开通权限后方可下载。</span>
       </div>
       <button class="btn-login" @click="showLogin()">登录 / 注册</button>
     </div>
@@ -596,15 +596,16 @@
             <td class="col-rows">{{ formatNum(t.rows) }}</td>
             <td class="col-size">{{ formatSizeMB(t.size) }}</td>
             <td class="col-action">
-              <a
-                v-if="t.downloadable"
-                :href="t.downloadUrl"
+              <button
+                v-if="canDownload"
+                type="button"
                 class="btn-download"
-                :download="t.key + '.xlsx'"
+                :disabled="downloadingKey !== null"
+                @click="downloadTable(t)"
               >
-                下载 Excel
-              </a>
-              <span v-else class="text-muted">请登录后下载</span>
+                {{ downloadingKey === t.key ? '下载中 ' + downloadPercent + '%' : '下载 Excel' }}
+              </button>
+              <span v-else class="text-muted">无下载权限</span>
             </td>
           </tr>
         </tbody>
@@ -614,6 +615,10 @@
         <p class="update-time" v-if="updateTime">
           数据更新时间：{{ updateTime }}
         </p>
+        <p class="download-hint">
+          全部导出文件存放于私有存储，仅「已注册登录 + 已开通管理员权限」的账户可下载，不对外公开。
+        </p>
+        <p class="download-error" v-if="downloadError">{{ downloadError }}</p>
       </div>
     </div>
 
@@ -1330,6 +1335,7 @@ import { useAuth, FEATURES, ADMIN_EMAIL } from '../../composables/useAuth'
 import { confirm, toast } from '../../composables/useToast'
 import { usePermissionRequests } from '../../composables/usePermissionRequests'
 import { useFeatureFlags, TOGGLEABLE_FEATURES } from '../../composables/useFeatureFlags'
+import { fetchPrivateFile, saveBlob } from '../../api/downloads'
 
 const { user, isLoggedIn, isOwner, showLogin, savePermissions, deletePermissions, blockUser } = useAuth()
 const permFeatures = FEATURES
@@ -1557,6 +1563,34 @@ const tables = [
   { key: 'stock_pk_picks', name: '股票PK选股表', desc: '各模型每期选出的股票及权重（基于 stock_scores 真实数据）', rows: 0 },
 ]
 
+// ——— 私有下载 ———
+// 导出文件存放在 Supabase Storage 私有桶 downloads，RLS 只放行「已登录 + 管理员权限」的账户；
+// 前端不再使用静态直链（那等于匿名可下载），改为带会话 JWT 经同源代理分片取回，见 src/api/downloads.js
+const canDownload = computed(() => isOwner.value)
+const downloadingKey = ref(null)
+const downloadPercent = ref(0)
+const downloadError = ref('')
+
+async function downloadTable(t) {
+  if (downloadingKey.value) return
+  downloadError.value = ''
+  downloadPercent.value = 0
+  downloadingKey.value = t.key
+  const filename = t.key + '.xlsx'
+  try {
+    const blob = await fetchPrivateFile(filename, (ratio) => {
+      downloadPercent.value = Math.round(ratio * 100)
+    })
+    saveBlob(blob, filename)
+    downloadPercent.value = 100
+  } catch (e) {
+    downloadError.value = filename + '：' + ((e && e.message) || '下载失败')
+    console.error('[data-center] download failed', filename, e)
+  } finally {
+    downloadingKey.value = null
+  }
+}
+
 const visibleTables = computed(() => {
   const idx = tableData.value || {}
   const idxKeys = Object.keys(idx)
@@ -1579,11 +1613,8 @@ const visibleTables = computed(() => {
     // 索引文件未加载时回退到内置表清单
     base = tables.map(t => ({ ...t, size: null }))
   }
-  return base.map(t => ({
-    ...t,
-    downloadable: isLoggedIn.value,
-    downloadUrl: `/downloads/${t.key}.xlsx`,
-  }))
+  // 下载权限不再挂在每行上：统一由 canDownload（= 管理员）控制，字节流由私有桶按会话授权返回
+  return base
 })
 
 function formatNum(n) {
@@ -1741,14 +1772,13 @@ function stepView(log) {
 
 async function loadIndex() {
   try {
-    const resp = await fetch('/downloads/index.json?' + Date.now())
-    if (resp.ok) {
-      const data = await resp.json()
-      tableData.value = data.tables || {}
-      updateTime.value = data.updated_at ? new Date(data.updated_at).toLocaleString('zh-CN') : ''
-    }
+    // index.json 与各表 xlsx 一同存放在私有桶 downloads，同样需要管理员权限的会话才能读取
+    const blob = await fetchPrivateFile('index.json')
+    const data = JSON.parse(await blob.text())
+    tableData.value = data.tables || {}
+    updateTime.value = data.updated_at ? new Date(data.updated_at).toLocaleString('zh-CN') : ''
   } catch (e) {
-    console.log('加载索引文件失败，使用默认值')
+    console.log('加载索引文件失败，使用默认值', e)
   }
 }
 
@@ -2239,6 +2269,9 @@ watch(isOwner, (val) => {
   }
   if (val) {
     loadPasswordInfo()
+    // onMounted 时 auth 会话可能尚未恢复，首次拉取 index.json 会被判「未登录」；
+    // 权限就绪后补拉一次，确保表清单 / 行数 / 更新时间完整。
+    loadIndex()
   }
 })
 </script>
@@ -2369,6 +2402,18 @@ watch(isOwner, (val) => {
 
 .table-footer { margin-top: var(--space-md); }
 .update-time { font-size: 14px; color: var(--text-secondary); margin: 0; }
+
+/* 私有下载说明与错误提示 */
+.download-hint {
+  font-size: 13px;
+  color: var(--text-secondary);
+  margin: var(--space-xs, 4px) 0 0;
+}
+.download-error {
+  font-size: 13px;
+  color: #d4351c;
+  margin: var(--space-xs, 4px) 0 0;
+}
 
 /* ETL 简报 */
 .brief-footer {

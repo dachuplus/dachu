@@ -64,16 +64,13 @@ cat > dist/package.json <<'JSON'
 }
 JSON
 
-echo "==> 3.5/4 同步数据下载中心 public/downloads/ → dist/downloads/"
-# CI 评分流水线的 export_all_tables.py 会把最新 xlsx 写到 public/downloads/，
-# 但 EdgeOne 实际部署的是 dist/，必须在此复制，否则下载中心永远停在旧版本（详见 2026-09-02 故障）。
-if [ -d public/downloads ]; then
-  rm -rf dist/downloads
-  cp -r public/downloads dist/downloads
-  echo "已同步 $(ls public/downloads | wc -l | tr -d ' ') 个下载文件到 dist/downloads/"
-else
-  echo "public/downloads/ 不存在，跳过（下载中心沿用既有文件）"
-fi
+echo "==> 3.5/4 确保下载文件不进公网产物（dist/downloads 已下线）"
+# 2026-09-22 起：数据下载中心改为「Supabase 私有桶 downloads + RLS 管理员门控」。
+# 原因：EdgeOne Pages 是静态托管，会绕过前端路由守卫，dist/downloads/*.xlsx 与根目录
+#       fund_combined.xlsx 任何人都能直接 curl 到（曾实测匿名 200）。
+# 这里显式清除历史遗留产物，防止旧文件被一并上传；真正下发文件走签名 URL。
+rm -rf dist/downloads dist/fund_combined.xlsx
+echo "已清除 dist/downloads 与 dist/fund_combined.xlsx（下载文件改走 Supabase 私有桶）"
 
 echo "==> 3.6/4 同步文章静态列表 public/articles-list.json → dist/articles-list.json"
 # Vite 不会自动 copy 根 public/ 中未被源码 import 的文件，必须手动复制

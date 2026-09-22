@@ -80,9 +80,9 @@ echo "STEP5_020039=$R39" >> "$SUMMARY"
 # ---- STEP 6: export xlsx ----
 log "=== STEP6 export ==="
 $PY -m pip install openpyxl >/dev/null 2>&1 || true
-BEFORE=$(ls -la public/downloads/fund_scores.xlsx public/downloads/fund_combined.xlsx 2>/dev/null | awk '{print $5, $9}')
+BEFORE=$(ls -la exports/downloads/fund_scores.xlsx exports/downloads/fund_combined.xlsx 2>/dev/null | awk '{print $5, $9}')
 if $PY scripts/export_all_tables.py 2>&1 | tee -a "$LOG"; then
-  AFTER=$(ls -la public/downloads/fund_scores.xlsx public/downloads/fund_combined.xlsx 2>/dev/null | awk '{print $5, $9}')
+  AFTER=$(ls -la exports/downloads/fund_scores.xlsx exports/downloads/fund_combined.xlsx 2>/dev/null | awk '{print $5, $9}')
   echo "STEP6=OK" >> "$SUMMARY"
   log "export OK"
   log "before: $BEFORE"
