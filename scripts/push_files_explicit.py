@@ -54,11 +54,8 @@ print(f"token: len={len(TOKEN)} prefix={TOKEN[:4]}")
 API = "https://api.github.com"
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # 脚本在 scripts/ 下，项目根是上一级
 
-# 本次需推送的文件（相对仓库根）——功能名 选基→选品 的遗留文案收尾：工具集合页标题+路由标题、自选/个人中心的「去选基页」链接文案
+# 本次需推送的文件（相对仓库根）——SEO 文案收尾：/tools 与 /tools/fund-rank 的 description/keywords 改写为「靠谱指数工具」
 FILES = [
-    "src/pages/tools/ToolsPage.vue",
-    "src/pages/watchlist/WatchlistPage.vue",
-    "src/pages/profile/ProfilePage.vue",
     "src/router/index.js",
     "scripts/push_files_explicit.py",
 ]
