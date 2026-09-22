@@ -29,7 +29,7 @@ const routes = [
     component: () => import('../pages/tools/ToolsPage.vue'),
     meta: {
       tab: 'tools',
-      title: '选基',
+      title: '选品',
       description: 'ALLFUND 投资选基集：靠谱基金指数评分、投顾产品精选、智能组合与数据中心的入口。',
       keywords: '基金选基,基金评分,投顾产品,智能组合'
     }
