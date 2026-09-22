@@ -591,8 +591,19 @@ jobs:
           echo "  步骤7: 打包并部署到 EdgeOne Pages"
           echo "============================================"
           rm -rf dist/functions
-          cp -r functions dist/functions
-          echo '{"name":"dachu-pages-functions","version":"1.0.0","private":true}' > dist/package.json
+          # _deepseek_key.js 被 .gitignore 排除（CI 检出后不存在），必须写空占位符，
+          # 否则边缘函数包缺文件 → Functions 构建失败 → /api/* 回落 SPA 回退。
+          # 生产环境优先读取 EdgeOne 环境变量 DEEPSEEK_API_KEY（与 scripts/deploy_pages.sh 一致）。
+          rsync -a --exclude='_deepseek_key.js' functions/ dist/functions/
+          echo 'export const DEEPSEEK_API_KEY = ""' > dist/functions/api/_deepseek_key.js
+          # dist/package.json 是 EdgeOne 激活 Pages Functions 的必要条件之一（与 deploy_pages.sh 步骤 3.4 一致）
+          cat > dist/package.json <<'JSON'
+          {
+            "name": "dachu-pages-functions",
+            "version": "1.0.0",
+            "private": true
+          }
+          JSON
           # 同步数据下载中心：评分流水线步骤5b 已导出 public/downloads/，必须复制进 dist 才会上线
           if [ -d public/downloads ]; then
             rm -rf dist/downloads
@@ -608,9 +619,38 @@ jobs:
           else
             echo "public/articles-list.json 不存在，跳过（运行时��边缘函数兜底）"
           fi
-          rm -f dist.zip
-          cd dist && zip -r ../dist.zip . && cd ..
-          npx edgeone pages deploy dist.zip -n dachu -a overseas -t "$EDGEONE_PAGES_API_TOKEN"
+          # 注入版本探测 inline script（与 scripts/deploy_pages.sh 步骤 3.7 完全一致）
+          python3 - <<'PY'
+          import re, sys
+          path = 'dist/index.html'
+          with open(path, 'r', encoding='utf-8') as f:
+              content = f.read()
+          script = '<script>(function(){try{var K="dachu_app_version",x=new XMLHttpRequest();x.open("GET","/version.json?_="+Date.now(),false);x.send();if(x.status!==200)return;var d=JSON.parse(x.responseText);if(!d||!d.h)return;var s=localStorage.getItem(K);if(s&&s!==d.h){localStorage.setItem(K,d.h);window.location.reload();}else if(!s){localStorage.setItem(K,d.h);}}catch(e){}})();</script>'
+          new_content, n = re.subn(
+              r'(<script type="module"[^>]*src="/assets/index-[^"]+\.js")',
+              script + r'\1',
+              content,
+              count=1,
+          )
+          if n == 0:
+              print('未找到 <script type="module" 插入点，跳过 inline script 注入')
+              sys.exit(1)
+          with open(path, 'w', encoding='utf-8') as f:
+              f.write(new_content)
+          print('已注入版本探测 inline script (替换次数=%d)' % n)
+          PY
+          # 写 version.json：hash 取 index.html 真正引用的主 chunk（与 deploy_pages.sh 步骤 3.8 一致）
+          MAIN_CHUNK=$(grep -oE '/assets/index-[a-zA-Z0-9_.-]+\.js' dist/index.html 2>/dev/null | head -1 | sed -E 's|.*/index-([^.]+)\.js$|\1|')
+          if [ -n "$MAIN_CHUNK" ]; then
+            BUILD_TS=$(date +%s)
+            printf '{"h":"%s","t":%s}\n' "$MAIN_CHUNK" "$BUILD_TS" > dist/version.json
+            echo "已写入 version.json (hash=$MAIN_CHUNK, t=$BUILD_TS)"
+          else
+            echo "dist/index.html 中未找到 index-*.js，跳过 version.json"
+          fi
+          # 部署「文件夹」./dist（而非 zip）：zip 通道不可靠地激活 Pages Functions
+          # （见 scripts/deploy_pages.sh 头部说明）；同时钉死 edgeone 1.6.17，禁止 npx 拉最新版。
+          npx edgeone@1.6.17 pages deploy ./dist -n dachu -a overseas -t "$EDGEONE_PAGES_API_TOKEN"
           echo "部署完成: $(date '+%Y-%m-%d %H:%M:%S')"
 
       - name: 部署通知

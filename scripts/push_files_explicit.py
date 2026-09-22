@@ -54,10 +54,10 @@ print(f"token: len={len(TOKEN)} prefix={TOKEN[:4]}")
 API = "https://api.github.com"
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # 脚本在 scripts/ 下，项目根是上一级
 
-# 本次需推送的文件（相对仓库根）——榜单检索框改为独占一行的满宽样式（大厨榜 / 必吃榜 / 影视榜共用 RankBoard 与 MustEatBoard）
+# 本次需推送的文件（相对仓库根）——修 CI deploy job：改为「目录部署 + 补 functions/占位符/package.json/version.json/版本探测脚本」，
+# 使其与 scripts/deploy_pages.sh 完全一致，避免每夜 zip 部署把线上打坏。
 FILES = [
-    "src/components/rank/RankBoard.vue",
-    "src/components/rank/MustEatBoard.vue",
+    ".github/workflows/update-scores.yml",
     "scripts/push_files_explicit.py",
 ]
 
