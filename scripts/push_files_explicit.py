@@ -55,19 +55,12 @@ API = "https://api.github.com"
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # 脚本在 scripts/ 下，项目根是上一级
 
 # 本次需推送的文件（相对仓库根）
-# 主题：6 项合规整改 —— ②导出列去「评级」字样 ③删短周期（<3个月）评分列
-# ④导出频率改季度 ⑤方法页去「评级/优秀/良好」 ⑥评分页措辞合规化 ⑦投顾页去「精选」
+# 主题：保留下载中心每日 Excel 同步（撤销合规改季度的 DUE 闸门），并禁用 CI 自动站点部署
+# 依据：用户 2026-09-23 确认「每天把 Excel 同步到下载中心的功能需要保留，管理员每日下载验证数据准确性」；
+# 下载中心为 Supabase 私有桶 + RLS 管理员门控（非公开），依《暂行办法》第二条第二款豁免，
+# 每日导出合规。CI 站点部署（deploy job）违反「GitHub 绝不负责部署」铁律，故禁用。
 FILES = [
     ".github/workflows/update-scores.yml",
-    "scripts/export_all_tables.py",
-    "scripts/export_fund_combined.py",
-    "src/api/data.js",
-    "src/pages/data-center/DataCenterPage.vue",
-    "src/pages/fund-detail/FundDetailPage.vue",
-    "src/pages/fund-rank/FundRankPage.vue",
-    "src/pages/tools/ToolsPage.vue",
-    "src/pages/tougu/TouguPage.vue",
-    "src/router/index.js",
     "scripts/push_files_explicit.py",
 ]
 
