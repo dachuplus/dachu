@@ -203,8 +203,8 @@
 
         <div class="vd-title">v4.0.1 · 2026-09-24（当前线上）</div>
         <div class="vd-row"><span class="vd-key">package.json</span><span class="vd-val"><code>version: 4.0.1</code></span></div>
-        <div class="vd-row"><span class="vd-key">EdgeOne 部署</span><span class="vd-val">dachu.me，部署 ID <code>dp2xbjlgftxt</code>，入口 chunk <code>index-DmCpd01h.js</code>（version.json hash <code>DmCpd01h</code>）</span></div>
-        <div class="vd-row"><span class="vd-key">GitHub Commit</span><span class="vd-val"><code>337e165c9c454114e399c724d935af854576a75c</code></span></div>
+        <div class="vd-row"><span class="vd-key">EdgeOne 部署</span><span class="vd-val">dachu.me，部署 ID <code>dplcqmcgiasf</code>，入口 chunk <code>index-C4m60wVk.js</code>（version.json hash <code>C4m60wVk</code>）</span></div>
+        <div class="vd-row"><span class="vd-key">GitHub Commit</span><span class="vd-val"><code>e9d3c9f7c2ba1448bcdb7bd013d683d5ba6798f8</code></span></div>
         <div class="vd-row"><span class="vd-key">距上一版本</span><span class="vd-val">1 个 commit（v4.0 → v4.0.1）</span></div>
         <div class="vd-row">
           <span class="vd-key">主要变更</span>
