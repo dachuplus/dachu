@@ -1,40 +1,38 @@
 #!/usr/bin/env python3
-"""显式推送指定文件到 GitHub main（绕过 git status 差异检测）。
+"""全量同步本地改动到 GitHub main（云端备份，逐字节一致）。
 
-背景：本地 git 索引(HEAD=b8bd927) 与 GitHub main(d600655b) 不同步 ——
-权限墙代码在本地 HEAD 里一直存在，9/9 那次删除只是「未提交的工作区删除」
-却被同步到了 GitHub。因此本地 checkout 恢复后，权限墙文件相对本地 HEAD
-是 CLEAN 的，`git status` 检测不到，dachu_push_via_api.py 不会推送它们。
-本脚本直接按路径列表读取本地文件内容并创建 commit，强制覆盖远端。
+默认自动对账：比对「本地工作树」与「GitHub 当前 HEAD 树」，
+自动计算 新增 / 修改 / 删除 项并一次性推上去。
+- 已跟踪文件的改动 + 未跟踪且未被 .gitignore 忽略的文件，全部纳入。
+- .env.local / node_modules / dist 等因 .gitignore 天然排除，不会误推。
+- 删除：本地已删但 GitHub 树中仍存在的路径，以 sha=None 从树中移除。
+
+可选限制范围：设环境变量 PUSH_FILES="a.vue,b.js"（逗号分隔，相对仓库根）
+则只同步这些文件，其余不动。
+
+注意：本脚本用 api.github.com REST 直接建 commit，不依赖 git 协议
+（沙箱里 github.com 不可达）。base 永远取 GitHub 当前 HEAD，保证 fast-forward。
 """
 import os
 import sys
 import json
 import subprocess
+import time
 from urllib.request import Request, urlopen
 from urllib.error import HTTPError
 
 REPO_OWNER = "dachuplus"
 REPO_NAME = "dachu"
 
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
 
 def _load_token():
-    """按优先级取 GITHUB_TOKEN：env → stdin（仅当管道确有数据）→ .env.local（即「数据中心」）。
-    全程只在进程内存中使用，绝不打印明文。"""
+    """按优先级取 GITHUB_TOKEN：env → .env.local（即「数据中心」）。绝不打印明文。"""
     t = os.environ.get("GITHUB_TOKEN", "").strip()
     if t:
         return t
-    # 仅在 stdin 是管道/重定向「且确有可读数据」时才读，避免在空管道上阻塞整个进程
-    # （曾经的 bug：无输入时 readline() 挂住，被上层 SIGTERM 杀掉 → exit 137）。
-    try:
-        import select
-        if not sys.stdin.isatty() and select.select([sys.stdin], [], [], 0)[0]:
-            t = (sys.stdin.readline() or "").strip()
-            if t:
-                return t
-    except Exception:
-        pass
-    env_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".env.local")
+    env_path = os.path.join(ROOT, ".env.local")
     try:
         with open(env_path, "r", encoding="utf-8") as fh:
             for line in fh:
@@ -48,89 +46,153 @@ def _load_token():
 
 TOKEN = _load_token()
 if not TOKEN:
-    sys.exit("缺少 GITHUB_TOKEN（env / stdin / .env.local 均未找到）")
+    sys.exit("缺少 GITHUB_TOKEN（env / .env.local 均未找到）")
 print(f"token: len={len(TOKEN)} prefix={TOKEN[:4]}")
 
 API = "https://api.github.com"
-ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # 脚本在 scripts/ 下，项目根是上一级
-
-# 本次需推送的文件（相对仓库根）
-# 主题：保留下载中心每日 Excel 同步（撤销合规改季度的 DUE 闸门），并禁用 CI 自动站点部署
-# 依据：用户 2026-09-23 确认「每天把 Excel 同步到下载中心的功能需要保留，管理员每日下载验证数据准确性」；
-# 下载中心为 Supabase 私有桶 + RLS 管理员门控（非公开），依《暂行办法》第二条第二款豁免，
-# 每日导出合规。CI 站点部署（deploy job）违反「GitHub 绝不负责部署」铁律，故禁用。
-FILES = [
-    ".github/workflows/update-scores.yml",
-    "scripts/push_files_explicit.py",
-]
-
-# 需要从远端树中删除的路径（GitHub trees API 约定：sha=None 即删除）
-# 本批无删除项。
-DELETE_FILES = []
 
 
 def api(method, path, body=None):
+    """带退避重试的 GitHub REST 调用。覆盖代理偶发抖动（伪 400/502/503/504、SSL EOF）。"""
     url = f"{API}{path}"
     headers = {
         "Authorization": f"token {TOKEN}",
         "Accept": "application/vnd.github.v3+json",
         "Content-Type": "application/json",
     }
-    data = json.dumps(body).encode() if body is not None else None
+    data = json.dumps(body, ensure_ascii=False).encode() if body is not None else None
     req = Request(url, data=data, headers=headers, method=method)
-    try:
-        with urlopen(req, timeout=60) as r:
-            raw = r.read().decode()
-            return json.loads(raw) if raw else None
-    except HTTPError as e:
-        print(f"  API error {e.code}: {e.read().decode()[:300]}")
-        return None
+    last = None
+    transient = {400, 502, 503, 504}
+    for attempt in range(4):
+        try:
+            with urlopen(req, timeout=60) as r:
+                raw = r.read().decode()
+                return json.loads(raw) if raw else None
+        except HTTPError as e:
+            last = e
+            if e.code in transient and attempt < 3:
+                print(f"  ⚠ 重试({attempt + 1}/4) {method} {path}: HTTP {e.code}")
+                time.sleep(1.5 * (attempt + 1))
+                continue
+            print(f"  API error {e.code}: {e.read().decode()[:300]}")
+            return None
+        except Exception as e:  # 代理偶发卡 SSL EOF / tunnel 中断
+            last = e
+            if attempt < 3:
+                print(f"  ⚠ 重试({attempt + 1}/4) {method} {path}: {e}")
+                time.sleep(1.5 * (attempt + 1))
+    print(f"  ✗ 最终失败 {method} {path}: {last}")
+    return None
+
+
+def _git(*args):
+    return subprocess.run(["git", "-C", ROOT] + list(args),
+                          capture_output=True, text=True).stdout
+
+
+def local_file_set():
+    """本地应纳入的文件集合（相对仓库根）：已跟踪 + 未跟踪且未被忽略。"""
+    files = set()
+    # 已跟踪
+    for p in _git("ls-files").splitlines():
+        if p.strip():
+            files.add(p.strip())
+    # 未跟踪且未被忽略（git status 已按 .gitignore 过滤；!! 为被忽略，跳过）
+    for line in _git("status", "--porcelain", "--untracked-files=all").splitlines():
+        st = line[:2]
+        path = line[3:].strip()
+        if not path or st == "!!":
+            continue
+        files.add(path)
+    return files
+
+
+def blob_sha_local(rel):
+    """本地文件的 git blob sha（与 GitHub 存储口径一致）。"""
+    return _git("hash-object", rel).strip()
+
+
+def get_gh_head():
+    ref = api("GET", f"/repos/{REPO_OWNER}/{REPO_NAME}/git/ref/heads/main")
+    if not ref:
+        sys.exit("无法获取 main ref")
+    sha = ref["object"]["sha"]
+    commit = api("GET", f"/repos/{REPO_OWNER}/{REPO_NAME}/git/commits/{sha}")
+    return sha, commit["tree"]["sha"]
+
+
+def get_gh_tree(tree_sha):
+    """返回 {path: sha}（递归）。"""
+    tree = api("GET", f"/repos/{REPO_OWNER}/{REPO_NAME}/git/trees/{tree_sha}?recursive=1")
+    if not tree:
+        sys.exit("无法获取 GitHub 树")
+    if tree.get("truncated"):
+        print("  ⚠ 树被截断，超大仓库请分段处理")
+    return {e["path"]: e["sha"] for e in tree.get("tree", []) if e["type"] == "blob"}
 
 
 def main():
-    msg = sys.argv[1] if len(sys.argv) > 1 else "signal: 5项优化(资产配置/股债/大宗商品主力合约/行业估值右对齐/巴菲特指标)"
-    print(f"显式推送 {len(FILES)} 个文件到 {REPO_OWNER}/{REPO_NAME}")
+    msg = sys.argv[1] if len(sys.argv) > 1 else "chore: 同步本地改动到 GitHub（云端备份）"
+    only = os.environ.get("PUSH_FILES")
+    restrict = set(f.strip() for f in only.split(",") if f.strip()) if only else None
 
-    parent = api("GET", f"/repos/{REPO_OWNER}/{REPO_NAME}/git/ref/heads/main")
-    if not parent:
-        sys.exit("无法获取 main ref")
-    parent_sha = parent["object"]["sha"]
-    print(f"  远端 HEAD: {parent_sha[:8]}")
+    gh_head, gh_tree_sha = get_gh_head()
+    print(f"  GitHub HEAD: {gh_head[:8]}")
+    gh_tree = get_gh_tree(gh_tree_sha)
 
-    commit = api("GET", f"/repos/{REPO_OWNER}/{REPO_NAME}/git/commits/{parent_sha}")
-    base_tree = commit["tree"]["sha"]
+    local = local_file_set()
+    if restrict:
+        local &= restrict
+        # 限制模式下，也允许"限制范围内的删除"被识别
+        gh_paths = set(gh_tree) & restrict
+    else:
+        gh_paths = set(gh_tree)
 
-    items = []
-    for rel in FILES:
-        local = os.path.join(ROOT, rel)
-        if not os.path.isfile(local):
-            print(f"  ⏭ 跳过（本地不存在）{rel}")
+    items = []        # 新增 / 修改
+    deletes = []      # 删除
+    unchanged = 0
+
+    # 遍历本地文件：新增或内容变更
+    for rel in sorted(local):
+        if restrict and rel not in restrict:
             continue
-        with open(local, "r", encoding="utf-8") as fh:
+        local_sha = blob_sha_local(rel)
+        if gh_tree.get(rel) == local_sha:
+            unchanged += 1
+            continue
+        # 内容不同或 GitHub 无此文件 → 上传 blob
+        with open(os.path.join(ROOT, rel), "r", encoding="utf-8") as fh:
             content = fh.read()
         blob = api("POST", f"/repos/{REPO_OWNER}/{REPO_NAME}/git/blobs",
                    {"content": content, "encoding": "utf-8"})
         if not blob:
-            print(f"  ✗ blob 创建失败 {rel}")
+            print(f"  ✗ blob 失败 {rel}")
             continue
         items.append({"path": rel, "mode": "100644", "type": "blob", "sha": blob["sha"]})
-        print(f"  ✓ {rel} → {blob['sha'][:8]}")
+        tag = "新增" if rel not in gh_tree else "修改"
+        print(f"  {tag} {rel} → {blob['sha'][:8]}")
 
-    for rel in DELETE_FILES:
-        items.append({"path": rel, "mode": "100644", "type": "blob", "sha": None})
-        print(f"  − 删除 {rel}")
+    # 遍历 GitHub 树：本地已删 → 从树移除
+    for rel in sorted(gh_paths):
+        if rel not in local:
+            deletes.append(rel)
+            items.append({"path": rel, "mode": "100644", "type": "blob", "sha": None})
+            print(f"  删除 {rel}")
 
+    print(f"  （未变化 {unchanged} 个文件跳过）")
     if not items:
-        sys.exit("没有可推送的文件")
+        print("  ✓ 本地与 GitHub 已一致，无需推送")
+        return
 
     tree = api("POST", f"/repos/{REPO_OWNER}/{REPO_NAME}/git/trees",
-               {"base_tree": base_tree, "tree": items})
+               {"base_tree": gh_tree_sha, "tree": items})
     if not tree:
         sys.exit("tree 创建失败")
     print(f"  ✓ 新 tree: {tree['sha'][:8]}")
 
     new_commit = api("POST", f"/repos/{REPO_OWNER}/{REPO_NAME}/git/commits",
-                     {"message": msg, "tree": tree["sha"], "parents": [parent_sha]})
+                     {"message": msg, "tree": tree["sha"], "parents": [gh_head]})
     if not new_commit:
         sys.exit("commit 创建失败")
 
