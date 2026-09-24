@@ -181,10 +181,16 @@
           </thead>
           <tbody>
             <tr>
-              <td><strong>v4.0</strong></td>
+              <td><strong>v4.0.1</strong></td>
+              <td>2026-09-24</td>
+              <td><code>337e165c</code></td>
+              <td><span class="version-current">当前线上</span></td>
+            </tr>
+            <tr>
+              <td>v4.0</td>
               <td>2026-09-10</td>
               <td><code>7caa3077</code></td>
-              <td><span class="version-current">当前线上</span></td>
+              <td><span class="version-history">历史版本</span></td>
             </tr>
             <tr>
               <td>v3.3</td>
@@ -195,7 +201,22 @@
           </tbody>
         </table>
 
-        <div class="vd-title">v4.0 · 2026-09-10（当前线上）</div>
+        <div class="vd-title">v4.0.1 · 2026-09-24（当前线上）</div>
+        <div class="vd-row"><span class="vd-key">package.json</span><span class="vd-val"><code>version: 4.0.1</code></span></div>
+        <div class="vd-row"><span class="vd-key">EdgeOne 部署</span><span class="vd-val">dachu.me，部署 ID <code>dp2xbjlgftxt</code>，入口 chunk <code>index-DmCpd01h.js</code>（version.json hash <code>DmCpd01h</code>）</span></div>
+        <div class="vd-row"><span class="vd-key">GitHub Commit</span><span class="vd-val"><code>337e165c9c454114e399c724d935af854576a75c</code></span></div>
+        <div class="vd-row"><span class="vd-key">距上一版本</span><span class="vd-val">1 个 commit（v4.0 → v4.0.1）</span></div>
+        <div class="vd-row">
+          <span class="vd-key">主要变更</span>
+          <span class="vd-val">
+            <ol class="vd-list">
+              <li><strong>SignalPage 宏观指标（实时）列表展示优化</strong>：去掉 OMO「建设中」项；日期去掉 <code>00:00:00</code> 后缀；10Y-2Y 利差单位由 <code>pp</code> 改为 <code>%</code>；重写行内对齐样式（指标名左对齐，数值与日期右端垂直堆叠）。</li>
+              <li><strong>推送脚本升级</strong>：从写死 <code>FILES</code> 列表改为自动对账本地工作树 vs GitHub HEAD，每次一键全量同步改动到云端。</li>
+            </ol>
+          </span>
+        </div>
+
+        <div class="vd-title">v4.0 · 2026-09-10（历史）</div>
         <div class="vd-row"><span class="vd-key">package.json</span><span class="vd-val"><code>version: 4.0.0</code>（同步修正长期未维护的占位值 1.0.0）</span></div>
         <div class="vd-row"><span class="vd-key">EdgeOne 部署</span><span class="vd-val">dachu.me 权限墙版，部署 ID <code>dpn7odsislil</code>，全局 CSS <code>index-BaxHFwTw.css</code> 188409B text/css（合并修复生效）</span></div>
         <div class="vd-row"><span class="vd-key">距上一版本</span><span class="vd-val">397 个 commit（v3.3 → v4.0）</span></div>
